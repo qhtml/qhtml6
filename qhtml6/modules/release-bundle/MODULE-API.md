@@ -1,27 +1,28 @@
-# MODULE API
+# MODULE API — release-bundle
 
 ## Purpose
-`release-bundle` produces the distributable browser artifact by combining all module scripts into a single dependency-ordered file.
+Generate the distributable single-file QHTML runtime bundle.
 
-## Boundaries
-- Owns release assembly mechanics only.
-- Does not implement parser/runtime/renderer logic.
-
-## Public Definitions
+## Entrypoint
 - `build-release.sh`
-  - Command script that generates `dist/qhtml.js` from module source files in dependency order.
 
-## Side Effects and External Dependencies
-- Creates/overwrites `dist/qhtml.js` in project root.
-- Requires source module files plus root integration file to exist.
+## Behavior
+- Computes project paths relative to script location.
+- Ensures output directory exists (`dist/`).
+- Validates presence of all required module sources.
+- Concatenates sources in dependency order with `BEGIN/END` markers.
+- Writes output to `dist/qhtml.js`.
 
-## Cross-Module Imports/Exports
-- Reads outputs from:
-  - `modules/qdom-core/src/qdom-core.js`
-  - `modules/qhtml-parser/src/qhtml-parser.js`
-  - `modules/dom-renderer/src/dom-renderer.js`
-  - `modules/qhtml-runtime/src/qhtml-runtime.js`
-  - `src/root-integration.js`
+## Inputs
+- `modules/qdom-core/src/qdom-core.js`
+- `modules/qhtml-parser/src/qhtml-parser.js`
+- `modules/dom-renderer/src/dom-renderer.js`
+- `modules/qhtml-runtime/src/qhtml-runtime.js`
+- `src/root-integration.js`
 
-## Backward Compatibility Notes
-- Initial build format is concatenated IIFE-compatible script.
+## Outputs
+- `dist/qhtml.js`
+
+## Exit behavior
+- Non-zero exit on missing input source.
+- Zero on successful bundle creation.

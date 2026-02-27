@@ -1,54 +1,46 @@
-# MODULE API
+# MODULE API — qhtml-runtime
 
 ## Purpose
-`qhtml-runtime` is the browser integration layer that mounts `<q-html>` content, maintains observed QDom state, and keeps rendered DOM and serialized template data synchronized.
+Runtime mount/update engine for `<q-html>` in browser environments.
 
-## Boundaries
-- Owns DOM scanning/mount lifecycle for `<q-html>` blocks.
-- Owns QDom observation, selective DOM patching, and structural re-render behavior.
-- Owns q-script listener lifecycle for parsed script rules.
-- Does not implement parser grammar or low-level DOM renderer internals.
+## Export surface
+- `globalThis.QHtmlModules.qhtmlRuntime`
+- aliased to `globalThis.QHtml`
 
-## Public Definitions
+## Public APIs
 - `mountQHtmlElement(qHtmlElement, options?)`
-  - Parses or loads QDom for one `<q-html>`, attaches observer, renders DOM, and persists template payload.
-  - Resolves `q-import` chains recursively with `fetch()` before parsing/rendering.
-  - Returns a binding object immediately and exposes `binding.ready` (Promise) for async import completion.
+  - Mount one host.
+  - Returns binding object immediately and exposes `binding.ready` promise for async import completion.
 - `unmountQHtmlElement(qHtmlElement)`
-  - Removes script listeners and disconnects observer binding.
+  - Detach observers/listeners for one host.
 - `getQDomForElement(qHtmlElement)`
-  - Returns observed QDom proxy for direct mutation.
+  - Returns observed QDom proxy.
 - `toQHtmlSource(qHtmlElement, options?)`
-  - Serializes current QDom back to QHTML source.
-- QDom node helper surface (returned by `element.qdom()` / `qhtml.qdom()`)
-  - `children()` returns a `QDomNodeList` for direct children of the current QDom node.
-  - `QDomNodeList.qhtml()` serializes the sibling list to QHTML.
-  - `QDomNodeList.html()` serializes the sibling list to HTML string.
-  - `QDomNodeList.htmldom()` renders the sibling list to a `DocumentFragment`.
+  - Serialize current mounted model to source.
 - `hydrateComponentElement(hostElement)`
-  - Hydrates an existing custom-element host (`<my-component>`) from registered q-component definitions.
+  - Hydrate custom-element/component host from registered definitions.
 - `initAll(root?, options?)`
-  - Mounts all `<q-html>` descendants in scope.
+  - Mount all `<q-html>` descendants.
 - `startAutoMountObserver(root?, options?)`
-  - Starts document/subtree observation and auto-mounts `<q-html>` nodes as soon as they are added.
+  - Observe subtree insertions and mount new `<q-html>` automatically.
 - `stopAutoMountObserver()`
-  - Stops dynamic insertion observation.
+  - Disable auto mount observer.
 
-## Side Effects and External Dependencies
-- Automatically initializes on DOMContentLoaded (or immediately when document is already ready).
-- Uses `new Function(...)` to execute q-script bodies.
-- Uses `new Function(...)` to execute top-level lifecycle hooks (`onReady`/`onLoad`/`onLoaded`) once per mounted `<q-html>` host.
-- Uses `fetch()` for recursive `q-import` source loading prior to parse/render.
-- For non-structural QDom changes (for example attribute/value/text updates), patches affected DOM nodes in place and rewrites the sibling serialized `<template data-qdom="1">` without full host rebuild.
-- For structural QDom changes (for example child/template tree changes), performs a host re-render and rewrites the sibling serialized `<template data-qdom="1">`.
-- Synchronizes form control `input/change` events (`input`, `textarea`, `select`) back into QDom so user edits are preserved in the data model without forcing full host re-render.
-- Uses `MutationObserver` for dynamic `<q-html>` discovery when available; falls back to periodic auto-scan when unavailable.
-- Registers `q-component` definitions as Custom Elements (`customElements.define`) when the name is valid and platform APIs are available.
+## Mount options (not exhaustive)
+- import controls (`importBaseUrl`, `maxImports`, `importCache`)
+- template preference (`preferTemplate`)
+- parser/rewrite/script pass limits
 
-## Cross-Module Imports/Exports
-- Imports `qdom-core`, `qhtml-parser`, and `dom-renderer` from `globalThis.QHtmlModules`.
-- Exports runtime API on both `globalThis.QHtmlModules.qhtmlRuntime` and `globalThis.QHtml`.
+## `.qdom()` and node list helpers
+- `host.qdom()` / `element.qdom()` return facades over source QDom nodes.
+- `children()` returns `QDomNodeList` with:
+  - `qhtml(options?)`
+  - `htmldom(targetDocument?)`
+  - `html(targetDocument?)`
+  - iteration and indexed access helpers
 
-## Backward Compatibility Notes
-- Initial runtime supports one adjacent `<q-script>` companion (next sibling) per `<q-html>` block.
-- Runtime auto-discovers dynamically inserted `<q-html>` nodes via `MutationObserver`.
+## Side effects
+- Executes lifecycle scripts and inline `on<Event>` handler bodies with dynamic `Function` evaluation.
+- Persists updated QDom into mapped sibling template nodes.
+- Emits/consumes DOM events and mutation observers.
+- Adds context helpers on DOM elements (`qhtmlRoot()`, `component`, `slot`, `qdom`).

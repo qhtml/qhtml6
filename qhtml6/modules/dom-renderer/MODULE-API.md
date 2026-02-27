@@ -1,42 +1,35 @@
-# MODULE API
+# MODULE API — dom-renderer
 
 ## Purpose
-`dom-renderer` converts QDom document objects into live browser HTML DOM output.
+Render QDom documents and component definitions into live browser DOM.
 
-## Boundaries
-- Owns DOM construction from QDom nodes.
-- Owns q-component/q-template expansion and slot substitution during render.
-- Owns final DOM sanitation that removes literal `<slot>` tags from rendered output.
-- Executes element lifecycle hooks (`onReady`/`onLoad`/`onLoaded`) after render.
-- Does not parse QHTML source text and does not handle DOM scanning/bootstrap.
+## Export surface
+Exports via `globalThis.QHtmlModules.domRenderer`.
 
-## Public Definitions
+### Primary APIs
 - `collectComponentRegistry(documentNode)`
-  - Returns `Map<componentId, componentNode>` for all component/template definitions in a QDom document.
+  - Returns `Map<componentId, componentDefinitionNode>`.
 - `renderDocumentToFragment(documentNode, targetDocument?)`
-  - Renders non-component top-level nodes into a `DocumentFragment`.
-  - Understands explicit QDom invocation nodes:
-    - `component-instance` renders as host custom element with projected slot content.
-    - `template-instance` expands to pure HTML (no host wrapper).
-    - `text` nodes render as DOM text nodes.
-  - Supports slot forwarding across nested template/component chains before final DOM output.
+  - Renders top-level runtime nodes into a `DocumentFragment`.
 - `renderIntoElement(documentNode, hostElement, targetDocument?)`
-  - Replaces host contents and appends rendered fragment.
+  - Replaces host content with rendered fragment.
 - `renderComponentElement(componentNode, hostElement, targetDocument?, options?)`
-  - Hydrates an existing host element instance for a registered q-component definition.
-  - Used by runtime for `<my-component></my-component>` elements outside `<q-html>`.
+  - Hydrates a concrete DOM host from a component definition.
 
-## Side Effects and External Dependencies
-- Requires DOM APIs (`document`, `createElement`, `createDocumentFragment`).
-- Executes lifecycle hook bodies with `new Function(...)` and `this` bound to rendered element.
-- Throws on recursive self-referential component expansion to avoid infinite render loops.
+## Supported node kinds
+- `element`, `text`, `raw-html`
+- `component-instance`, `template-instance`
+- `slot` projection containers
 
-## Cross-Module Imports/Exports
-- Imports `qdom-core` through `globalThis.QHtmlModules.qdomCore`.
-- Exports API on `globalThis.QHtmlModules.domRenderer`.
-- Consumed by `qhtml-runtime`.
+## Lifecycle and side effects
+- Executes hook/method bodies with `new Function(...)` bound to host element context.
+- Dispatches `QHTMLContentLoaded` custom events on document/global with sequence metadata.
+- Tracks ownership for slot routing and dynamic lookup in runtime.
 
-## Backward Compatibility Notes
-- Supports both slot-fill forms:
-  - Explicit `slot: "name"` attributes
-  - Legacy shorthand invocation by child tag-name (`header { ... }` fills `slot { header }`).
+## Failure behavior
+- Throws when required dependency (`qdom-core`) is missing.
+- Throws on recursive definition expansion cycles.
+
+## Cross-module usage
+- Depends on `qdom-core`.
+- Called by `qhtml-runtime` for initial mount and structural re-renders.

@@ -482,8 +482,8 @@ q-component demo-showcase {
           "    onclick {%",
           "      alert(this.tagName);",
           "      alert(this.component && this.component.tagName);",
-          "      alert(this.qhtml);",
-          "      alert(this.qhtml && this.qhtml.qdom ? this.qhtml.qdom() : \"none\");",
+          "      alert(this.qhtmlRoot && this.qhtmlRoot());",
+          "      alert(this.qhtmlRoot && this.qhtmlRoot().qdom ? this.qhtmlRoot().qdom() : \"none\");",
           "      alert(this.component && this.component.qdom ? this.component.qdom() : \"none\");",
           "      alert(this.slot && this.slot.qdom ? this.slot.qdom() : \"none\");",
           "    %}",
@@ -707,7 +707,7 @@ q-component demo-showcase {
       demo-example { id: "example-12" title: "Tiny Tabs" summary: "Implement simple tab switching behavior from scratch." }
       demo-example { id: "example-13" title: "Form Component" summary: "Handle form state and output with plain q-html methods." }
       demo-example { id: "example-14" title: "Nested Slot Forwarding" summary: "Forward outer slots through inner component layers." }
-      demo-example { id: "example-15" title: "this.component / this.qhtml / this.slot" summary: "Context pointers inside inline handlers." }
+      demo-example { id: "example-15" title: "this.component / this.qhtmlRoot() / this.slot" summary: "Context pointers inside inline handlers." }
       demo-example { id: "example-16" title: "QDom appendNode()" summary: "Programmatically append new nodes from QHTML strings." }
       demo-example { id: "example-17" title: "QDom children()" summary: "Collect child nodes and emit QHTML/HTML snapshots." }
       demo-example { id: "example-18" title: "QDom serialize()" summary: "Capture compressed source-of-truth payload for storage." }

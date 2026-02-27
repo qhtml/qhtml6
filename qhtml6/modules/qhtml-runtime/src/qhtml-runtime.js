@@ -2459,7 +2459,9 @@
     host.qdom = function hostQdomAccessor() {
       return installQDomFactories(binding.qdom);
     };
-    host.qhtml = host;
+    host.qhtmlRoot = function hostQhtmlRootAccessor() {
+      return host;
+    };
     host.component = null;
 
     function setSlotContextAccessor(element, slotNode, dynamicResolver) {
@@ -2693,7 +2695,9 @@
           return installQDomFactories(sourceNode);
         };
       }
-      element.qhtml = host;
+      element.qhtmlRoot = function elementQhtmlRootAccessor() {
+        return host;
+      };
 
       const componentHost = binding.componentMap && binding.componentMap.get(element);
       setComponentContextAccessor(element, componentHost || resolveNearestComponentHost(element) || null);
