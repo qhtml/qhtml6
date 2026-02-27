@@ -1,0 +1,265 @@
+q-template q-tabs-shell {
+  div.w3-card.w3-theme-l1.w3-border.w3-round-large.q-tabs-shell.slot { shell-classes } {
+    slot { content }
+  }
+}
+
+q-template q-tabs-nav {
+  div.w3-bar.w3-border-bottom.w3-round.q-tabs-nav.slot { nav-classes } {
+    style {
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    slot { content }
+  }
+}
+
+q-template q-tabs-panels {
+  div.w3-container.q-tabs-panels.slot { panel-classes } {
+    slot { content }
+  }
+}
+
+q-template q-tabs-section {
+  div.q-tabs-section-source {
+    q-tabs-section-source: "1";
+
+    div.q-tabs-section-body.slot { section-classes } {
+      slot { content }
+    }
+  }
+}
+
+q-component q-tabs {
+  function parseClassTokens(raw) {
+    const text = String(raw || "");
+    const tokens = [];
+    const seen = {};
+    const dotted = text.match(/\.[A-Za-z_][A-Za-z0-9_-]*/g) || [];
+    if (dotted.length) {
+      dotted.forEach((entry) => {
+        const className = String(entry || "").slice(1).trim();
+        if (!className || seen[className]) {
+          return;
+        }
+        seen[className] = true;
+        tokens.push(className);
+      });
+      return tokens;
+    }
+    text.split(/[\s,]+/).forEach((entry) => {
+      const className = String(entry || "").trim();
+      if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(className) || seen[className]) {
+        return;
+      }
+      seen[className] = true;
+      tokens.push(className);
+    });
+    return tokens;
+  }
+
+  function getSourceContainer() {
+    const source = this.querySelector(".q-tabs-source");
+    if (!source) {
+      return null;
+    }
+    return source.querySelector("q-into[q-slot-anchor='1'][slot='content']") || source;
+  }
+
+  function getSlotClassTokens(slotName) {
+    const normalized = String(slotName || "").trim().toLowerCase();
+    if (!normalized) {
+      return [];
+    }
+    const sourceContainer = this.getSourceContainer();
+    if (!sourceContainer) {
+      return [];
+    }
+    const marker = Array.from(sourceContainer.children || []).find((node) => {
+      return node && node.tagName && String(node.tagName).toLowerCase() === normalized;
+    });
+    if (!marker) {
+      return [];
+    }
+    return this.parseClassTokens(marker.textContent || "");
+  }
+
+  function applyForwardClasses(target, slotName) {
+    if (!target || !target.classList) {
+      return;
+    }
+    const key = String(slotName || "").trim().toLowerCase();
+    if (!key) {
+      return;
+    }
+    if (!target.__qTabsForwardClasses || typeof target.__qTabsForwardClasses !== "object") {
+      target.__qTabsForwardClasses = {};
+    }
+    const prev = Array.isArray(target.__qTabsForwardClasses[key]) ? target.__qTabsForwardClasses[key] : [];
+    prev.forEach((className) => {
+      if (className) {
+        target.classList.remove(className);
+      }
+    });
+    const next = this.getSlotClassTokens(key);
+    next.forEach((className) => {
+      if (className) {
+        target.classList.add(className);
+      }
+    });
+    target.__qTabsForwardClasses[key] = next;
+  }
+
+  function collectSections() {
+    const sourceContainer = this.getSourceContainer();
+    if (!sourceContainer) {
+      return [];
+    }
+    return Array.from(sourceContainer.children || []).map((node) => {
+      if (!node || !node.tagName) {
+        return null;
+      }
+      const nodeAttr = typeof node.getAttribute === "function"
+        ? String(node.getAttribute("q-tabs-section-source") || "")
+        : "";
+      if ((node.classList && node.classList.contains("q-tabs-section-source")) || nodeAttr === "1") {
+        return { section: node, labelNode: node };
+      }
+      const tag = String(node.tagName || "").toLowerCase();
+      if (tag !== "q-tabs-section") {
+        return null;
+      }
+      const wrapped = Array.from(node.children || []).find((child) => {
+        if (!child || !child.tagName) {
+          return false;
+        }
+        const childAttr = typeof child.getAttribute === "function"
+          ? String(child.getAttribute("q-tabs-section-source") || "")
+          : "";
+        return (child.classList && child.classList.contains("q-tabs-section-source")) || childAttr === "1";
+      });
+      return { section: wrapped || node, labelNode: node };
+    }).filter(Boolean);
+  }
+
+  function show(tabIndex) {
+    const links = Array.from(this.querySelectorAll(".q-tabs-link"));
+    const panels = Array.from(this.querySelectorAll(".q-tabs-panel"));
+    if (!panels.length) {
+      return;
+    }
+    let idx = Number(tabIndex);
+    if (!Number.isFinite(idx)) {
+      idx = 0;
+    }
+    idx = Math.max(0, Math.min(panels.length - 1, Math.floor(idx)));
+    panels.forEach((panel, i) => {
+      panel.style.display = i === idx ? "block" : "none";
+    });
+    links.forEach((link, i) => {
+      if (i === idx) {
+        link.classList.add("w3-grey");
+        link.classList.remove("w3-light-grey");
+      } else {
+        link.classList.add("w3-light-grey");
+        link.classList.remove("w3-grey");
+      }
+    });
+    this.setAttribute("q-tabs-active", String(idx));
+  }
+
+  function rebuild() {
+    const shell = this.querySelector(".q-tabs-shell");
+    const nav = this.querySelector(".q-tabs-nav");
+    const panels = this.querySelector(".q-tabs-panels");
+    
+    if (!shell || !nav || !panels) {
+      return;
+    }
+    this.applyForwardClasses(shell, "shell-classes");
+    this.applyForwardClasses(nav, "nav-classes");
+    this.applyForwardClasses(panels, "panel-classes");
+    
+    const forwardedSectionClasses = this.getSlotClassTokens("section-classes");
+    const sections = this.collectSections();
+    
+    nav.innerHTML = "";
+    panels.innerHTML = "";
+    if (!sections.length) {
+      return;
+    }
+
+    sections.forEach((entry, i) => {
+      const section = entry.section;
+      const labelNode = entry.labelNode || section;
+      const labelRaw = section.getAttribute("name") || labelNode.getAttribute("name");
+      const label = (labelRaw && String(labelRaw).trim()) ? String(labelRaw).trim() : `Tab ${i + 1}`;
+
+      const link = document.createElement("button");
+      link.type = "button";
+      link.className = "w3-bar-item w3-button q-tabs-link w3-round w3-border-top w3-border-black w3-border-right";
+      link.textContent = label;
+      link.onclick = () => this.show(i);
+      nav.appendChild(link);
+
+      const panel = document.createElement("div");
+      panel.className = "w3-container w3-padding q-tabs-panel";
+      panel.style.display = "none";
+      const sectionClasses = [];
+      const sectionClassSeen = {};
+      if (section.classList && section.classList.length) {
+        Array.from(section.classList).forEach((className) => {
+          if (!className || className === "q-tabs-section-source" || sectionClassSeen[className]) {
+            return;
+          }
+          sectionClassSeen[className] = true;
+          sectionClasses.push(className);
+        });
+      }
+      forwardedSectionClasses.forEach((className) => {
+        if (!className || sectionClassSeen[className]) {
+          return;
+        }
+        sectionClassSeen[className] = true;
+        sectionClasses.push(className);
+      });
+      sectionClasses.forEach((className) => panel.classList.add(className));
+      const bodyNode = Array.from(section.children || []).find((child) => child.classList && child.classList.contains("q-tabs-section-body"));
+      panel.innerHTML = bodyNode ? bodyNode.innerHTML : section.innerHTML;
+      panels.appendChild(panel);
+    });
+
+    const activeRaw = parseInt(this.getAttribute("q-tabs-active") || "0", 10);
+    const active = Number.isFinite(activeRaw) ? activeRaw : 0;
+    this.show(active);
+  }
+
+  onReady {
+    const self = this;
+    setTimeout(function() {
+      try {
+        self.rebuild();
+      } catch (err) {
+        console.error("q-tabs rebuild failed", err);
+      }
+    }, 0);
+  }
+
+  div.w3-card.w3-border.w3-round-large.q-tabs-shell {
+    div.w3-bar.w3-border-bottom.w3-theme-l1.q-tabs-nav {
+      style {
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+    }
+
+    div.w3-container.q-tabs-panels { }
+
+    div.q-tabs-source {
+      style {
+        display: none;
+      }
+      slot { content }
+    }
+  }
+}

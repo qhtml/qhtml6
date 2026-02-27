@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+
+<head></head><body>
+<link rel="stylesheet" href="w3.css">
+<link rel="stylesheet" href="bs.css">
+<script src="bs.js"></script>
+<script src="qhtml.js"></script>
+<script src="w3-tags.js"></script>
+<script src="bs-tags.js"></script>
+
+<script src="q-editor.js"></script>
+
+<q-html>
+q-import { q-components.qhtml }
+
+onReady {
+  var host = this;
+  if (!host || host.__qbuilderPageEditWired) { return; }
+  host.__qbuilderPageEditWired = true;
+  host.setAttribute("data-page-edit-mode", "0");
+  if (typeof host.qdom === "function") {
+    var qdomHost = host.qdom();
+    if (qdomHost && typeof qdomHost.find === "function" && !qdomHost.find("q-builder[q-builder-runtime='1']")) {
+      qdomHost.appendNode(qdomHost.createQComponentInstance("q-builder", { "q-builder-runtime": "1" }));
+    }
+  }
+}
+
+q-component nav-bar {
+  w3-black,w3-center {
+    w3-bar-item,w3-btn,w3-hover-grey {
+      slot { nav-items }
+    }
+  }
+}
+
+q-template q-input-with-label {
+  div {
+    span.w3-label { slot { label } }
+    slot { input-element }
+  }
+}
+
+div.w3-black.w3-text-white.w3-bar, nav-bar {
+  li { html { top-item 1 } }
+  li { html { top-item 2 } }
+  li { html { top-item 3 } }
+}
+
+div.w3-container.w3-title.w3-header.w3-xlarge.w3-green {
+  html { Hello world }
+}
+
+div.w3-threequarter.w3-light-grey,q-tabs {
+  id: "demo-tabs"
+  q-tab.w3-light-grey {
+    name { text { Sign-in } }
+    content { div.w3-light-grey {
+      h3 { text { Sign-in } }
+      q-form {
+        q-input-with-label {
+          label { text { username } }
+          input-element { q-input { name: "username" } }
+        }
+        q-input-with-label {
+          label { text { password } }
+          input-element { q-input { type: "password"; name: "password"; } }
+        }
+        q-input-with-label {
+          label { text { sign-in } }
+          input-element { button { text { Submit } } }
+        }
+      }
+    } }
+  }
+  q-tab {
+    name { text { Details } }
+    content { div.w3-light-grey {
+      h3 { text { Details } }
+      p { text { This is the second tab. } }
+    } }
+  }
+  q-tab {
+    name { text { Contact } }
+    content { div {
+      h3 { text { Contact } }
+      p { text { This is the third tab. } }
+    } }
+  }
+}
+
+div.w3-quarter.w3-nav.w3-col.w3-right.w3-padding {
+  ul.w3-list.w3-block {
+    li.w3-bar.w3-green.w3-bar-item {
+      html { navigation }
+    }
+    nav-bar {
+      w3-bar {
+        li { html { right-item 1 } }
+        li { html { right-item 2 } }
+        li { html { right-item 3 } }
+        li.w3-button.w3-blue {
+          text { Show Tab 2 }
+          onclick {
+            document.querySelector("#demo-tabs").show(1);
+          }
+        }
+        li.w3-button.w3-orange {
+          data-page-edit-toggle: "1"
+          text { Edit Mode: OFF }
+          onclick {
+            var host = this.closest("q-html");
+            if (!host) { return; }
+            var active = host.getAttribute("data-page-edit-mode") === "1";
+            var next = active ? "0" : "1";
+            host.setAttribute("data-page-edit-mode", next);
+            this.textContent = next === "1" ? "Edit Mode: ON" : "Edit Mode: OFF";
+            if (typeof qbuilder !== "undefined" && qbuilder && typeof qbuilder.inspect === "function") {
+              qbuilder.inspect(host, next === "1");
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+</q-html>
+
+</body>
+</html>

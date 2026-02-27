@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+
+<head></head><body>
+<link rel="stylesheet" href="w3.css">
+<link rel="stylesheet" href="bs.css">
+<script src="bs.js"></script>
+<script src="qhtml.js"></script>
+<script src="w3-tags.js"></script>
+<script src="bs-tags.js"></script>
+<script src="tools/qhtml-tools.js"></script>
+<script src="q-editor.js"></script>
+
+<q-html>
+
+q-component nav-bar {
+  w3-black,w3-center {       
+    w3-bar-item,w3-btn,w3-hover-grey {  
+      slot { nav-items }
+    }                   
+  }
+}
+q-template q-input-with-label {
+  div {
+    span.w3-label { slot { label } }
+    slot { input-element }
+  } 
+} 
+div.w3-black.w3-text-white.w3-bar, nav-bar {
+  li { html { top-item 1 } }   
+  li { html { top-item 2 } }    
+  li { html { top-item 3 } }    
+}
+
+div.w3-container.w3-title.w3-header.w3-xlarge.w3-green {
+  html { Hello world }
+}
+
+
+
+div.w3-threequarter.w3-light-grey,q-tabs {
+  id: "demo-tabs"
+  q-tab.w3-light-grey {
+    name { Sign-in }
+    content { div.w3-light-grey {
+      h3 { text { Sign-in } }
+      q-form {
+        q-input-with-label {
+          label { text { username } }
+          input-element { q-input { name: "username" }  }
+        }
+        q-input-with-label {
+          label { text { password } }
+          input-element { q-input {  type: "password";  name: "password"; } }
+        }
+        q-input-with-label {
+          label { text { sign-in } }
+          input-element { button { text { Submit } } }
+        }
+      }
+    }
+    }
+  }
+  q-tab {
+    name { Details }
+    content {
+    div.w3-light-grey {
+      h3 { text { Details } }
+      p { text { This is the second tab. } }
+    }
+  }
+}
+
+  q-tab {
+    name{ "Contact" }
+    content {
+    div {
+      h3 { text { Contact } }
+      p { text { This is the third tab. } }
+    }
+  }
+}
+}
+
+
+
+
+div.w3-quarter.w3-nav.w3-col.w3-right.w3-padding {
+  ul.w3-list.w3-block {
+    li.w3-bar.w3-green.w3-bar-item {
+      html { navigation } 
+    }
+    nav-bar { 
+      w3-bar {
+        li { html { right-item 1 } }   
+        li { html { right-item 2 } }    
+        li { html { right-item 3 } }    
+        li.w3-button.w3-blue{
+          text { Show Tab 2 }
+          onclick {
+            document.querySelector("#demo-tabs").show(1);
+          }
+        }
+        li.w3-button.w3-blue{
+          text { Show Tab 1 }
+          onclick {
+            qbuilder.show(document.querySelector("q-html"))
+          }
+        }
+
+      }
+    }
+  }
+}
+</q-html>
+
+</body>
+</html>

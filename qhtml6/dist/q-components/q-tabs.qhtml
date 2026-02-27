@@ -1,0 +1,311 @@
+q-rewrite q-tab-panel-rewriter {
+  slot { main }
+  return {
+    q-script {
+      var body = String(this.qdom().slot("main") || "").trim();
+      if (!body) {
+        body = "html { &nbsp; }";
+      }
+      return "div.w3-container.w3-border.q-tab-panel { q-tab-panel: \"1\" " + body + " }";
+    }
+  }
+}
+
+q-component q-tab {
+  function getTabsContainer() {
+    let current = this.parentElement;
+    while (current) {
+      if (current.tagName && String(current.tagName).toLowerCase() === "q-tabs") {
+        return current;
+      }
+      current = current.parentElement;
+    }
+    return null;
+  }
+
+  function getLabel() {
+    const attrLabel = String(this.getAttribute("name") || this.getAttribute("label") || "").trim();
+    if (attrLabel) {
+      return attrLabel;
+    }
+    const labelNode = this.querySelector("[q-tab-name='1']");
+    const text = labelNode ? String(labelNode.textContent || "").trim() : "";
+    return text || "Tab";
+  }
+
+  function show() {
+    const tabsHost = this.getTabsContainer();
+    if (tabsHost && typeof tabsHost.showTab === "function") {
+      tabsHost.showTab(this);
+      return this;
+    }
+    this.style.display = "block";
+    this.setAttribute("q-tab-active", "1");
+    return this;
+  }
+
+  function hide() {
+    this.style.display = "none";
+    this.setAttribute("q-tab-active", "0");
+    return this;
+  }
+
+  onReady {
+    if (this.getTabsContainer()) {
+      this.hide();
+    }
+  }
+
+  div {
+    q-tab-name: "1"
+    style { display: none; }
+    slot { name }
+  }
+
+  q-tab-panel-rewriter {
+    main { slot { content } }
+  }
+}
+
+q-component q-tabs {
+  function createSignalEvent(payload) {
+    if (typeof CustomEvent === "function") {
+      return new CustomEvent("q-signal", {
+        detail: payload,
+        bubbles: true,
+      });
+    }
+    return null;
+  }
+
+  function emitSignal(signalName, detail) {
+    const payload = {
+      component: "q-tabs",
+      signal: String(signalName || "").trim(),
+      detail: detail || {},
+    };
+
+    const signalEvent = this.createSignalEvent(payload);
+    if (signalEvent) {
+      this.dispatchEvent(signalEvent);
+    }
+
+    if (typeof CustomEvent === "function" && payload.signal) {
+      this.dispatchEvent(new CustomEvent("q-tabs:" + payload.signal, {
+        detail: payload,
+        bubbles: true,
+      }));
+    }
+  }
+
+  function getNavBar() {
+    return this.querySelector("[q-tabs-nav='1']");
+  }
+
+  function getContentRoot() {
+    return this.querySelector("[q-tabs-content='1']") || this;
+  }
+
+  function isOwnedByThisTabs(tabNode) {
+    if (!tabNode || typeof tabNode !== "object") {
+      return false;
+    }
+
+    let current = tabNode.parentElement;
+    while (current) {
+      if (current === this) {
+        return true;
+      }
+      if (current.tagName && String(current.tagName).toLowerCase() === "q-tabs") {
+        return false;
+      }
+      current = current.parentElement;
+    }
+
+    return false;
+  }
+
+  function collectTabs() {
+    const root = this.getContentRoot();
+    const all = Array.from(root.querySelectorAll("q-tab"));
+    const tabs = all.filter((node) => this.isOwnedByThisTabs(node));
+    this.tabs = tabs;
+    for (let i = 0; i < tabs.length; i += 1) {
+      tabs[i].setAttribute("q-tab-index", String(i));
+    }
+    return tabs;
+  }
+
+  function getTabLabel(tabNode, index) {
+    if (tabNode && typeof tabNode.getLabel === "function") {
+      const text = String(tabNode.getLabel() || "").trim();
+      if (text) {
+        return text;
+      }
+    }
+    return "Tab " + (index + 1);
+  }
+
+  function normalizeTabSelection(tabOrIndex, tabs) {
+    const list = Array.isArray(tabs) ? tabs : [];
+    if (!list.length) {
+      return null;
+    }
+
+    if (typeof tabOrIndex === "number" && Number.isFinite(tabOrIndex)) {
+      const idx = Math.max(0, Math.min(list.length - 1, Math.floor(tabOrIndex)));
+      return list[idx];
+    }
+
+    if (typeof tabOrIndex === "string") {
+      const raw = String(tabOrIndex).trim();
+      if (!raw) {
+        return null;
+      }
+      const asNumber = Number(raw);
+      if (Number.isFinite(asNumber)) {
+        return this.normalizeTabSelection(asNumber, list);
+      }
+      for (let i = 0; i < list.length; i += 1) {
+        const label = this.getTabLabel(list[i], i);
+        if (label === raw) {
+          return list[i];
+        }
+      }
+      const byId = this.querySelector("#" + raw);
+      if (byId && list.indexOf(byId) !== -1) {
+        return byId;
+      }
+      return null;
+    }
+
+    if (tabOrIndex && typeof tabOrIndex === "object" && list.indexOf(tabOrIndex) !== -1) {
+      return tabOrIndex;
+    }
+
+    return null;
+  }
+
+  function buildNav(tabs) {
+    const nav = this.getNavBar();
+    if (!nav) {
+      return;
+    }
+
+    nav.innerHTML = "";
+    const list = Array.isArray(tabs) ? tabs : [];
+
+    for (let i = 0; i < list.length; i += 1) {
+      const tab = list[i];
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "w3-bar-item w3-btn q-tab-link";
+      button.setAttribute("q-tab-link-index", String(i));
+      button.textContent = this.getTabLabel(tab, i);
+      button.onclick = () => this.showTab(tab);
+      nav.appendChild(button);
+      tab.__qTabsButton = button;
+    }
+  }
+
+  function applyActiveState(tabs, activeIndex) {
+    const list = Array.isArray(tabs) ? tabs : [];
+    for (let i = 0; i < list.length; i += 1) {
+      const tab = list[i];
+      const isActive = i === activeIndex;
+      tab.style.display = isActive ? "block" : "none";
+      tab.setAttribute("q-tab-active", isActive ? "1" : "0");
+
+      const button = tab.__qTabsButton;
+      if (button && button.classList) {
+        if (isActive) {
+        button.classList.remove("w3-theme-l4");
+          button.classList.add("w3-theme-l5");
+          button.classList.add("w3-border-top");
+          button.classList.add("w3-border-left");
+          button.classList.add("w3-border-right");
+          button.classList.add("w3-theme-hover-l2");
+          button.classList.add("w3-round");
+          button.classList.remove("w3-border-bottom");
+        } else {
+          button.classList.remove("w3-theme-l5");
+          button.classList.add("w3-theme-l4");
+          button.classList.add("w3-border-bottom");
+          button.classList.remove("w3-border-top");
+          button.classList.remove("w3-border-left");
+          button.classList.remove("w3-border-right");
+        }
+      }
+    }
+  }
+
+  function showTab(tabOrIndex) {
+    const tabs = this.collectTabs();
+    if (!tabs.length) {
+      this.activeTab = null;
+      return null;
+    }
+
+    const target = this.normalizeTabSelection(tabOrIndex, tabs) || tabs[0];
+    const activeIndex = tabs.indexOf(target);
+
+    this.applyActiveState(tabs, activeIndex);
+    this.activeTab = target;
+    this.setAttribute("q-tabs-active-index", String(activeIndex));
+
+    this.emitSignal("tab-shown", {
+      index: activeIndex,
+      tabName: this.getTabLabel(target, activeIndex),
+    });
+
+    return target;
+  }
+
+  function hideAllTabs() {
+    const tabs = this.collectTabs();
+    this.applyActiveState(tabs, -1);
+    this.activeTab = null;
+    this.setAttribute("q-tabs-active-index", "-1");
+    this.emitSignal("tabs-hidden", {
+      count: tabs.length,
+    });
+    return tabs;
+  }
+
+  function refreshTabs() {
+    const tabs = this.collectTabs();
+    this.buildNav(tabs);
+    if (!tabs.length) {
+      this.activeTab = null;
+      this.setAttribute("q-tabs-active-index", "-1");
+      return [];
+    }
+
+    const preferred = this.getAttribute("q-tabs-active-index");
+    const initial = this.normalizeTabSelection(preferred, tabs) || this.activeTab || tabs[0];
+    this.showTab(initial);
+    return tabs;
+  }
+
+  onReady {
+    const self = this;
+    setTimeout(function() {
+      try {
+        self.refreshTabs();
+      } catch (err) {
+        console.error("q-tabs refresh failed", err);
+      }
+    }, 0);
+  }
+
+  div.w3-container.q-tabs-container {
+    div.w3-bar{
+      q-tabs-nav: "1"
+    }
+
+    div.q-tabs-content.w3-theme-l5.w3-animate-opacity {
+      q-tabs-content: "1"
+      slot { content }
+    }
+  }
+}

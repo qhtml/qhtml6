@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML Examples</title>
+  <link rel="stylesheet" href="w3.css">
+<!--  <link rel="stylesheet" href="bs.css"> -->
+  <script src="qhtml.js"></script>
+  <script src="w3-tags.js"></script>
+  <!-- <script src="bs-tags.js"></script> -->
+  <script src="q-editor.js"></script>
+  <style>
+    :root {
+      --bg: #eef3fb;
+      --paper: #ffffff;
+      --ink: #0f172a;
+      --muted: #51617d;
+      --line: #d7dfeb;
+      --brand: #0b6efd;
+      --brand-soft: #dbeafe;
+      --shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 6% -4%, #dbeafe 0, #dbeafe 17%, transparent 42%),
+        radial-gradient(circle at 94% 0%, #ccfbf1 0, #ccfbf1 18%, transparent 45%),
+        var(--bg);
+      font-family: "Avenir Next", "Segoe UI", "Trebuchet MS", sans-serif;
+      scroll-behavior: smooth;
+    }
+
+    .demo-wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0.9rem;
+      display: grid;
+      grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+      gap: 1rem;
+    }
+
+    .demo-side {
+      position: sticky;
+      top: 0.9rem;
+      max-height: calc(100vh - 1.8rem);
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      background: var(--paper);
+      padding: 0.85rem;
+    }
+
+    .demo-side h2 {
+      margin: 0;
+      font-size: 0.95rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #334155;
+    }
+
+    .demo-nav {
+      margin-top: 0.7rem;
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .demo-nav-link {
+      display: block;
+      text-decoration: none;
+      border: 1px solid #d4deea;
+      border-radius: 10px;
+      padding: 0.45rem 0.55rem;
+      font-size: 0.78rem;
+      line-height: 1.25;
+      color: #10233d;
+      background: #f8fafc;
+      transition: background .16s ease, border-color .16s ease, transform .16s ease;
+    }
+
+    .demo-nav-link:hover {
+      border-color: #93c5fd;
+      background: #eff6ff;
+      transform: translateX(2px);
+    }
+
+    .demo-nav-link[data-active="1"] {
+      border-color: #60a5fa;
+      background: #dbeafe;
+      color: #1e3a8a;
+      font-weight: 700;
+    }
+
+    .demo-main {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    .demo-hero {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      background: var(--paper);
+      padding: 1rem 1.05rem;
+      display: grid;
+      gap: 0.6rem;
+    }
+
+    .demo-hero h1 {
+      margin: 0;
+      font-size: 1.75rem;
+      letter-spacing: 0.01em;
+    }
+
+    .demo-hero p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 92ch;
+    }
+
+    .demo-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .demo-chip {
+      border: 1px solid #bfdbfe;
+      background: var(--brand-soft);
+      color: #1d4ed8;
+      border-radius: 999px;
+      padding: 0.33rem 0.58rem;
+      font-size: 0.74rem;
+      font-weight: 700;
+    }
+
+    .example-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      background: var(--paper);
+      overflow: hidden;
+    }
+
+    .example-head {
+      padding: 0.8rem 0.9rem;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(100deg, #f8fbff, #f3f8ff);
+      display: grid;
+      gap: 0.28rem;
+    }
+
+    .example-head h3 {
+      margin: 0;
+      font-size: 1.02rem;
+      letter-spacing: 0.01em;
+    }
+
+    .example-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .example-body {
+      padding: 0.75rem;
+    }
+
+    q-editor {
+      display: block;
+      width: 100%;
+    }
+
+    @media (max-width: 1080px) {
+      .demo-wrap {
+        grid-template-columns: 1fr;
+      }
+      .demo-side {
+        position: static;
+        max-height: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <q-html>
+q-component demo-example {
+  function setHeaderContent() {
+    const titleNode = this.querySelector("[demo-title='1']");
+    const summaryNode = this.querySelector("[demo-summary='1']");
+    if (titleNode) {
+      titleNode.textContent = this.getAttribute("title") || "Example";
+    }
+    if (summaryNode) {
+      summaryNode.textContent = this.getAttribute("summary") || "";
+    }
+  }
+
+  function setSnippet(source) {
+    const editor = this.querySelector("[demo-editor='1']");
+    const text = String(source || "");
+    this.__snippet = text;
+    if (!editor) {
+      return;
+    }
+    if (typeof editor.setQhtmlSource === "function") {
+      editor.setQhtmlSource(text);
+      return;
+    }
+    editor.setAttribute("initial-qhtml", text);
+  }
+
+  onReady {
+    this.setHeaderContent();
+    if (this.getAttribute("snippet")) {
+      this.setSnippet(this.getAttribute("snippet"));
+    }
+  }
+
+  article.example-card {
+    div.example-head {
+      h3 {
+        demo-title: "1"
+      }
+      p {
+        demo-summary: "1"
+      }
+    }
+    div.example-body {
+      q-editor {
+        demo-editor: "1"
+      }
+    }
+  }
+}
+
+q-component demo-showcase {
+  function escapeQHtmlText(value) {
+    
+    return value;
+  }
+
+  function quoteAttribute(value) {
+    return JSON.stringify(String(value == null ? "" : value));
+  }
+
+  function clearNodeChildren(node) {
+    if (!node || typeof node !== "object") {
+      return;
+    }
+    const childrenValue = node.children;
+    if (typeof childrenValue === "function" && typeof childrenValue.splice === "function") {
+      childrenValue.splice(0, Number(childrenValue.length || 0));
+      return;
+    }
+    if (Array.isArray(childrenValue)) {
+      childrenValue.length = 0;
+      return;
+    }
+    node.children = [];
+  }
+
+  function getSidebarNode() {
+    const root = typeof this.qdom === "function" ? this.qdom() : null;
+    if (!root || typeof root.find !== "function") {
+      return null;
+    }
+    return root.find("[demo-nav='1']");
+  }
+
+  function decodeSnippet(text) {
+    const left = String.fromCharCode(123);
+    const right = String.fromCharCode(125);
+    let out = String(text || "");
+    out = out.split("{%").join(left);
+    out = out.split("%}").join(right);
+    out = out.split("qSCRIPT").join("q-script");
+    return out;
+  }
+
+  function snippetForId(id) {
+    switch (String(id || "")) {
+      case "example-01":
+        return this.decodeSnippet([
+          "q-template headline-block {%",
+          "  article.w3-card.w3-round-large.w3-padding.w3-margin-bottom {%",
+          "    h3.w3-border-bottom {% slot {% title %} %}",
+          "    div {% slot {% body %} %}",
+          "    div.w3-small.w3-text-grey {% slot {% meta %} %}",
+          "  %}",
+          "%}",
+          "headline-block {%",
+          "  title {% text {% hello qhtml %} %}",
+          "  body {% p {% text {% compact syntax with reusable templates %} %} %}",
+          "  meta {% text {% rendered from named slots %} %}",
+          "%}"
+        ].join("\n"));
+      case "example-02":
+        return this.decodeSnippet([
+          "q-component selector-mixer {%",
+          "  function addRow(label) {%",
+          "    const root = this.component.qdom();",
+          "    root.slot(\"rows\").appendNode(root.createInstanceFromQHTML(\"li.w3-bar.w3-border-bottom { text { \" + label + \" } }\"));",
+          "  %}",
+          "  div.w3-row,section.w3-container {%",
+          "    ul.w3-ul {% slot {% rows %} %}",
+          "    button.w3-button.w3-blue.w3-small {% text {% Add row %} onclick {% this.component.addRow(\"row \" + (Math.random() * 100).toFixed(0)); %} %}",
+          "  %}",
+          "%}",
+          "selector-mixer {% rows {% li.w3-bar {% text {% grouped selectors + qdom append %} %} %} %}"
+        ].join("\n"));
+      case "example-03":
+        return this.decodeSnippet([
+          "div.qSCRIPT {% return \".w3-card.w3-border.w3-padding.w3-margin-bottom\" %} {%",
+          "  id: qSCRIPT {% return \"card-\" + Math.floor(Math.random() * 1000) %}",
+          "  data-action: \"save\"",
+          "  data-owner: qSCRIPT {% return \"owner-\" + new Date().getSeconds() %}",
+          "  style {% letter-spacing: .04em; %}",
+          "  p {% text {% Attribute-heavy block with computed id/data values. %} %}",
+          "  button.w3-button.w3-green {% text {% Save %} onclick {% this.closest(\"div\").setAttribute(\"data-saved\", \"1\"); %} %}",
+          "%}"
+        ].join("\n"));
+      case "example-04":
+        return this.decodeSnippet([
+          "div.w3-panel.w3-pale-blue {%",
+          "  text {% before block %}",
+          "  br {% %}",
+          "  html {% &lt;strong&gt;bold section&lt;/strong&gt; &lt;em&gt;inline html fragment&lt;/em&gt; %}",
+          "  br {% %}",
+          "  text {% after block %}",
+          "  p {% text {% text{} and html{} coexist as siblings. %} %}",
+          "%}"
+        ].join("\n"));
+      case "example-05":
+        return this.decodeSnippet([
+          "q-component click-meter {%",
+          "  function bump() {%",
+          "    this.count = (this.count || 0) + 1;",
+          "    this.querySelector(\"[count='1']\").textContent = String(this.count);",
+          "  %}",
+          "  div.w3-card.w3-padding {%",
+          "    button.w3-button.w3-indigo {% text {% Click me %} onclick {% this.component.bump(); %} %}",
+          "    span.w3-tag.w3-round.w3-blue.w3-margin-left {% count: \"1\" text {% 0 %} %}",
+          "  %}",
+          "%}",
+          "click-meter {% %}"
+        ].join("\n"));
+      case "example-06":
+        return this.decodeSnippet([
+          "q-template panel-shell {%",
+          "  section.w3-card.w3-round-large.w3-border {%",
+          "    header.w3-container.w3-light-grey {% slot {% title %} %}",
+          "    div.w3-container.w3-padding {% slot {% body %} %}",
+          "    footer.w3-container.w3-small.w3-text-grey {% slot {% footer %} %}",
+          "  %}",
+          "%}",
+          "panel-shell {%",
+          "  title {% h4 {% text {% Reusable shell %} %} %}",
+          "  body {% ul {% li {% text {% named slots keep intent explicit %} %} li {% text {% easy to restyle globally %} %} %} %}",
+          "  footer {% text {% template instance with 3 slots %} %}",
+          "%}"
+        ].join("\n"));
+      case "example-07":
+        return this.decodeSnippet([
+          "q-component profile-chip {%",
+          "  div.w3-card.w3-padding.w3-round-large {%",
+          "    div.w3-left {% slot {% avatar %} %}",
+          "    div.w3-margin-left {% slot {% details %} %}",
+          "  %}",
+          "%}",
+          "profile-chip {%",
+          "  avatar {% span.w3-tag.w3-blue.w3-round {% text {% AB %} %} %}",
+          "  details {% h4 {% text {% Ada Byron %} %} p {% text {% component slots for layout blocks %} %} %}",
+          "%}"
+        ].join("\n"));
+      case "example-08":
+        return this.decodeSnippet([
+          "q-component one-slot-card {%",
+          "  article.w3-panel.w3-pale-green {% slot {% main %} %}",
+          "%}",
+          "one-slot-card {%",
+          "  h4 {% text {% Single slot auto-placement %} %}",
+          "  p {% text {% children route into main automatically. %} %}",
+          "  ul {% li {% text {% line one %} %} li {% text {% line two %} %} %}",
+          "%}"
+        ].join("\n"));
+      case "example-09":
+        return this.decodeSnippet([
+          "q-template id-chip {% span.w3-tag.w3-round.w3-teal {% text {% slot id: %} slot {% value %} %} %}",
+          "button.qSCRIPT {% return \".w3-button.w3-teal.w3-round\" %} {%",
+          "  id: qSCRIPT {% return \"btn-\" + Math.floor(Math.random() * 1000) %}",
+          "  data-seed: qSCRIPT {% return String(Date.now()) %}",
+          "  text {% dynamic selector + id + attributes %}",
+          "%}",
+          "id-chip {% value {% text {% q-script computed %} %} %}"
+        ].join("\n"));
+      case "example-10":
+        return this.decodeSnippet([
+          "q-component simple-modal {%",
+          "  function show() {% this.querySelector(\"[backdrop='1']\").style.display = \"block\"; %}",
+          "  function hide() {% this.querySelector(\"[backdrop='1']\").style.display = \"none\"; %}",
+          "  div {%",
+          "    backdrop: \"1\"",
+          "    style {% display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 99; %}",
+          "    div.w3-card.w3-padding.w3-round-large {% style {% max-width: 460px; margin: 10vh auto 0; %} slot {% title %} slot {% body %} slot {% footer %} %}",
+          "  %}",
+          "%}",
+          "button.w3-button.w3-indigo {% text {% Open modal %} onclick {% document.querySelector(\"simple-modal\").show(); %} %}",
+          "simple-modal {%",
+          "  title {% h3 {% text {% Pure QHTML Modal %} %} %}",
+          "  body {% p {% text {% No imported component required. %} %} %}",
+          "  footer {% button.w3-button.w3-red {% text {% Close %} onclick {% this.component.hide(); %} %} %}",
+          "%}"
+        ].join("\n"));
+      case "example-11":
+        return this.decodeSnippet([
+          "q-template faq-item {% div.w3-card.w3-padding.w3-margin-bottom {% slot {% q %} slot {% a %} %} %}",
+          "q-component accordion-panel {%",
+          "  function toggle() {%",
+          "    const body = this.querySelector(\"[panel-body='1']\");",
+          "    body.style.display = body.style.display === \"none\" ? \"block\" : \"none\";",
+          "  %}",
+          "  faq-item {%",
+          "    q {% button.w3-button.w3-light-grey {% text {% Toggle answer %} onclick {% this.component.toggle(); %} %} %}",
+          "    a {% div {% panel-body: \"1\" slot {% content %} %} %}",
+          "  %}",
+          "%}",
+          "accordion-panel {% content {% p {% text {% Accordion body via slot. %} %} %} %}"
+        ].join("\n"));
+      case "example-12":
+        return this.decodeSnippet([
+          "q-component tiny-tabs {%",
+          "  function show(i) {%",
+          "    const tabs = this.querySelectorAll(\"[tab='1']\");",
+          "    const links = this.querySelectorAll(\"[tab-btn='1']\");",
+          "    for (let n = 0; n < tabs.length; n += 1) {%",
+          "      tabs[n].style.display = n === i ? \"block\" : \"none\";",
+          "      links[n].classList.toggle(\"w3-blue\", n === i);",
+          "    %}",
+          "  %}",
+          "  div {%",
+          "    button.w3-button {% tab-btn: \"1\" text {% Overview %} onclick {% this.component.show(0); %} %}",
+          "    button.w3-button {% tab-btn: \"1\" text {% Details %} onclick {% this.component.show(1); %} %}",
+          "    div.w3-panel.w3-pale-blue {% tab: \"1\" h4 {% text {% Overview %} %} p {% text {% simple tab logic %} %} %}",
+          "    div.w3-panel.w3-pale-green {% tab: \"1\" style {% display: none; %} h4 {% text {% Details %} %} p {% text {% no external components %} %} %}",
+          "  %}",
+          "  onReady {% this.show(0); %}",
+          "%}",
+          "tiny-tabs {% %}"
+        ].join("\n"));
+      case "example-13":
+        return this.decodeSnippet([
+          "q-template input-row {% div.w3-margin-bottom {% label.w3-small {% slot {% label %} %} slot {% field %} %} %}",
+          "q-component quick-form {%",
+          "  function submit() {%",
+          "    const email = this.querySelector(\"[name='email']\").value;",
+          "    this.querySelector(\"[msg='1']\").textContent = email ? \"Saved \" + email : \"Email required\";",
+          "  %}",
+          "  div.w3-card.w3-padding {%",
+          "    input-row {% label {% text {% Email %} %} field {% input.w3-input.w3-border {% name: \"email\" placeholder: \"you@example.com\" %} %} %}",
+          "    button.w3-button.w3-green.w3-margin-top {% text {% Save %} onclick {% this.component.submit(); %} %}",
+          "    p.w3-small.w3-text-grey {% msg: \"1\" text {% Waiting... %} %}",
+          "  %}",
+          "%}",
+          "quick-form {% %}"
+        ].join("\n"));
+      case "example-14":
+        return this.decodeSnippet([
+          "q-component inner-box {% div.w3-panel.w3-pale-yellow {% slot {% inner-slot %} %} %}",
+          "q-component outer-box {% div.w3-panel.w3-pale-blue {% inner-box {% inner-slot {% slot {% outer-content %} %} %} %} %}",
+          "outer-box {% outer-content {% p {% text {% forwarded through nested slots %} %} %} %}"
+        ].join("\n"));
+      case "example-15":
+        return this.decodeSnippet([
+          "q-component probe-box {%",
+          "  button.w3-button.w3-blue {%",
+          "    text {% Probe context %}",
+          "    onclick {%",
+          "      alert(this.tagName);",
+          "      alert(this.component && this.component.tagName);",
+          "      alert(this.qhtml);",
+          "      alert(this.qhtml && this.qhtml.qdom ? this.qhtml.qdom() : \"none\");",
+          "      alert(this.component && this.component.qdom ? this.component.qdom() : \"none\");",
+          "      alert(this.slot && this.slot.qdom ? this.slot.qdom() : \"none\");",
+          "    %}",
+          "  %}",
+          "%}",
+          "probe-box {% %}"
+        ].join("\n"));
+      case "example-16":
+        return this.decodeSnippet([
+          "q-component log-feed {%",
+          "  function addLine(label) {%",
+          "    const root = this.component.qdom();",
+          "    root.slot(\"feed\").appendNode(root.createInstanceFromQHTML(\"li.w3-bar { text { \" + label + \" } }\"));",
+          "  %}",
+          "  ul.w3-ul {% slot {% feed %} %}",
+          "  button.w3-button.w3-indigo {% text {% Add item %} onclick {% this.component.addLine(\"entry \" + (Math.random() * 100).toFixed(0)); %} %}",
+          "%}",
+          "log-feed {% feed {% li.w3-bar {% text {% initial entry %} %} %} %}"
+        ].join("\n"));
+      case "example-17":
+        return this.decodeSnippet([
+          "q-component snapshot-lab {%",
+          "  function snapshot() {%",
+          "    const list = this.component.qdom().find(\"#snap-list\").children();",
+          "    this.querySelector(\"[out='qhtml']\").value = list.qhtml();",
+          "    this.querySelector(\"[out='html']\").value = list.html();",
+          "  %}",
+          "  slot {% main-slot %}",
+          "  button.w3-button.w3-blue {% text {% Snapshot %} onclick {% this.component.snapshot(); %} %}",
+          "  textarea.w3-input.w3-border.w3-margin-top {% out: \"qhtml\" style {% min-height: 5rem; %} %}",
+          "  textarea.w3-input.w3-border.w3-margin-top {% out: \"html\" style {% min-height: 5rem; %} %}",
+          "%}",
+          "snapshot-lab {% ul {% id: \"snap-list\" li {% text {% one %} %} li {% text {% two %} %} %} %}"
+        ].join("\n"));
+      case "example-18":
+        return this.decodeSnippet([
+          "q-component serialize-lab {%",
+          "  function save() {% this.querySelector(\"[payload='1']\").value = this.component.qdom().serialize(); %}",
+          "  function add() {%",
+          "    const root = this.component.qdom();",
+          "    root.slot(\"items\").appendNode(root.createInstanceFromQHTML(\"li { text { item \" + (Math.random() * 99).toFixed(0) + \" } }\"));",
+          "  %}",
+          "  ul {% slot {% items %} %}",
+          "  button.w3-button.w3-green {% text {% Add %} onclick {% this.component.add(); %} %}",
+          "  button.w3-button.w3-purple.w3-margin-left {% text {% Serialize %} onclick {% this.component.save(); %} %}",
+          "  textarea.w3-input.w3-border.w3-margin-top {% payload: \"1\" style {% min-height: 6rem; %} %}",
+          "%}",
+          "serialize-lab {% items {% li {% text {% base item %} %} %} %}"
+        ].join("\n"));
+      case "example-19":
+        return this.decodeSnippet([
+          "q-template price-box {%",
+          "  li.w3-bar.w3-theme-l2 {% span {% slot {% name %} %} span {% slot {% price %} %} %}",
+          "%}",
+          "q-component mini-catalog {%",
+          "  function add(name, price) {%",
+          "    const root = this.component.qdom();",
+          "    root.slot(\"main-slot\").appendNode(root.createInstanceFromQHTML(\"price-box { name { text { \" + name + \" } }  price { text { \" + price + \" } } }\"));",
+          "  %}",
+          "  slot {% main-slot %}",
+          "%}",
+          "mini-catalog {%",
+          "  ul.w3-theme-l3 {% id: \"ul-item\" items: \"1\" %}",
+          "  button.w3-button.w3-indigo.w3-margin-top {%",
+          "    text {% Add sample item %}",
+          "    onclick {% this.component.add(\"Widget\", (Math.random() * 30).toFixed(2)); %}",
+          "  %}",
+          "%}"
+        ].join("\n"));
+      case "example-20":
+        return this.decodeSnippet([
+          "q-template app-card {% div.w3-card.w3-padding.w3-round-large {% slot {% body %} %} %}",
+          "q-component app-counter {%",
+          "  function inc() {%",
+          "    this.count = (this.count || 0) + 1;",
+          "    this.querySelector(\"[value='1']\").textContent = this.count;",
+          "  %}",
+          "  function addLog() {%",
+          "    const root = this.component.qdom();",
+          "    root.slot(\"logs\").appendNode(root.createInstanceFromQHTML(\"li { text { count \" + (this.count || 0) + \" } }\"));",
+          "  %}",
+          "  app-card {%",
+          "    body {%",
+          "      button.w3-button.w3-blue {% text {% +1 %} onclick {% this.component.inc(); this.component.addLog(); %} %}",
+          "      span.w3-tag.w3-round.w3-green.w3-margin-left {% value: \"1\" text {% 0 %} %}",
+          "      ul.w3-margin-top {% slot {% logs %} %}",
+          "    %}",
+          "  %}",
+          "%}",
+          "app-counter {% logs {% li {% text {% count 0 %} %} %} %}"
+        ].join("\n"));
+      default:
+        return this.decodeSnippet("div {% text {% example pending %} %}");
+    }
+  }
+
+  function buildSidebar() {
+    const root = typeof this.qdom === "function" ? this.qdom() : null;
+    const sidebarNode = this.getSidebarNode();
+    if (!root || !sidebarNode || typeof root.createInstanceFromQHTML !== "function" || typeof sidebarNode.appendNode !== "function") {
+      return;
+    }
+
+    this.clearNodeChildren(sidebarNode);
+    const left = String.fromCharCode(123);
+    const right = String.fromCharCode(125);
+
+    const examples = this.querySelectorAll("demo-example[id]");
+    for (let i = 0; i < examples.length; i += 1) {
+      const example = examples[i];
+      const id = String(example.getAttribute("id") || "").trim();
+      if (!id) {
+        continue;
+      }
+      const label = String(example.getAttribute("title") || example.getAttribute("nav-label") || ("Example " + (i + 1)));
+      const qhtml =
+        "a.demo-nav-link " + left +
+          " href: " + this.quoteAttribute("#" + id) + ";" +
+          " data-example-target: " + this.quoteAttribute(id) + ";" +
+          " text " + left + " " + this.escapeQHtmlText(label) + " " + right +
+        " " + right;
+      sidebarNode.appendNode(root.createInstanceFromQHTML(qhtml));
+    }
+    this.syncSidebarActive();
+  }
+
+  function syncSidebarActive() {
+    const hashId = String((window.location && window.location.hash) || "").replace(/^#/, "");
+    const links = this.querySelectorAll("[demo-nav='1'] .demo-nav-link");
+
+    let fallback = "";
+    const firstExample = this.querySelector("demo-example[id]");
+    if (firstExample) {
+      fallback = String(firstExample.getAttribute("id") || "");
+    }
+
+    const activeId = hashId || fallback;
+    for (let i = 0; i < links.length; i += 1) {
+      const link = links[i];
+      const target = String(link.getAttribute("data-example-target") || "");
+      if (target && target === activeId) {
+        link.setAttribute("data-active", "1");
+      } else {
+        link.removeAttribute("data-active");
+      }
+    }
+  }
+
+  function hydrateExamples() {
+    const examples = this.querySelectorAll("demo-example[id]");
+    for (let i = 0; i < examples.length; i += 1) {
+      const example = examples[i];
+      const id = String(example.getAttribute("id") || "");
+      const snippet = this.snippetForId(id);
+      if (typeof example.setSnippet === "function") {
+        example.setSnippet(snippet);
+      } else {
+        example.setAttribute("snippet", snippet);
+      }
+    }
+  }
+
+  onReady {
+    if (this.__demoShowcaseReady) {
+      return;
+    }
+    this.__demoShowcaseReady = true;
+
+    this.hydrateExamples();
+    this.buildSidebar();
+
+    const self = this;
+    window.addEventListener("hashchange", function onHashChange() {
+      self.syncSidebarActive();
+    });
+
+    const nav = this.querySelector("[demo-nav='1']");
+    if (nav) {
+      nav.addEventListener("click", function onSidebarClick() {
+        setTimeout(function afterJump() {
+          self.syncSidebarActive();
+        }, 20);
+      });
+    }
+  }
+
+  div.demo-wrap {
+    aside.demo-side {
+      h2 { text { Examples } }
+      div.demo-nav {
+        demo-nav: "1"
+      }
+    }
+
+    main.demo-main {
+      section.demo-hero {
+        h1 { text { QHTML in 20 Examples } }
+        p { text { Each section is a live q-editor instance with concise code, rendered in a fully QHTML-authored page. } }
+        p { text { Use the sidebar to jump between examples. Everything here is assembled from pure q-html and runtime methods. } }
+        div.demo-chip-row {
+          span.demo-chip { text { pure q-html } }
+          span.demo-chip { text { slots } }
+          span.demo-chip { text { q-script } }
+          span.demo-chip { text { qdom mutations } }
+          span.demo-chip { text { templates } }
+          span.demo-chip { text { component methods } }
+        }
+      }
+
+      demo-example { id: "example-01" title: "Basic Element" summary: "Create structure and text with minimal syntax." }
+      demo-example { id: "example-02" title: "Classes + Comma Selectors" summary: "Compose multiple tags and utility classes in one line." }
+      demo-example { id: "example-03" title: "Attributes" summary: "Assign ids, data attributes, and inline styles." }
+      demo-example { id: "example-04" title: "text {} + html {}" summary: "Mix plain text and trusted inline HTML fragments." }
+      demo-example { id: "example-05" title: "Inline Event Handler" summary: "Attach behavior directly where the element is declared." }
+      demo-example { id: "example-06" title: "q-template" summary: "Define reusable shape and instantiate it with slots." }
+      demo-example { id: "example-07" title: "q-component + Named Slot" summary: "Create reusable custom elements with explicit slot contracts." }
+      demo-example { id: "example-08" title: "Single-Slot Auto Placement" summary: "If only one slot exists, children auto-route into it." }
+      demo-example { id: "example-09" title: "q-script for Values" summary: "Compute selectors/ids/attribute values inline." }
+      demo-example { id: "example-10" title: "Modal Dialog (Pure QHTML)" summary: "Build show/hide modal behavior directly in a component with no imports." }
+      demo-example { id: "example-11" title: "Accordion Panel" summary: "Toggle collapsible content with component methods and slots." }
+      demo-example { id: "example-12" title: "Tiny Tabs" summary: "Implement simple tab switching behavior from scratch." }
+      demo-example { id: "example-13" title: "Form Component" summary: "Handle form state and output with plain q-html methods." }
+      demo-example { id: "example-14" title: "Nested Slot Forwarding" summary: "Forward outer slots through inner component layers." }
+      demo-example { id: "example-15" title: "this.component / this.qhtml / this.slot" summary: "Context pointers inside inline handlers." }
+      demo-example { id: "example-16" title: "QDom appendNode()" summary: "Programmatically append new nodes from QHTML strings." }
+      demo-example { id: "example-17" title: "QDom children()" summary: "Collect child nodes and emit QHTML/HTML snapshots." }
+      demo-example { id: "example-18" title: "QDom serialize()" summary: "Capture compressed source-of-truth payload for storage." }
+      demo-example { id: "example-19" title: "Mini Catalog via QDom" summary: "Append list items dynamically using createInstanceFromQHTML and appendNode." }
+      demo-example { id: "example-20" title: "Mini Component App" summary: "Compose template + component + methods in a compact app." }
+    }
+  }
+}
+
+demo-showcase { }
+  </q-html>
+</body>
+</html>

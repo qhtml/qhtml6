@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>qhtml-tools test</title>
+  <script src="../qhtml.js" type="text/javascript"></script>
+  <script src="./qhtml-tools.js" type="text/javascript"></script>
+  <link rel="stytlesheet" href="../w3.css">
+  <link rel="stytlesheet" href="../bs.css">
+  <script src="../w3-tags.js" type="text/javascript"></script>
+  <script src="../bs-tags.js" type="text/javascript"></script>
+  <script src="../bs.js" type="text/javascript"></script>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --line: #cbd5e1;
+      --accent: #0f766e;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background: linear-gradient(180deg, #eff6ff 0%, var(--bg) 100%);
+      color: var(--text);
+      font-family: Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      line-height: 1.35;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+    }
+
+    p {
+      margin: 0 0 20px;
+      color: var(--muted);
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 24px rgba(2, 6, 23, 0.06);
+    }
+
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      color: var(--accent);
+    }
+
+    .grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    textarea,
+    pre {
+      width: 100%;
+      min-height: 160px;
+      margin: 0;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: inherit;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    textarea {
+      resize: vertical;
+      background: #ffffff;
+    }
+
+    .rendered {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .demo-dom {
+      margin: 0 0 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    button {
+      border: 1px solid #0d9488;
+      background: #14b8a6;
+      color: #ffffff;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>qhtml-tools live test</h1>
+  <p>Each section below tests one API: <code>qhtml.toHTML</code>, <code>qhtml.fromHTML</code>, and <code>qhtml.fromDOM</code>.</p>
+
+  <section class="panel">
+    <h2>1) qhtml.toHTML(qhtmlCode)</h2>
+    <div class="grid">
+      <div>
+        <p>QHTML input</p>
+        <textarea id="toHtmlInput">section {
+  class: "card"
+  onReady { console.log(this.outerHTML) }
+  h3 { text { Live toHTML test } }
+  p { text { This should convert into normal HTML. } }
+}</textarea>
+      </div>
+      <div>
+        <p>HTML output</p>
+        <pre id="toHtmlOutput"></pre>
+      </div>
+    </div>
+    <div class="rendered" id="toHtmlPreview"></div>
+  </section>
+
+  <section class="panel">
+    <h2>2) qhtml.fromHTML(rawHtml)</h2>
+    <div class="grid">
+      <div>
+        <p>HTML input</p>
+        <textarea id="fromHtmlInput"><div class="box"><h4>fromHTML</h4><p>Nested <strong>HTML</strong> in.</p></div></textarea>
+      </div>
+      <div>
+        <p>QHTML output</p>
+        <pre id="fromHtmlOutput"></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>3) qhtml.fromDOM(domNode)</h2>
+    <p>Demo nested DOM fixture:</p>
+    <div id="domFixture" class="demo-dom">
+      <article class="card">
+        <header>
+          <h4 data-kind="title">DOM Fixture</h4>
+        </header>
+        <ul>
+          <li><span>Alpha</span></li>
+          <li><span>Beta</span></li>
+        </ul>
+        <footer>
+          <a href="#demo">Footer Link</a>
+        </footer>
+      </article>
+    </div>
+    <button id="refreshDomBtn" type="button">Refresh fromDOM Output</button>
+    <pre id="fromDomOutput"></pre>
+  </section>
+
+  <script>
+    (function () {
+      var api = window.qhtml || window.qhtmlTools || window['qhtml-tools'];
+      var toHtmlInput = document.getElementById('toHtmlInput');
+      var toHtmlOutput = document.getElementById('toHtmlOutput');
+      var toHtmlPreview = document.getElementById('toHtmlPreview');
+      var fromHtmlInput = document.getElementById('fromHtmlInput');
+      var fromHtmlOutput = document.getElementById('fromHtmlOutput');
+      var fromDomOutput = document.getElementById('fromDomOutput');
+      var domFixture = document.getElementById('domFixture');
+      var refreshDomBtn = document.getElementById('refreshDomBtn');
+
+      function debounce(fn, waitMs) {
+        var timer = null;
+        return function () {
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(fn, waitMs);
+        };
+      }
+
+      function removeNewBodyQHtmlNodes(beforeSet) {
+        var nodes = document.querySelectorAll('body > q-html');
+        for (var i = 0; i < nodes.length; i++) {
+          if (!beforeSet.has(nodes[i])) nodes[i].remove();
+        }
+      }
+
+      async function runToHTML() {
+        if (!api || typeof api.toHTML !== 'function') {
+          toHtmlOutput.textContent = 'qhtml.toHTML is not available.';
+          return;
+        }
+        var before = new Set(Array.prototype.slice.call(document.querySelectorAll('body > q-html')));
+        try {
+          var rendered = await Promise.resolve(api.toHTML(toHtmlInput.value));
+          toHtmlOutput.textContent = rendered || '';
+          toHtmlPreview.innerHTML = rendered || '';
+        } catch (err) {
+          toHtmlOutput.textContent = 'Error: ' + (err && err.message ? err.message : String(err));
+        } finally {
+          removeNewBodyQHtmlNodes(before);
+        }
+      }
+
+      function runFromHTML() {
+        if (!api || typeof api.fromHTML !== 'function') {
+          fromHtmlOutput.textContent = 'qhtml.fromHTML is not available.';
+          return;
+        }
+        try {
+          fromHtmlOutput.textContent = api.fromHTML(fromHtmlInput.value) || '';
+        } catch (err) {
+          fromHtmlOutput.textContent = 'Error: ' + (err && err.message ? err.message : String(err));
+        }
+      }
+
+      function runFromDOM() {
+        if (!api || typeof api.fromDOM !== 'function') {
+          fromDomOutput.textContent = 'qhtml.fromDOM is not available.';
+          return;
+        }
+        try {
+          fromDomOutput.textContent = api.fromDOM(domFixture) || '';
+        } catch (err) {
+          fromDomOutput.textContent = 'Error: ' + (err && err.message ? err.message : String(err));
+        }
+      }
+
+      var runToHTMLDebounced = debounce(function () {
+        runToHTML();
+      }, 150);
+      var runFromHTMLDebounced = debounce(function () {
+        runFromHTML();
+      }, 100);
+
+      toHtmlInput.addEventListener('input', runToHTMLDebounced);
+      fromHtmlInput.addEventListener('input', runFromHTMLDebounced);
+      refreshDomBtn.addEventListener('click', runFromDOM);
+
+      runToHTML();
+      runFromHTML();
+      runFromDOM();
+    })();
+  </script>
+</body>
+</html>

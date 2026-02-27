@@ -1,0 +1,268 @@
+q-component q-checkout-modal {
+  function normalizeNumber(value, fallback) {
+    const n = Number(value);
+    if (Number.isFinite(n)) {
+      return n;
+    }
+    const alt = Number(fallback);
+    return Number.isFinite(alt) ? alt : 0;
+  }
+
+  function formatCurrency(value) {
+    return "$" + this.normalizeNumber(value, 0).toFixed(2);
+  }
+
+  function normalizeLineItem(item) {
+    const raw = item && typeof item === "object" ? item : {};
+    const quantityRaw =
+      raw.quantity !== undefined
+        ? raw.quantity
+        : raw.count !== undefined
+        ? raw.count
+        : raw.qty !== undefined
+        ? raw.qty
+        : 1;
+    return {
+      id: String(raw.id || raw.sku || "").trim(),
+      name: String(raw.name || "Untitled item").trim() || "Untitled item",
+      description: String(raw.description || "").trim(),
+      price: this.normalizeNumber(raw.price, 0),
+      quantity: Math.max(1, Math.floor(this.normalizeNumber(quantityRaw, 1))),
+    };
+  }
+
+  function ensureState() {
+    if (!Array.isArray(this.__checkoutItems)) {
+      this.__checkoutItems = [];
+    }
+  }
+
+  function setItems(items) {
+    this.ensureState();
+    const list = Array.isArray(items) ? items : [];
+    const grouped = {};
+
+    for (let i = 0; i < list.length; i += 1) {
+      const line = this.normalizeLineItem(list[i]);
+      const key = line.id || line.name.toLowerCase();
+      if (grouped[key]) {
+        grouped[key].quantity += line.quantity;
+        grouped[key].price = line.price;
+      } else {
+        grouped[key] = line;
+      }
+    }
+
+    this.__checkoutItems = Object.keys(grouped).map((key) => grouped[key]);
+    this.renderItems();
+    return this.getItems();
+  }
+
+  function addItem(item, quantity) {
+    const line = this.normalizeLineItem(
+      Object.assign({}, item || {}, {
+        quantity: quantity !== undefined ? quantity : (item && item.quantity),
+      })
+    );
+    const current = this.getItems();
+    current.push(line);
+    return this.setItems(current);
+  }
+
+  function clearItems() {
+    this.ensureState();
+    this.__checkoutItems = [];
+    this.renderItems();
+    return [];
+  }
+
+  function removeItem(nameOrId) {
+    this.ensureState();
+    const target = String(nameOrId || "").trim().toLowerCase();
+    if (!target) {
+      return this.getItems();
+    }
+    this.__checkoutItems = this.__checkoutItems.filter((line) => {
+      const idText = String(line.id || "").trim().toLowerCase();
+      const nameText = String(line.name || "").trim().toLowerCase();
+      return idText !== target && nameText !== target;
+    });
+    this.renderItems();
+    return this.getItems();
+  }
+
+  function getItems() {
+    this.ensureState();
+    return this.__checkoutItems.map((line) => this.normalizeLineItem(line));
+  }
+
+  function getSubtotalBeforeTax() {
+    const items = this.getItems();
+    let subtotal = 0;
+    for (let i = 0; i < items.length; i += 1) {
+      subtotal += this.normalizeNumber(items[i].price, 0) * this.normalizeNumber(items[i].quantity, 1);
+    }
+    return subtotal;
+  }
+
+  function getModalHost() {
+    return this.querySelector("q-modal");
+  }
+
+  function show() {
+    this.renderItems();
+    const modal = this.getModalHost();
+    if (modal && typeof modal.show === "function") {
+      modal.show();
+    }
+  }
+
+  function hide() {
+    const modal = this.getModalHost();
+    if (modal && typeof modal.hide === "function") {
+      modal.hide();
+    }
+  }
+
+  function renderItems() {
+    this.ensureState();
+    const listNode = this.querySelector("[q-checkout-lines='1']");
+    const subtotalNode = this.querySelector("[q-checkout-subtotal='1']");
+    const countNode = this.querySelector("[q-checkout-count='1']");
+    const payloadNode = this.querySelector("[q-checkout-payload='1']");
+    if (!listNode) {
+      return;
+    }
+
+    const items = this.getItems();
+    listNode.innerHTML = "";
+    let totalCount = 0;
+    for (let i = 0; i < items.length; i += 1) {
+      totalCount += this.normalizeNumber(items[i].quantity, 0);
+    }
+
+    if (!items.length) {
+      const empty = document.createElement("div");
+      empty.className = "w3-panel w3-pale-yellow w3-border w3-round-large";
+      empty.textContent = "Your cart is currently empty.";
+      listNode.appendChild(empty);
+    } else {
+      const table = document.createElement("table");
+      table.className = "w3-table-all w3-small";
+
+      const head = document.createElement("thead");
+      head.innerHTML = "<tr><th>Item</th><th class='w3-right-align'>Qty</th><th class='w3-right-align'>Price</th><th class='w3-right-align'>Line Total</th></tr>";
+      table.appendChild(head);
+
+      const body = document.createElement("tbody");
+      for (let i = 0; i < items.length; i += 1) {
+        const line = items[i];
+        const tr = document.createElement("tr");
+        const lineTotal = this.normalizeNumber(line.price, 0) * this.normalizeNumber(line.quantity, 1);
+        tr.innerHTML =
+          "<td>" + line.name + "</td>" +
+          "<td class='w3-right-align'>" + line.quantity + "</td>" +
+          "<td class='w3-right-align'>" + this.formatCurrency(line.price) + "</td>" +
+          "<td class='w3-right-align'><b>" + this.formatCurrency(lineTotal) + "</b></td>";
+        body.appendChild(tr);
+      }
+      table.appendChild(body);
+      listNode.appendChild(table);
+    }
+
+    const subtotal = this.getSubtotalBeforeTax();
+    if (subtotalNode) {
+      subtotalNode.textContent = this.formatCurrency(subtotal);
+    }
+    if (countNode) {
+      countNode.textContent = String(totalCount);
+    }
+    if (payloadNode) {
+      payloadNode.value = JSON.stringify(items);
+      payloadNode.textContent = payloadNode.value;
+    }
+
+    const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
+    if (qdomNode && typeof qdomNode === "object") {
+      if (!qdomNode.meta || typeof qdomNode.meta !== "object") {
+        qdomNode.meta = {};
+      }
+      qdomNode.meta.checkoutItemCount = totalCount;
+      qdomNode.meta.checkoutSubtotalBeforeTax = subtotal;
+    }
+  }
+
+  onReady {
+    if (this.__qCheckoutModalReady) {
+      return;
+    }
+    this.__qCheckoutModalReady = true;
+    this.ensureState();
+    this.renderItems();
+    this.hide();
+  }
+
+  q-modal {
+    title {
+      h3.w3-margin-top.w3-margin-bottom {
+        text { Checkout }
+      }
+      div.w3-small.w3-text-grey {
+        text { Review cart subtotal before taxes. }
+      }
+    }
+
+    body {
+      q-form {
+        q-grid {
+          q-grid-cell {
+            div.w3-card.w3-white.w3-round-large.w3-border.w3-padding {
+              h4 { text { Cart Items } }
+              div {
+                q-checkout-lines: "1"
+              }
+            }
+          }
+          q-grid-cell {
+            div.w3-card.w3-light-grey.w3-round-large.w3-border.w3-padding {
+              h4 { text { Summary } }
+              div.w3-small {
+                text { Items in cart: }
+                span.w3-tag.w3-blue.w3-round.w3-margin-left {
+                  q-checkout-count: "1"
+                  text { 0 }
+                }
+              }
+              p.w3-large.w3-margin-top {
+                text { Subtotal (before tax): }
+              }
+              div.w3-xxlarge.w3-text-indigo {
+                q-checkout-subtotal: "1"
+                text { $0.00 }
+              }
+            }
+          }
+        }
+      }
+
+      textarea {
+        q-checkout-payload: "1"
+        style { display: none; }
+      }
+    }
+
+    footer {
+      div.w3-right-align {
+        button.w3-button.w3-red.w3-round.w3-margin-right {
+          text { Clear Cart }
+          onclick {
+            this.component.clearItems();
+          }
+        }
+        span.w3-small.w3-text-grey {
+          text { The close button is provided by q-modal. }
+        }
+      }
+    }
+  }
+}
