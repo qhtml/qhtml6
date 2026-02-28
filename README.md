@@ -2,6 +2,10 @@
 
 This README is written for builders who want a quick, reliable way to author UI without a heavy framework. Examples below are ready to copy and run.
 
+## For the demo click here <a href="https://qhtml.github.io/qhtml6/dist/demo.html">Live Demo</a>
+
+----
+
 ## Highlights
 
 - Write HTML structure with a clean, readable block syntax.
