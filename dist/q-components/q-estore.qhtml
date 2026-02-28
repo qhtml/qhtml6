@@ -1,4 +1,33 @@
 q-component q-estore {
+  function logIssue(label, error) {
+    try {
+      const logger = typeof console !== "undefined" ? console : null;
+      if (logger && typeof logger.log === "function") {
+        logger.log("[q-estore] " + String(label || "error"), error);
+      }
+    } catch (ignored) { }
+  }
+
+  function callCatalog(methodName, args, fallback, label) {
+    try {
+      const catalog = this.getCatalog();
+      return catalog[methodName].apply(catalog, Array.isArray(args) ? args : []);
+    } catch (error) {
+      this.logIssue(label || ("catalog." + String(methodName) + " failed"), error);
+      return fallback;
+    }
+  }
+
+  function callCheckout(methodName, args, fallback, label) {
+    try {
+      const checkout = this.getCheckoutModal();
+      return checkout[methodName].apply(checkout, Array.isArray(args) ? args : []);
+    } catch (error) {
+      this.logIssue(label || ("checkout." + String(methodName) + " failed"), error);
+      return fallback;
+    }
+  }
+
   function ensureState() {
     const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
     let state = qdomNode && typeof qdomNode === "object" ? qdomNode.__qEstoreState : null;
@@ -142,96 +171,80 @@ q-component q-estore {
   }
 
   function loadItems(items) {
-    const catalog = this.getCatalog();
-    if (!catalog || typeof catalog.setCatalogItems !== "function") {
+    const loaded = this.callCatalog("setCatalogItems", [items || []], null, "loadItems:setCatalogItems");
+    if (!Array.isArray(loaded)) {
       this.setStatus("Catalog is not ready yet.");
       return [];
     }
-    const loaded = catalog.setCatalogItems(items || []);
     this.syncCheckoutFromCatalog();
     this.setStatus("Loaded " + loaded.length + " catalog items.");
     return loaded;
   }
 
   function addCatalogItem(item) {
-    const catalog = this.getCatalog();
-    if (!catalog || typeof catalog.addCatalogItem !== "function") {
+    const loaded = this.callCatalog("addCatalogItem", [item || {}], null, "addCatalogItem failed");
+    if (!Array.isArray(loaded)) {
       return [];
     }
-    const loaded = catalog.addCatalogItem(item || {});
     this.setStatus("Catalog now has " + loaded.length + " items.");
     return loaded;
   }
 
   function addToCart(item, quantity) {
-    const catalog = this.getCatalog();
-    if (!catalog || typeof catalog.addToCart !== "function") {
+    const out = this.callCatalog("addToCart", [item || {}, quantity], null, "addToCart failed");
+    if (!Array.isArray(out)) {
       return [];
     }
-    const out = catalog.addToCart(item || {}, quantity);
     this.syncCheckoutFromCatalog();
     return out;
   }
 
   function getCartItems() {
-    const catalog = this.getCatalog();
-    if (!catalog || typeof catalog.getCartItems !== "function") {
-      return [];
-    }
-    return catalog.getCartItems();
+    const out = this.callCatalog("getCartItems", [], null, "getCartItems failed");
+    return Array.isArray(out) ? out : [];
   }
 
   function clearCartItems() {
-    const catalog = this.getCatalog();
-    if (!catalog || typeof catalog.clearCart !== "function") {
+    const cleared = this.callCatalog("clearCart", [], null, "clearCartItems failed");
+    if (!Array.isArray(cleared)) {
       return [];
     }
-    const cleared = catalog.clearCart();
     this.syncCheckoutFromCatalog();
     this.setStatus("Cart was cleared.");
     return cleared;
   }
 
   function getSubtotalBeforeTax() {
-    const catalog = this.getCatalog();
-    if (!catalog || typeof catalog.getCartSubtotal !== "function") {
-      return 0;
-    }
-    return catalog.getCartSubtotal();
+    const subtotal = this.callCatalog("getCartSubtotal", [], null, "getSubtotalBeforeTax failed");
+    const n = Number(subtotal);
+    return Number.isFinite(n) ? n : 0;
   }
 
   function syncCheckoutFromCatalog() {
-    this.ensureState();
-    const catalog = this.getCatalog();
-    const checkout = this.getCheckoutModal();
-    if (!catalog || !checkout || typeof checkout.setItems !== "function" || typeof catalog.getCartItems !== "function") {
-      return;
-    }
-    const cartItems = catalog.getCartItems();
-    checkout.setItems(cartItems);
-
-    const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
-    if (qdomNode && typeof qdomNode === "object") {
-      if (!qdomNode.meta || typeof qdomNode.meta !== "object") {
-        qdomNode.meta = {};
+    try {
+      this.ensureState();
+      const cartItems = this.callCatalog("getCartItems", [], null, "syncCheckoutFromCatalog:getCartItems");
+      if (!Array.isArray(cartItems)) { return; }
+      this.callCheckout("setItems", [cartItems], null, "syncCheckoutFromCatalog:setItems");
+      const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
+      if (qdomNode && typeof qdomNode === "object") {
+        if (!qdomNode.meta || typeof qdomNode.meta !== "object") {
+          qdomNode.meta = {};
+        }
+        qdomNode.meta.lastSyncedCartCount = cartItems.length;
       }
-      qdomNode.meta.lastSyncedCartCount = cartItems.length;
+    } catch (error) {
+      this.logIssue("syncCheckoutFromCatalog failed", error);
     }
   }
 
   function showCheckoutModal() {
     this.syncCheckoutFromCatalog();
-    const checkout = this.getCheckoutModal();
-    if (checkout && typeof checkout.show === "function") {
-      checkout.show();
-    }
+    this.callCheckout("show", [], null, "showCheckoutModal failed");
   }
 
   function hideCheckoutModal() {
-    const checkout = this.getCheckoutModal();
-    if (checkout && typeof checkout.hide === "function") {
-      checkout.hide();
-    }
+    this.callCheckout("hide", [], null, "hideCheckoutModal failed");
   }
 
   function loadItemsFromUrl(url) {

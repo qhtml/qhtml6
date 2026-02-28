@@ -925,15 +925,21 @@
     const qdom = parser.parseQHtmlToQDom(resolvedSource, {
       resolveImportsBeforeParse: false,
     });
+    const renderHost = function renderHost(targetDocument) {
+      const doc = targetDocument || document;
+      const host = doc.createElement('div');
+      renderer.renderIntoElement(qdom, host, doc);
+      return { doc: doc, host: host };
+    };
 
     return {
       source: rawSource,
       resolvedSource: resolvedSource,
       qdom: qdom,
       toHTMLDom: function toHTMLDom(targetDocument) {
-        const doc = targetDocument || document;
-        const host = doc.createElement('div');
-        renderer.renderIntoElement(qdom, host, doc);
+        const rendered = renderHost(targetDocument);
+        const doc = rendered.doc;
+        const host = rendered.host;
         const fragment = doc.createDocumentFragment();
         while (host.firstChild) {
           fragment.appendChild(host.firstChild);
@@ -941,10 +947,7 @@
         return fragment;
       },
       toHTML: function toHTML(targetDocument) {
-        const doc = targetDocument || document;
-        const host = doc.createElement('div');
-        renderer.renderIntoElement(qdom, host, doc);
-        return host.innerHTML;
+        return renderHost(targetDocument).host.innerHTML;
       },
       serialize: function serialize() {
         return core.serializeQDomCompressed(qdom);
@@ -983,14 +986,7 @@
 
       const doMount = () => {
         if (!this.isConnected) return;
-        if (this._mountTimer) {
-          clearTimeout(this._mountTimer);
-          this._mountTimer = null;
-        }
-        if (this._pendingMountListener) {
-          document.removeEventListener('DOMContentLoaded', this._pendingMountListener);
-          this._pendingMountListener = null;
-        }
+        this._clearPendingMount();
 
         const initialFromAttr = this.getAttribute('initial-qhtml');
         const initialFromBody = this.textContent || '';
@@ -1021,22 +1017,9 @@
 
     disconnectedCallback() {
       this._mounted = false;
-      if (this._pendingMountListener) {
-        document.removeEventListener('DOMContentLoaded', this._pendingMountListener);
-        this._pendingMountListener = null;
-      }
-      if (this._mountTimer) {
-        clearTimeout(this._mountTimer);
-        this._mountTimer = null;
-      }
-      if (this._renderTimer) {
-        clearTimeout(this._renderTimer);
-        this._renderTimer = null;
-      }
-      if (this._formatTimer) {
-        clearTimeout(this._formatTimer);
-        this._formatTimer = null;
-      }
+      this._clearPendingMount();
+      this._clearTimer('_renderTimer');
+      this._clearTimer('_formatTimer');
       this._detachPreviewListeners();
       this._unmountPreviewQHtml();
     }
@@ -1054,6 +1037,31 @@
 
     getQhtmlSource() {
       return this._source;
+    }
+
+    _clearTimer(timerKey) {
+      if (!this[timerKey]) {
+        return;
+      }
+      clearTimeout(this[timerKey]);
+      this[timerKey] = null;
+    }
+
+    _clearPendingMount() {
+      this._clearTimer('_mountTimer');
+      if (this._pendingMountListener) {
+        document.removeEventListener('DOMContentLoaded', this._pendingMountListener);
+        this._pendingMountListener = null;
+      }
+    }
+
+    _scheduleTimer(timerKey, delayMs, callback) {
+      if (!this.isConnected) return;
+      this._clearTimer(timerKey);
+      this[timerKey] = setTimeout(() => {
+        this[timerKey] = null;
+        callback();
+      }, Math.max(0, Number(delayMs) || 0));
     }
 
     _renderShell() {
@@ -1162,13 +1170,15 @@
         });
       }
 
+      const copyValueByKind = {
+        qhtml: () => this._source,
+        html: () => this._htmlOutput,
+        qdom: () => this._qdomDecoded,
+      };
       this._copyButtons.forEach((button) => {
         button.addEventListener('click', async () => {
-          const kind = button.getAttribute('data-copy');
-          let text = '';
-          if (kind === 'qhtml') text = this._source;
-          if (kind === 'html') text = this._htmlOutput;
-          if (kind === 'qdom') text = this._qdomDecoded;
+          const kind = button.getAttribute('data-copy') || '';
+          const text = copyValueByKind[kind] ? copyValueByKind[kind]() : '';
           try {
             await navigator.clipboard.writeText(text || '');
             const oldText = button.textContent;
@@ -1204,25 +1214,16 @@
     }
 
     _scheduleRender(delayMs) {
-      if (!this.isConnected) return;
-      if (this._renderTimer) {
-        clearTimeout(this._renderTimer);
-      }
-      this._renderTimer = setTimeout(() => {
-        this._renderTimer = null;
+      this._scheduleTimer('_renderTimer', delayMs, () => {
         this._updateOutputs();
-      }, Math.max(0, Number(delayMs) || 0));
+      });
     }
 
     _scheduleAutoFormat(delayMs) {
-      if (!this.isConnected || !this._qhtmlInput) return;
-      if (this._formatTimer) {
-        clearTimeout(this._formatTimer);
-      }
-      this._formatTimer = setTimeout(() => {
-        this._formatTimer = null;
+      if (!this._qhtmlInput) return;
+      this._scheduleTimer('_formatTimer', delayMs, () => {
         this._applyAutoFormat();
-      }, Math.max(0, Number(delayMs) || 0));
+      });
     }
 
     _applyAutoFormat() {
@@ -1260,7 +1261,7 @@
       if (!this._qhtmlHighlight) return;
       const components = this._componentNames && this._componentNames.size
         ? this._componentNames
-        : collectComponentNames(this._source || '');
+        : collectComponentNames(this._source);
       this._qhtmlHighlight.innerHTML = highlightQHtmlCode(this._source || '', components);
     }
 
@@ -1269,10 +1270,10 @@
         this._previewListeners = [];
         return;
       }
-      this._previewListeners.forEach((entry) => {
-        if (!entry || !entry.target || typeof entry.target.removeEventListener !== 'function') return;
+      for (const entry of this._previewListeners) {
+        if (!entry || !entry.target || typeof entry.target.removeEventListener !== 'function') continue;
         entry.target.removeEventListener(entry.eventName, entry.handler);
-      });
+      }
       this._previewListeners.length = 0;
     }
 

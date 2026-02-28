@@ -102,7 +102,11 @@ q-component q-store-catalog-item {
           type: "button";
           text { Add to cart }
           onclick {
-            this.component.emitAdd();
+            try {
+              this.closest("q-store-catalog-item").emitAdd();
+            } catch (evt) {
+              console.log("q-store-catalog-item add failed", evt);
+            }
           }
         }
       }

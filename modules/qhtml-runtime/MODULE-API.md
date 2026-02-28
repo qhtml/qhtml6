@@ -17,8 +17,9 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - Returns observed QDom proxy.
 - `toQHtmlSource(qHtmlElement, options?)`
   - Serialize current mounted model to source.
-- `updateQHtmlElement(qHtmlElement)`
+- `updateQHtmlElement(qHtmlElement, options?)`
   - Re-evaluates binding expressions and re-renders mounted output.
+  - Optional `options.scopeElement` (component host DOM element) performs scoped rerender of only that component subtree.
   - Includes loop protection for binding-driven re-entry:
     - caps recursive update cycles per tick
     - caps same-epoch re-entry attempts
@@ -40,9 +41,14 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 ## `.qdom()` and node list helpers
 - `host.qdom()` / `element.qdom()` return facades over source QDom nodes.
 - Mounted `<q-html>` hosts expose `.update()` as shorthand for `QHtml.updateQHtmlElement(host)`.
+- Component instance hosts expose `.update()` as shorthand for scoped `QHtml.updateQHtmlElement(hostRoot, { scopeElement: componentHost })`.
+- Mounted elements expose `.root()` as shorthand for the owning `<q-html>` host.
 - QDom mutation helpers include `replaceWithQHTML(source, rootNode?)` and `rewrite(parameterBindings?, callback)`.
   - `rewrite(...)` executes `callback` with default bindings `{ this: currentNodeFacade }`.
   - The callback return value is stringified and applied to the calling node via `replaceWithQHTML(...)`.
+- QDom facades expose `root(options?)`:
+  - default returns owning `<q-html>` host element
+  - `{ qdom: true }` or `"qdom"` returns the QDom document root facade
 - `children()` returns `QDomNodeList` with:
   - `qhtml(options?)`
   - `htmldom(targetDocument?)`
@@ -54,4 +60,4 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - Executes `meta.qBindings` scripts (`q-bind` and assignment `q-script`) with `this` bound to each source QDom node before render/update.
 - Persists updated QDom into mapped sibling template nodes.
 - Emits/consumes DOM events and mutation observers.
-- Adds context helpers on DOM elements (`qhtmlRoot()`, `component`, `slot`, `qdom`).
+- Adds context helpers on DOM elements (`qhtmlRoot()`, `root()`, `component`, `slot`, `qdom`).

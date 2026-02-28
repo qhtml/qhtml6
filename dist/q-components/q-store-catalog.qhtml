@@ -182,6 +182,7 @@ q-component q-store-catalog {
     for (let i = 0; i < items.length; i += 1) {
       totalCount += this.normalizeNumber(items[i].quantity, 0);
     }
+    const subtotal = this.getCartSubtotal();
     this.dispatchEvent(
       new CustomEvent("q-store-catalog:cart-change", {
         bubbles: true,
@@ -189,8 +190,8 @@ q-component q-store-catalog {
           lastItem: lastItem ? this.normalizeItem(lastItem) : null,
           items: items,
           totalCount: totalCount,
-          subtotal: this.getCartSubtotal(),
-          subtotalFormatted: this.formatCurrency(this.getCartSubtotal()),
+          subtotal: subtotal,
+          subtotalFormatted: this.formatCurrency(subtotal),
         },
       })
     );
@@ -479,9 +480,10 @@ q-component q-store-catalog {
             type: "button";
             text { Checkout }
             onclick {
-              const catalog = this.closest("q-store-catalog");
-              if (catalog && typeof catalog.requestCheckout === "function") {
-                catalog.requestCheckout();
+              try {
+                this.component.requestCheckout();
+              } catch (evt) {
+                console.log("q-store-catalog checkout failed", evt);
               }
             }
           }
@@ -507,9 +509,10 @@ q-component q-store-catalog {
           input.w3-input.w3-border.w3-round-large {
             placeholder: "Filter catalog by name or description";
             oninput {
-              const catalog = this.closest("q-store-catalog");
-              if (catalog && typeof catalog.setFilter === "function") {
-                catalog.setFilter(this.value);
+              try {
+                this.component.setFilter(this.value);
+              } catch (evt) {
+                console.log("q-store-catalog filter failed", evt);
               }
             }
           }

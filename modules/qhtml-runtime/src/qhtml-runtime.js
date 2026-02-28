@@ -1125,7 +1125,14 @@
     if (!root) {
       return;
     }
-    core.walkQDom(root, function evaluateBindingsForNode(node) {
+    evaluateNodeBindingsInTree(root);
+  }
+
+  function evaluateNodeBindingsInTree(rootNode) {
+    if (!rootNode || typeof core.walkQDom !== "function") {
+      return;
+    }
+    core.walkQDom(rootNode, function evaluateBindingsForNode(node) {
       const entries = readNodeBindingEntries(node);
       if (entries.length === 0) {
         return;
@@ -1136,6 +1143,154 @@
         applyBindingValueToNode(node, entry, value);
       }
     });
+  }
+
+  function createScopedRenderDocument(binding, scopeNode) {
+    if (!binding || !scopeNode || typeof scopeNode !== "object" || !core || typeof core.createDocument !== "function") {
+      return null;
+    }
+    const temporary = core.createDocument({ source: "" });
+    const root = sourceNodeOf(binding.rawQdom || binding.qdom);
+    const rootNodes = root && Array.isArray(root.nodes) ? root.nodes : [];
+    for (let i = 0; i < rootNodes.length; i += 1) {
+      const candidate = rootNodes[i];
+      if (!candidate || typeof candidate !== "object") {
+        continue;
+      }
+      if (String(candidate.kind || "").trim().toLowerCase() !== "component") {
+        continue;
+      }
+      temporary.nodes.push(candidate);
+    }
+    temporary.nodes.push(scopeNode);
+    return temporary;
+  }
+
+  function mergeCapturedMappingsIntoBinding(binding, captured) {
+    if (!binding || !captured || typeof captured !== "object") {
+      return;
+    }
+    if (!binding.nodeMap || typeof binding.nodeMap.set !== "function") {
+      binding.nodeMap = new WeakMap();
+    }
+    if (!binding.componentMap || typeof binding.componentMap.set !== "function") {
+      binding.componentMap = new WeakMap();
+    }
+    if (!binding.slotMap || typeof binding.slotMap.set !== "function") {
+      binding.slotMap = new WeakMap();
+    }
+    if (!binding.domByQdomNode || typeof binding.domByQdomNode.get !== "function") {
+      binding.domByQdomNode = new WeakMap();
+    }
+
+    const nodeMap = captured.nodeMap instanceof Map ? captured.nodeMap : null;
+    const componentMap = captured.componentMap instanceof Map ? captured.componentMap : null;
+    const slotMap = captured.slotMap instanceof Map ? captured.slotMap : null;
+
+    if (nodeMap) {
+      nodeMap.forEach(function mapNode(sourceNode, domElement) {
+        if (!domElement || domElement.nodeType !== 1) {
+          return;
+        }
+        const normalizedSource = sourceNodeOf(sourceNode) || sourceNode;
+        if (!normalizedSource || typeof normalizedSource !== "object") {
+          return;
+        }
+        binding.nodeMap.set(domElement, normalizedSource);
+        registerMappedDomElement(binding, normalizedSource, domElement);
+      });
+    }
+    if (componentMap) {
+      componentMap.forEach(function mapComponent(hostElement, domElement) {
+        if (!domElement || domElement.nodeType !== 1 || !hostElement || hostElement.nodeType !== 1) {
+          return;
+        }
+        binding.componentMap.set(domElement, hostElement);
+      });
+    }
+    if (slotMap) {
+      slotMap.forEach(function mapSlot(slotNode, domElement) {
+        if (!domElement || domElement.nodeType !== 1 || !slotNode || typeof slotNode !== "object") {
+          return;
+        }
+        const normalizedSlot = sourceNodeOf(slotNode) || slotNode;
+        binding.slotMap.set(domElement, normalizedSlot);
+      });
+    }
+  }
+
+  function renderScopedComponentBinding(binding, scopeElement) {
+    if (!binding || !binding.qdom || !scopeElement || scopeElement.nodeType !== 1) {
+      return false;
+    }
+
+    const sourceScopeNode = sourceNodeOf(binding.nodeMap && binding.nodeMap.get(scopeElement));
+    if (!sourceScopeNode || typeof sourceScopeNode !== "object") {
+      return false;
+    }
+
+    const scopeKind = String(sourceScopeNode.kind || "").trim().toLowerCase();
+    if (scopeKind !== "component-instance" && scopeKind !== "template-instance") {
+      return false;
+    }
+
+    const targetDocument = binding.doc || scopeElement.ownerDocument || global.document;
+    if (!targetDocument) {
+      return false;
+    }
+
+    evaluateNodeBindingsInTree(sourceScopeNode);
+    registerDefinitionsFromDocument(binding.rawQdom || binding.qdom);
+
+    const scopedDocument = createScopedRenderDocument(binding, sourceScopeNode);
+    if (!scopedDocument) {
+      return false;
+    }
+
+    const capturedNodeMap = new Map();
+    const capturedComponentMap = new Map();
+    const capturedSlotMap = new Map();
+    const fragment = renderer.renderDocumentToFragment(scopedDocument, targetDocument, {
+      capture: {
+        nodeMap: capturedNodeMap,
+        componentMap: capturedComponentMap,
+        slotMap: capturedSlotMap,
+      },
+    });
+
+    const children =
+      fragment && fragment.childNodes && typeof fragment.childNodes.length === "number"
+        ? fragment.childNodes
+        : [];
+    let replacement = null;
+    for (let i = 0; i < children.length; i += 1) {
+      if (children[i] && children[i].nodeType === 1) {
+        replacement = children[i];
+        break;
+      }
+    }
+    if (!replacement) {
+      return false;
+    }
+
+    const parentNode = scopeElement.parentNode;
+    if (!parentNode || typeof parentNode.replaceChild !== "function") {
+      return false;
+    }
+    parentNode.replaceChild(replacement, scopeElement);
+
+    mergeCapturedMappingsIntoBinding(binding, {
+      nodeMap: capturedNodeMap,
+      componentMap: capturedComponentMap,
+      slotMap: capturedSlotMap,
+    });
+
+    hydrateRegisteredComponentHostsInNode(replacement, targetDocument);
+    attachDomQDomAccessors(binding);
+    attachDomControlSync(binding);
+    attachScriptRules(binding);
+    persistQDomTemplate(binding);
+    return true;
   }
 
   function renderBinding(binding) {
@@ -1827,6 +1982,42 @@
         return matches;
       }
 
+      function findParentNodeInTree(rootNode, targetNode) {
+        const rootSource = sourceNodeOf(rootNode);
+        const targetSource = sourceNodeOf(targetNode);
+        if (!rootSource || !targetSource || rootSource === targetSource) {
+          return null;
+        }
+        const seen = new Set([rootSource]);
+        const stack = [rootSource];
+        while (stack.length > 0) {
+          const current = stack.pop();
+          if (!current || typeof current !== "object") {
+            continue;
+          }
+          const collections = childCollections(current);
+          for (let i = 0; i < collections.length; i += 1) {
+            const list = collections[i];
+            for (let j = 0; j < list.length; j += 1) {
+              const child = list[j];
+              if (!child || typeof child !== "object") {
+                continue;
+              }
+              const childSource = sourceNodeOf(child) || child;
+              if (childSource === targetSource) {
+                return current;
+              }
+              if (seen.has(childSource)) {
+                continue;
+              }
+              seen.add(childSource);
+              stack.push(childSource);
+            }
+          }
+        }
+        return null;
+      }
+
       function sourceNodeOf(targetNode) {
         if (!targetNode || typeof targetNode !== "object") {
           return null;
@@ -2128,6 +2319,37 @@
           return matches.map(function mapMatch(found) {
             return installQDomFactories(found);
           });
+        },
+      });
+      Object.defineProperty(node, "root", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function root(options) {
+          const documentRoot = sourceNodeOf(binding.rawQdom || binding.qdom);
+          if (!documentRoot || typeof documentRoot !== "object") {
+            return null;
+          }
+          let cursor = sourceNodeOf(node) || node;
+          let depth = 0;
+          while (cursor && cursor !== documentRoot && depth < 10000) {
+            cursor = findParentNodeInTree(documentRoot, cursor);
+            depth += 1;
+          }
+          if (cursor !== documentRoot) {
+            return null;
+          }
+
+          const mode =
+            typeof options === "string"
+              ? options.trim().toLowerCase()
+              : options && typeof options === "object" && typeof options.mode === "string"
+                ? String(options.mode).trim().toLowerCase()
+                : "";
+          if (mode === "qdom" || options === true || (options && typeof options === "object" && options.qdom === true)) {
+            return installQDomFactories(documentRoot);
+          }
+          return host;
         },
       });
       Object.defineProperty(node, "findSlotFor", {
@@ -2589,6 +2811,9 @@
     host.qhtmlRoot = function hostQhtmlRootAccessor() {
       return host;
     };
+    host.root = function hostRootAccessor() {
+      return host;
+    };
     host.component = null;
 
     function setSlotContextAccessor(element, slotNode, dynamicResolver) {
@@ -2760,6 +2985,77 @@
       }
     }
 
+    function setRootContextAccessor(element) {
+      if (!element || element.nodeType !== 1) {
+        return;
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(element, "root") &&
+        typeof element.root === "function" &&
+        element.__qhtmlRootAccessorInstalled !== true
+      ) {
+        return;
+      }
+      try {
+        if (!Object.prototype.hasOwnProperty.call(element, "__qhtmlRootAccessorInstalled")) {
+          Object.defineProperty(element, "root", {
+            configurable: true,
+            enumerable: false,
+            writable: true,
+            value: function qhtmlRootAccessor() {
+              return host;
+            },
+          });
+          Object.defineProperty(element, "__qhtmlRootAccessorInstalled", {
+            value: true,
+            configurable: true,
+            enumerable: false,
+            writable: true,
+          });
+        }
+      } catch (error) {
+        element.root = function qhtmlRootAccessorFallback() {
+          return host;
+        };
+      }
+    }
+
+    function setComponentUpdateAccessor(componentHost) {
+      if (!componentHost || componentHost.nodeType !== 1) {
+        return;
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(componentHost, "update") &&
+        typeof componentHost.update === "function" &&
+        componentHost.__qhtmlComponentUpdateAccessorInstalled !== true
+      ) {
+        return;
+      }
+      try {
+        if (!Object.prototype.hasOwnProperty.call(componentHost, "__qhtmlComponentUpdateAccessorInstalled")) {
+          Object.defineProperty(componentHost, "update", {
+            configurable: true,
+            enumerable: false,
+            writable: true,
+            value: function qhtmlComponentUpdateAccessor() {
+              return updateQHtmlElement(host, { scopeElement: this });
+            },
+          });
+          Object.defineProperty(componentHost, "__qhtmlComponentUpdateAccessorInstalled", {
+            value: true,
+            configurable: true,
+            enumerable: false,
+            writable: true,
+          });
+        }
+      } catch (error) {
+        componentHost.update = function qhtmlComponentUpdateAccessorFallback() {
+          return updateQHtmlElement(host, { scopeElement: this });
+        };
+        componentHost.__qhtmlComponentUpdateAccessorInstalled = true;
+      }
+    }
+
     function resolveNearestComponentHost(element) {
       if (!element || element.nodeType !== 1) {
         return null;
@@ -2825,9 +3121,12 @@
       element.qhtmlRoot = function elementQhtmlRootAccessor() {
         return host;
       };
+      setRootContextAccessor(element);
 
       const componentHost = binding.componentMap && binding.componentMap.get(element);
-      setComponentContextAccessor(element, componentHost || resolveNearestComponentHost(element) || null);
+      const resolvedComponentHost = componentHost || resolveNearestComponentHost(element) || null;
+      setComponentContextAccessor(element, resolvedComponentHost);
+      setComponentUpdateAccessor(resolvedComponentHost);
 
       const slotNode = binding.slotMap && binding.slotMap.get(element);
       setSlotContextAccessor(element, slotNode || null, resolveNearestSlotNode);
@@ -3157,6 +3456,7 @@
         activeEpoch: 0,
         cyclesInTick: 0,
         reentryCountInEpoch: 0,
+        nextScopeElement: null,
         tickResetTimer: null,
       };
       binding.updateGuardState = state;
@@ -3191,11 +3491,14 @@
     );
   }
 
-  function updateQHtmlElement(qHtmlElement) {
+  function updateQHtmlElement(qHtmlElement, options) {
     const binding = bindings.get(qHtmlElement);
     if (!binding || !binding.qdom) {
       return false;
     }
+    const opts = options && typeof options === "object" ? options : null;
+    const requestedScopeElement =
+      opts && opts.scopeElement && opts.scopeElement.nodeType === 1 ? opts.scopeElement : null;
     const state = ensureBindingUpdateGuardState(binding);
     if (!state) {
       return false;
@@ -3204,6 +3507,13 @@
 
     if (state.inProgress) {
       state.queued = true;
+      if (!requestedScopeElement) {
+        state.nextScopeElement = null;
+      } else if (state.nextScopeElement !== null) {
+        // keep pending full update when already requested
+      } else {
+        state.nextScopeElement = requestedScopeElement;
+      }
       state.reentryCountInEpoch += 1;
       if (state.reentryCountInEpoch > MAX_UPDATE_REENTRIES_PER_EPOCH) {
         state.queued = false;
@@ -3215,6 +3525,14 @@
         return false;
       }
       return true;
+    }
+
+    if (!requestedScopeElement) {
+      state.nextScopeElement = null;
+    } else if (state.nextScopeElement !== null) {
+      // keep pending full update when already requested
+    } else {
+      state.nextScopeElement = requestedScopeElement;
     }
 
     while (true) {
@@ -3234,7 +3552,11 @@
         return false;
       }
       try {
-        renderBinding(binding);
+        const activeScopeElement = state.nextScopeElement;
+        state.nextScopeElement = null;
+        if (!activeScopeElement || !renderScopedComponentBinding(binding, activeScopeElement)) {
+          renderBinding(binding);
+        }
       } finally {
         state.inProgress = false;
       }

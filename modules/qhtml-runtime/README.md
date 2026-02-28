@@ -21,9 +21,11 @@
 
 - `qHtmlElement.qdom()` returns proxied document facade with node factories and query helpers.
 - `qHtmlElement.update()` re-evaluates bindings and re-renders from current QDom.
+- `componentHost.update()` re-evaluates bindings and re-renders only that component instance subtree.
 - Each mapped rendered element receives `.qdom()` that returns the associated source QDom node.
 - Convenience aliases:
   - `element.qhtmlRoot()` returns the owning `<q-html>` host.
+  - `element.root()` returns the owning `<q-html>` host.
   - `element.component` points to nearest component instance host.
   - `element.slot` exposes slot context where applicable.
 
@@ -41,6 +43,7 @@ The installed node facade includes:
 - Query helpers:
   - `find(selector)`
   - `findAll(selector)`
+  - `root(options?)` returns owning `<q-html>` host; pass `{ qdom: true }` (or `"qdom"`) to return document QDom root facade.
   - `findSlotFor(target)`
   - `slots()`
 - Child access:
@@ -59,7 +62,8 @@ The installed node facade includes:
   - `targetCollection: "attributes"` sets/removes DOM-facing attributes
   - `targetCollection: "props"` sets component host properties
   - `targetCollection: "textContent"` updates node text content
-- Trigger re-evaluation manually with `this.closest("q-html").update()` (or `QHtml.updateQHtmlElement(host)`).
+- Trigger full re-evaluation with `this.closest("q-html").update()` (or `QHtml.updateQHtmlElement(host)`).
+- Trigger component-local re-evaluation with `this.component.update()`; `this.component.root().update()` remains equivalent to full host update.
 
 `QDomNodeList` supports `at`, `toArray`, `forEach`, `map`, `qhtml`, `htmldom`, and `html`.
 

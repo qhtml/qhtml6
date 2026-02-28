@@ -79,13 +79,61 @@ q-component q-builder {
     return root && typeof root.find === "function" ? root.find("[q-builder-ui='1']") : null;
   }
 
+  function getGlobalRef() {
+    return typeof globalThis !== "undefined" ? globalThis : Function("return this")();
+  }
+
+  function logIssue(label, error) {
+    try {
+      var root = this.getGlobalRef();
+      var logger = root && root.console ? root.console : console;
+      if (logger && typeof logger.log === "function") {
+        logger.log("[q-builder] " + String(label || "error"), error);
+      }
+    } catch (ignored) { }
+  }
+
+  function applyStyles(node, styles, label) {
+    try {
+      if (!node || !node.style || !styles || typeof styles !== "object") { return false; }
+      for (var key in styles) {
+        if (Object.prototype.hasOwnProperty.call(styles, key)) {
+          node.style[key] = styles[key];
+        }
+      }
+      return true;
+    } catch (error) {
+      this.logIssue(label || "applyStyles failed", error);
+      return false;
+    }
+  }
+
+  function applyStylesToCollection(nodes, styles, label) {
+    try {
+      if (!nodes || typeof nodes.length !== "number") { return; }
+      for (var i = 0; i < nodes.length; i += 1) {
+        this.applyStyles(nodes[i], styles, label);
+      }
+    } catch (error) {
+      this.logIssue(label || "applyStylesToCollection failed", error);
+    }
+  }
+
+  function hideToolbar() {
+    try {
+      this.applyStyles(this.querySelector("[q-builder-toolbar='1']"), { display: "none" }, "hideToolbar failed");
+    } catch (error) {
+      this.logIssue("hideToolbar failed", error);
+    }
+  }
+
   function setTarget(target) {
     var s = this.state();
     var node = target && target.nodeType === 1 && typeof target.qdom === "function" ? target.qdom() : target;
     if (!node || typeof node !== "object" || typeof node.kind !== "string") { s.target = null; return null; }
     s.target = node;
     var source = node && node.__qhtmlSourceNode && typeof node.__qhtmlSourceNode === "object" ? node.__qhtmlSourceNode : node;
-    var globalRef = typeof globalThis !== "undefined" ? globalThis : Function("return this")();
+    var globalRef = this.getGlobalRef();
     var modules = globalRef && globalRef.QHtmlModules ? globalRef.QHtmlModules : null;
     var parser = modules && modules.qhtmlParser ? modules.qhtmlParser : null;
     var core = modules && modules.qdomCore ? modules.qdomCore : null;
@@ -112,26 +160,42 @@ q-component q-builder {
   }
 
   function addCssClass(element, className) {
-    if (!element || !className || !element.classList || !element.classList.add) { return; }
-    element.classList.add(className);
+    try {
+      element.classList.add(className);
+    } catch (error) {
+      this.logIssue("addCssClass failed", error);
+    }
   }
 
   function removeCssClass(element, className) {
-    if (!element || !className || !element.classList || !element.classList.remove) { return; }
-    element.classList.remove(className);
+    try {
+      element.classList.remove(className);
+    } catch (error) {
+      this.logIssue("removeCssClass failed", error);
+    }
   }
 
   function positionOverlay(selector, element) {
-    var marker = this.querySelector(selector);
-    if (!marker || !marker.style) { return; }
-    if (!element || !element.getBoundingClientRect) { marker.style.display = "none"; return; }
-    var rect = element.getBoundingClientRect();
-    if (!rect || rect.width <= 0 || rect.height <= 0) { marker.style.display = "none"; return; }
-    marker.style.left = rect.left + "px";
-    marker.style.top = rect.top + "px";
-    marker.style.width = rect.width + "px";
-    marker.style.height = rect.height + "px";
-    marker.style.display = "block";
+    try {
+      var marker = this.querySelector(selector);
+      if (!marker || !marker.style) { return; }
+      if (!element || !element.getBoundingClientRect) {
+        marker.style.display = "none";
+        return;
+      }
+      var rect = element.getBoundingClientRect();
+      if (!rect || rect.width <= 0 || rect.height <= 0) {
+        marker.style.display = "none";
+        return;
+      }
+      marker.style.left = rect.left + "px";
+      marker.style.top = rect.top + "px";
+      marker.style.width = rect.width + "px";
+      marker.style.height = rect.height + "px";
+      marker.style.display = "block";
+    } catch (error) {
+      this.logIssue("positionOverlay failed", error);
+    }
   }
 
   function refreshOverlays() {
@@ -141,116 +205,101 @@ q-component q-builder {
   }
 
   function positionToolbar() {
-    var s = this.state();
-    var toolbar = this.querySelector("[q-builder-toolbar='1']");
-    var el = s.selectedEl;
-    if (!toolbar || !el || !el.getBoundingClientRect || this.isModalVisible()) {
-      if (toolbar && toolbar.style) { toolbar.style.display = "none"; }
-      return;
+    try {
+      var s = this.state();
+      var toolbar = this.querySelector("[q-builder-toolbar='1']");
+      if (!toolbar || !s.selectedEl || this.isModalVisible()) {
+        this.hideToolbar();
+        return;
+      }
+      var rect = s.selectedEl.getBoundingClientRect();
+      this.applyStyles(toolbar, {
+        left: (rect.left + rect.width / 2) + "px",
+        top: Math.max(12, rect.top) + "px",
+        display: "flex"
+      }, "positionToolbar styles failed");
+    } catch (error) {
+      this.hideToolbar();
+      this.logIssue("positionToolbar failed", error);
     }
-    var rect = el.getBoundingClientRect();
-    toolbar.style.left = (rect.left + rect.width / 2) + "px";
-    toolbar.style.top = Math.max(12, rect.top) + "px";
-    toolbar.style.display = "flex";
   }
 
   function isModalVisible() {
-    var modal = this.querySelector("q-modal[q-builder-modal='1']");
-    if (!modal || typeof modal.querySelector !== "function") { return false; }
-    var root = modal.querySelector("[q-modal-root='1'], .w3-modal");
-    if (!root) { return false; }
-    if (root.style && typeof root.style.display === "string") {
-      return String(root.style.display || "").toLowerCase() !== "none";
-    }
-    if (typeof getComputedStyle === "function") {
-      var css = getComputedStyle(root);
+    try {
+      var modal = this.querySelector("q-modal[q-builder-modal='1']");
+      var root = modal ? modal.querySelector("[q-modal-root='1'], .w3-modal") : null;
+      if (!root) { return false; }
+      var inlineDisplay = String((root.style && root.style.display) || "").toLowerCase();
+      if (inlineDisplay) { return inlineDisplay !== "none"; }
+      var css = typeof getComputedStyle === "function" ? getComputedStyle(root) : null;
       return !!css && String(css.display || "").toLowerCase() !== "none";
+    } catch (error) {
+      this.logIssue("isModalVisible failed", error);
+      return false;
     }
-    return false;
   }
 
   function ensureModalLayout() {
-    var modal = this.querySelector("q-modal[q-builder-modal='1']");
-    if (!modal || typeof modal.querySelector !== "function") { return; }
-    var root = modal.querySelector("[q-modal-root='1'], .w3-modal");
-    var content = modal.querySelector(".w3-modal-content");
-    var body = modal.querySelector(".w3-container.w3-section");
-    var footer = modal.querySelector(".w3-container.w3-border-top");
-    var editor = this.querySelector("[q-builder-editor='1']");
-    if (root && root.style) {
-      root.style.zIndex = "6000";
-      root.style.overflow = "auto";
-      root.style.paddingTop = "3vh";
-    }
-    if (content && content.style) {
-      content.style.display = "flex";
-      content.style.flexDirection = "column";
-      content.style.width = "auto";
-      content.style.height = "auto";
-      content.style.minWidth = "320px";
-      content.style.minHeight = "220px";
-      content.style.resize = "both";
-      content.style.overflow = "hidden";
-      content.style.margin = "0 auto";
-    }
-    if (body && body.style) {
-      body.style.flex = "1 1 auto";
-      body.style.overflow = "auto";
-      body.style.padding = "12px";
-    }
-    if (footer && footer.style) {
-      footer.style.flex = "0 0 auto";
-    }
-    if (editor && editor.style) {
-      editor.style.display = "block";
-      editor.style.width = "100%";
-      editor.style.height = "100%";
-      editor.style.minWidth = "280px";
-      editor.style.minHeight = "220px";
-      editor.style.maxWidth = "100%";
-      editor.style.maxHeight = "100%";
-    }
-    var editorRoot = editor && editor.querySelector ? editor.querySelector(".qe") : null;
-    if (editorRoot && editorRoot.style) {
-      editorRoot.style.width = "100%";
-      editorRoot.style.height = "100%";
-      editorRoot.style.display = "flex";
-      editorRoot.style.flexDirection = "column";
-    }
-    var panels = editor && editor.querySelectorAll ? editor.querySelectorAll(".qe-panel") : null;
-    if (panels && typeof panels.length === "number") {
-      for (var p = 0; p < panels.length; p += 1) {
-        if (panels[p] && panels[p].style) { panels[p].style.height = "100%"; }
-      }
-    }
-    var wraps = editor && editor.querySelectorAll ? editor.querySelectorAll(".qe-editor-wrap") : null;
-    if (wraps && typeof wraps.length === "number") {
-      for (var w = 0; w < wraps.length; w += 1) {
-        if (wraps[w] && wraps[w].style) {
-          wraps[w].style.height = "100%";
-          wraps[w].style.minHeight = "20rem";
-        }
-      }
+    try {
+      var modal = this.querySelector("q-modal[q-builder-modal='1']");
+      if (!modal) { return; }
+      var root = modal.querySelector("[q-modal-root='1'], .w3-modal");
+      var content = modal.querySelector(".w3-modal-content");
+      var body = modal.querySelector(".w3-container.w3-section");
+      var footer = modal.querySelector(".w3-container.w3-border-top");
+      var editor = this.querySelector("[q-builder-editor='1']");
+      this.applyStyles(root, { zIndex: "6000", overflow: "auto", paddingTop: "3vh" }, "modal root layout failed");
+      this.applyStyles(content, {
+        display: "flex",
+        flexDirection: "column",
+        width: "auto",
+        height: "auto",
+        minWidth: "320px",
+        minHeight: "220px",
+        resize: "both",
+        overflow: "hidden",
+        margin: "0 auto"
+      }, "modal content layout failed");
+      this.applyStyles(body, { flex: "1 1 auto", overflow: "auto", padding: "12px" }, "modal body layout failed");
+      this.applyStyles(footer, { flex: "0 0 auto" }, "modal footer layout failed");
+      this.applyStyles(editor, {
+        display: "block",
+        width: "100%",
+        height: "100%",
+        minWidth: "280px",
+        minHeight: "220px",
+        maxWidth: "100%",
+        maxHeight: "100%"
+      }, "editor layout failed");
+      var editorRoot = editor && editor.querySelector ? editor.querySelector(".qe") : null;
+      this.applyStyles(editorRoot, { width: "100%", height: "100%", display: "flex", flexDirection: "column" }, "editor root layout failed");
+      var panels = editor && editor.querySelectorAll ? editor.querySelectorAll(".qe-panel") : null;
+      this.applyStylesToCollection(panels, { height: "100%" }, "editor panel layout failed");
+      var wraps = editor && editor.querySelectorAll ? editor.querySelectorAll(".qe-editor-wrap") : null;
+      this.applyStylesToCollection(wraps, { height: "100%", minHeight: "20rem" }, "editor wrap layout failed");
+    } catch (error) {
+      this.logIssue("ensureModalLayout failed", error);
     }
   }
 
   function fitModalToContent() {
-    var modal = this.querySelector("q-modal[q-builder-modal='1']");
-    if (!modal || typeof modal.querySelector !== "function") { return; }
-    var content = modal.querySelector(".w3-modal-content");
-    if (!content || !content.style) { return; }
-    var viewportW = typeof window !== "undefined" && window && window.innerWidth ? window.innerWidth : 1200;
-    var viewportH = typeof window !== "undefined" && window && window.innerHeight ? window.innerHeight : 800;
-    var maxW = Math.max(320, Math.floor(viewportW * 0.8));
-    var maxH = Math.max(240, Math.floor(viewportH * 0.7));
-    content.style.width = "auto";
-    content.style.height = "auto";
-    var naturalW = Math.ceil(content.scrollWidth || 0);
-    var naturalH = Math.ceil(content.scrollHeight || 0);
-    var nextW = Math.max(320, Math.min(maxW, naturalW || maxW));
-    var nextH = Math.max(240, Math.min(maxH, naturalH || maxH));
-    content.style.width = nextW + "px";
-    content.style.height = nextH + "px";
+    try {
+      var modal = this.querySelector("q-modal[q-builder-modal='1']");
+      var content = modal ? modal.querySelector(".w3-modal-content") : null;
+      if (!content) { return; }
+      var viewportW = typeof window !== "undefined" && window && window.innerWidth ? window.innerWidth : 1200;
+      var viewportH = typeof window !== "undefined" && window && window.innerHeight ? window.innerHeight : 800;
+      var maxW = Math.max(320, Math.floor(viewportW * 0.8));
+      var maxH = Math.max(240, Math.floor(viewportH * 0.7));
+      this.applyStyles(content, { width: "auto", height: "auto" }, "fitModalToContent pre-measure failed");
+      var naturalW = Math.ceil(content.scrollWidth || 0);
+      var naturalH = Math.ceil(content.scrollHeight || 0);
+      var nextW = Math.max(320, Math.min(maxW, naturalW || maxW));
+      var nextH = Math.max(240, Math.min(maxH, naturalH || maxH));
+      this.applyStyles(content, { width: nextW + "px", height: nextH + "px" }, "fitModalToContent sizing failed");
+    } catch (error) {
+      this.logIssue("fitModalToContent failed", error);
+    }
   }
 
   function setHoverElement(element) {
@@ -287,45 +336,55 @@ q-component q-builder {
   }
 
   function setOpen(openFlag) {
-    var s = this.state();
-    s.modalOpen = !!openFlag;
-    var ui = this.ensureUi();
-    if (ui) { ui.setAttribute("q-builder-open", openFlag ? "1" : "0"); }
-    var toolbar = this.querySelector("[q-builder-toolbar='1']");
-    if (toolbar && toolbar.style && openFlag) { toolbar.style.display = "none"; }
-    var modal = this.querySelector("q-modal[q-builder-modal='1']");
-    if (!modal) {
-      if (!openFlag) { this.positionToolbar(); }
-      return;
-    }
-    if (openFlag && typeof modal.show === "function") {
-      modal.show();
-      this.ensureModalLayout();
-      this.fitModalToContent();
-      var self = this;
-      setTimeout(function() { self.ensureModalLayout(); self.fitModalToContent(); }, 0);
-      return;
-    }
-    if (!openFlag && typeof modal.hide === "function") { modal.hide(); this.positionToolbar(); return; }
-    var root = modal.querySelector ? modal.querySelector("[q-modal-root='1'], .w3-modal") : null;
-    if (root && root.style) { root.style.display = openFlag ? "block" : "none"; }
-    if (openFlag) {
-      this.ensureModalLayout();
-      this.fitModalToContent();
-    } else {
-      this.positionToolbar();
+    try {
+      var s = this.state();
+      s.modalOpen = !!openFlag;
+      var ui = this.ensureUi();
+      if (ui) { ui.setAttribute("q-builder-open", openFlag ? "1" : "0"); }
+      if (openFlag) { this.hideToolbar(); }
+      var modal = this.querySelector("q-modal[q-builder-modal='1']");
+      if (!modal) {
+        if (!openFlag) { this.positionToolbar(); }
+        return;
+      }
+      if (openFlag && typeof modal.show === "function") {
+        modal.show();
+        this.ensureModalLayout();
+        this.fitModalToContent();
+        var self = this;
+        setTimeout(function() { self.ensureModalLayout(); self.fitModalToContent(); }, 0);
+        return;
+      }
+      if (!openFlag && typeof modal.hide === "function") {
+        modal.hide();
+        this.positionToolbar();
+        return;
+      }
+      var root = modal.querySelector ? modal.querySelector("[q-modal-root='1'], .w3-modal") : null;
+      this.applyStyles(root, { display: openFlag ? "block" : "none" }, "setOpen root fallback failed");
+      if (openFlag) {
+        this.ensureModalLayout();
+        this.fitModalToContent();
+      } else {
+        this.positionToolbar();
+      }
+    } catch (error) {
+      this.logIssue("setOpen failed", error);
     }
   }
 
   function setInspectMode(enabled, host) {
-    var s = this.state();
-    s.inspect = !!enabled;
-    s.host = host && host.nodeType === 1 ? host : null;
-    if (!s.inspect) {
-      this.setHoverElement(null);
-      this.setSelectedElement(null);
-      var toolbar = this.querySelector("[q-builder-toolbar='1']");
-      if (toolbar && toolbar.style) { toolbar.style.display = "none"; }
+    try {
+      var s = this.state();
+      s.inspect = !!enabled;
+      s.host = host && host.nodeType === 1 ? host : null;
+      if (!s.inspect) {
+        this.setHoverElement(null);
+        this.setSelectedElement(null);
+        this.hideToolbar();
+      }
+    } catch (error) {
+      this.logIssue("setInspectMode failed", error);
     }
   }
 
@@ -342,7 +401,7 @@ q-component q-builder {
     var s = this.state();
     var host = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
     var preserveInspect = !!s.inspect;
-    var globalRef = typeof globalThis !== "undefined" ? globalThis : Function("return this")();
+    var globalRef = this.getGlobalRef();
     var runtime = globalRef && globalRef.QHtml ? globalRef.QHtml : null;
     var logger = globalRef && globalRef.console ? globalRef.console : null;
     function qbLog(label, payload) {
@@ -472,7 +531,7 @@ q-component q-builder {
       if (action === "close") { self.setOpen(false); }
     });
 
-    var globalRef = typeof globalThis !== "undefined" ? globalThis : Function("return this")();
+    var globalRef = this.getGlobalRef();
     if (globalRef.__qbuilderApiInstalled) { return; }
     globalRef.__qbuilderApiInstalled = true;
     var inspectStateByHost = new WeakMap();
@@ -485,15 +544,12 @@ q-component q-builder {
 
     function resolveCandidate(rawTarget, host) {
       var cursor = rawTarget && rawTarget.nodeType === 1 ? rawTarget : (rawTarget && rawTarget.parentElement ? rawTarget.parentElement : null);
-      while (cursor && cursor.nodeType === 1) {
-        if (cursor === host) { return null; }
-        if (cursor.closest && cursor.closest("q-builder[q-builder-runtime='1']")) { return null; }
-        if (cursor.closest && cursor.closest("[data-page-edit-toggle='1']")) { return null; }
-        if (host.contains && !host.contains(cursor)) { return null; }
-        return cursor;
-        cursor = cursor.parentElement;
-      }
-      return null;
+      if (!cursor || cursor.nodeType !== 1) { return null; }
+      if (cursor === host) { return null; }
+      if (cursor.closest && cursor.closest("q-builder[q-builder-runtime='1']")) { return null; }
+      if (cursor.closest && cursor.closest("[data-page-edit-toggle='1']")) { return null; }
+      if (host.contains && !host.contains(cursor)) { return null; }
+      return cursor;
     }
 
     function sourceNodeOf(candidate) {

@@ -239,11 +239,6 @@ q-component demo-example {
 }
 
 q-component demo-showcase {
-  function escapeQHtmlText(value) {
-    
-    return value;
-  }
-
   function quoteAttribute(value) {
     return JSON.stringify(String(value == null ? "" : value));
   }
@@ -262,14 +257,6 @@ q-component demo-showcase {
       return;
     }
     node.children = [];
-  }
-
-  function getSidebarNode() {
-    const root = typeof this.qdom === "function" ? this.qdom() : null;
-    if (!root || typeof root.find !== "function") {
-      return null;
-    }
-    return root.find("[demo-nav='1']");
   }
 
   function decodeSnippet(text) {
@@ -338,16 +325,24 @@ q-component demo-showcase {
       case "example-05":
         return this.decodeSnippet([
           "q-component click-meter {%",
+          "  q-property {% count %}",
           "  function bump() {%",
-          "    this.count = (this.count || 0) + 1;",
-          "    this.querySelector(\"[count='1']\").textContent = String(this.count);",
+          "    this.count = Number(this.count || 0) + 1;",
+          "    if (typeof this.update === \"function\") {%",
+          "      this.update();",
+          "    %}",
           "  %}",
           "  div.w3-card.w3-padding {%",
           "    button.w3-button.w3-indigo {% text {% Click me %} onclick {% this.component.bump(); %} %}",
-          "    span.w3-tag.w3-round.w3-blue.w3-margin-left {% count: \"1\" text {% 0 %} %}",
+          "    span.w3-tag.w3-round.w3-blue.w3-margin-left {%",
+          "      content: q-bind {%",
+          "        var owner = this.component || this;",
+          "        return String(owner && owner.count ? owner.count : 0);",
+          "      %}",
+          "    %}",
           "  %}",
           "%}",
-          "click-meter {% %}"
+          "click-meter {% count: \"0\" %}"
         ].join("\n"));
       case "example-06":
         return this.decodeSnippet([
@@ -398,24 +393,6 @@ q-component demo-showcase {
           "%}",
           "id-chip {% value {% text {% q-script computed %} %} %}"
         ].join("\n"));
-      case "example-10":
-        return this.decodeSnippet([
-          "q-component simple-modal {%",
-          "  function show() {% this.querySelector(\"[backdrop='1']\").style.display = \"block\"; %}",
-          "  function hide() {% this.querySelector(\"[backdrop='1']\").style.display = \"none\"; %}",
-          "  div {%",
-          "    backdrop: \"1\"",
-          "    style {% display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 99; %}",
-          "    div.w3-card.w3-padding.w3-round-large {% style {% max-width: 460px; margin: 10vh auto 0; %} slot {% title %} slot {% body %} slot {% footer %} %}",
-          "  %}",
-          "%}",
-          "button.w3-button.w3-indigo {% text {% Open modal %} onclick {% document.querySelector(\"simple-modal\").show(); %} %}",
-          "simple-modal {%",
-          "  title {% h3 {% text {% Pure QHTML Modal %} %} %}",
-          "  body {% p {% text {% No imported component required. %} %} %}",
-          "  footer {% button.w3-button.w3-red {% text {% Close %} onclick {% this.component.hide(); %} %} %}",
-          "%}"
-        ].join("\n"));
       case "example-11":
         return this.decodeSnippet([
           "q-template faq-item {% div.w3-card.w3-padding.w3-margin-bottom {% slot {% q %} slot {% a %} %} %}",
@@ -430,27 +407,6 @@ q-component demo-showcase {
           "  %}",
           "%}",
           "accordion-panel {% content {% p {% text {% Accordion body via slot. %} %} %} %}"
-        ].join("\n"));
-      case "example-12":
-        return this.decodeSnippet([
-          "q-component tiny-tabs {%",
-          "  function show(i) {%",
-          "    const tabs = this.querySelectorAll(\"[tab='1']\");",
-          "    const links = this.querySelectorAll(\"[tab-btn='1']\");",
-          "    for (let n = 0; n < tabs.length; n += 1) {%",
-          "      tabs[n].style.display = n === i ? \"block\" : \"none\";",
-          "      links[n].classList.toggle(\"w3-blue\", n === i);",
-          "    %}",
-          "  %}",
-          "  div {%",
-          "    button.w3-button {% tab-btn: \"1\" text {% Overview %} onclick {% this.component.show(0); %} %}",
-          "    button.w3-button {% tab-btn: \"1\" text {% Details %} onclick {% this.component.show(1); %} %}",
-          "    div.w3-panel.w3-pale-blue {% tab: \"1\" h4 {% text {% Overview %} %} p {% text {% simple tab logic %} %} %}",
-          "    div.w3-panel.w3-pale-green {% tab: \"1\" style {% display: none; %} h4 {% text {% Details %} %} p {% text {% no external components %} %} %}",
-          "  %}",
-          "  onReady {% this.show(0); %}",
-          "%}",
-          "tiny-tabs {% %}"
         ].join("\n"));
       case "example-13":
         return this.decodeSnippet([
@@ -557,23 +513,207 @@ q-component demo-showcase {
         return this.decodeSnippet([
           "q-template app-card {% div.w3-card.w3-padding.w3-round-large {% slot {% body %} %} %}",
           "q-component app-counter {%",
-          "  function inc() {%",
-          "    this.count = (this.count || 0) + 1;",
-          "    this.querySelector(\"[value='1']\").textContent = this.count;",
-          "  %}",
-          "  function addLog() {%",
+          "  q-property {% count %}",
+          "  function increment() {%",
+          "    this.count = Number(this.count || 0) + 1;",
           "    const root = this.component.qdom();",
-          "    root.slot(\"logs\").appendNode(root.createInstanceFromQHTML(\"li { text { count \" + (this.count || 0) + \" } }\"));",
+          "    root.slot(\"logs\").appendNode(root.createInstanceFromQHTML(\"li { text { count \" + this.count + \" } }\"));",
+          "    if (typeof this.update === \"function\") {%",
+          "      this.update();",
+          "    %}",
           "  %}",
           "  app-card {%",
           "    body {%",
-          "      button.w3-button.w3-blue {% text {% +1 %} onclick {% this.component.inc(); this.component.addLog(); %} %}",
-          "      span.w3-tag.w3-round.w3-green.w3-margin-left {% value: \"1\" text {% 0 %} %}",
+          "      button.w3-button.w3-blue {% text {% +1 %} onclick {% this.component.increment(); %} %}",
+          "      span.w3-tag.w3-round.w3-green.w3-margin-left {%",
+          "        content: q-bind {%",
+          "          var owner = this.component || this;",
+          "          return String(owner && owner.count ? owner.count : 0);",
+          "        %}",
+          "      %}",
           "      ul.w3-margin-top {% slot {% logs %} %}",
           "    %}",
           "  %}",
           "%}",
-          "app-counter {% logs {% li {% text {% count 0 %} %} %} %}"
+          "app-counter {% count: \"0\" logs {% li {% text {% count 0 %} %} %} %}"
+        ].join("\n"));
+      case "component-01":
+        return this.decodeSnippet([
+          "q-import {% q-components/q-modal.qhtml %}",
+          "q-import {% q-components/q-tabs.qhtml %}",
+          "q-import {% q-components/q-builder.qhtml %}",
+          "",
+          "q-builder {% q-builder-runtime: \"1\" style {% display: none; %} %}",
+          "div.w3-container.w3-border.w3-round-large.w3-padding.w3-margin-top {%",
+          "  button.w3-button.w3-orange {%",
+            "    data-page-edit-toggle: \"1\"",
+            "    text {% Toggle Builder Inspect %}",
+            "    onclick {%",
+              "      try {",
+              "        var host = this.closest(\"q-html\");",
+              "        var next = host.getAttribute(\"data-page-edit-mode\") === \"1\" ? \"0\" : \"1\";",
+              "        host.setAttribute(\"data-page-edit-mode\", next);",
+              "        window.qbuilder.inspect(host, next === \"1\");",
+              "      } catch (evt) { console.log(\"q-builder toggle failed\", evt); }",
+            "    %}",
+          "  %}",
+          "  p.w3-small.w3-text-grey.w3-margin-top {% text {% Toggle on, then click any element in preview to open q-builder editor. %} %}",
+          "%}"
+        ].join("\n"));
+      case "component-02":
+        return this.decodeSnippet([
+          "q-import {% q-components/q-modal.qhtml %}",
+          "q-import {% q-components/q-form.qhtml %}",
+          "q-import {% q-components/q-grid.qhtml %}",
+          "q-import {% q-components/q-checkout-modal.qhtml %}",
+          "",
+          "button.w3-button.w3-indigo {%",
+          "  text {% Open Checkout Modal %}",
+          "  onclick {%",
+          "    try {",
+          "      var modal = document.querySelector(\"#checkout-usage\");",
+          "      modal.setItems([",
+          "        { id: \"sku-1\", name: \"Starter Pack\", price: 24.99, quantity: 2 },",
+          "        { id: \"sku-2\", name: \"Add-on\", price: 8.5, quantity: 1 }",
+          "      ]);",
+          "      modal.show();",
+          "    } catch (evt) { console.log(\"checkout usage failed\", evt); }",
+          "  %}",
+          "%}",
+          "q-checkout-modal {% id: \"checkout-usage\" %}"
+        ].join("\n"));
+      case "component-03":
+        return this.decodeSnippet([
+          "q-import {% q-components/q-form.qhtml %}",
+          "q-import {% q-components/q-grid.qhtml %}",
+          "q-import {% q-components/q-modal.qhtml %}",
+          "q-import {% q-components/q-store-catalog-item.qhtml %}",
+          "q-import {% q-components/q-store-catalog.qhtml %}",
+          "q-import {% q-components/q-checkout-modal.qhtml %}",
+          "q-import {% q-components/q-estore.qhtml %}",
+          "",
+          "q-estore {%",
+          "  items-json: \"[{\\\"id\\\":\\\"sku-1\\\",\\\"name\\\":\\\"Starter\\\",\\\"description\\\":\\\"Inline demo item\\\",\\\"price\\\":12.5}]\"",
+          "  autoload: \"true\"",
+          "%}"
+        ].join("\n"));
+      case "component-04":
+        return this.decodeSnippet([
+          "q-import {% q-components/q-form.qhtml %}",
+          "",
+          "q-form {%",
+          "  h3 {% text {% Quick Form %} %}",
+          "  q-input {% placeholder: \"Name\" %}",
+          "  q-input {% type: \"email\" placeholder: \"Email\" %}",
+          "  q-textarea {% text {% Tell us what you are building... %} %}",
+          "  q-submit {% text {% Send %} %}",
+          "%}"
+        ].join("\n"));
+      case "component-05":
+        return this.decodeSnippet([
+          "q-import {% q-components/q-grid.qhtml %}",
+          "",
+          "q-grid {%",
+          "  columns: 3;",
+          "  div.w3-panel.w3-pale-blue {% text {% Cell A %} %}",
+          "  div.w3-panel.w3-pale-green {% text {% Cell B %} %}",
+          "  div.w3-panel.w3-pale-yellow {% text {% Cell C %} %}",
+          "%}"
+        ].join("\n"));
+      case "component-06":
+        return this.decodeSnippet([
+          "q-import {% q-components/q-modal.qhtml %}",
+          "",
+          "button.w3-button.w3-blue {%",
+          "  text {% Open Modal %}",
+          "  onclick {% document.querySelector(\"#modal-usage\").show(); %}",
+          "%}",
+          "q-modal {%",
+          "  id: \"modal-usage\"",
+          "  title {% h3 {% text {% q-modal Usage %} %} %}",
+          "  body {% p {% text {% Modal body content from slots. %} %} %}",
+          "  footer {% button.w3-button.w3-red {% text {% Close %} onclick {% this.component.hide(); %} %} %}",
+          "%}"
+        ].join("\n"));
+      case "component-07":
+        return this.decodeSnippet([
+          "q-import {% q-components/q-sidebar.qhtml?v=drawer-width %}",
+          "",
+          "div.w3-container.w3-border.w3-round-large {%",
+          "  style {% position: relative; height: 240px; overflow: hidden; padding: 8px; %}",
+          "  button.w3-button.w3-black.w3-margin-bottom {%",
+            "    text {% Toggle Sidebar %}",
+            "    onclick {%",
+              "      try { this.closest(\"div\").querySelector(\"q-sidebar\").toggle(); }",
+              "      catch (evt) { console.log(\"Cannot toggle sidebar\"); }",
+            "    %}",
+          "  %}",
+          "  q-sidebar {%",
+            "    sidebar-width: \"280\"",
+            "    collapsed-width: \"2vw\"",
+            "    open: \"1\"",
+            "    content {%",
+              "      div.w3-bar-block.w3-light-grey.w3-padding {%",
+                "        h4 {% text {% Sidebar %} %}",
+                "        a.w3-bar-item.w3-button {% text {% Nav Item 1 %} %}",
+                "        a.w3-bar-item.w3-button {% text {% Nav Item 2 %} %}",
+              "      %}",
+            "    %}",
+            "    main {%",
+              "      div.w3-padding {%",
+                "        h4 {% text {% Main Content %} %}",
+                "        p {% text {% q-sidebar now uses an in-container grid layout (sidebar + main). %} %}",
+              "      %}",
+            "    %}",
+          "  %}",
+          "%}"
+        ].join("\n"));
+      case "component-08":
+        return this.decodeSnippet([
+          "q-import {% q-components/q-form.qhtml %}",
+          "q-import {% q-components/q-grid.qhtml %}",
+          "q-import {% q-components/q-store-catalog-item.qhtml %}",
+          "q-import {% q-components/q-store-catalog.qhtml %}",
+          "",
+          "button.w3-button.w3-green.w3-margin-bottom {%",
+            "  text {% Add Sample Item %}",
+            "  onclick {%",
+          "    try { document.querySelector(\"#catalog-usage\").addCatalogItem({ name: \"Demo Item\", description: \"Added via method\", price: 11.25 }); }",
+          "    catch (evt) { console.log(\"catalog add failed\", evt); }",
+          "  %}",
+          "%}",
+          "q-store-catalog {% id: \"catalog-usage\" %}",
+          "div.w3-margin-top.w3-padding.w3-border-top {%",
+            "  h4 {% text {% Standalone q-store-catalog-item %} %}",
+            "  q-store-catalog-item {%",
+              "    data-item-id: \"widget-a\"",
+              "    data-item-name: \"Widget A\"",
+              "    data-item-description: \"Single card usage in same example as catalog.\"",
+              "    data-item-price: \"19.95\"",
+            "  %}",
+          "%}"
+        ].join("\n"));
+      case "component-10":
+        return this.decodeSnippet([
+          "q-import {% q-components/q-tabs.qhtml %}",
+          "",
+          "button.w3-button.w3-teal.w3-margin-bottom {%",
+          "  text {% Show Tab 3 %}",
+          "  onclick {% document.querySelector(\"#tabs-usage\").showTab(2); %}",
+          "%}",
+          "q-tabs {%",
+          "  id: \"tabs-usage\"",
+          "  q-tab {% name {% text {% Overview %} %} content {% p {% text {% Overview content %} %} %} %}",
+          "  q-tab {% name {% text {% Details %} %} content {% p {% text {% Details content %} %} %} %}",
+          "  q-tab {% name {% text {% Logs %} %} content {% p {% text {% Logs content %} %} %} %}",
+          "%}"
+        ].join("\n"));
+      case "component-11":
+        return this.decodeSnippet([
+          "q-import {% q-components/q-tech-tag.qhtml %}",
+          "",
+          "q-tech-tag {% text {% Extend this tag by adding definitions inside q-tech-tag.qhtml. %} %}",
+          "div.w3-panel.w3-pale-yellow.w3-small {% text {% q-tech-tag.qhtml currently has no built-in definitions. %} %}"
         ].join("\n"));
       default:
         return this.decodeSnippet("div {% text {% example pending %} %}");
@@ -582,14 +722,14 @@ q-component demo-showcase {
 
   function buildSidebar() {
     const root = typeof this.qdom === "function" ? this.qdom() : null;
-    const sidebarNode = this.getSidebarNode();
+    const sidebarNode = root && typeof root.find === "function"
+      ? root.find("[demo-nav='1']")
+      : null;
     if (!root || !sidebarNode || typeof root.createInstanceFromQHTML !== "function" || typeof sidebarNode.appendNode !== "function") {
       return;
     }
 
     this.clearNodeChildren(sidebarNode);
-    const left = String.fromCharCode(123);
-    const right = String.fromCharCode(125);
 
     const examples = this.querySelectorAll("demo-example[id]");
     for (let i = 0; i < examples.length; i += 1) {
@@ -599,12 +739,11 @@ q-component demo-showcase {
         continue;
       }
       const label = String(example.getAttribute("title") || example.getAttribute("nav-label") || ("Example " + (i + 1)));
-      const qhtml =
-        "a.demo-nav-link " + left +
-          " href: " + this.quoteAttribute("#" + id) + ";" +
-          " data-example-target: " + this.quoteAttribute(id) + ";" +
-          " text " + left + " " + this.escapeQHtmlText(label) + " " + right +
-        " " + right;
+      const qhtml = "a.demo-nav-link {"
+        + " href: " + this.quoteAttribute("#" + id) + ";"
+        + " data-example-target: " + this.quoteAttribute(id) + ";"
+        + " text { " + label + " }"
+        + " }";
       sidebarNode.appendNode(root.createInstanceFromQHTML(qhtml));
     }
     this.syncSidebarActive();
@@ -655,16 +794,15 @@ q-component demo-showcase {
     this.hydrateExamples();
     this.buildSidebar();
 
-    const self = this;
-    window.addEventListener("hashchange", function onHashChange() {
-      self.syncSidebarActive();
+    window.addEventListener("hashchange", () => {
+      this.syncSidebarActive();
     });
 
     const nav = this.querySelector("[demo-nav='1']");
     if (nav) {
-      nav.addEventListener("click", function onSidebarClick() {
-        setTimeout(function afterJump() {
-          self.syncSidebarActive();
+      nav.addEventListener("click", () => {
+        setTimeout(() => {
+          this.syncSidebarActive();
         }, 20);
       });
     }
@@ -680,9 +818,9 @@ q-component demo-showcase {
 
     main.demo-main {
       section.demo-hero {
-        h1 { text { QHTML in 20 Examples } }
+        h1 { text { QHTML in 28 Examples } }
         p { text { Each section is a live q-editor instance with concise code, rendered in a fully QHTML-authored page. } }
-        p { text { Use the sidebar to jump between examples. Everything here is assembled from pure q-html and runtime methods. } }
+        p { text { Use the sidebar to jump between examples. Includes base language samples plus focused q-components usage snippets. } }
         div.demo-chip-row {
           span.demo-chip { text { pure q-html } }
           span.demo-chip { text { slots } }
@@ -690,6 +828,7 @@ q-component demo-showcase {
           span.demo-chip { text { qdom mutations } }
           span.demo-chip { text { templates } }
           span.demo-chip { text { component methods } }
+          span.demo-chip { text { q-components usage } }
         }
       }
 
@@ -702,9 +841,7 @@ q-component demo-showcase {
       demo-example { id: "example-07" title: "q-component + Named Slot" summary: "Create reusable custom elements with explicit slot contracts." }
       demo-example { id: "example-08" title: "Single-Slot Auto Placement" summary: "If only one slot exists, children auto-route into it." }
       demo-example { id: "example-09" title: "q-script for Values" summary: "Compute selectors/ids/attribute values inline." }
-      demo-example { id: "example-10" title: "Modal Dialog (Pure QHTML)" summary: "Build show/hide modal behavior directly in a component with no imports." }
       demo-example { id: "example-11" title: "Accordion Panel" summary: "Toggle collapsible content with component methods and slots." }
-      demo-example { id: "example-12" title: "Tiny Tabs" summary: "Implement simple tab switching behavior from scratch." }
       demo-example { id: "example-13" title: "Form Component" summary: "Handle form state and output with plain q-html methods." }
       demo-example { id: "example-14" title: "Nested Slot Forwarding" summary: "Forward outer slots through inner component layers." }
       demo-example { id: "example-15" title: "this.component / this.qhtmlRoot() / this.slot" summary: "Context pointers inside inline handlers." }
@@ -713,6 +850,16 @@ q-component demo-showcase {
       demo-example { id: "example-18" title: "QDom serialize()" summary: "Capture compressed source-of-truth payload for storage." }
       demo-example { id: "example-19" title: "Mini Catalog via QDom" summary: "Append list items dynamically using createInstanceFromQHTML and appendNode." }
       demo-example { id: "example-20" title: "Mini Component App" summary: "Compose template + component + methods in a compact app." }
+      demo-example { id: "component-01" title: "q-builder.qhtml usage" summary: "Minimal page-edit inspector toggle flow." }
+      demo-example { id: "component-02" title: "q-checkout-modal.qhtml usage" summary: "Populate checkout items and show the modal." }
+      demo-example { id: "component-03" title: "q-estore.qhtml usage" summary: "Compose catalog + checkout with autoloaded items." }
+      demo-example { id: "component-04" title: "q-form.qhtml usage" summary: "Use form templates for quick input layouts." }
+      demo-example { id: "component-05" title: "q-grid.qhtml usage" summary: "Create a simple grid with declarative columns." }
+      demo-example { id: "component-06" title: "q-modal.qhtml usage" summary: "Open and close modal content via component methods." }
+      demo-example { id: "component-07" title: "q-sidebar.qhtml usage" summary: "Toggle a sidebar panel and slot-based content." }
+      demo-example { id: "component-08" title: "q-store-catalog + q-store-catalog-item usage" summary: "Merged example showing catalog behavior and standalone item card." }
+      demo-example { id: "component-10" title: "q-tabs.qhtml usage" summary: "Instantiate tabs and switch via showTab(index)." }
+      demo-example { id: "component-11" title: "q-tech-tag.qhtml usage" summary: "Placeholder usage for the currently empty file." }
     }
   }
 }

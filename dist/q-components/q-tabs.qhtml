@@ -13,14 +13,7 @@ q-rewrite q-tab-panel-rewriter {
 
 q-component q-tab {
   function getTabsContainer() {
-    let current = this.parentElement;
-    while (current) {
-      if (current.tagName && String(current.tagName).toLowerCase() === "q-tabs") {
-        return current;
-      }
-      current = current.parentElement;
-    }
-    return null;
+    return this.closest ? this.closest("q-tabs") : null;
   }
 
   function getLabel() {
