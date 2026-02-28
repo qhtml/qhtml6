@@ -1,0 +1,51 @@
+q-template q-form-surface {
+  div.w3-card.w3-white.w3-round-large.w3-padding {
+    slot { content }
+  }
+}
+
+q-template q-form-layout {
+  form.w3-container.w3-margin-top.w3-margin-bottom {
+    slot { content }
+  }
+}
+
+q-template q-form {
+  q-form-layout {
+    q-form-surface {
+      slot { content }
+    }
+  }
+}
+
+q-template q-input-control {
+  input.w3-input.w3-border.w3-round-large.w3-margin-bottom { }
+}
+
+q-template q-input {
+  q-input-control { }
+}
+
+q-template q-textarea-control {
+  textarea.w3-input.w3-border.w3-round-large.w3-margin-bottom {
+    slot { content }
+  }
+}
+
+q-template q-textarea {
+  q-textarea-control {
+    slot { content }
+  }
+}
+
+q-template q-submit-control {
+  button.w3-button.w3-green.w3-round-large.w3-margin-top {
+    slot { content }
+  }
+}
+
+q-template q-submit {
+  q-submit-control {
+    slot { content }
+  }
+}

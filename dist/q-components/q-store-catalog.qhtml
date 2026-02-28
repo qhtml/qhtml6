@@ -1,0 +1,533 @@
+q-component q-store-catalog {
+  function normalizeNumber(value, fallback) {
+    const n = Number(value);
+    if (Number.isFinite(n)) {
+      return n;
+    }
+    const alt = Number(fallback);
+    return Number.isFinite(alt) ? alt : 0;
+  }
+
+  function normalizeItem(item) {
+    const raw = item && typeof item === "object" ? item : {};
+    return {
+      id: String(raw.id || raw.sku || "").trim(),
+      name: String(raw.name || "Untitled item").trim() || "Untitled item",
+      description: String(raw.description || "").trim(),
+      price: this.normalizeNumber(raw.price, 0),
+    };
+  }
+
+  function formatCurrency(value) {
+    return "$" + this.normalizeNumber(value, 0).toFixed(2);
+  }
+
+  function ensureState() {
+    const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
+    let state = qdomNode && typeof qdomNode === "object" ? qdomNode.__qStoreCatalogState : null;
+    if (!state || typeof state !== "object") {
+      state = {};
+      if (qdomNode && typeof qdomNode === "object") {
+        try {
+          Object.defineProperty(qdomNode, "__qStoreCatalogState", {
+            value: state,
+            configurable: true,
+            writable: true,
+            enumerable: false,
+          });
+        } catch (error) {
+          qdomNode.__qStoreCatalogState = state;
+        }
+      }
+    }
+    if (qdomNode && typeof qdomNode === "object") {
+      state = qdomNode.__qStoreCatalogState || state;
+    }
+
+    if (!Array.isArray(state.catalogItems)) {
+      state.catalogItems = [];
+    }
+    if (!state.cart || typeof state.cart !== "object") {
+      state.cart = {};
+    }
+    if (typeof state.filterText !== "string") {
+      state.filterText = "";
+    }
+    return state;
+  }
+
+  function setFilter(text) {
+    const state = this.ensureState();
+    state.filterText = String(text || "").trim().toLowerCase();
+    this.renderCatalog();
+  }
+
+  function loadItems(items) {
+    return this.setCatalogItems(items);
+  }
+
+  function setCatalogItems(items) {
+    const state = this.ensureState();
+    const list = Array.isArray(items) ? items : [];
+    state.catalogItems = list.map((item) => this.normalizeItem(item));
+    this.renderCatalog();
+    this.updateCartSummary();
+    return this.getCatalogItems();
+  }
+
+  function addCatalogItem(item) {
+    const state = this.ensureState();
+    state.catalogItems.push(this.normalizeItem(item));
+    this.renderCatalog();
+    return this.getCatalogItems();
+  }
+
+  function clearCatalogItems() {
+    const state = this.ensureState();
+    state.catalogItems = [];
+    this.renderCatalog();
+    return [];
+  }
+
+  function getCatalogItems() {
+    const state = this.ensureState();
+    return state.catalogItems.map((item) => this.normalizeItem(item));
+  }
+
+  function addToCart(item, quantity) {
+    const state = this.ensureState();
+    const normalized = this.normalizeItem(item);
+    const qty = Math.max(1, Math.floor(this.normalizeNumber(quantity, 1)));
+    const key = normalized.id || normalized.name.toLowerCase();
+    const existing = state.cart[key];
+    if (existing) {
+      existing.quantity += qty;
+      existing.price = normalized.price;
+      existing.name = normalized.name;
+      existing.description = normalized.description;
+    } else {
+      state.cart[key] = {
+        id: normalized.id,
+        name: normalized.name,
+        description: normalized.description,
+        price: normalized.price,
+        quantity: qty,
+      };
+    }
+    this.updateCartSummary();
+    this.emitCartChange(normalized);
+    return this.getCartItems();
+  }
+
+  function removeFromCart(nameOrId) {
+    const state = this.ensureState();
+    const keyText = String(nameOrId || "").trim();
+    if (!keyText) {
+      return this.getCartItems();
+    }
+    const lowered = keyText.toLowerCase();
+    const keys = Object.keys(state.cart);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      const entry = state.cart[key];
+      if (!entry) {
+        continue;
+      }
+      if (key === keyText || key === lowered || String(entry.name || "").toLowerCase() === lowered) {
+        delete state.cart[key];
+        break;
+      }
+    }
+    this.updateCartSummary();
+    this.emitCartChange(null);
+    return this.getCartItems();
+  }
+
+  function clearCart() {
+    const state = this.ensureState();
+    state.cart = {};
+    this.updateCartSummary();
+    this.emitCartChange(null);
+    return [];
+  }
+
+  function getCartItems() {
+    const state = this.ensureState();
+    const keys = Object.keys(state.cart);
+    return keys.map((key) => {
+      const entry = state.cart[key] || {};
+      return {
+        id: String(entry.id || "").trim(),
+        name: String(entry.name || "Untitled item"),
+        description: String(entry.description || ""),
+        price: this.normalizeNumber(entry.price, 0),
+        quantity: Math.max(1, Math.floor(this.normalizeNumber(entry.quantity, 1))),
+      };
+    });
+  }
+
+  function getCartSubtotal() {
+    const items = this.getCartItems();
+    let total = 0;
+    for (let i = 0; i < items.length; i += 1) {
+      const line = items[i];
+      total += this.normalizeNumber(line.price, 0) * this.normalizeNumber(line.quantity, 1);
+    }
+    return total;
+  }
+
+  function emitCartChange(lastItem) {
+    const items = this.getCartItems();
+    let totalCount = 0;
+    for (let i = 0; i < items.length; i += 1) {
+      totalCount += this.normalizeNumber(items[i].quantity, 0);
+    }
+    this.dispatchEvent(
+      new CustomEvent("q-store-catalog:cart-change", {
+        bubbles: true,
+        detail: {
+          lastItem: lastItem ? this.normalizeItem(lastItem) : null,
+          items: items,
+          totalCount: totalCount,
+          subtotal: this.getCartSubtotal(),
+          subtotalFormatted: this.formatCurrency(this.getCartSubtotal()),
+        },
+      })
+    );
+  }
+
+  function updateCartSummary() {
+    const countNode = this.querySelector("[q-store-cart-count='1']");
+    const totalNode = this.querySelector("[q-store-cart-total='1']");
+    const cartJsonNode = this.querySelector("[q-store-catalog-cart-json='1']");
+
+    const items = this.getCartItems();
+    let totalCount = 0;
+    for (let i = 0; i < items.length; i += 1) {
+      totalCount += this.normalizeNumber(items[i].quantity, 0);
+    }
+    const subtotal = this.getCartSubtotal();
+
+    if (countNode) {
+      countNode.textContent = String(totalCount);
+    }
+    if (totalNode) {
+      totalNode.textContent = this.formatCurrency(subtotal);
+    }
+    if (cartJsonNode) {
+      cartJsonNode.value = JSON.stringify(items);
+      cartJsonNode.textContent = cartJsonNode.value;
+    }
+
+    const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
+    if (qdomNode && typeof qdomNode === "object") {
+      if (!qdomNode.meta || typeof qdomNode.meta !== "object") {
+        qdomNode.meta = {};
+      }
+      qdomNode.meta.cartItemCount = totalCount;
+      qdomNode.meta.cartSubtotalBeforeTax = subtotal;
+    }
+  }
+
+  function parseJsonEntries(jsonEntries) {
+    if (Array.isArray(jsonEntries)) {
+      return jsonEntries;
+    }
+    if (jsonEntries && typeof jsonEntries === "object" && Array.isArray(jsonEntries.items)) {
+      return jsonEntries.items;
+    }
+    if (typeof jsonEntries !== "string") {
+      return [];
+    }
+
+    const raw = jsonEntries.trim();
+    if (!raw) {
+      return [];
+    }
+
+    try {
+      return this.parseJsonEntries(JSON.parse(raw));
+    } catch (error) {
+      try {
+        return this.parseJsonEntries(JSON.parse(decodeURIComponent(raw)));
+      } catch (decodeError) {
+        throw new Error("Invalid catalog JSON payload.");
+      }
+    }
+  }
+
+  function loadJsonEntries(jsonEntries) {
+    const parsed = this.parseJsonEntries(jsonEntries);
+    return this.setCatalogItems(parsed);
+  }
+
+  function escapeQHtmlText(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/{/g, "&#123;")
+      .replace(/}/g, "&#125;");
+  }
+
+  function quoteAttribute(value) {
+    return JSON.stringify(String(value == null ? "" : value));
+  }
+
+  function getItemsHostNode() {
+    const liveMarker = this.querySelector("[q-store-catalog-items='1']");
+    if (liveMarker && typeof liveMarker.qdom === "function") {
+      try {
+        const mapped = liveMarker.qdom();
+        if (mapped && typeof mapped.appendNode === "function") {
+          return mapped;
+        }
+      } catch (error) {
+      }
+    }
+
+    const root = typeof this.qdom === "function" ? this.qdom() : null;
+    if (!root || typeof root !== "object") {
+      return null;
+    }
+    if (typeof root.find === "function") {
+      const marker = root.find("[q-store-catalog-items='1']");
+      if (marker && typeof marker.appendNode === "function") {
+        return marker;
+      }
+    }
+    if (typeof root.createInstanceFromQHTML === "function" && typeof root.appendNode === "function") {
+      const fallbackNode = root.createInstanceFromQHTML(
+        "div { q-store-catalog-items: \"1\"; class: \"w3-row-padding w3-padding-bottom\"; }"
+      );
+      if (fallbackNode) {
+        const appended = root.appendNode(fallbackNode);
+        if (Array.isArray(appended)) {
+          return appended.length ? appended[0] : null;
+        }
+        return appended || null;
+      }
+    }
+    return null;
+  }
+
+  function clearNodeChildren(node) {
+    if (!node || typeof node !== "object") {
+      return;
+    }
+
+    const childrenValue = node.children;
+    if (typeof childrenValue === "function") {
+      try {
+        if (typeof childrenValue.splice === "function") {
+          const count = Number(childrenValue.length || 0);
+          childrenValue.splice(0, count);
+          return;
+        }
+      } catch (error) {
+      }
+    }
+
+    if (Array.isArray(childrenValue)) {
+      childrenValue.length = 0;
+      return;
+    }
+
+    node.children = [];
+  }
+
+  function generateCatalogItem(item) {
+    const normalized = this.normalizeItem(item);
+    const description = normalized.description || "No description provided.";
+    return (
+      "div.w3-col.l4.m6.s12.w3-margin-bottom {\n" +
+      "  q-store-catalog-item {\n" +
+      "    data-item-id: " + this.quoteAttribute(normalized.id || "") + ";\n" +
+      "    data-item-name: " + this.quoteAttribute(normalized.name) + ";\n" +
+      "    data-item-description: " + this.quoteAttribute(description) + ";\n" +
+      "    data-item-price: " + this.quoteAttribute(String(this.normalizeNumber(normalized.price, 0))) + ";\n" +
+      "    item-name { html { " + this.escapeQHtmlText(normalized.name) + " } }\n" +
+      "    item-description { html { " + this.escapeQHtmlText(description) + " } }\n" +
+      "    item-price { html { " + this.escapeQHtmlText(this.formatCurrency(normalized.price)) + " } }\n" +
+      "  }\n" +
+      "}"
+    );
+  }
+
+  function generateEstoreItem(name, price, description, id) {
+    return this.generateCatalogItem({
+      id: id,
+      name: name,
+      description: description,
+      price: price,
+    });
+  }
+
+  function renderCatalog() {
+    const state = this.ensureState();
+    const root = typeof this.qdom === "function" ? this.qdom() : null;
+    if (!root || typeof root.createInstanceFromQHTML !== "function") {
+      return;
+    }
+
+    const itemsHost = this.getItemsHostNode();
+    if (!itemsHost || typeof itemsHost.appendNode !== "function") {
+      const retries = Number(this.__qStoreCatalogRenderRetry || 0);
+      if (retries < 60 && typeof setTimeout === "function") {
+        this.__qStoreCatalogRenderRetry = retries + 1;
+        const self = this;
+        setTimeout(function retryRenderCatalog() {
+          self.renderCatalog();
+        }, 16);
+      }
+      return;
+    }
+    this.__qStoreCatalogRenderRetry = 0;
+
+    const query = state.filterText;
+    const source = this.getCatalogItems();
+    const list = query
+      ? source.filter((item) => {
+          const hay = (item.name + " " + item.description).toLowerCase();
+          return hay.indexOf(query) !== -1;
+        })
+      : source;
+
+    this.__qStoreCatalogRenderInProgress = true;
+    try {
+      this.clearNodeChildren(itemsHost);
+      if (!list.length) {
+        itemsHost.appendNode(
+          root.createInstanceFromQHTML(
+            "div.w3-col.s12.w3-panel.w3-pale-yellow.w3-border.w3-round-large { text { " +
+              (query ? "No catalog items matched your filter." : "Catalog is empty.") +
+              " } }"
+          )
+        );
+        return;
+      }
+
+      for (let i = 0; i < list.length; i += 1) {
+        const item = list[i];
+        itemsHost.appendNode(root.createInstanceFromQHTML(this.generateCatalogItem(item)));
+      }
+    } finally {
+      this.__qStoreCatalogRenderInProgress = false;
+    }
+  }
+
+  function requestCheckout() {
+    this.dispatchEvent(
+      new CustomEvent("q-store-catalog:checkout", {
+        bubbles: true,
+        detail: {
+          items: this.getCartItems(),
+          subtotal: this.getCartSubtotal(),
+        },
+      })
+    );
+  }
+
+  onReady {
+    if (this.__qStoreCatalogReady) {
+      return;
+    }
+    this.__qStoreCatalogReady = true;
+    const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
+    if (qdomNode && typeof qdomNode === "object" && !qdomNode.__qhtmlPersistRenderTree) {
+      try {
+        Object.defineProperty(qdomNode, "__qhtmlPersistRenderTree", {
+          value: true,
+          configurable: true,
+          writable: true,
+          enumerable: false,
+        });
+      } catch (error) {
+        qdomNode.__qhtmlPersistRenderTree = true;
+      }
+      if (!qdomNode.meta || typeof qdomNode.meta !== "object") {
+        qdomNode.meta = {};
+      }
+      qdomNode.meta.__catalogPersistInit = (Number(qdomNode.meta.__catalogPersistInit || 0) + 1);
+    }
+    const self = this;
+    this.ensureState();
+    this.addEventListener("q-store-catalog:add", function(event) {
+      if (event.target === self) {
+        return;
+      }
+      event.stopPropagation();
+      self.addToCart(event.detail || {}, 1);
+    });
+    this.renderCatalog();
+    this.updateCartSummary();
+  }
+
+  div.w3-card.w3-white.w3-round-large.w3-border {
+    q-form {
+      div.w3-row-padding.w3-padding.w3-border-bottom {
+        div.w3-col.l8.m7.s12 {
+          h3.w3-margin-top.w3-margin-bottom {
+            text { Store Catalog }
+          }
+          p.w3-small.w3-text-grey {
+            text { Browse products, add to cart, then open checkout from the top-right button. }
+          }
+        }
+        div.w3-col.l4.m5.s12.w3-right-align {
+          button.w3-button.w3-indigo.w3-round.w3-margin-top {
+            type: "button";
+            text { Checkout }
+            onclick {
+              const catalog = this.closest("q-store-catalog");
+              if (catalog && typeof catalog.requestCheckout === "function") {
+                catalog.requestCheckout();
+              }
+            }
+          }
+          div.w3-small.w3-margin-top {
+            text { Cart items: }
+            span.w3-tag.w3-blue.w3-round.w3-margin-left {
+              q-store-cart-count: "1"
+              text { 0 }
+            }
+          }
+          div.w3-small.w3-text-grey {
+            text { Subtotal: }
+            span.w3-margin-left {
+              q-store-cart-total: "1"
+              text { $0.00 }
+            }
+          }
+        }
+      }
+
+      div.w3-row-padding.w3-padding {
+        div.w3-col.s12 {
+          input.w3-input.w3-border.w3-round-large {
+            placeholder: "Filter catalog by name or description";
+            oninput {
+              const catalog = this.closest("q-store-catalog");
+              if (catalog && typeof catalog.setFilter === "function") {
+                catalog.setFilter(this.value);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    q-grid {
+      div {
+        q-store-catalog-items: "1"
+        class: "w3-row-padding w3-padding-bottom"
+        slot { catalog-items }
+      }
+    }
+
+    textarea {
+      q-store-catalog-cart-json: "1";
+      style { display: none; }
+    }
+  }
+}

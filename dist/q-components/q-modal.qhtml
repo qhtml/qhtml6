@@ -1,0 +1,168 @@
+q-rewrite q-modal-rewriter {
+  slot { title }
+  slot { heading }
+  slot { header }
+  slot { body }
+  slot { main }
+  slot { content }
+  slot { bottom }
+  slot { footer }
+  slot { foot }
+  return {
+    q-script {
+      function joinParts(parts) {
+        var out = [];
+        for (var i = 0; i < parts.length; i += 1) {
+          var value = String(parts[i] || "").trim();
+          if (value) {
+            out.push(value);
+          }
+        }
+        return out.join(" ");
+      }
+
+      var headerSection = joinParts([
+        this.qdom().slot("title"),
+        this.qdom().slot("heading"),
+        this.qdom().slot("header")
+      ]);
+      var bodySection = joinParts([
+        this.qdom().slot("body"),
+        this.qdom().slot("main"),
+        this.qdom().slot("content")
+      ]);
+      var footerSection = joinParts([
+        this.qdom().slot("bottom"),
+        this.qdom().slot("footer"),
+        this.qdom().slot("foot")
+      ]);
+
+      if (!headerSection) {
+        headerSection = "html { &nbsp; }";
+      }
+      if (!bodySection) {
+        bodySection = "html { &nbsp; }";
+      }
+      if (!footerSection) {
+        footerSection = "html { &nbsp; }";
+      }
+
+      return " div.w3-modal {" +
+        " q-modal-root: \"1\"" +
+        " div.w3-modal-content.w3-card-4.w3-animate-zoom {" +
+          " style { max-width: 600px; }" +
+          " div.w3-center {" +
+            " br { }" +
+            " span.w3-button.w3-xlarge.w3-hover-red.w3-display-topright {" +
+              " q-modal-close-trigger: \"1\"" +
+              " title: \"Close Modal\"" +
+              " html { &times; }" +
+            " }" +
+            " div.w3-margin-top.w3-large.w3-text-theme { " + headerSection + " }" +
+          " }" +
+          " div.w3-container.w3-section { " + bodySection + " }" +
+          " div.w3-container.w3-border-top.w3-padding-16.w3-light-grey { " + footerSection + " }" +
+        " }" +
+      " }";
+    }
+  }
+}
+
+q-component q-modal {
+  function getModalRootElement() {
+    const host = this.component || this;
+    if (!host || typeof host.querySelector !== "function") {
+      return null;
+    }
+    return host.querySelector("[q-modal-root='1']") || host.querySelector(".w3-modal");
+  }
+
+  function getOpenTriggerElement() {
+    const host = this.component || this;
+    if (!host || typeof host.querySelector !== "function") {
+      return null;
+    }
+    return host.querySelector("[q-modal-open-trigger='1']");
+  }
+
+  function getCloseTriggerElement() {
+    const host = this.component || this;
+    if (!host || typeof host.querySelector !== "function") {
+      return null;
+    }
+    return host.querySelector("[q-modal-close-trigger='1']");
+  }
+
+  function ensureGeneratedModalId() {
+    const modalElement = this.getModalRootElement();
+    if (!modalElement) {
+      return "";
+    }
+
+    const existing = String(modalElement.getAttribute("id") || "").trim();
+    if (existing) {
+      return existing;
+    }
+
+    const root = typeof globalThis !== "undefined" ? globalThis : Function("return this")();
+    if (!root.__qhtmlModalAutoId || typeof root.__qhtmlModalAutoId !== "number") {
+      root.__qhtmlModalAutoId = 0;
+    }
+    root.__qhtmlModalAutoId += 1;
+
+    const generated = "q-modal-" + root.__qhtmlModalAutoId;
+    modalElement.setAttribute("id", generated);
+    return generated;
+  }
+
+  function hydrateModalBindings() {
+    const modalId = this.ensureGeneratedModalId();
+    if (!modalId) {
+      return;
+    }
+
+    const openBtn = this.getOpenTriggerElement();
+    if (openBtn && typeof openBtn.setAttribute === "function") {
+      openBtn.setAttribute("onclick", "document.getElementById('" + modalId + "').style.display='block'");
+    }
+
+    const closeBtn = this.getCloseTriggerElement();
+    if (closeBtn && typeof closeBtn.setAttribute === "function") {
+      closeBtn.setAttribute("onclick", "document.getElementById('" + modalId + "').style.display='none'");
+    }
+  }
+
+  function setModalDisplayState(displayValue) {
+    const modalElement = this.getModalRootElement();
+    if (modalElement && modalElement.style) {
+      modalElement.style.display = displayValue;
+    }
+  }
+
+  function show() {
+    this.hydrateModalBindings();
+    this.setModalDisplayState("block");
+  }
+
+  function hide() {
+    this.hydrateModalBindings();
+    this.setModalDisplayState("none");
+  }
+
+  onReady {
+    this.hydrateModalBindings();
+    this.hide();
+  }
+
+  q-modal-rewriter {
+    title { slot { title } }
+    heading { slot { heading } }
+    header { slot { header } }
+    body { slot { body } }
+    main { slot { main } }
+    content { slot { content } }
+    bottom { slot { bottom } }
+    footer { slot { footer } }
+    foot { slot { foot } }
+  }
+}

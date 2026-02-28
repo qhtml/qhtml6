@@ -1,0 +1,111 @@
+q-component q-store-catalog-item {
+  function normalizeNumber(value, fallback) {
+    const n = Number(value);
+    if (Number.isFinite(n)) {
+      return n;
+    }
+    const alt = Number(fallback);
+    return Number.isFinite(alt) ? alt : 0;
+  }
+
+  function formatCurrency(value) {
+    return "$" + this.normalizeNumber(value, 0).toFixed(2);
+  }
+
+  function normalizeItem(item) {
+    const raw = item && typeof item === "object" ? item : {};
+    return {
+      id: String(raw.id || raw.sku || "").trim(),
+      name: String(raw.name || "Untitled item").trim() || "Untitled item",
+      description: String(raw.description || "").trim(),
+      price: this.normalizeNumber(raw.price, 0),
+    };
+  }
+
+  function setItem(item) {
+    const normalized = this.normalizeItem(item);
+    this.__qStoreCatalogItem = normalized;
+
+    this.setAttribute("data-item-name", normalized.name);
+    this.setAttribute("data-item-price", String(normalized.price));
+    this.setAttribute("data-item-description", normalized.description);
+    if (normalized.id) {
+      this.setAttribute("data-item-id", normalized.id);
+    }
+
+    const nameNode = this.querySelector("[q-store-item-name='1']");
+    const descNode = this.querySelector("[q-store-item-description='1']");
+    const priceNode = this.querySelector("[q-store-item-price='1']");
+
+    if (nameNode) {
+      nameNode.textContent = normalized.name;
+    }
+    if (descNode) {
+      descNode.textContent = normalized.description || "No description provided.";
+    }
+    if (priceNode) {
+      priceNode.textContent = this.formatCurrency(normalized.price);
+    }
+
+    return normalized;
+  }
+
+  function getItem() {
+    if (this.__qStoreCatalogItem) {
+      return this.normalizeItem(this.__qStoreCatalogItem);
+    }
+    return this.normalizeItem({
+      id: this.getAttribute("data-item-id"),
+      name: this.getAttribute("data-item-name"),
+      description: this.getAttribute("data-item-description"),
+      price: this.getAttribute("data-item-price"),
+    });
+  }
+
+  function emitAdd() {
+    const payload = this.getItem();
+    this.dispatchEvent(
+      new CustomEvent("q-store-catalog:add", {
+        bubbles: true,
+        detail: payload,
+      })
+    );
+  }
+
+  onReady {
+    this.setItem({
+      id: this.getAttribute("data-item-id") || this.getAttribute("item-id") || "",
+      name: this.getAttribute("data-item-name") || this.getAttribute("name") || "Catalog item",
+      description: this.getAttribute("data-item-description") || this.getAttribute("description") || "",
+      price: this.getAttribute("data-item-price") || this.getAttribute("price") || 0,
+    });
+  }
+
+  div.w3-card.w3-white.w3-round-large.w3-border.w3-padding.w3-hover-shadow {
+    div.w3-row-padding {
+      div.w3-col.s8 {
+        h4.w3-margin-top.w3-margin-bottom {
+          q-store-item-name: "1"
+          slot { item-name }
+        }
+        div.w3-small.w3-text-grey {
+          q-store-item-description: "1"
+          slot { item-description }
+        }
+      }
+      div.w3-col.s4.w3-right-align {
+        div.w3-large.w3-text-indigo.w3-margin-top {
+          q-store-item-price: "1"
+          slot { item-price }
+        }
+        button.w3-button.w3-green.w3-round.w3-small.w3-margin-top {
+          type: "button";
+          text { Add to cart }
+          onclick {
+            this.component.emitAdd();
+          }
+        }
+      }
+    }
+  }
+}

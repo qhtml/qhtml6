@@ -1,0 +1,152 @@
+q-component q-sidebar {
+  function normalizeOpenValue(rawValue) {
+    var value = String(rawValue == null ? "" : rawValue).toLowerCase().trim();
+    if (value === "0" || value === "false" || value === "off" || value === "closed" || value === "hide" || value === "hidden") {
+      return "0";
+    }
+    return "1";
+  }
+
+  function currentOpenValue() {
+    var fromSidebar = this.getAttribute("q-sidebar-open");
+    var fromOpen = this.getAttribute("open");
+    var fallback = fromSidebar == null ? fromOpen : fromSidebar;
+    return this.normalizeOpenValue(fallback == null ? "1" : fallback);
+  }
+
+  function renderSidebar(nextOpenValue) {
+    var nextOpen = this.normalizeOpenValue(nextOpenValue);
+    this.setAttribute("q-sidebar-open", nextOpen);
+
+    var root = typeof this.qdom === "function" ? this.qdom() : null;
+    if (!root || typeof root.find !== "function") {
+      return nextOpen;
+    }
+
+    var renderRoot = root.find("[q-sidebar-rewrite-root='1']");
+    if (!renderRoot || typeof renderRoot.rewrite !== "function") {
+      return nextOpen;
+    }
+
+    var contentSource = "";
+    if (typeof root.slot === "function") {
+      contentSource = String(root.slot("content") || "").trim();
+    }
+    if (!contentSource) {
+      contentSource = "html { &nbsp; }";
+    }
+
+    renderRoot.rewrite({ openMode: nextOpen, contentSource: contentSource }, function (bindings) {
+      var openMode = bindings && String(bindings.openMode || "") === "0" ? "0" : "1";
+      var rewrittenContent = bindings && String(bindings.contentSource || "").trim();
+      if (!rewrittenContent) {
+        rewrittenContent = "html { &nbsp; }";
+      }
+      return "q-sidebar-render { open-mode { \"" + openMode + "\" } content-slot { " + rewrittenContent + " } }";
+    });
+
+    return nextOpen;
+  }
+
+  function show() {
+    return this.renderSidebar("1");
+  }
+
+  function hide() {
+    return this.renderSidebar("0");
+  }
+
+  function toggle() {
+    return this.renderSidebar(this.currentOpenValue() === "1" ? "0" : "1");
+  }
+
+  q-rewrite q-sidebar-toggle-indicator {
+    slot { open-mode }
+    return {
+      q-script {
+        var rawMode = String(this.qdom().slot("open-mode") || "").trim();
+        if (rawMode.length > 1) {
+          var first = rawMode.charAt(0);
+          var last = rawMode.charAt(rawMode.length - 1);
+          if ((first === "\"" || first === "'") && first === last) {
+            rawMode = rawMode.substring(1, rawMode.length - 1);
+          }
+        }
+        var openMode = rawMode === "0" ? "0" : "1";
+        if (openMode === "1") {
+          return "html { &#10094; }";
+        }
+        return "html { &#9776; }";
+      }
+    }
+  }
+
+  q-rewrite q-sidebar-render {
+    slot { open-mode }
+    slot { content-slot }
+    return {
+      q-script {
+        var rawMode = String(this.qdom().slot("open-mode") || "").trim();
+        if (rawMode.length > 1) {
+          var first = rawMode.charAt(0);
+          var last = rawMode.charAt(rawMode.length - 1);
+          if ((first === "\"" || first === "'") && first === last) {
+            rawMode = rawMode.substring(1, rawMode.length - 1);
+          }
+        }
+        var openMode = rawMode === "0" ? "0" : "1";
+        var panelWidth = 260;
+        var panelOffset = openMode == "1" ? "0" : "-105%";
+        var buttonOffset = openMode == "1" ? panelWidth + "px" : "0";
+        var contentSource = String(this.qdom().slot("content-slot") || "").trim();
+        if (!contentSource) {
+          contentSource = "html { &nbsp; }";
+        }
+
+        return "div {" +
+          " q-sidebar-rewrite-root: \"1\"" +
+          " style { position: relative; min-height: 1px; height: 100%; overflow: visible; }" +
+
+          " button.w3-button.w3-large.w3-black {" +
+            " q-sidebar-toggle: \"1\"" +
+            " type: \"button\"" +
+            " style {" +
+              " position: absolute;" +
+              " top: 12px;" +
+              " left: " + buttonOffset + ";" +
+              " z-index: 1002;" +
+              " border-radius: 0 6px 6px 0;" +
+              " transition: left 180ms ease;" +
+            " }" +
+            " q-sidebar-toggle-indicator { open-mode { \"" + openMode + "\" } }" +
+            " onclick { this.component.toggle(); }" +
+          " }" +
+
+          " div.w3-sidebar.w3-stretch.w3-column {" +
+            " q-sidebar-panel: \"1\"" +
+            " style {" +
+              " position: absolute;" +
+              " top: 0;" +
+              " left: 0;" +
+              " width: " + panelWidth + "px;" +
+              " max-width: 85vw;" +
+              " height: 100%;" +
+              " z-index: 1001;" +
+              " transform: translateX(" + panelOffset + ");" +
+              " transition: transform 180ms ease;" +
+            " }" +
+            contentSource +
+          " }" +
+        " }";
+      }
+    }
+  }
+
+  div {
+    q-sidebar-rewrite-root: "1"
+    q-sidebar-render {
+      open-mode { q-script { return this.component.currentOpenValue(); } }
+      content-slot { slot { content } }
+    }
+  }
+}

@@ -1,0 +1,648 @@
+q-template q-builder-icon-edit { svg { viewBox: "0 0 24 24"; width: "16"; height: "16"; fill: "none"; stroke: "currentColor"; path { d: "M4 20h4l10-10-4-4L4 16z" } path { d: "M13 7l4 4" } } }
+q-template q-builder-icon-save { svg { viewBox: "0 0 24 24"; width: "16"; height: "16"; fill: "none"; stroke: "currentColor"; path { d: "M5 3h12l2 2v16H5z" } path { d: "M9 3v6h6V3" } } }
+q-template q-builder-icon-close { svg { viewBox: "0 0 24 24"; width: "16"; height: "16"; fill: "none"; stroke: "currentColor"; path { d: "M6 6l12 12" } path { d: "M18 6L6 18" } } }
+
+q-component q-builder-toolbar {
+  div.w3-bar.w3-half.w3-theme-l2.w3-round-large.w3-padding-small { q-builder-toolbar: "1"
+    style {
+      position: fixed;
+      left: 0;
+      top: 0;
+      display: none;
+      z-index: 1001;
+      transform: translate(-50%, -100%);
+      margin-top: -8px;
+    }
+    button.w3-button.w3-small.w3-theme-l3.w3-round-large { type: "button" q-builder-action: "open" q-builder-icon-edit { } span.w3-margin-left { text { Edit } } }
+  }
+}
+
+q-component q-builder-modal-shell {
+  q-modal {
+    q-builder-modal: "1"
+    title { text { QBuilder } }
+    content {
+      q-editor { q-builder-editor: "1" initial-qhtml: "div { text { Edit me with QDom } }" }
+    }
+    footer {
+      div.w3-right-align {
+        button.w3-button.w3-small.w3-theme-l3.w3-round-large.w3-margin-right { type: "button" q-builder-action: "save" q-builder-icon-save { } span.w3-margin-left { text { Save } } }
+        button.w3-button.w3-small.w3-grey.w3-round-large { type: "button" q-builder-action: "close" q-builder-icon-close { } span.w3-margin-left { text { Close } } }
+      }
+    }
+  }
+}
+
+q-template q-builder-shell {
+  div { q-builder-ui: "1"
+    div {
+      q-builder-hover-box: "1"
+      style {
+        position: fixed;
+        display: none;
+        pointer-events: none;
+        box-sizing: border-box;
+        z-index: 999;
+        border: 2px solid #2f80ff;
+      }
+    }
+    div {
+      q-builder-select-box: "1"
+      style {
+        position: fixed;
+        display: none;
+        pointer-events: none;
+        box-sizing: border-box;
+        z-index: 1000;
+        border: 2px solid #ff8c00;
+      }
+    }
+    q-builder-toolbar { }
+    q-builder-modal-shell { }
+  }
+}
+
+q-component q-builder {
+  function state() {
+    if (!this.__qbuilderState || typeof this.__qbuilderState !== "object") {
+      this.__qbuilderState = { source: "div { text { Edit me with QDom } }", target: null, inspect: false, host: null, hoverEl: null, selectedEl: null, modalOpen: false };
+    }
+    return this.__qbuilderState;
+  }
+
+  function qroot() {
+    return typeof this.qdom === "function" ? this.qdom() : null;
+  }
+
+  function ensureUi() {
+    var root = this.qroot();
+    return root && typeof root.find === "function" ? root.find("[q-builder-ui='1']") : null;
+  }
+
+  function setTarget(target) {
+    var s = this.state();
+    var node = target && target.nodeType === 1 && typeof target.qdom === "function" ? target.qdom() : target;
+    if (!node || typeof node !== "object" || typeof node.kind !== "string") { s.target = null; return null; }
+    s.target = node;
+    var source = node && node.__qhtmlSourceNode && typeof node.__qhtmlSourceNode === "object" ? node.__qhtmlSourceNode : node;
+    var globalRef = typeof globalThis !== "undefined" ? globalThis : Function("return this")();
+    var modules = globalRef && globalRef.QHtmlModules ? globalRef.QHtmlModules : null;
+    var parser = modules && modules.qhtmlParser ? modules.qhtmlParser : null;
+    var core = modules && modules.qdomCore ? modules.qdomCore : null;
+    var kind = String(source.kind || "").toLowerCase();
+    var serialized = "";
+    if (parser && core && typeof parser.qdomToQHtml === "function" && typeof core.createDocument === "function") {
+      try {
+        var tempDoc = core.createDocument({ source: "" });
+        if (Array.isArray(tempDoc.nodes)) { tempDoc.nodes.push(source); }
+        serialized = String(parser.qdomToQHtml(tempDoc, { preserveOriginal: false }) || "").trim();
+      } catch (error) {
+        serialized = "";
+      }
+    }
+    if (serialized) { s.source = serialized; return node; }
+    if ((kind === "component-instance" || kind === "template-instance") && node && typeof node.qhtml === "function") {
+      try {
+        var fallback = String(node.qhtml({ preserveOriginal: false }) || "").trim();
+        if (fallback) { s.source = fallback; return node; }
+      } catch (error2) { }
+    }
+    if (source.meta && typeof source.meta.originalSource === "string" && source.meta.originalSource.trim()) { s.source = source.meta.originalSource.trim(); }
+    return node;
+  }
+
+  function addCssClass(element, className) {
+    if (!element || !className || !element.classList || !element.classList.add) { return; }
+    element.classList.add(className);
+  }
+
+  function removeCssClass(element, className) {
+    if (!element || !className || !element.classList || !element.classList.remove) { return; }
+    element.classList.remove(className);
+  }
+
+  function positionOverlay(selector, element) {
+    var marker = this.querySelector(selector);
+    if (!marker || !marker.style) { return; }
+    if (!element || !element.getBoundingClientRect) { marker.style.display = "none"; return; }
+    var rect = element.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) { marker.style.display = "none"; return; }
+    marker.style.left = rect.left + "px";
+    marker.style.top = rect.top + "px";
+    marker.style.width = rect.width + "px";
+    marker.style.height = rect.height + "px";
+    marker.style.display = "block";
+  }
+
+  function refreshOverlays() {
+    var s = this.state();
+    this.positionOverlay("[q-builder-hover-box='1']", s.hoverEl && s.hoverEl !== s.selectedEl ? s.hoverEl : null);
+    this.positionOverlay("[q-builder-select-box='1']", s.selectedEl);
+  }
+
+  function positionToolbar() {
+    var s = this.state();
+    var toolbar = this.querySelector("[q-builder-toolbar='1']");
+    var el = s.selectedEl;
+    if (!toolbar || !el || !el.getBoundingClientRect || this.isModalVisible()) {
+      if (toolbar && toolbar.style) { toolbar.style.display = "none"; }
+      return;
+    }
+    var rect = el.getBoundingClientRect();
+    toolbar.style.left = (rect.left + rect.width / 2) + "px";
+    toolbar.style.top = Math.max(12, rect.top) + "px";
+    toolbar.style.display = "flex";
+  }
+
+  function isModalVisible() {
+    var modal = this.querySelector("q-modal[q-builder-modal='1']");
+    if (!modal || typeof modal.querySelector !== "function") { return false; }
+    var root = modal.querySelector("[q-modal-root='1'], .w3-modal");
+    if (!root) { return false; }
+    if (root.style && typeof root.style.display === "string") {
+      return String(root.style.display || "").toLowerCase() !== "none";
+    }
+    if (typeof getComputedStyle === "function") {
+      var css = getComputedStyle(root);
+      return !!css && String(css.display || "").toLowerCase() !== "none";
+    }
+    return false;
+  }
+
+  function ensureModalLayout() {
+    var modal = this.querySelector("q-modal[q-builder-modal='1']");
+    if (!modal || typeof modal.querySelector !== "function") { return; }
+    var root = modal.querySelector("[q-modal-root='1'], .w3-modal");
+    var content = modal.querySelector(".w3-modal-content");
+    var body = modal.querySelector(".w3-container.w3-section");
+    var footer = modal.querySelector(".w3-container.w3-border-top");
+    var editor = this.querySelector("[q-builder-editor='1']");
+    if (root && root.style) {
+      root.style.zIndex = "6000";
+      root.style.overflow = "auto";
+      root.style.paddingTop = "3vh";
+    }
+    if (content && content.style) {
+      content.style.display = "flex";
+      content.style.flexDirection = "column";
+      content.style.width = "auto";
+      content.style.height = "auto";
+      content.style.minWidth = "320px";
+      content.style.minHeight = "220px";
+      content.style.resize = "both";
+      content.style.overflow = "hidden";
+      content.style.margin = "0 auto";
+    }
+    if (body && body.style) {
+      body.style.flex = "1 1 auto";
+      body.style.overflow = "auto";
+      body.style.padding = "12px";
+    }
+    if (footer && footer.style) {
+      footer.style.flex = "0 0 auto";
+    }
+    if (editor && editor.style) {
+      editor.style.display = "block";
+      editor.style.width = "100%";
+      editor.style.height = "100%";
+      editor.style.minWidth = "280px";
+      editor.style.minHeight = "220px";
+      editor.style.maxWidth = "100%";
+      editor.style.maxHeight = "100%";
+    }
+    var editorRoot = editor && editor.querySelector ? editor.querySelector(".qe") : null;
+    if (editorRoot && editorRoot.style) {
+      editorRoot.style.width = "100%";
+      editorRoot.style.height = "100%";
+      editorRoot.style.display = "flex";
+      editorRoot.style.flexDirection = "column";
+    }
+    var panels = editor && editor.querySelectorAll ? editor.querySelectorAll(".qe-panel") : null;
+    if (panels && typeof panels.length === "number") {
+      for (var p = 0; p < panels.length; p += 1) {
+        if (panels[p] && panels[p].style) { panels[p].style.height = "100%"; }
+      }
+    }
+    var wraps = editor && editor.querySelectorAll ? editor.querySelectorAll(".qe-editor-wrap") : null;
+    if (wraps && typeof wraps.length === "number") {
+      for (var w = 0; w < wraps.length; w += 1) {
+        if (wraps[w] && wraps[w].style) {
+          wraps[w].style.height = "100%";
+          wraps[w].style.minHeight = "20rem";
+        }
+      }
+    }
+  }
+
+  function fitModalToContent() {
+    var modal = this.querySelector("q-modal[q-builder-modal='1']");
+    if (!modal || typeof modal.querySelector !== "function") { return; }
+    var content = modal.querySelector(".w3-modal-content");
+    if (!content || !content.style) { return; }
+    var viewportW = typeof window !== "undefined" && window && window.innerWidth ? window.innerWidth : 1200;
+    var viewportH = typeof window !== "undefined" && window && window.innerHeight ? window.innerHeight : 800;
+    var maxW = Math.max(320, Math.floor(viewportW * 0.8));
+    var maxH = Math.max(240, Math.floor(viewportH * 0.7));
+    content.style.width = "auto";
+    content.style.height = "auto";
+    var naturalW = Math.ceil(content.scrollWidth || 0);
+    var naturalH = Math.ceil(content.scrollHeight || 0);
+    var nextW = Math.max(320, Math.min(maxW, naturalW || maxW));
+    var nextH = Math.max(240, Math.min(maxH, naturalH || maxH));
+    content.style.width = nextW + "px";
+    content.style.height = nextH + "px";
+  }
+
+  function setHoverElement(element) {
+    var s = this.state();
+    if (s.hoverEl && s.hoverEl !== s.selectedEl) {
+      this.removeCssClass(s.hoverEl, "w3-border");
+      this.removeCssClass(s.hoverEl, "w3-border-blue");
+    }
+    s.hoverEl = element || null;
+    if (s.hoverEl && s.hoverEl !== s.selectedEl) {
+      this.addCssClass(s.hoverEl, "w3-border");
+      this.addCssClass(s.hoverEl, "w3-border-blue");
+    }
+    this.refreshOverlays();
+  }
+
+  function setSelectedElement(element) {
+    var s = this.state();
+    if (s.selectedEl) {
+      this.removeCssClass(s.selectedEl, "w3-border");
+      this.removeCssClass(s.selectedEl, "w3-border-orange");
+    }
+    s.selectedEl = element || null;
+    if (s.hoverEl === s.selectedEl) {
+      this.removeCssClass(s.hoverEl, "w3-border-blue");
+      s.hoverEl = null;
+    }
+    if (s.selectedEl) {
+      this.addCssClass(s.selectedEl, "w3-border");
+      this.addCssClass(s.selectedEl, "w3-border-orange");
+    }
+    this.refreshOverlays();
+    this.positionToolbar();
+  }
+
+  function setOpen(openFlag) {
+    var s = this.state();
+    s.modalOpen = !!openFlag;
+    var ui = this.ensureUi();
+    if (ui) { ui.setAttribute("q-builder-open", openFlag ? "1" : "0"); }
+    var toolbar = this.querySelector("[q-builder-toolbar='1']");
+    if (toolbar && toolbar.style && openFlag) { toolbar.style.display = "none"; }
+    var modal = this.querySelector("q-modal[q-builder-modal='1']");
+    if (!modal) {
+      if (!openFlag) { this.positionToolbar(); }
+      return;
+    }
+    if (openFlag && typeof modal.show === "function") {
+      modal.show();
+      this.ensureModalLayout();
+      this.fitModalToContent();
+      var self = this;
+      setTimeout(function() { self.ensureModalLayout(); self.fitModalToContent(); }, 0);
+      return;
+    }
+    if (!openFlag && typeof modal.hide === "function") { modal.hide(); this.positionToolbar(); return; }
+    var root = modal.querySelector ? modal.querySelector("[q-modal-root='1'], .w3-modal") : null;
+    if (root && root.style) { root.style.display = openFlag ? "block" : "none"; }
+    if (openFlag) {
+      this.ensureModalLayout();
+      this.fitModalToContent();
+    } else {
+      this.positionToolbar();
+    }
+  }
+
+  function setInspectMode(enabled, host) {
+    var s = this.state();
+    s.inspect = !!enabled;
+    s.host = host && host.nodeType === 1 ? host : null;
+    if (!s.inspect) {
+      this.setHoverElement(null);
+      this.setSelectedElement(null);
+      var toolbar = this.querySelector("[q-builder-toolbar='1']");
+      if (toolbar && toolbar.style) { toolbar.style.display = "none"; }
+    }
+  }
+
+  function openSelected() {
+    var s = this.state();
+    if (s.selectedEl) { this.setTarget(s.selectedEl); }
+    var editor = this.querySelector("[q-builder-editor='1']");
+    if (editor && typeof editor.setQhtmlSource === "function") { editor.setQhtmlSource(s.source); }
+    this.setOpen(true);
+  }
+
+  function save() {
+    var root = this.qroot();
+    var s = this.state();
+    var host = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
+    var preserveInspect = !!s.inspect;
+    var globalRef = typeof globalThis !== "undefined" ? globalThis : Function("return this")();
+    var runtime = globalRef && globalRef.QHtml ? globalRef.QHtml : null;
+    var logger = globalRef && globalRef.console ? globalRef.console : null;
+    function qbLog(label, payload) {
+      if (!logger || typeof logger.log !== "function") { return; }
+      logger.log("[q-builder/save] " + label, payload);
+    }
+    function countTabBlocks(text) {
+      var srcText = String(text || "");
+      var count = 0;
+      var pos = 0;
+      while (pos < srcText.length) {
+        var idx = srcText.indexOf("q-tab", pos);
+        if (idx === -1) { break; }
+        var j = idx + 5;
+        while (j < srcText.length && /\s/.test(srcText.charAt(j))) { j += 1; }
+        if (srcText.charAt(j) === "{") { count += 1; }
+        pos = idx + 5;
+      }
+      return count;
+    }
+    var editor = this.querySelector("[q-builder-editor='1']");
+    if (!root || typeof root.createInstanceFromQHTML !== "function") { this.setOpen(false); return; }
+    var src = editor && typeof editor.getQhtmlSource === "function" ? String(editor.getQhtmlSource() || "") : "";
+    var srcTabCount = countTabBlocks(src);
+    qbLog("start", {
+      hasHost: !!host,
+      hasTarget: !!s.target,
+      targetKind: s.target && s.target.kind ? String(s.target.kind) : "",
+      targetTag: s.target && (s.target.tagName || s.target.componentId) ? String(s.target.tagName || s.target.componentId) : "",
+      srcLength: src.length,
+      srcTabCount: srcTabCount,
+      srcPreview: src.slice(0, 220)
+    });
+    s.source = src || s.source;
+    var replaced = false;
+    if (s.target && typeof s.target.replaceWithQHTML === "function") {
+      try {
+        var replacement = s.target.replaceWithQHTML(src, root);
+        replaced = !!replacement;
+        qbLog("replaceWithQHTML", { replaced: replaced, replacementType: replacement ? typeof replacement : "null" });
+      } catch (replaceError) {
+        qbLog("replaceWithQHTML-error", String(replaceError && replaceError.message ? replaceError.message : replaceError));
+      }
+    }
+    if (!replaced) {
+      var parsed = src ? root.createInstanceFromQHTML(src) : null;
+      var nodes = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
+      qbLog("fallback-slot-replace", { nodeCount: nodes.length });
+      var slot = root.slot("canvas") || root.slot("default");
+      if (slot) {
+        slot.children.length = 0;
+        for (var si = 0; si < nodes.length; si += 1) { slot.appendNode(nodes[si]); }
+      }
+    }
+    this.setOpen(false);
+
+    var exported = "";
+    if (runtime && host && typeof runtime.toQHtmlSource === "function") {
+      try { exported = String(runtime.toQHtmlSource(host, { preserveOriginal: false }) || ""); } catch (error) { exported = ""; qbLog("export-error", String(error && error.message ? error.message : error)); }
+    }
+    var exportedTabCount = countTabBlocks(exported);
+    qbLog("exported", { length: exported.length, tabCount: exportedTabCount, preview: exported.slice(0, 240) });
+    if (exported && host && host.parentNode && host.ownerDocument) {
+      var doc = host.ownerDocument;
+      var parent = host.parentNode;
+      var replacementHost = doc.createElement("q-html");
+      replacementHost.textContent = exported;
+      if (runtime && typeof runtime.unmountQHtmlElement === "function") {
+        try { runtime.unmountQHtmlElement(host); } catch (error2) { }
+      }
+      try { parent.replaceChild(replacementHost, host); } catch (error3) { replacementHost = null; }
+      qbLog("replace-host", { success: !!replacementHost });
+      if (replacementHost && runtime && typeof runtime.mountQHtmlElement === "function") {
+        try {
+          var mounted = runtime.mountQHtmlElement(replacementHost);
+          qbLog("mount-called", { hasReady: !!(mounted && mounted.ready) });
+          if (mounted && mounted.ready && typeof mounted.ready.then === "function") {
+            mounted.ready.then(function() {
+              var reExport = "";
+              try { reExport = String(runtime.toQHtmlSource(replacementHost, { preserveOriginal: false }) || ""); } catch (reError) { reExport = ""; qbLog("post-mount-export-error", String(reError && reError.message ? reError.message : reError)); }
+              var reTabCount = countTabBlocks(reExport);
+              var tabsDomCount = replacementHost && replacementHost.querySelectorAll ? replacementHost.querySelectorAll("q-tabs q-tab").length : -1;
+              qbLog("post-mount-exported", { length: reExport.length, tabCount: reTabCount, tabsDomCount: tabsDomCount, preview: reExport.slice(0, 240) });
+            });
+          }
+        } catch (error4) { qbLog("mount-error", String(error4 && error4.message ? error4.message : error4)); }
+      }
+      if (replacementHost && preserveInspect) {
+        setTimeout(function() {
+          replacementHost.setAttribute("data-page-edit-mode", "1");
+          var docRef = replacementHost && replacementHost.ownerDocument ? replacementHost.ownerDocument : (typeof document !== "undefined" ? document : null);
+          var cfg = docRef && docRef.querySelector ? docRef.querySelector("#builder-config") : null;
+          if (cfg && typeof cfg.setAttribute === "function") { cfg.setAttribute("edit-mode", "1"); }
+          if (typeof globalRef.qbuilder !== "undefined" && globalRef.qbuilder && typeof globalRef.qbuilder.inspect === "function") {
+            globalRef.qbuilder.inspect(replacementHost, true);
+          }
+          if (replacementHost && typeof replacementHost.update === "function") {
+            replacementHost.update();
+          } else if (runtime && typeof runtime.updateQHtmlElement === "function") {
+            runtime.updateQHtmlElement(replacementHost);
+          }
+        }, 0);
+      }
+    } else {
+      qbLog("export-missing-or-no-host", { hasExported: !!exported, hasHost: !!host });
+    }
+
+    s.target = null;
+    this.setHoverElement(null);
+    this.setSelectedElement(null);
+  }
+
+  onReady {
+    if (this.__qBuilderReady) { return; }
+    this.__qBuilderReady = true;
+    this.ensureUi();
+    this.ensureModalLayout();
+    var self = this;
+
+    this.addEventListener("click", function(event) {
+      var closeTrigger = event.target && event.target.closest ? event.target.closest("[q-modal-close-trigger='1']") : null;
+      if (closeTrigger) { self.setOpen(false); }
+      var node = event.target && event.target.closest ? event.target.closest("[q-builder-action]") : null;
+      var action = node ? String(node.getAttribute("q-builder-action") || "") : "";
+      if (action === "open") { self.openSelected(); }
+      if (action === "save") { self.save(); }
+      if (action === "close") { self.setOpen(false); }
+    });
+
+    var globalRef = typeof globalThis !== "undefined" ? globalThis : Function("return this")();
+    if (globalRef.__qbuilderApiInstalled) { return; }
+    globalRef.__qbuilderApiInstalled = true;
+    var inspectStateByHost = new WeakMap();
+
+    function resolveHost(target) {
+      if (!target || target.nodeType !== 1) { return null; }
+      if (String(target.tagName || "").toLowerCase() === "q-html") { return target; }
+      return target.closest ? target.closest("q-html") : null;
+    }
+
+    function resolveCandidate(rawTarget, host) {
+      var cursor = rawTarget && rawTarget.nodeType === 1 ? rawTarget : (rawTarget && rawTarget.parentElement ? rawTarget.parentElement : null);
+      while (cursor && cursor.nodeType === 1) {
+        if (cursor === host) { return null; }
+        if (cursor.closest && cursor.closest("q-builder[q-builder-runtime='1']")) { return null; }
+        if (cursor.closest && cursor.closest("[data-page-edit-toggle='1']")) { return null; }
+        if (host.contains && !host.contains(cursor)) { return null; }
+        return cursor;
+        cursor = cursor.parentElement;
+      }
+      return null;
+    }
+
+    function sourceNodeOf(candidate) {
+      if (!candidate || typeof candidate !== "object") { return null; }
+      if (candidate.__qhtmlSourceNode && typeof candidate.__qhtmlSourceNode === "object") { return candidate.__qhtmlSourceNode; }
+      return candidate;
+    }
+
+  function normalizeEditableTarget(candidate, host) {
+    if (!candidate || candidate.nodeType !== 1) { return null; }
+    var cursor = candidate;
+    var trail = [];
+    while (cursor && cursor.nodeType === 1 && cursor !== host) {
+      if (cursor.closest && cursor.closest("q-builder[q-builder-runtime='1']")) { return null; }
+      if (typeof cursor.qdom === "function") {
+        var qnode = sourceNodeOf(cursor.qdom());
+        var kind = qnode && typeof qnode.kind === "string" ? String(qnode.kind).toLowerCase() : "";
+        trail.push({ element: cursor, kind: kind });
+      }
+      cursor = cursor.parentElement;
+    }
+    if (trail.length === 0) { return null; }
+
+    var highestInstanceIndex = -1;
+    for (var i = 0; i < trail.length; i += 1) {
+      var k = String(trail[i].kind || "");
+      if (k === "component-instance" || k === "template-instance") {
+        highestInstanceIndex = i;
+      }
+    }
+
+    if (highestInstanceIndex >= 0) {
+      for (var j = trail.length - 1; j > highestInstanceIndex; j -= 1) {
+        var outerKind = String(trail[j].kind || "");
+        if (outerKind !== "component-instance" && outerKind !== "template-instance") {
+          return trail[j].element;
+        }
+      }
+      return trail[highestInstanceIndex].element;
+    }
+
+    for (var p = 0; p < trail.length; p += 1) {
+      var kindNow = String(trail[p].kind || "");
+      if (kindNow !== "component-instance" && kindNow !== "template-instance") {
+        return trail[p].element;
+      }
+    }
+    return trail[0].element;
+  }
+
+    function ensureRuntime(host) {
+      if (!host || typeof host.qdom !== "function") { return null; }
+      var instance = host.querySelector("q-builder[q-builder-runtime='1']");
+      if (!instance) {
+        var qdomHost = host.qdom();
+        qdomHost.appendNode(qdomHost.createQComponentInstance("q-builder", { "q-builder-runtime": "1" }));
+        instance = host.querySelector("q-builder[q-builder-runtime='1']");
+      }
+      return instance || null;
+    }
+
+    function bindInspectHost(host) {
+      if (!host || inspectStateByHost.has(host)) { return; }
+      var state = { enabled: false, builder: null, hovered: null };
+      inspectStateByHost.set(host, state);
+
+      function getBuilder() {
+        if (state.builder && state.builder.isConnected) { return state.builder; }
+        state.builder = ensureRuntime(host);
+        return state.builder;
+      }
+
+      function setHoveredFrom(rawTarget) {
+        if (!state.enabled) { return; }
+        var builder = getBuilder();
+        if (!builder || typeof builder.setHoverElement !== "function") { return; }
+        var candidate = normalizeEditableTarget(resolveCandidate(rawTarget, host), host);
+        if (candidate === state.hovered) { return; }
+        state.hovered = candidate;
+        builder.setHoverElement(candidate);
+      }
+
+      host.addEventListener("mouseover", function(event) {
+        setHoveredFrom(event.target);
+      }, true);
+
+      host.addEventListener("click", function(event) {
+        if (!state.enabled) { return; }
+        var builder = getBuilder();
+        if (!builder || typeof builder.setSelectedElement !== "function") { return; }
+        var candidate = normalizeEditableTarget(resolveCandidate(event.target, host), host);
+        if (!candidate) { return; }
+        event.preventDefault();
+        event.stopPropagation();
+        builder.setSelectedElement(candidate);
+      }, true);
+
+      host.addEventListener("mouseout", function(event) {
+        setHoveredFrom(event.relatedTarget || null);
+      }, true);
+
+      host.addEventListener("mouseleave", function() {
+        state.hovered = null;
+        var builder = getBuilder();
+        if (builder && typeof builder.setHoverElement === "function") { builder.setHoverElement(null); }
+      }, true);
+
+      if (typeof window !== "undefined" && window && typeof window.addEventListener === "function") {
+        window.addEventListener("scroll", function() {
+          if (!state.enabled) { return; }
+          var builder = getBuilder();
+          if (builder && typeof builder.refreshOverlays === "function" && typeof builder.positionToolbar === "function") { builder.refreshOverlays(); builder.positionToolbar(); }
+        }, true);
+        window.addEventListener("resize", function() {
+          if (!state.enabled) { return; }
+          var builder = getBuilder();
+          if (builder && typeof builder.refreshOverlays === "function" && typeof builder.positionToolbar === "function") { builder.refreshOverlays(); builder.positionToolbar(); }
+        });
+      }
+    }
+
+    globalRef.qbuilder = {
+      create: function(target) {
+        var host = resolveHost(target) || (typeof document !== "undefined" ? document.querySelector("q-html") : null);
+        return ensureRuntime(host);
+      },
+      inspect: function(target, enabled) {
+        var host = resolveHost(target) || (typeof document !== "undefined" ? document.querySelector("q-html") : null);
+        var builder = ensureRuntime(host);
+        if (!host || !builder || typeof builder.setInspectMode !== "function") { return builder; }
+        bindInspectHost(host);
+        var state = inspectStateByHost.get(host);
+        if (state) {
+          state.enabled = enabled !== false;
+          if (!state.enabled) { state.hovered = null; }
+        }
+        builder.setInspectMode(enabled !== false, host);
+        return builder;
+      },
+      edit: function(target) {
+        var builder = this.create(target);
+        if (builder && typeof builder.setSelectedElement === "function") { builder.setSelectedElement(target && target.nodeType === 1 ? target : null); }
+        if (builder && typeof builder.openSelected === "function") { builder.openSelected(); }
+        return builder;
+      },
+      show: function(target) { return this.edit(target); }
+    };
+  }
+
+  q-builder-shell { }
+  div { q-builder-canvas: "1" style { display: none; } slot { canvas } }
+}

@@ -1,0 +1,52 @@
+{
+  "items": [
+    {
+      "id": "kbd-aurora",
+      "name": "Aurora Mechanical Keyboard",
+      "price": 89.99,
+      "description": "Hot-swappable keyboard with RGB backlight."
+    },
+    {
+      "id": "mse-comet",
+      "name": "Comet Wireless Mouse",
+      "price": 39.5,
+      "description": "Ergonomic low-latency mouse with rechargeable battery."
+    },
+    {
+      "id": "scr-nebula",
+      "name": "Nebula 27in Monitor",
+      "price": 279.0,
+      "description": "27-inch IPS display with 144Hz refresh rate."
+    },
+    {
+      "id": "hph-orbit",
+      "name": "Orbit Studio Headphones",
+      "price": 119.0,
+      "description": "Closed-back headphones tuned for clear mids."
+    },
+    {
+      "id": "web-lumen",
+      "name": "Lumen 4K Webcam",
+      "price": 74.25,
+      "description": "4K USB webcam with dual microphones."
+    },
+    {
+      "id": "mic-pulse",
+      "name": "Pulse USB Microphone",
+      "price": 129.95,
+      "description": "Cardioid microphone with integrated gain control."
+    },
+    {
+      "id": "hub-quantum",
+      "name": "Quantum USB-C Hub",
+      "price": 49.0,
+      "description": "7-port hub with HDMI, ethernet, and power passthrough."
+    },
+    {
+      "id": "pad-zen",
+      "name": "Zen Desk Mat",
+      "price": 24.99,
+      "description": "Wide anti-slip desk mat with stitched edges."
+    }
+  ]
+}

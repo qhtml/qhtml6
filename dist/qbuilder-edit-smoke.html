@@ -1,0 +1,46 @@
+<!doctype html><html><head><meta charset="utf-8" /><script src="qhtml.js"></script><script src="q-editor.js"></script></head><body>
+<div id="status">pending</div>
+<q-html id="host">
+q-import { q-components.qhtml }
+q-component sample-item { div { sample-node: "1" slot { body } } }
+sample-item { body { text { old value } } }
+onReady { qbuilder.show(this); }
+</q-html>
+<script>
+window.addEventListener("QHTMLContentLoaded", function () {
+  setTimeout(function () {
+    var host=document.getElementById("host");
+    var node=document.querySelector("[sample-node='1']");
+    if (!host||!node||!window.qbuilder){document.getElementById("status").textContent="missing-prereq";return;}
+    var r=node.getBoundingClientRect();
+    node.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2,button:0}));
+    var editBtn=document.querySelector(".qbuilder-toolbar button[aria-label='Edit Item']");
+    if(!editBtn){document.getElementById("status").textContent="missing-edit-button";return;}
+    editBtn.click();
+
+    var tries = 0;
+    var timer = setInterval(function(){
+      tries += 1;
+      var editor = host.querySelector("q-modal[q-builder-edit-modal='1'] q-editor[q-builder-edit-editor='1']");
+      if (editor && typeof editor.getQhtmlSource === "function" && typeof editor.setQhtmlSource === "function") {
+        clearInterval(timer);
+        var current = editor.getQhtmlSource();
+        editor.setQhtmlSource(String(current || "").replace(/old value/g, "new value"));
+        var save = host.querySelector("q-modal[q-builder-edit-modal='1'] [q-builder-edit-action='save']");
+        if(!save){document.getElementById("status").textContent="missing-save";return;}
+        save.click();
+        setTimeout(function(){
+          var src = window.QHtml && window.QHtml.toQHtmlSource ? window.QHtml.toQHtmlSource(host,{preserveOriginal:false}) : "";
+          document.getElementById("status").textContent = /new value/.test(String(src||"")) ? "edit-ok" : "edit-failed";
+        }, 450);
+        return;
+      }
+      if (tries > 35) {
+        clearInterval(timer);
+        document.getElementById("status").textContent = "missing-editor:"+String(window.__qbuilderLastError||"none");
+      }
+    }, 120);
+  },220);
+});
+</script>
+</body></html>
