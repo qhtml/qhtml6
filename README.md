@@ -179,7 +179,7 @@ HTML (conceptual):
 <div id="mydiv" onclick="var md = document.getElementById('mydiv'); md.innerHTML += 'Clicked (again)';"></div>
 ```
 
-- *Note*: The onEvent grammar can not contain any single quotations in it, so instead of using single quotes for edge cases, use backticks or move the javascript outside of the QHTML context entirely in a separate script block and function, then call the function from onclick.
+
 
 ### Lifecycle ready hooks: `onReady {}`, `onLoad {}`, `onLoaded {}`
 
