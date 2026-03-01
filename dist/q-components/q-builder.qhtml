@@ -38,8 +38,10 @@ q-component q-builder-palette {
         activeName: "",
         activeCell: null,
         drag: { active: false, startX: 0, startY: 0, left: 0, top: 0 },
+        itemDrag: { active: false, moved: false, name: "", ghost: null },
         host: null,
         names: [],
+        refreshTimer: null,
         scanRequestId: 0,
         scanWorker: null,
         scanWorkerUrl: ""
@@ -173,14 +175,17 @@ q-component q-builder-palette {
   }
 
   function collectComponentNamesAsync(host, requestId) {
-    var self = this;
-    return this.collectComponentNamesWithWorker(host, requestId).then(function(workerNames) {
-      if (workerNames !== null) { return workerNames; }
-      return self.collectComponentNames();
-    }).catch(function(error) {
-      self.logIssue("collectComponentNamesAsync failed", error);
-      return self.collectComponentNames();
-    });
+    try {
+      var targetHost = host && host.nodeType === 1 ? host : this.findHost();
+      var self = this;
+      return this.collectComponentNamesWithWorker(targetHost, requestId).then(function(workerNames) {
+        if (Array.isArray(workerNames)) { return workerNames; }
+        return self.collectComponentNames();
+      });
+    } catch (error) {
+      this.logIssue("collectComponentNamesAsync failed", error);
+      return Promise.resolve([]);
+    }
   }
 
   function collectComponentsFromDoc(documentNode, outputSet) {
@@ -298,6 +303,117 @@ q-component q-builder-palette {
     }
   }
 
+  function emitItemDragEvent(eventName, name, event) {
+    try {
+      var payload = {
+        name: String(name || "").trim().toLowerCase(),
+        clientX: event && typeof event.clientX === "number" ? Number(event.clientX) : 0,
+        clientY: event && typeof event.clientY === "number" ? Number(event.clientY) : 0
+      };
+      if (typeof CustomEvent === "function") {
+        this.dispatchEvent(new CustomEvent(eventName, {
+          bubbles: true,
+          composed: true,
+          detail: payload
+        }));
+      }
+    } catch (error) {
+      this.logIssue("emitItemDragEvent failed", error);
+    }
+  }
+
+  function createItemDragGhost(name) {
+    try {
+      var doc = this.ownerDocument || document;
+      var ghost = doc.createElement("div");
+      ghost.textContent = String(name || "").trim().toLowerCase() || "q-component";
+      ghost.style.position = "fixed";
+      ghost.style.left = "0";
+      ghost.style.top = "0";
+      ghost.style.pointerEvents = "none";
+      ghost.style.zIndex = "1600";
+      ghost.style.padding = "0.22rem 0.45rem";
+      ghost.style.borderRadius = "0.32rem";
+      ghost.style.border = "1px solid #f59e0b";
+      ghost.style.background = "rgba(15, 23, 42, 0.92)";
+      ghost.style.color = "#fde68a";
+      ghost.style.fontSize = "0.68rem";
+      ghost.style.fontWeight = "700";
+      ghost.style.letterSpacing = "0.02em";
+      return ghost;
+    } catch (error) {
+      this.logIssue("createItemDragGhost failed", error);
+      return null;
+    }
+  }
+
+  function positionItemDragGhost(event) {
+    try {
+      var s = this.state();
+      var ghost = s.itemDrag && s.itemDrag.ghost ? s.itemDrag.ghost : null;
+      if (!ghost || !ghost.style || !event) { return; }
+      var x = typeof event.clientX === "number" ? Number(event.clientX) : 0;
+      var y = typeof event.clientY === "number" ? Number(event.clientY) : 0;
+      ghost.style.transform = "translate(" + Math.round(x + 14) + "px, " + Math.round(y + 14) + "px)";
+    } catch (error) {
+      this.logIssue("positionItemDragGhost failed", error);
+    }
+  }
+
+  function startItemDrag(name, cell, event) {
+    try {
+      var componentName = this.sanitizeName(name);
+      if (!componentName || !event || Number(event.button) !== 0) { return; }
+      var s = this.state();
+      this.setActiveCell(cell || null, componentName);
+      s.itemDrag.active = true;
+      s.itemDrag.moved = false;
+      s.itemDrag.name = componentName;
+      var ghost = this.createItemDragGhost(componentName);
+      s.itemDrag.ghost = ghost;
+      if (ghost && ghost.ownerDocument && ghost.ownerDocument.body) {
+        ghost.ownerDocument.body.appendChild(ghost);
+      }
+      this.positionItemDragGhost(event);
+      this.emitItemDragEvent("q-builder-palette:itemdragstart", componentName, event);
+      event.preventDefault();
+      event.stopPropagation();
+    } catch (error) {
+      this.logIssue("startItemDrag failed", error);
+    }
+  }
+
+  function moveItemDrag(event) {
+    try {
+      var s = this.state();
+      if (!s.itemDrag.active) { return; }
+      s.itemDrag.moved = true;
+      this.positionItemDragGhost(event);
+      this.emitItemDragEvent("q-builder-palette:itemdragmove", s.itemDrag.name, event);
+    } catch (error) {
+      this.logIssue("moveItemDrag failed", error);
+    }
+  }
+
+  function endItemDrag(event) {
+    try {
+      var s = this.state();
+      if (!s.itemDrag.active) { return; }
+      var dragName = String(s.itemDrag.name || "").trim().toLowerCase();
+      this.emitItemDragEvent("q-builder-palette:itemdragend", dragName, event || {});
+      var ghost = s.itemDrag.ghost;
+      if (ghost && ghost.parentNode && typeof ghost.parentNode.removeChild === "function") {
+        ghost.parentNode.removeChild(ghost);
+      }
+      s.itemDrag.active = false;
+      s.itemDrag.moved = false;
+      s.itemDrag.name = "";
+      s.itemDrag.ghost = null;
+    } catch (error) {
+      this.logIssue("endItemDrag failed", error);
+    }
+  }
+
   function resolvePreviewSource(componentName, host) {
     try {
       var scope = host && host.querySelectorAll ? host : (this.ownerDocument || document);
@@ -311,6 +427,75 @@ q-component q-builder-palette {
       this.logIssue("resolvePreviewSource failed", error);
     }
     return null;
+  }
+
+  function isCustomTagName(tagName) {
+    var name = String(tagName || "").trim().toLowerCase();
+    return !!name && name.indexOf("q-") === 0;
+  }
+
+  function createPreviewPlaceholder(name, doc, kind) {
+    var node = (doc || document).createElement("div");
+    node.textContent = String(name || kind || "preview");
+    node.style.display = "flex";
+    node.style.alignItems = "center";
+    node.style.justifyContent = "center";
+    node.style.width = "100%";
+    node.style.height = "100%";
+    node.style.minHeight = "2rem";
+    node.style.fontSize = "0.62rem";
+    node.style.fontWeight = "700";
+    node.style.letterSpacing = "0.02em";
+    node.style.textTransform = "lowercase";
+    node.style.color = "#93c5fd";
+    node.style.background = "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)";
+    node.style.border = "1px dashed rgba(148, 163, 184, 0.55)";
+    node.style.borderRadius = "0.25rem";
+    node.setAttribute("q-builder-preview-placeholder", String(kind || "node"));
+    return node;
+  }
+
+  function makePreviewCloneInert(node, componentName) {
+    try {
+      var doc = this.ownerDocument || document;
+      var fallbackName = String(componentName || "q-component").trim().toLowerCase() || "q-component";
+      var root = node;
+      if (!root || root.nodeType !== 1) {
+        return this.createPreviewPlaceholder(fallbackName, doc, "empty");
+      }
+      if (this.isCustomTagName(root.tagName) || String(root.tagName || "").toLowerCase() === "form") {
+        root = this.createPreviewPlaceholder(fallbackName, doc, String(root.tagName || "custom").toLowerCase());
+      }
+      var customNodes = root.querySelectorAll ? root.querySelectorAll("*") : [];
+      for (var i = customNodes.length - 1; i >= 0; i -= 1) {
+        var candidate = customNodes[i];
+        if (!candidate || candidate.nodeType !== 1 || !candidate.parentNode) { continue; }
+        var tag = String(candidate.tagName || "").toLowerCase();
+        if (this.isCustomTagName(tag) || tag === "form") {
+          candidate.parentNode.replaceChild(this.createPreviewPlaceholder(tag, doc, tag), candidate);
+        }
+      }
+      var controls = root.querySelectorAll ? root.querySelectorAll("input,textarea,select,button") : [];
+      for (var ci = 0; ci < controls.length; ci += 1) {
+        var control = controls[ci];
+        if (!control || control.nodeType !== 1) { continue; }
+        var controlTag = String(control.tagName || "").toLowerCase();
+        if (!control.getAttribute("name")) {
+          control.setAttribute("name", "preview-" + fallbackName + "-" + controlTag + "-" + String(ci));
+        }
+        if (!control.getAttribute("id")) {
+          control.setAttribute("id", "preview-" + fallbackName + "-" + controlTag + "-" + String(ci));
+        }
+        control.setAttribute("autocomplete", "off");
+        control.setAttribute("aria-hidden", "true");
+        control.setAttribute("tabindex", "-1");
+        control.disabled = true;
+      }
+      return root;
+    } catch (error) {
+      this.logIssue("makePreviewCloneInert failed", error);
+      return this.createPreviewPlaceholder(componentName, this.ownerDocument || document, "error");
+    }
   }
 
   function buildPreviewNode(componentName, host) {
@@ -338,7 +523,13 @@ q-component q-builder-palette {
     var node = null;
     var skipClone = normalizedName === "q-builder" || normalizedName === "q-builder-palette";
     if (!skipClone && source && typeof source.cloneNode === "function") {
-      try { node = source.cloneNode(true); } catch (error) { node = null; this.logIssue("clone preview failed", error); }
+      try {
+        node = source.cloneNode(true);
+        node = this.makePreviewCloneInert(node, componentName);
+      } catch (error) {
+        node = null;
+        this.logIssue("clone preview failed", error);
+      }
     }
     if (!node) {
       node = doc.createElement("div");
@@ -422,6 +613,13 @@ q-component q-builder-palette {
               self.logIssue("palette cell click failed", error);
             }
           });
+          targetCell.addEventListener("mousedown", function(event) {
+            try {
+              self.startItemDrag(targetName, targetCell, event);
+            } catch (error) {
+              self.logIssue("palette cell mousedown failed", error);
+            }
+          });
         })(cell, componentName);
         grid.appendChild(cell);
       }
@@ -469,12 +667,23 @@ q-component q-builder-palette {
   function setHost(host) {
     var s = this.state();
     s.host = host && host.nodeType === 1 ? host : null;
-    return this.rebuildPalette();
+    return this.refresh(s.host);
   }
 
   function refresh(host) {
-    if (host && host.nodeType === 1) { this.state().host = host; }
-    return this.rebuildPalette();
+    var s = this.state();
+    if (host && host.nodeType === 1) { s.host = host; }
+    if (s.refreshTimer) {
+      clearTimeout(s.refreshTimer);
+      s.refreshTimer = null;
+    }
+    var self = this;
+    return new Promise(function(resolve) {
+      s.refreshTimer = setTimeout(function() {
+        s.refreshTimer = null;
+        Promise.resolve(self.rebuildPalette()).then(resolve)["catch"](function() { resolve([]); });
+      }, 120);
+    });
   }
 
   function bindDrag() {
@@ -506,6 +715,7 @@ q-component q-builder-palette {
       doc.addEventListener("mousemove", function(event) {
         try {
           var s = self.state();
+          self.moveItemDrag(event);
           if (!s.drag.active) { return; }
           var nextLeft = s.drag.left + (event.clientX - s.drag.startX);
           var nextTop = s.drag.top + (event.clientY - s.drag.startY);
@@ -515,8 +725,9 @@ q-component q-builder-palette {
           self.logIssue("drag move failed", error);
         }
       });
-      doc.addEventListener("mouseup", function() {
+      doc.addEventListener("mouseup", function(event) {
         self.state().drag.active = false;
+        self.endItemDrag(event);
       });
     } catch (error) {
       this.logIssue("bindDrag failed", error);
@@ -540,7 +751,32 @@ q-component q-builder-palette {
         self.logIssue("palette action click failed", error);
       }
     });
-    this.refresh();
+    this.setHost(this.findHost());
+    var doc = this.ownerDocument || document;
+    if (doc && typeof doc.addEventListener === "function" && !this.__qBuilderPaletteContentSignalBound) {
+      this.__qBuilderPaletteContentSignalBound = true;
+      var self = this;
+      doc.addEventListener("QHTMLContentLoaded", function(event) {
+        try {
+          var trackedHost = self.findHost();
+          if (!trackedHost || trackedHost.nodeType !== 1) { return; }
+          var detail = event && event.detail ? event.detail : {};
+          var source = detail && detail.source && detail.source.nodeType === 1 ? detail.source : null;
+          if (source) {
+            if (source === trackedHost) {
+              self.refresh(trackedHost);
+              return;
+            }
+            if (source.closest && source.closest("q-builder[q-builder-runtime='1']")) { return; }
+            if (!trackedHost.contains || !trackedHost.contains(source)) { return; }
+            if (String(source.tagName || "").toLowerCase() === "q-html") { return; }
+          }
+          self.refresh(trackedHost);
+        } catch (error) {
+          self.logIssue("palette content-loaded refresh failed", error);
+        }
+      });
+    }
   }
 
   div.w3-card.w3-round-large { q-builder-palette: "1"
@@ -631,6 +867,18 @@ q-template q-builder-shell {
         border: 2px solid #ff8c00;
       }
     }
+    div {
+      q-builder-drop-box: "1"
+      style {
+        position: fixed;
+        display: none;
+        pointer-events: none;
+        box-sizing: border-box;
+        z-index: 1002;
+        border: 2px solid #ff8c00;
+        background: rgba(255, 140, 0, 0.1);
+      }
+    }
     q-builder-toolbar { }
     q-builder-palette { }
     q-builder-modal-shell { }
@@ -640,7 +888,17 @@ q-template q-builder-shell {
 q-component q-builder {
   function state() {
     if (!this.__qbuilderState || typeof this.__qbuilderState !== "object") {
-      this.__qbuilderState = { source: "div { text { Edit me with QDom } }", target: null, inspect: false, host: null, hoverEl: null, selectedEl: null, modalOpen: false };
+      this.__qbuilderState = {
+        source: "div { text { Edit me with QDom } }",
+        target: null,
+        inspect: false,
+        host: null,
+        hoverEl: null,
+        selectedEl: null,
+        modalOpen: false,
+        dropTarget: null,
+        paletteDragName: ""
+      };
     }
     return this.__qbuilderState;
   }
@@ -752,6 +1010,7 @@ q-component q-builder {
 
   function addCssClass(element, className) {
     try {
+      if (!element || !element.classList || typeof element.classList.add !== "function") { return; }
       element.classList.add(className);
     } catch (error) {
       this.logIssue("addCssClass failed", error);
@@ -760,6 +1019,7 @@ q-component q-builder {
 
   function removeCssClass(element, className) {
     try {
+      if (!element || !element.classList || typeof element.classList.remove !== "function") { return; }
       element.classList.remove(className);
     } catch (error) {
       this.logIssue("removeCssClass failed", error);
@@ -793,6 +1053,591 @@ q-component q-builder {
     var s = this.state();
     this.positionOverlay("[q-builder-hover-box='1']", s.hoverEl && s.hoverEl !== s.selectedEl ? s.hoverEl : null);
     this.positionOverlay("[q-builder-select-box='1']", s.selectedEl);
+  }
+
+  function clearDropOverlay() {
+    try {
+      this.applyStyles(this.querySelector("[q-builder-drop-box='1']"), { display: "none" }, "clearDropOverlay failed");
+    } catch (error) {
+      this.logIssue("clearDropOverlay failed", error);
+    }
+  }
+
+  function setDropOverlay(target) {
+    try {
+      var marker = this.querySelector("[q-builder-drop-box='1']");
+      if (!marker || !marker.style || !target || !(target.insertRect || target.rect)) {
+        this.clearDropOverlay();
+        return;
+      }
+      var rect = target.insertRect || target.rect;
+      var left = Number(rect.left || 0);
+      var top = Number(rect.top || 0);
+      var width = Number(rect.width || 0);
+      var height = Number(rect.height || 0);
+      var borderColor = "#ff8c00";
+      var background = "rgba(255, 140, 0, 0.1)";
+      var kind = String(target.kind || "");
+      var mode = String(target.slotMode || "").toLowerCase();
+      if (kind === "component" || (kind === "slot" && mode === "merge")) {
+        background = "rgba(255, 140, 0, 0.22)";
+      } else if (kind === "slot" && mode === "replace") {
+        borderColor = "#f59e0b";
+        background = "rgba(245, 158, 11, 0.18)";
+      }
+      this.applyStyles(marker, {
+        left: Math.round(left) + "px",
+        top: Math.round(top) + "px",
+        width: Math.max(0, Math.round(width)) + "px",
+        height: Math.max(0, Math.round(height)) + "px",
+        borderColor: borderColor,
+        background: background,
+        display: width > 0 && height > 0 ? "block" : "none"
+      }, "setDropOverlay failed");
+    } catch (error) {
+      this.logIssue("setDropOverlay failed", error);
+      this.clearDropOverlay();
+    }
+  }
+
+  function pointInRect(x, y, rect) {
+    if (!rect) { return false; }
+    var left = Number(rect.left || 0);
+    var top = Number(rect.top || 0);
+    var right = Number(rect.right || (left + Number(rect.width || 0)));
+    var bottom = Number(rect.bottom || (top + Number(rect.height || 0)));
+    return x >= left && x <= right && y >= top && y <= bottom;
+  }
+
+  function isWithinBuilderRuntime(node) {
+    try {
+      return !!(node && node.closest && node.closest("q-builder[q-builder-runtime='1']"));
+    } catch (error) {
+      this.logIssue("isWithinBuilderRuntime failed", error);
+      return false;
+    }
+  }
+
+  function resolveEditableElementAtPoint(host, clientX, clientY) {
+    try {
+      var doc = host && host.ownerDocument ? host.ownerDocument : (typeof document !== "undefined" ? document : null);
+      if (!doc || typeof doc.elementFromPoint !== "function") { return null; }
+      var element = doc.elementFromPoint(Number(clientX || 0), Number(clientY || 0));
+      if (!element || element.nodeType !== 1) { return null; }
+      if (!host.contains || !host.contains(element)) { return null; }
+      if (this.isWithinBuilderRuntime(element)) { return null; }
+      return element;
+    } catch (error) {
+      this.logIssue("resolveEditableElementAtPoint failed", error);
+      return null;
+    }
+  }
+
+  function resolveSlotDropTarget(host, clientX, clientY) {
+    try {
+      var element = this.resolveEditableElementAtPoint(host, clientX, clientY);
+      var x = Number(clientX || 0);
+      var y = Number(clientY || 0);
+      var cursor = element;
+      while (cursor && cursor.nodeType === 1 && cursor !== host) {
+        var slotCtx = cursor.slot;
+        var validSlot = slotCtx && typeof slotCtx === "object" && typeof slotCtx.qdom === "function";
+        if (validSlot && typeof cursor.getBoundingClientRect === "function") {
+          var rect = cursor.getBoundingClientRect();
+          if (rect && rect.width > 0 && rect.height > 0 && this.pointInRect(x, y, rect)) {
+            var left = Number(rect.left || 0);
+            var top = Number(rect.top || 0);
+            var right = Number(rect.right || (left + Number(rect.width || 0)));
+            var bottom = Number(rect.bottom || (top + Number(rect.height || 0)));
+            var centerX = left + (right - left) / 2;
+            var centerY = top + (bottom - top) / 2;
+            var centerDx = x - centerX;
+            var centerDy = y - centerY;
+            var centerDist = Math.sqrt(centerDx * centerDx + centerDy * centerDy);
+            var dLeft = this.distanceToVerticalEdge(x, y, left, top, bottom);
+            var dRight = this.distanceToVerticalEdge(x, y, right, top, bottom);
+            var dTop = this.distanceToHorizontalEdge(x, y, top, left, right);
+            var dBottom = this.distanceToHorizontalEdge(x, y, bottom, left, right);
+            var side = "left";
+            var minBoundary = dLeft;
+            if (dRight < minBoundary) { side = "right"; minBoundary = dRight; }
+            if (dTop < minBoundary) { side = "top"; minBoundary = dTop; }
+            if (dBottom < minBoundary) { side = "bottom"; minBoundary = dBottom; }
+            var slotMode = centerDist < minBoundary ? "replace" : "merge";
+            return {
+              kind: "slot",
+              host: host,
+              element: cursor,
+              slotCtx: slotCtx,
+              slotMode: slotMode,
+              side: side,
+              rect: rect,
+              insertRect: slotMode === "merge" ? this.splitRectBySide(rect, side) : rect
+            };
+          }
+        }
+        cursor = cursor.parentElement;
+      }
+    } catch (error) {
+      this.logIssue("resolveSlotDropTarget failed", error);
+    }
+    return null;
+  }
+
+  function distanceToVerticalEdge(x, y, edgeX, top, bottom) {
+    var clampedY = Math.max(top, Math.min(bottom, y));
+    var dx = x - edgeX;
+    var dy = y - clampedY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function distanceToHorizontalEdge(x, y, edgeY, left, right) {
+    var clampedX = Math.max(left, Math.min(right, x));
+    var dx = x - clampedX;
+    var dy = y - edgeY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function splitRectBySide(rect, side) {
+    var left = Number(rect && rect.left ? rect.left : 0);
+    var top = Number(rect && rect.top ? rect.top : 0);
+    var width = Number(rect && rect.width ? rect.width : 0);
+    var height = Number(rect && rect.height ? rect.height : 0);
+    var s = String(side || "").toLowerCase();
+    if (s === "left") {
+      return { left: left, top: top, width: width / 2, height: height };
+    }
+    if (s === "right") {
+      return { left: left + width / 2, top: top, width: width / 2, height: height };
+    }
+    if (s === "top") {
+      return { left: left, top: top, width: width, height: height / 2 };
+    }
+    if (s === "bottom") {
+      return { left: left, top: top + height / 2, width: width, height: height / 2 };
+    }
+    return { left: left, top: top, width: width, height: height };
+  }
+
+  function resolveComponentBoundaryTarget(host, clientX, clientY) {
+    try {
+      if (!host || typeof host.querySelectorAll !== "function") { return null; }
+      var nodes = host.querySelectorAll("*");
+      var x = Number(clientX || 0);
+      var y = Number(clientY || 0);
+      var best = null;
+      for (var i = 0; i < nodes.length; i += 1) {
+        var element = nodes[i];
+        if (!element || element.nodeType !== 1 || this.isWithinBuilderRuntime(element)) { continue; }
+        if (String(element.getAttribute ? element.getAttribute("qhtml-component-instance") || "" : "") !== "1") { continue; }
+        if (typeof element.getBoundingClientRect !== "function") { continue; }
+        var rect = element.getBoundingClientRect();
+        if (!rect || rect.width <= 0 || rect.height <= 0) { continue; }
+        var left = Number(rect.left || 0);
+        var top = Number(rect.top || 0);
+        var right = Number(rect.right || (left + Number(rect.width || 0)));
+        var bottom = Number(rect.bottom || (top + Number(rect.height || 0)));
+        var dLeft = this.distanceToVerticalEdge(x, y, left, top, bottom);
+        var dRight = this.distanceToVerticalEdge(x, y, right, top, bottom);
+        var dTop = this.distanceToHorizontalEdge(x, y, top, left, right);
+        var dBottom = this.distanceToHorizontalEdge(x, y, bottom, left, right);
+        var side = "left";
+        var distance = dLeft;
+        if (dRight < distance) { side = "right"; distance = dRight; }
+        if (dTop < distance) { side = "top"; distance = dTop; }
+        if (dBottom < distance) { side = "bottom"; distance = dBottom; }
+        if (!best || distance < best.distance) {
+          best = {
+            kind: "component",
+            host: host,
+            element: element,
+            qnode: null,
+            side: side,
+            rect: rect,
+            insertRect: this.splitRectBySide(rect, side),
+            distance: distance
+          };
+        }
+      }
+      return best;
+    } catch (error) {
+      this.logIssue("resolveComponentBoundaryTarget failed", error);
+      return null;
+    }
+  }
+
+  function resolvePaletteDropTarget(host, clientX, clientY) {
+    try {
+      if (!host || host.nodeType !== 1) { return null; }
+      var slotTarget = this.resolveSlotDropTarget(host, clientX, clientY);
+      if (slotTarget) { return slotTarget; }
+      var boundaryTarget = this.resolveComponentBoundaryTarget(host, clientX, clientY);
+      if (boundaryTarget) { return boundaryTarget; }
+      if (typeof host.getBoundingClientRect === "function") {
+        return {
+          kind: "root",
+          host: host,
+          rect: host.getBoundingClientRect(),
+          insertRect: host.getBoundingClientRect()
+        };
+      }
+    } catch (error) {
+      this.logIssue("resolvePaletteDropTarget failed", error);
+    }
+    return null;
+  }
+
+  function setPaletteDropTarget(target) {
+    try {
+      var s = this.state();
+      s.dropTarget = target || null;
+      this.setDropOverlay(target);
+    } catch (error) {
+      this.logIssue("setPaletteDropTarget failed", error);
+    }
+  }
+
+  function clearPaletteDropTarget() {
+    try {
+      this.state().dropTarget = null;
+      this.clearDropOverlay();
+    } catch (error) {
+      this.logIssue("clearPaletteDropTarget failed", error);
+    }
+  }
+
+  function sanitizePaletteComponentName(name) {
+    var value = String(name || "").trim().toLowerCase();
+    if (!value || value.indexOf("q-") !== 0) { return ""; }
+    if (value === "q-html" || value === "q-script" || value === "slot" || value === "q-builder" || value === "q-builder-palette") {
+      return "";
+    }
+    return value;
+  }
+
+  function paletteInstanceSource(name) {
+    var normalized = this.sanitizePaletteComponentName(name);
+    if (!normalized) { return ""; }
+    return normalized + " { }";
+  }
+
+  function sourceNodeOf(candidate) {
+    if (!candidate || typeof candidate !== "object") { return null; }
+    if (candidate.__qhtmlSourceNode && typeof candidate.__qhtmlSourceNode === "object") {
+      return candidate.__qhtmlSourceNode;
+    }
+    return candidate;
+  }
+
+  function getCoreApi() {
+    try {
+      var globalRef = this.getGlobalRef();
+      var modules = globalRef && globalRef.QHtmlModules ? globalRef.QHtmlModules : null;
+      return modules && modules.qdomCore ? modules.qdomCore : null;
+    } catch (error) {
+      this.logIssue("getCoreApi failed", error);
+      return null;
+    }
+  }
+
+  function touchNodeNonce(node) {
+    try {
+      var core = this.getCoreApi();
+      if (!core || typeof core.setUpdateNonce !== "function") { return; }
+      var source = this.sourceNodeOf(node);
+      if (source && typeof source === "object") {
+        core.setUpdateNonce(source);
+      }
+    } catch (error) {
+      this.logIssue("touchNodeNonce failed", error);
+    }
+  }
+
+  function touchMutationNonce(host, primaryNode) {
+    try {
+      this.touchNodeNonce(primaryNode);
+      if (!host || typeof host.qdom !== "function") { return; }
+      var root = host.qdom();
+      if (!root || typeof root.root !== "function") { return; }
+      var docRoot = root.root({ qdom: true });
+      this.touchNodeNonce(docRoot);
+    } catch (error) {
+      this.logIssue("touchMutationNonce failed", error);
+    }
+  }
+
+  function resolveScopedUpdateElement(anchorElement) {
+    try {
+      if (!anchorElement || anchorElement.nodeType !== 1) { return null; }
+      if (anchorElement.component && anchorElement.component.nodeType === 1) {
+        return anchorElement.component;
+      }
+      if (anchorElement.getAttribute && String(anchorElement.getAttribute("qhtml-component-instance") || "") === "1") {
+        return anchorElement;
+      }
+      if (anchorElement.closest) {
+        return anchorElement.closest("[qhtml-component-instance='1']");
+      }
+    } catch (error) {
+      this.logIssue("resolveScopedUpdateElement failed", error);
+    }
+    return null;
+  }
+
+  function requestHostUpdate(host, anchorElement) {
+    try {
+      var scopeElement = this.resolveScopedUpdateElement(anchorElement);
+      var globalRef = this.getGlobalRef();
+      var runtime = globalRef && globalRef.QHtml ? globalRef.QHtml : null;
+      if (runtime && typeof runtime.updateQHtmlElement === "function" && host && scopeElement) {
+        runtime.updateQHtmlElement(host, { scopeElement: scopeElement });
+        return true;
+      }
+      if (runtime && typeof runtime.updateQHtmlElement === "function" && host) {
+        runtime.updateQHtmlElement(host);
+        return true;
+      }
+    } catch (error) {
+      this.logIssue("requestHostUpdate failed", error);
+    }
+    return false;
+  }
+
+  function createSingleNodeFromQhtml(host, source) {
+    try {
+      if (!host || typeof host.qdom !== "function") { return null; }
+      var root = host.qdom();
+      if (!root || typeof root.createInstanceFromQHTML !== "function") { return null; }
+      var created = root.createInstanceFromQHTML(String(source || "").trim());
+      if (!created) { return null; }
+      if (Array.isArray(created)) {
+        return created.length > 0 ? this.sourceNodeOf(created[0]) : null;
+      }
+      return this.sourceNodeOf(created);
+    } catch (error) {
+      this.logIssue("createSingleNodeFromQhtml failed", error);
+      return null;
+    }
+  }
+
+  function replaceSourceNodeInHostTree(host, targetNode, replacementNode) {
+    try {
+      if (!host || typeof host.qdom !== "function") { return false; }
+      var targetSource = this.sourceNodeOf(targetNode);
+      var replacementSource = this.sourceNodeOf(replacementNode);
+      if (!targetSource || !replacementSource) { return false; }
+      var docRoot = host.qdom();
+      if (!docRoot || typeof docRoot.root !== "function") { return false; }
+      var rootNode = docRoot.root({ qdom: true });
+      var rootSource = this.sourceNodeOf(rootNode);
+      if (!rootSource || typeof rootSource !== "object") { return false; }
+      var stack = [rootSource];
+      while (stack.length > 0) {
+        var current = stack.pop();
+        if (!current || typeof current !== "object") { continue; }
+        var lists = [current.nodes, current.templateNodes, current.children, current.slots];
+        for (var li = 0; li < lists.length; li += 1) {
+          var list = lists[li];
+          if (!Array.isArray(list)) { continue; }
+          for (var i = 0; i < list.length; i += 1) {
+            var child = list[i];
+            if (this.sourceNodeOf(child) === targetSource) {
+              list.splice(i, 1, replacementSource);
+              this.touchNodeNonce(list);
+              this.touchNodeNonce(current);
+              this.touchNodeNonce(targetSource);
+              this.touchNodeNonce(replacementSource);
+              this.touchMutationNonce(host, replacementSource);
+              return true;
+            }
+            if (child && typeof child === "object") {
+              stack.push(this.sourceNodeOf(child));
+            }
+          }
+        }
+      }
+    } catch (error) {
+      this.logIssue("replaceSourceNodeInHostTree failed", error);
+    }
+    return false;
+  }
+
+  function appendPaletteIntoSlot(target, componentName) {
+    try {
+      if (!target || String(target.kind || "") !== "slot") { return false; }
+      var slotCtx = target.slotCtx;
+      var slotNode = null;
+      try {
+        var hostRoot = target.host && typeof target.host.qdom === "function" ? target.host.qdom() : null;
+        if (hostRoot && typeof hostRoot.findSlotFor === "function" && target.element && target.element.nodeType === 1) {
+          slotNode = hostRoot.findSlotFor(target.element);
+        }
+      } catch (resolveError) {
+        this.logIssue("appendPaletteIntoSlot resolve host slot failed", resolveError);
+      }
+      if (!slotNode && slotCtx && typeof slotCtx.qdom === "function") {
+        slotNode = slotCtx.qdom();
+      }
+      var mode = String(target.slotMode || "replace").toLowerCase();
+      var side = String(target.side || "right").toLowerCase();
+      var source = this.paletteInstanceSource(componentName);
+      if (!slotNode || typeof slotNode.appendNode !== "function" || !source) { return false; }
+      function clearSlotChildren() {
+        if (!slotNode) { return; }
+        if (slotNode.children && typeof slotNode.children.splice === "function") {
+          slotNode.children.splice(0, Number(slotNode.children.length || 0));
+          return;
+        }
+        if (Array.isArray(slotNode.children)) {
+          slotNode.children.length = 0;
+          return;
+        }
+        slotNode.children = [];
+      }
+      if (mode === "merge") {
+        var current = "";
+        try {
+          var list = null;
+          if (typeof slotNode.children === "function") {
+            list = slotNode.children();
+          } else if (slotNode.children && typeof slotNode.children.qhtml === "function") {
+            list = slotNode.children;
+          }
+          if (list && typeof list.qhtml === "function") {
+            current = String(list.qhtml({ preserveOriginal: false }) || "").trim();
+          }
+        } catch (ignored) { }
+        if (current) {
+          var orientation = side === "left" || side === "right" ? "columns" : "rows";
+          var styleBlock = orientation === "columns"
+            ? "display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; align-items: stretch;"
+            : "display: grid; grid-template-rows: 1fr 1fr; gap: 0.5rem; align-items: stretch;";
+          var first = side === "left" || side === "top" ? source : current;
+          var second = side === "left" || side === "top" ? current : source;
+          clearSlotChildren();
+          slotNode.appendNode("div { style { " + styleBlock + " } " + first + " " + second + " }");
+        } else {
+          slotNode.appendNode(source);
+        }
+      } else {
+        clearSlotChildren();
+        slotNode.appendNode(source);
+      }
+      this.touchMutationNonce(target.host, slotNode);
+      this.requestHostUpdate(target.host, target.element);
+      return true;
+    } catch (error) {
+      this.logIssue("appendPaletteIntoSlot failed", error);
+      return false;
+    }
+  }
+
+  function wrapComponentWithPalette(target, componentName) {
+    try {
+      if (!target || String(target.kind || "") !== "component") { return false; }
+      var qnode = target.qnode;
+      var host = target.host;
+      if ((!qnode || typeof qnode !== "object") && target.element && typeof target.element.qdom === "function") {
+        qnode = this.sourceNodeOf(target.element.qdom());
+        target.qnode = qnode;
+      }
+      var source = this.paletteInstanceSource(componentName);
+      if (!qnode || !source || !host || typeof host.qdom !== "function") { return false; }
+      var current = "";
+      if (typeof qnode.qhtml === "function") {
+        current = String(qnode.qhtml({ preserveOriginal: false }) || "").trim();
+      }
+      if (!current && qnode.meta && typeof qnode.meta.originalSource === "string") {
+        current = String(qnode.meta.originalSource || "").trim();
+      }
+      if (!current) { return false; }
+
+      var side = String(target.side || "right").toLowerCase();
+      var orientation = side === "left" || side === "right" ? "columns" : "rows";
+      var styleBlock = orientation === "columns"
+        ? "display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; align-items: stretch;"
+        : "display: grid; grid-template-rows: 1fr 1fr; gap: 0.5rem; align-items: stretch;";
+      var first = side === "left" || side === "top" ? source : current;
+      var second = side === "left" || side === "top" ? current : source;
+      var wrapperSource = "div { style { " + styleBlock + " } " + first + " " + second + " }";
+      var wrapperNode = this.createSingleNodeFromQhtml(host, wrapperSource);
+      if (!wrapperNode) { return false; }
+      var replaced = this.replaceSourceNodeInHostTree(host, qnode, wrapperNode);
+      if (!replaced) { return false; }
+      this.touchMutationNonce(host, wrapperNode);
+      this.requestHostUpdate(host, target.element);
+      return true;
+    } catch (error) {
+      this.logIssue("wrapComponentWithPalette failed", error);
+      return false;
+    }
+  }
+
+  function appendPaletteToRoot(host, componentName) {
+    try {
+      var source = this.paletteInstanceSource(componentName);
+      if (!source || !host || typeof host.qdom !== "function") { return false; }
+      var root = host.qdom();
+      if (!root || typeof root.appendNode !== "function") { return false; }
+      root.appendNode(source);
+      this.touchMutationNonce(host, root);
+      this.requestHostUpdate(host, host);
+      return true;
+    } catch (error) {
+      this.logIssue("appendPaletteToRoot failed", error);
+      return false;
+    }
+  }
+
+  function updatePaletteDropTarget(componentName, host, clientX, clientY) {
+    try {
+      var normalized = this.sanitizePaletteComponentName(componentName);
+      if (!normalized || !host || host.nodeType !== 1) {
+        this.clearPaletteDropTarget();
+        return null;
+      }
+      var target = this.resolvePaletteDropTarget(host, clientX, clientY);
+      this.setPaletteDropTarget(target);
+      this.state().paletteDragName = normalized;
+      return target;
+    } catch (error) {
+      this.logIssue("updatePaletteDropTarget failed", error);
+      this.clearPaletteDropTarget();
+      return null;
+    }
+  }
+
+  function commitPaletteDrop(componentName, host, clientX, clientY) {
+    try {
+      var normalized = this.sanitizePaletteComponentName(componentName);
+      if (!normalized || !host || host.nodeType !== 1) {
+        this.clearPaletteDropTarget();
+        return false;
+      }
+      var s = this.state();
+      var target = s.dropTarget && s.dropTarget.host === host ? s.dropTarget : this.resolvePaletteDropTarget(host, clientX, clientY);
+      var applied = false;
+      if (target && String(target.kind || "") === "slot") {
+        applied = this.appendPaletteIntoSlot(target, normalized);
+      } else if (target && String(target.kind || "") === "component") {
+        applied = this.wrapComponentWithPalette(target, normalized);
+      } else {
+        applied = this.appendPaletteToRoot(host, normalized);
+      }
+      if (!applied) {
+        applied = this.appendPaletteToRoot(host, normalized);
+      }
+      this.clearPaletteDropTarget();
+      this.state().paletteDragName = "";
+      if (applied) {
+        this.refreshPalette(host);
+      }
+      return applied;
+    } catch (error) {
+      this.logIssue("commitPaletteDrop failed", error);
+      this.clearPaletteDropTarget();
+      return false;
+    }
   }
 
   function positionToolbar() {
@@ -895,32 +1740,22 @@ q-component q-builder {
 
   function setHoverElement(element) {
     var s = this.state();
-    if (s.hoverEl && s.hoverEl !== s.selectedEl) {
-      this.removeCssClass(s.hoverEl, "w3-border");
-      this.removeCssClass(s.hoverEl, "w3-border-blue");
-    }
-    s.hoverEl = element || null;
-    if (s.hoverEl && s.hoverEl !== s.selectedEl) {
-      this.addCssClass(s.hoverEl, "w3-border");
-      this.addCssClass(s.hoverEl, "w3-border-blue");
-    }
+    var next = element || null;
+    if (s.hoverEl === next) { return; }
+    s.hoverEl = next;
     this.refreshOverlays();
   }
 
   function setSelectedElement(element) {
     var s = this.state();
-    if (s.selectedEl) {
-      this.removeCssClass(s.selectedEl, "w3-border");
-      this.removeCssClass(s.selectedEl, "w3-border-orange");
+    var next = element || null;
+    if (s.selectedEl === next) {
+      this.positionToolbar();
+      return;
     }
-    s.selectedEl = element || null;
+    s.selectedEl = next;
     if (s.hoverEl === s.selectedEl) {
-      this.removeCssClass(s.hoverEl, "w3-border-blue");
       s.hoverEl = null;
-    }
-    if (s.selectedEl) {
-      this.addCssClass(s.selectedEl, "w3-border");
-      this.addCssClass(s.selectedEl, "w3-border-orange");
     }
     this.refreshOverlays();
     this.positionToolbar();
@@ -973,6 +1808,8 @@ q-component q-builder {
       if (!s.inspect) {
         this.setHoverElement(null);
         this.setSelectedElement(null);
+        this.clearPaletteDropTarget();
+        s.paletteDragName = "";
         this.hideToolbar();
       }
     } catch (error) {
@@ -1090,9 +1927,7 @@ q-component q-builder {
           if (typeof globalRef.qbuilder !== "undefined" && globalRef.qbuilder && typeof globalRef.qbuilder.inspect === "function") {
             globalRef.qbuilder.inspect(replacementHost, true);
           }
-          if (replacementHost && typeof replacementHost.update === "function") {
-            replacementHost.update();
-          } else if (runtime && typeof runtime.updateQHtmlElement === "function") {
+          if (runtime && typeof runtime.updateQHtmlElement === "function") {
             runtime.updateQHtmlElement(replacementHost);
           }
         }, 0);
@@ -1158,11 +1993,8 @@ q-component q-builder {
     var trail = [];
     while (cursor && cursor.nodeType === 1 && cursor !== host) {
       if (cursor.closest && cursor.closest("q-builder[q-builder-runtime='1']")) { return null; }
-      if (typeof cursor.qdom === "function") {
-        var qnode = sourceNodeOf(cursor.qdom());
-        var kind = qnode && typeof qnode.kind === "string" ? String(qnode.kind).toLowerCase() : "";
-        trail.push({ element: cursor, kind: kind });
-      }
+      var isInstance = String(cursor.getAttribute ? cursor.getAttribute("qhtml-component-instance") || "" : "") === "1";
+      trail.push({ element: cursor, kind: isInstance ? "component-instance" : "element" });
       cursor = cursor.parentElement;
     }
     if (trail.length === 0) { return null; }
@@ -1207,7 +2039,7 @@ q-component q-builder {
 
     function bindInspectHost(host) {
       if (!host || inspectStateByHost.has(host)) { return; }
-      var state = { enabled: false, builder: null, hovered: null };
+      var state = { enabled: false, builder: null, hovered: null, paletteDragging: false, paletteName: "" };
       inspectStateByHost.set(host, state);
 
       function getBuilder() {
@@ -1218,6 +2050,7 @@ q-component q-builder {
 
       function setHoveredFrom(rawTarget) {
         if (!state.enabled) { return; }
+        if (state.paletteDragging) { return; }
         var builder = getBuilder();
         if (!builder || typeof builder.setHoverElement !== "function") { return; }
         var candidate = normalizeEditableTarget(resolveCandidate(rawTarget, host), host);
@@ -1232,6 +2065,7 @@ q-component q-builder {
 
       host.addEventListener("click", function(event) {
         if (!state.enabled) { return; }
+        if (state.paletteDragging) { return; }
         var builder = getBuilder();
         if (!builder || typeof builder.setSelectedElement !== "function") { return; }
         var candidate = normalizeEditableTarget(resolveCandidate(event.target, host), host);
@@ -1249,6 +2083,42 @@ q-component q-builder {
         state.hovered = null;
         var builder = getBuilder();
         if (builder && typeof builder.setHoverElement === "function") { builder.setHoverElement(null); }
+      }, true);
+
+      host.addEventListener("q-builder-palette:itemdragstart", function(event) {
+        if (!state.enabled) { return; }
+        var detail = event && event.detail ? event.detail : {};
+        var name = String(detail.name || "").trim().toLowerCase();
+        var builder = getBuilder();
+        state.paletteDragging = !!name;
+        state.paletteName = name;
+        state.hovered = null;
+        if (builder && typeof builder.setHoverElement === "function") {
+          builder.setHoverElement(null);
+        }
+        if (!builder || !state.paletteDragging || typeof builder.updatePaletteDropTarget !== "function") { return; }
+        builder.updatePaletteDropTarget(name, host, Number(detail.clientX || 0), Number(detail.clientY || 0));
+      }, true);
+
+      host.addEventListener("q-builder-palette:itemdragmove", function(event) {
+        if (!state.enabled || !state.paletteDragging) { return; }
+        var detail = event && event.detail ? event.detail : {};
+        var builder = getBuilder();
+        if (!builder || typeof builder.updatePaletteDropTarget !== "function") { return; }
+        builder.updatePaletteDropTarget(state.paletteName, host, Number(detail.clientX || 0), Number(detail.clientY || 0));
+      }, true);
+
+      host.addEventListener("q-builder-palette:itemdragend", function(event) {
+        if (!state.enabled) { return; }
+        var detail = event && event.detail ? event.detail : {};
+        var builder = getBuilder();
+        if (builder && typeof builder.commitPaletteDrop === "function") {
+          builder.commitPaletteDrop(state.paletteName || detail.name, host, Number(detail.clientX || 0), Number(detail.clientY || 0));
+        } else if (builder && typeof builder.clearPaletteDropTarget === "function") {
+          builder.clearPaletteDropTarget();
+        }
+        state.paletteDragging = false;
+        state.paletteName = "";
       }, true);
 
       if (typeof window !== "undefined" && window && typeof window.addEventListener === "function") {

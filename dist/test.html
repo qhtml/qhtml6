@@ -59,15 +59,35 @@ div.w3-threequarter.w3-light-grey,q-tabs {
         q-form {
           q-input-with-label {
             label { text { username } }
-            input-element { q-input { name: "username" } }
+            input-element {
+              input.w3-input.w3-border.w3-round-large.w3-margin-bottom {
+                id: "signin-username"
+                name: "username"
+                autocomplete: "username"
+              }
+            }
           }
           q-input-with-label {
             label { text { password } }
-            input-element { q-input { type: "password"; name: "password"; } }
+            input-element {
+              input.w3-input.w3-border.w3-round-large.w3-margin-bottom {
+                id: "signin-password"
+                type: "password"
+                name: "password"
+                autocomplete: "current-password"
+              }
+            }
           }
           q-input-with-label {
             label { text { Remember Me } }
-            input-element { input { type: "checkbox"; name: "remember" text { Remember me } } }
+            input-element {
+              input {
+                id: "signin-remember"
+                type: "checkbox"
+                name: "remember"
+                text { Remember me }
+              }
+            }
           }
           center,q-input-with-label {
             label { }
@@ -138,11 +158,10 @@ div.w3-quarter.w3-nav.w3-col.w3-right.w3-padding {
             if (typeof qbuilder !== "undefined" && qbuilder && typeof qbuilder.inspect === "function") {
               qbuilder.inspect(host, active === "1");
             }
-            if (typeof host.update === "function") {
-              host.update();
-            } else if (typeof QHtml !== "undefined" && QHtml && typeof QHtml.updateQHtmlElement === "function") {
-              QHtml.updateQHtmlElement(host);
-            }
+            try {
+              this.setAttribute("class", active === "1" ? "w3-button w3-green" : "w3-button w3-orange");
+              this.textContent = active === "1" ? "Edit Mode: ON" : "Edit Mode: OFF";
+            } catch (ignoredToggleUi) { }
           }
         }
       }
