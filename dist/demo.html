@@ -204,6 +204,7 @@ q-component demo-example {
     const editor = this.querySelector("[demo-editor='1']");
     const text = String(source || "");
     this.__snippet = text;
+    this.setAttribute("snippet", text);
     if (!editor) {
       return;
     }
@@ -216,6 +217,10 @@ q-component demo-example {
 
   onReady {
     this.setHeaderContent();
+    if (typeof this.__snippet === "string" && this.__snippet.length > 0) {
+      this.setSnippet(this.__snippet);
+      return;
+    }
     if (this.getAttribute("snippet")) {
       this.setSnippet(this.getAttribute("snippet"));
     }
@@ -550,14 +555,25 @@ q-component demo-showcase {
             "    text {% Toggle Builder Inspect %}",
             "    onclick {%",
               "      try {",
-              "        var host = this.closest(\"q-html\");",
-              "        var next = host.getAttribute(\"data-page-edit-mode\") === \"1\" ? \"0\" : \"1\";",
-              "        host.setAttribute(\"data-page-edit-mode\", next);",
-              "        window.qbuilder.inspect(host, next === \"1\");",
+              "        var wrap = this.closest(\"div\");",
+              "        var preview = wrap ? wrap.querySelector(\"q-html[builder-preview-root='1']\") : null;",
+              "        if (!preview) { throw new Error(\"preview root missing\"); }",
+              "        var next = preview.getAttribute(\"data-page-edit-mode\") === \"1\" ? \"0\" : \"1\";",
+              "        preview.setAttribute(\"data-page-edit-mode\", next);",
+              "        window.qbuilder.inspect(preview, next === \"1\");",
               "      } catch (evt) { console.log(\"q-builder toggle failed\", evt); }",
             "    %}",
           "  %}",
           "  p.w3-small.w3-text-grey.w3-margin-top {% text {% Toggle on, then click any element in preview to open q-builder editor. %} %}",
+          "  q-html {%",
+          "    builder-preview-root: \"1\"",
+          "    data-page-edit-mode: \"0\"",
+          "    div.w3-panel.w3-pale-blue.w3-border.w3-round-large.w3-margin-top {%",
+          "      h4 {% text {% Preview Scope %} %}",
+          "      p {% text {% Builder inspect is limited to this nested q-html preview area. %} %}",
+          "      button.w3-button.w3-small.w3-indigo {% text {% Inner Action %} %}",
+          "    %}",
+          "  %}",
           "%}"
         ].join("\n"));
       case "component-02":

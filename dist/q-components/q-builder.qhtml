@@ -17,6 +17,580 @@ q-component q-builder-toolbar {
   }
 }
 
+q-component q-builder-palette {
+  function getGlobalRef() {
+    return typeof globalThis !== "undefined" ? globalThis : Function("return this")();
+  }
+
+  function logIssue(label, error) {
+    try {
+      var root = this.getGlobalRef();
+      var logger = root && root.console ? root.console : console;
+      if (logger && typeof logger.log === "function") {
+        logger.log("[q-builder-palette] " + String(label || "error"), error);
+      }
+    } catch (ignored) { }
+  }
+
+  function state() {
+    if (!this.__qBuilderPaletteState || typeof this.__qBuilderPaletteState !== "object") {
+      this.__qBuilderPaletteState = {
+        activeName: "",
+        activeCell: null,
+        drag: { active: false, startX: 0, startY: 0, left: 0, top: 0 },
+        host: null,
+        names: [],
+        scanRequestId: 0,
+        scanWorker: null,
+        scanWorkerUrl: ""
+      };
+    }
+    return this.__qBuilderPaletteState;
+  }
+
+  function panel() {
+    return this.querySelector("[q-builder-palette='1']");
+  }
+
+  function grid() {
+    return this.querySelector("[q-builder-palette-grid='1']");
+  }
+
+  function sanitizeName(name) {
+    var value = String(name || "").trim().toLowerCase();
+    if (!value || value.indexOf("q-") !== 0) { return ""; }
+    if (value === "q-html" || value === "q-script" || value === "slot") { return ""; }
+    return value;
+  }
+
+  function buildScanWorkerScript() {
+    return [
+      "function sanitizeName(name) {",
+      "  var value = String(name || '').trim().toLowerCase();",
+      "  if (!value || value.indexOf('q-') !== 0) { return ''; }",
+      "  if (value === 'q-html' || value === 'q-script' || value === 'slot') { return ''; }",
+      "  return value;",
+      "}",
+      "",
+      "function collectNames(payload) {",
+      "  var html = String(payload && payload.html ? payload.html : '');",
+      "  var out = Object.create(null);",
+      "  var match = null;",
+      "  var tagRegex = /<\\s*([A-Za-z][\\w:-]*)\\b/g;",
+      "  while ((match = tagRegex.exec(html))) {",
+      "    var name = sanitizeName(match[1]);",
+      "    if (name) { out[name] = 1; }",
+      "  }",
+      "  return Object.keys(out).sort();",
+      "}",
+      "",
+      "self.onmessage = function(event) {",
+      "  var data = event && event.data ? event.data : {};",
+      "  if (String(data.type || '') !== 'scan') { return; }",
+      "  var names = collectNames(data);",
+      "  self.postMessage({ type: 'scanResult', requestId: Number(data.requestId || 0), names: names });",
+      "};"
+    ].join("\n");
+  }
+
+  function ensureScanWorker() {
+    try {
+      var s = this.state();
+      if (s.scanWorker && typeof s.scanWorker.postMessage === "function") { return s.scanWorker; }
+      var root = this.getGlobalRef();
+      if (!root || typeof root.Worker !== "function" || typeof root.Blob !== "function") { return null; }
+      if (!root.URL || typeof root.URL.createObjectURL !== "function") { return null; }
+      var script = this.buildScanWorkerScript();
+      var blob = new root.Blob([script], { type: "application/javascript" });
+      var workerUrl = root.URL.createObjectURL(blob);
+      var worker = new root.Worker(workerUrl);
+      s.scanWorker = worker;
+      s.scanWorkerUrl = workerUrl;
+      return worker;
+    } catch (error) {
+      this.logIssue("ensureScanWorker failed", error);
+      return null;
+    }
+  }
+
+  function collectComponentNamesWithWorker(host, requestId) {
+    var self = this;
+    return new Promise(function(resolve) {
+      try {
+        var worker = self.ensureScanWorker();
+        if (!worker) {
+          resolve(null);
+          return;
+        }
+        var resolved = false;
+        var timeoutId = null;
+        var done = function(result) {
+          if (resolved) { return; }
+          resolved = true;
+          if (timeoutId) { clearTimeout(timeoutId); }
+          try { worker.removeEventListener("message", handleMessage); } catch (ignoredMessage) { }
+          try { worker.removeEventListener("error", handleError); } catch (ignoredError) { }
+          resolve(result);
+        };
+        var handleMessage = function(event) {
+          try {
+            var data = event && event.data ? event.data : {};
+            if (String(data.type || "") !== "scanResult") { return; }
+            if (Number(data.requestId || 0) !== Number(requestId || 0)) { return; }
+            var rawNames = Array.isArray(data.names) ? data.names : [];
+            var dedupe = {};
+            var list = [];
+            for (var i = 0; i < rawNames.length; i += 1) {
+              var name = self.sanitizeName(rawNames[i]);
+              if (!name || dedupe[name]) { continue; }
+              dedupe[name] = true;
+              list.push(name);
+            }
+            list.sort();
+            done(list);
+          } catch (error) {
+            self.logIssue("collectComponentNamesWithWorker message failed", error);
+            done(null);
+          }
+        };
+        var handleError = function(error) {
+          self.logIssue("collectComponentNamesWithWorker worker error", error);
+          done(null);
+        };
+        worker.addEventListener("message", handleMessage);
+        worker.addEventListener("error", handleError);
+        timeoutId = setTimeout(function() { done(null); }, 10000);
+        worker.postMessage({
+          type: "scan",
+          requestId: Number(requestId || 0),
+          html: host && typeof host.innerHTML === "string" ? host.innerHTML : ""
+        });
+      } catch (error) {
+        self.logIssue("collectComponentNamesWithWorker failed", error);
+        resolve(null);
+      }
+    });
+  }
+
+  function collectComponentNamesAsync(host, requestId) {
+    var self = this;
+    return this.collectComponentNamesWithWorker(host, requestId).then(function(workerNames) {
+      if (workerNames !== null) { return workerNames; }
+      return self.collectComponentNames();
+    }).catch(function(error) {
+      self.logIssue("collectComponentNamesAsync failed", error);
+      return self.collectComponentNames();
+    });
+  }
+
+  function collectComponentsFromDoc(documentNode, outputSet) {
+    try {
+      var self = this;
+      var root = this.getGlobalRef();
+      var modules = root && root.QHtmlModules ? root.QHtmlModules : null;
+      var core = modules && modules.qdomCore ? modules.qdomCore : null;
+      if (!documentNode || typeof documentNode !== "object") { return; }
+      function pushName(value) {
+        var name = self.sanitizeName(value);
+        if (name) { outputSet.add(name); }
+      }
+      function readNode(node) {
+        var kind = String(node && node.kind ? node.kind : "").toLowerCase();
+        if (kind === "component") {
+          if (String(node.definitionType || "component").toLowerCase() === "component") {
+            pushName(node.componentId);
+          }
+          return;
+        }
+        if (kind === "component-instance" || kind === "template-instance") {
+          pushName(node.componentId || node.tagName);
+          return;
+        }
+        if (kind === "element") {
+          pushName(node.tagName);
+        }
+      }
+      if (core && typeof core.walkQDom === "function") {
+        core.walkQDom(documentNode, readNode);
+        return;
+      }
+      var stack = [documentNode];
+      while (stack.length > 0) {
+        var node = stack.pop();
+        readNode(node);
+        if (!node || typeof node !== "object") { continue; }
+        if (Array.isArray(node.nodes)) {
+          for (var ni = 0; ni < node.nodes.length; ni += 1) { stack.push(node.nodes[ni]); }
+        }
+        if (Array.isArray(node.children)) {
+          for (var ci = 0; ci < node.children.length; ci += 1) { stack.push(node.children[ci]); }
+        }
+        if (Array.isArray(node.templateNodes)) {
+          for (var ti = 0; ti < node.templateNodes.length; ti += 1) { stack.push(node.templateNodes[ti]); }
+        }
+        if (Array.isArray(node.slots)) {
+          for (var si = 0; si < node.slots.length; si += 1) { stack.push(node.slots[si]); }
+        }
+      }
+    } catch (error) {
+      this.logIssue("collectComponentsFromDoc failed", error);
+    }
+  }
+
+  function findHost() {
+    var s = this.state();
+    if (s.host && s.host.nodeType === 1) { return s.host; }
+    return this.closest ? this.closest("q-html") : null;
+  }
+
+  function collectComponentNames() {
+    var names = new Set();
+    try {
+      var doc = this.ownerDocument || (typeof document !== "undefined" ? document : null);
+      var hosts = [];
+      var preferredHost = this.findHost();
+      if (preferredHost && preferredHost.nodeType === 1) {
+        hosts.push(preferredHost);
+      } else if (doc && typeof doc.querySelectorAll === "function") {
+        var allHosts = doc.querySelectorAll("q-html");
+        for (var i = 0; i < allHosts.length; i += 1) { hosts.push(allHosts[i]); }
+      }
+      for (var h = 0; h < hosts.length; h += 1) {
+        var host = hosts[h];
+        if (!host || typeof host.qdom !== "function") { continue; }
+        var qdomNode = host.qdom();
+        var docNode = qdomNode;
+        if (docNode && String(docNode.kind || "").toLowerCase() !== "document" && typeof docNode.root === "function") {
+          docNode = docNode.root();
+        }
+        if (docNode && String(docNode.kind || "").toLowerCase() === "document") {
+          this.collectComponentsFromDoc(docNode, names);
+        }
+      }
+    } catch (error) {
+      this.logIssue("collectComponentNames failed", error);
+    }
+    var list = Array.from(names);
+    list.sort();
+    return list;
+  }
+
+  function setActiveCell(cell, name) {
+    try {
+      var s = this.state();
+      if (s.activeCell && s.activeCell.style) {
+        s.activeCell.style.borderColor = "#5f7088";
+      }
+      s.activeCell = cell || null;
+      s.activeName = String(name || "").toLowerCase();
+      if (s.activeCell && s.activeCell.style) {
+        s.activeCell.style.borderColor = "#ffe500";
+      }
+      this.setAttribute("q-builder-palette-active", s.activeName);
+      if (typeof CustomEvent === "function") {
+        this.dispatchEvent(new CustomEvent("q-builder-palette:select", {
+          bubbles: true,
+          detail: { name: s.activeName }
+        }));
+      }
+    } catch (error) {
+      this.logIssue("setActiveCell failed", error);
+    }
+  }
+
+  function resolvePreviewSource(componentName, host) {
+    try {
+      var scope = host && host.querySelectorAll ? host : (this.ownerDocument || document);
+      var matches = scope.querySelectorAll(componentName);
+      for (var i = 0; i < matches.length; i += 1) {
+        var candidate = matches[i];
+        if (!candidate || candidate === this || (candidate.closest && candidate.closest("q-builder-palette"))) { continue; }
+        return candidate;
+      }
+    } catch (error) {
+      this.logIssue("resolvePreviewSource failed", error);
+    }
+    return null;
+  }
+
+  function buildPreviewNode(componentName, host) {
+    var doc = this.ownerDocument || document;
+    var previewLayer = doc.createElement("div");
+    previewLayer.setAttribute("q-builder-palette-preview-layer", "1");
+    previewLayer.style.position = "absolute";
+    previewLayer.style.left = "0";
+    previewLayer.style.top = "0";
+    previewLayer.style.right = "0";
+    previewLayer.style.bottom = "0";
+    previewLayer.style.overflow = "hidden";
+    previewLayer.style.background = "#111827";
+    var scale = doc.createElement("div");
+    scale.style.position = "absolute";
+    scale.style.left = "0";
+    scale.style.top = "0";
+    scale.style.width = "400%";
+    scale.style.height = "400%";
+    scale.style.transform = "scale(0.25)";
+    scale.style.transformOrigin = "0 0";
+    scale.style.pointerEvents = "none";
+    var source = this.resolvePreviewSource(componentName, host);
+    var normalizedName = String(componentName || "").trim().toLowerCase();
+    var node = null;
+    var skipClone = normalizedName === "q-builder" || normalizedName === "q-builder-palette";
+    if (!skipClone && source && typeof source.cloneNode === "function") {
+      try { node = source.cloneNode(true); } catch (error) { node = null; this.logIssue("clone preview failed", error); }
+    }
+    if (!node) {
+      node = doc.createElement("div");
+      node.textContent = componentName;
+      node.style.display = "flex";
+      node.style.alignItems = "center";
+      node.style.justifyContent = "center";
+      node.style.width = "100%";
+      node.style.height = "100%";
+      node.style.fontSize = "2rem";
+      node.style.fontWeight = "bold";
+      node.style.color = "#38bdf8";
+      node.style.background = "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)";
+    }
+    node.setAttribute("q-builder-palette-preview-node", "1");
+    node.style.pointerEvents = "none";
+    scale.appendChild(node);
+    previewLayer.appendChild(scale);
+    return previewLayer;
+  }
+
+  function clearGrid() {
+    try {
+      var grid = this.grid();
+      if (!grid) { return; }
+      while (grid.firstChild) { grid.removeChild(grid.firstChild); }
+    } catch (error) {
+      this.logIssue("clearGrid failed", error);
+    }
+  }
+
+  function renderPaletteFromNames(names, host) {
+    try {
+      var s = this.state();
+      var grid = this.grid();
+      if (!grid) { return []; }
+      s.names = names.slice();
+      this.clearGrid();
+      for (var i = 0; i < names.length; i += 1) {
+        var componentName = names[i];
+        var cell = (this.ownerDocument || document).createElement("button");
+        cell.type = "button";
+        cell.setAttribute("q-builder-palette-cell", "1");
+        cell.setAttribute("q-builder-palette-component", componentName);
+        cell.style.position = "relative";
+        cell.style.display = "block";
+        cell.style.width = "100%";
+        cell.style.height = "100%";
+        cell.style.padding = "0";
+        cell.style.margin = "0";
+        cell.style.border = "2px solid #5f7088";
+        cell.style.borderRadius = "0.35rem";
+        cell.style.background = "#0f172a";
+        cell.style.overflow = "hidden";
+        cell.style.cursor = "pointer";
+        var previewNode = this.buildPreviewNode(componentName, host);
+        var label = (this.ownerDocument || document).createElement("div");
+        label.setAttribute("q-builder-palette-label", "1");
+        label.textContent = componentName;
+        label.style.position = "absolute";
+        label.style.left = "0";
+        label.style.right = "0";
+        label.style.bottom = "0";
+        label.style.padding = "0.18rem 0.25rem";
+        label.style.background = "rgba(0, 0, 0, 0.55)";
+        label.style.color = "#f8fafc";
+        label.style.fontSize = "0.58rem";
+        label.style.lineHeight = "1.1";
+        label.style.fontWeight = "600";
+        label.style.textAlign = "left";
+        cell.appendChild(previewNode);
+        cell.appendChild(label);
+        var self = this;
+        (function attachSelect(targetCell, targetName) {
+          targetCell.addEventListener("click", function(event) {
+            try {
+              event.preventDefault();
+              event.stopPropagation();
+              self.setActiveCell(targetCell, targetName);
+            } catch (error) {
+              self.logIssue("palette cell click failed", error);
+            }
+          });
+        })(cell, componentName);
+        grid.appendChild(cell);
+      }
+      if (s.activeName) {
+        var activeCell = grid.querySelector("[q-builder-palette-component='" + s.activeName + "']");
+        if (activeCell) { this.setActiveCell(activeCell, s.activeName); }
+      }
+      return names;
+    } catch (error) {
+      this.logIssue("renderPaletteFromNames failed", error);
+      return [];
+    }
+  }
+
+  function rebuildPalette() {
+    try {
+      var s = this.state();
+      var grid = this.grid();
+      var host = this.findHost();
+      if (!grid) { return Promise.resolve([]); }
+      s.scanRequestId = Number(s.scanRequestId || 0) + 1;
+      var requestId = s.scanRequestId;
+      this.clearGrid();
+      var loading = (this.ownerDocument || document).createElement("div");
+      loading.textContent = "Scanning components...";
+      loading.style.color = "#cbd5e1";
+      loading.style.fontSize = "0.8rem";
+      loading.style.padding = "0.35rem 0.5rem";
+      grid.appendChild(loading);
+      var self = this;
+      return this.collectComponentNamesAsync(host, requestId).then(function(names) {
+        var latestState = self.state();
+        if (Number(latestState.scanRequestId || 0) !== Number(requestId || 0)) { return []; }
+        return self.renderPaletteFromNames(Array.isArray(names) ? names : [], host);
+      }).catch(function(error) {
+        self.logIssue("rebuildPalette failed", error);
+        return [];
+      });
+    } catch (error) {
+      this.logIssue("rebuildPalette failed", error);
+      return Promise.resolve([]);
+    }
+  }
+
+  function setHost(host) {
+    var s = this.state();
+    s.host = host && host.nodeType === 1 ? host : null;
+    return this.rebuildPalette();
+  }
+
+  function refresh(host) {
+    if (host && host.nodeType === 1) { this.state().host = host; }
+    return this.rebuildPalette();
+  }
+
+  function bindDrag() {
+    try {
+      if (this.__qBuilderPaletteDragBound) { return; }
+      this.__qBuilderPaletteDragBound = true;
+      var self = this;
+      var handle = this.querySelector("[q-builder-palette-handle='1']");
+      var panel = this.panel();
+      var doc = this.ownerDocument || document;
+      if (!handle || !panel || !doc) { return; }
+      handle.addEventListener("mousedown", function(event) {
+        try {
+          if (event.button !== 0) { return; }
+          if (event.target && event.target.closest && event.target.closest("[q-builder-palette-action]")) { return; }
+          var rect = panel.getBoundingClientRect();
+          var s = self.state();
+          s.drag.active = true;
+          s.drag.startX = event.clientX;
+          s.drag.startY = event.clientY;
+          s.drag.left = rect.left;
+          s.drag.top = rect.top;
+          panel.style.right = "auto";
+          event.preventDefault();
+        } catch (error) {
+          self.logIssue("drag start failed", error);
+        }
+      });
+      doc.addEventListener("mousemove", function(event) {
+        try {
+          var s = self.state();
+          if (!s.drag.active) { return; }
+          var nextLeft = s.drag.left + (event.clientX - s.drag.startX);
+          var nextTop = s.drag.top + (event.clientY - s.drag.startY);
+          panel.style.left = Math.max(0, Math.round(nextLeft)) + "px";
+          panel.style.top = Math.max(0, Math.round(nextTop)) + "px";
+        } catch (error) {
+          self.logIssue("drag move failed", error);
+        }
+      });
+      doc.addEventListener("mouseup", function() {
+        self.state().drag.active = false;
+      });
+    } catch (error) {
+      this.logIssue("bindDrag failed", error);
+    }
+  }
+
+  onReady {
+    if (String(this.getAttribute("q-builder-palette-preview-node") || "") === "1") { return; }
+    if (this.__qBuilderPaletteReady) { return; }
+    this.__qBuilderPaletteReady = true;
+    this.bindDrag();
+    var self = this;
+    this.addEventListener("click", function(event) {
+      try {
+        var actionNode = event.target && event.target.closest ? event.target.closest("[q-builder-palette-action]") : null;
+        var action = actionNode ? String(actionNode.getAttribute("q-builder-palette-action") || "") : "";
+        if (action === "refresh") {
+          self.refresh();
+        }
+      } catch (error) {
+        self.logIssue("palette action click failed", error);
+      }
+    });
+    this.refresh();
+  }
+
+  div.w3-card.w3-round-large { q-builder-palette: "1"
+    style {
+      position: fixed;
+      right: 1vw;
+      top: 8vh;
+      width: 42vw;
+      height: 42vh;
+      min-width: 22rem;
+      min-height: 16rem;
+      max-width: 90vw;
+      max-height: 90vh;
+      resize: both;
+      overflow: hidden;
+      z-index: 1200;
+      display: flex;
+      flex-direction: column;
+      background: #111827;
+      border: 1px solid #475569;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    }
+    div.w3-bar { q-builder-palette-handle: "1"
+      style {
+        cursor: move;
+        user-select: none;
+        background: #1f2937;
+        color: #f8fafc;
+        flex: 0 0 auto;
+      }
+      span.w3-bar-item.w3-small { text { palette } }
+      button.w3-button.w3-small.w3-right { type: "button" q-builder-palette-action: "refresh" text { refresh } }
+    }
+    div { q-builder-palette-grid: "1"
+      style {
+        flex: 1 1 auto;
+        overflow: auto;
+        padding: 0.35rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, 10vw);
+        grid-auto-rows: 10vw;
+        gap: 0.35rem;
+        justify-content: start;
+        align-content: start;
+        background: #0b1220;
+      }
+    }
+  }
+}
+
 q-component q-builder-modal-shell {
   q-modal {
     q-builder-modal: "1"
@@ -58,6 +632,7 @@ q-template q-builder-shell {
       }
     }
     q-builder-toolbar { }
+    q-builder-palette { }
     q-builder-modal-shell { }
   }
 }
@@ -124,6 +699,22 @@ q-component q-builder {
       this.applyStyles(this.querySelector("[q-builder-toolbar='1']"), { display: "none" }, "hideToolbar failed");
     } catch (error) {
       this.logIssue("hideToolbar failed", error);
+    }
+  }
+
+  function refreshPalette(host) {
+    try {
+      var palette = this.querySelector("q-builder-palette");
+      if (palette && typeof palette.refresh === "function") {
+        var targetHost = host && host.nodeType === 1 ? host : null;
+        if (!targetHost) {
+          var s = this.state();
+          targetHost = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
+        }
+        palette.refresh(targetHost);
+      }
+    } catch (error) {
+      this.logIssue("refreshPalette failed", error);
     }
   }
 
@@ -378,6 +969,7 @@ q-component q-builder {
       var s = this.state();
       s.inspect = !!enabled;
       s.host = host && host.nodeType === 1 ? host : null;
+      this.refreshPalette(s.host);
       if (!s.inspect) {
         this.setHoverElement(null);
         this.setSelectedElement(null);
@@ -515,10 +1107,12 @@ q-component q-builder {
   }
 
   onReady {
+    if (String(this.getAttribute("q-builder-palette-preview-node") || "") === "1") { return; }
     if (this.__qBuilderReady) { return; }
     this.__qBuilderReady = true;
     this.ensureUi();
     this.ensureModalLayout();
+    this.refreshPalette();
     var self = this;
 
     this.addEventListener("click", function(event) {

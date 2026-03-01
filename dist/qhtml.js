@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-02-28T11:03:40Z */
+/* generated: 2026-03-01T03:11:22Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -893,6 +893,150 @@
     return parser.source.slice(start, parser.index);
   }
 
+  function isIdentifierStartChar(ch) {
+    return /[A-Za-z_]/.test(String(ch || ""));
+  }
+
+  function scanIdentifierTokenAt(source, index) {
+    const input = String(source || "");
+    let cursor = Math.max(0, Number(index) || 0);
+    const first = input.charAt(cursor);
+    if (!isIdentifierStartChar(first)) {
+      return null;
+    }
+    cursor += 1;
+    while (cursor < input.length && isIdentifierChar(input.charAt(cursor))) {
+      cursor += 1;
+    }
+    const name = input.slice(index, cursor);
+    return {
+      name: name,
+      nameLower: String(name || "").toLowerCase(),
+      end: cursor,
+    };
+  }
+
+  function looksLikeHtmlSyntax(value) {
+    const text = String(value || "");
+    if (!text) {
+      return false;
+    }
+    if (/<\s*\/?\s*[A-Za-z!][^>]*>/.test(text)) {
+      return true;
+    }
+    if (/<!doctype[\s>]/i.test(text)) {
+      return true;
+    }
+    if (/&[A-Za-z0-9#]+;/.test(text)) {
+      return true;
+    }
+    return false;
+  }
+
+  function createRecoveredRawItem(rawSource, start, end) {
+    const raw = String(rawSource || "");
+    const meaningful = raw.trim();
+    if (!meaningful) {
+      return null;
+    }
+    if (looksLikeHtmlSyntax(meaningful)) {
+      return {
+        type: "HtmlBlock",
+        html: meaningful,
+        start: start,
+        end: end,
+        raw: raw,
+      };
+    }
+    return {
+      type: "TextBlock",
+      text: meaningful,
+      start: start,
+      end: end,
+      raw: raw,
+    };
+  }
+
+  function isLikelyBlockItemStart(source, index, stopChar) {
+    const token = scanIdentifierTokenAt(source, index);
+    if (!token) {
+      return false;
+    }
+    const cursor = skipWhitespaceInSource(source, token.end);
+    const next = String(source || "").charAt(cursor);
+    if (!next) {
+      return true;
+    }
+    if (next === ":" || next === "," || next === "{" || next === ";" || next === "\n" || next === "\r") {
+      return true;
+    }
+    if (stopChar && next === stopChar) {
+      return true;
+    }
+    if (token.nameLower === "function") {
+      return true;
+    }
+    if (isEventBlockName(token.name) && next === "{") {
+      return true;
+    }
+    return false;
+  }
+
+  function isLikelyTopLevelItemStart(source, index) {
+    const token = scanIdentifierTokenAt(source, index);
+    if (!token) {
+      return false;
+    }
+    const cursor = skipWhitespaceInSource(source, token.end);
+    const next = String(source || "").charAt(cursor);
+    const nameLower = token.nameLower;
+    if (!next) {
+      return true;
+    }
+    if (LIFECYCLE_BLOCKS.has(nameLower)) {
+      return next === "{";
+    }
+    if (nameLower === "q-template" || nameLower === "q-component" || nameLower === "q-rewrite") {
+      return isIdentifierStartChar(next) || next === "{";
+    }
+    if (nameLower === "q-import" || nameLower === "html") {
+      return next === "{";
+    }
+    if (next === "{" || next === ",") {
+      return true;
+    }
+    return false;
+  }
+
+  function consumeRecoverableRaw(parser, options) {
+    const opts = options || {};
+    const mode = String(opts.mode || "block").toLowerCase() === "top" ? "top" : "block";
+    const stopChar = typeof opts.stopChar === "string" ? opts.stopChar : "";
+    const source = String(parser.source || "");
+    const start = parser.index;
+    let cursor = start;
+    while (cursor < parser.length) {
+      const ch = source.charAt(cursor);
+      if (stopChar && ch === stopChar) {
+        break;
+      }
+      if (isIdentifierStartChar(ch)) {
+        const atBoundary = mode === "top"
+          ? isLikelyTopLevelItemStart(source, cursor)
+          : isLikelyBlockItemStart(source, cursor, stopChar);
+        if (atBoundary) {
+          break;
+        }
+      }
+      cursor += 1;
+    }
+    if (cursor === start && cursor < parser.length) {
+      cursor += 1;
+    }
+    parser.index = cursor;
+    return createRecoveredRawItem(source.slice(start, cursor), start, cursor);
+  }
+
   function parseQuotedString(parser) {
     const quote = consume(parser);
     let out = "";
@@ -1092,25 +1236,35 @@
         break;
       }
 
-      const itemStart = parser.index;
-      const name = parseIdentifier(parser);
-      const afterName = parser.index;
-      skipWhitespace(parser);
-
-      const nextChar = peek(parser);
-      if (nextChar === ":") {
-        consume(parser);
-        const value = parseValue(parser);
-        items.push({
-          type: "Property",
-          name: name,
-          value: value,
-          start: itemStart,
-          end: parser.index,
-          raw: parser.source.slice(itemStart, parser.index),
-        });
+      if (!isIdentifierStartChar(peek(parser))) {
+        const recovered = consumeRecoverableRaw(parser, { mode: "block", stopChar: "}" });
+        if (recovered) {
+          items.push(recovered);
+        }
         continue;
       }
+
+      const recoveryStart = parser.index;
+      try {
+        const itemStart = parser.index;
+        const name = parseIdentifier(parser);
+        const afterName = parser.index;
+        skipWhitespace(parser);
+
+        const nextChar = peek(parser);
+        if (nextChar === ":") {
+          consume(parser);
+          const value = parseValue(parser);
+          items.push({
+            type: "Property",
+            name: name,
+            value: value,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
 
       if (nextChar === ",") {
         const selectors = parseSelectorList(parser, name);
@@ -1293,16 +1447,27 @@
         continue;
       }
 
-      parser.index = afterName;
-      const rest = parseBareValue(parser);
-      const text = (name + (rest ? " " + rest : "")).trim();
-      items.push({
-        type: "RawTextLine",
-        text: text,
-        start: itemStart,
-        end: parser.index,
-        raw: parser.source.slice(itemStart, parser.index),
-      });
+        parser.index = afterName;
+        const rest = parseBareValue(parser);
+        const text = (name + (rest ? " " + rest : "")).trim();
+        items.push({
+          type: "RawTextLine",
+          text: text,
+          start: itemStart,
+          end: parser.index,
+          raw: parser.source.slice(itemStart, parser.index),
+        });
+      } catch (error) {
+        if (error && error.name === "QHtmlParseError") {
+          parser.index = recoveryStart;
+          const recovered = consumeRecoverableRaw(parser, { mode: "block", stopChar: "}" });
+          if (recovered) {
+            items.push(recovered);
+            continue;
+          }
+        }
+        throw error;
+      }
     }
 
     return items;
@@ -1318,10 +1483,20 @@
         break;
       }
 
-      const start = parser.index;
-      const firstSelector = parseIdentifier(parser);
-      const firstLower = firstSelector.toLowerCase();
-      skipWhitespace(parser);
+      if (!isIdentifierStartChar(peek(parser))) {
+        const recovered = consumeRecoverableRaw(parser, { mode: "top" });
+        if (recovered) {
+          body.push(recovered);
+        }
+        continue;
+      }
+
+      const recoveryStart = parser.index;
+      try {
+        const start = parser.index;
+        const firstSelector = parseIdentifier(parser);
+        const firstLower = firstSelector.toLowerCase();
+        skipWhitespace(parser);
 
       if (LIFECYCLE_BLOCKS.has(firstLower) && peek(parser) === "{") {
         consume(parser);
@@ -1437,17 +1612,28 @@
         continue;
       }
 
-      const items = parseBlockItems(parser);
-      expect(parser, "}");
-      body.push({
-        type: "Element",
-        selectors: selectors,
-        prefixDirectives: prefixDirectives,
-        items: items,
-        start: start,
-        end: parser.index,
-        raw: parser.source.slice(start, parser.index),
-      });
+        const items = parseBlockItems(parser);
+        expect(parser, "}");
+        body.push({
+          type: "Element",
+          selectors: selectors,
+          prefixDirectives: prefixDirectives,
+          items: items,
+          start: start,
+          end: parser.index,
+          raw: parser.source.slice(start, parser.index),
+        });
+      } catch (error) {
+        if (error && error.name === "QHtmlParseError") {
+          parser.index = recoveryStart;
+          const recovered = consumeRecoverableRaw(parser, { mode: "top" });
+          if (recovered) {
+            body.push(recovered);
+            continue;
+          }
+        }
+        throw error;
+      }
     }
 
     return {
@@ -8376,7 +8562,10 @@
       }
     }
 
-    const source = qHtmlElement.textContent || "";
+    const source =
+      typeof qHtmlElement.textContent === "string" && qHtmlElement.textContent.length > 0
+        ? qHtmlElement.textContent
+        : (qHtmlElement.innerHTML || "");
     const companionScript = findCompanionQScript(qHtmlElement);
     let rules = [];
     if (companionScript) {
@@ -8887,4 +9076,3 @@
 
 
 /*** END: src/root-integration.js ***/
-

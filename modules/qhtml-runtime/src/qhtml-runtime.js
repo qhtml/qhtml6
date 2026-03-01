@@ -3152,7 +3152,10 @@
       }
     }
 
-    const source = qHtmlElement.textContent || "";
+    const source =
+      typeof qHtmlElement.textContent === "string" && qHtmlElement.textContent.length > 0
+        ? qHtmlElement.textContent
+        : (qHtmlElement.innerHTML || "");
     const companionScript = findCompanionQScript(qHtmlElement);
     let rules = [];
     if (companionScript) {
