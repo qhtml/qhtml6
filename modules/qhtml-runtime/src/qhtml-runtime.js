@@ -40,6 +40,7 @@
   const FORM_CONTROL_TAGS = new Set(["input", "textarea", "select"]);
   const MAX_UPDATE_CYCLES_PER_TICK = 1000;
   const MAX_UPDATE_REENTRIES_PER_EPOCH = 1000;
+  const UPDATE_NONCE_KEY = typeof core.UPDATE_NONCE_KEY === "string" ? core.UPDATE_NONCE_KEY : "update-nonce";
 
   function ensureInstanceId(node) {
     if (!node || typeof node !== "object") {
@@ -217,6 +218,64 @@
       type: QHTML_CONTENT_LOADED_EVENT,
       detail: detail,
     };
+  }
+
+  function createQSignalEvent(payload) {
+    if (typeof global.CustomEvent === "function") {
+      return new global.CustomEvent("q-signal", {
+        detail: payload || {},
+        bubbles: true,
+        composed: true,
+      });
+    }
+    return {
+      type: "q-signal",
+      detail: payload || {},
+    };
+  }
+
+  function emitQSignal(target, payload, eventNamePrefix) {
+    const resolvedTarget =
+      target && typeof target.dispatchEvent === "function"
+        ? target
+        : global.document && typeof global.document.dispatchEvent === "function"
+          ? global.document
+          : null;
+    const normalizedPayload = payload && typeof payload === "object" ? payload : {};
+    const signalName = String(normalizedPayload.signal || "").trim();
+    const prefix = String(eventNamePrefix || "").trim();
+    const emitted = {
+      qSignal: false,
+      namespaced: false,
+    };
+    if (!resolvedTarget) {
+      return emitted;
+    }
+    try {
+      resolvedTarget.dispatchEvent(createQSignalEvent(normalizedPayload));
+      emitted.qSignal = true;
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml emitQSignal failed:", error);
+      }
+    }
+    if (prefix && signalName && typeof global.CustomEvent === "function") {
+      try {
+        resolvedTarget.dispatchEvent(
+          new global.CustomEvent(prefix + ":" + signalName, {
+            detail: normalizedPayload,
+            bubbles: true,
+            composed: true,
+          })
+        );
+        emitted.namespaced = true;
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml emitQSignal namespaced dispatch failed:", error);
+        }
+      }
+    }
+    return emitted;
   }
 
   function emitContentLoadedSignal(doc, source) {
@@ -467,7 +526,7 @@
       return "component";
     }
     const explicit = String(definitionNode.definitionType || "").trim().toLowerCase();
-    if (explicit === "component" || explicit === "template") {
+    if (explicit === "component" || explicit === "template" || explicit === "signal") {
       return explicit;
     }
     const originalSource =
@@ -476,6 +535,9 @@
         : "";
     if (originalSource.startsWith("q-template")) {
       return "template";
+    }
+    if (originalSource.startsWith("q-signal")) {
+      return "signal";
     }
     return "component";
   }
@@ -1065,6 +1127,120 @@
       return [];
     }
     return node.meta.qBindings;
+  }
+
+  function createRuntimeUpdateNonceToken() {
+    if (core && typeof core.createUpdateNonceToken === "function") {
+      const token = core.createUpdateNonceToken();
+      if (typeof token === "string" && token) {
+        return token;
+      }
+    }
+    const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let out = "";
+    for (let i = 0; i < 12; i += 1) {
+      out += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+    }
+    return out || "nonce";
+  }
+
+  function readNodeUpdateNonce(node) {
+    if (!node || typeof node !== "object") {
+      return "";
+    }
+    const value = node[UPDATE_NONCE_KEY];
+    return typeof value === "string" ? value : "";
+  }
+
+  function writeNodeUpdateNonce(node, nonceValue) {
+    if (!node || typeof node !== "object") {
+      return "";
+    }
+    const next = typeof nonceValue === "string" && nonceValue ? nonceValue : createRuntimeUpdateNonceToken();
+    try {
+      node[UPDATE_NONCE_KEY] = next;
+    } catch (error) {
+      // ignore nonce writes on sealed/frozen objects
+    }
+    return next;
+  }
+
+  function ensureNodeUpdateNonce(node) {
+    const existing = readNodeUpdateNonce(node);
+    if (existing) {
+      return existing;
+    }
+    return writeNodeUpdateNonce(node);
+  }
+
+  function walkBindingNodesForNonce(binding, visitor) {
+    if (!binding || typeof visitor !== "function") {
+      return;
+    }
+    const root = sourceNodeOf(binding.rawQdom || binding.qdom);
+    if (!root || typeof root !== "object") {
+      return;
+    }
+    visitor(root);
+    if (typeof core.walkQDom !== "function") {
+      return;
+    }
+    if (String(root.kind || "").trim().toLowerCase() !== "document") {
+      return;
+    }
+    core.walkQDom(root, function walkNode(node) {
+      visitor(sourceNodeOf(node) || node);
+    });
+  }
+
+  function prepareBindingNodeNoncesForUpdate(binding, lastUpdateNonce, cycleNonce) {
+    const staleNodes = [];
+    const compareNonce = typeof lastUpdateNonce === "string" ? lastUpdateNonce : "";
+    walkBindingNodesForNonce(binding, function markNode(node) {
+      if (!node || typeof node !== "object") {
+        return;
+      }
+      const bindingEntries = readNodeBindingEntries(node);
+      if (bindingEntries.length > 0) {
+        let dynamicNonce = createRuntimeUpdateNonceToken();
+        if (dynamicNonce === cycleNonce) {
+          dynamicNonce = createRuntimeUpdateNonceToken();
+        }
+        writeNodeUpdateNonce(node, dynamicNonce);
+      } else {
+        ensureNodeUpdateNonce(node);
+      }
+      const currentNonce = ensureNodeUpdateNonce(node);
+      if (!compareNonce || currentNonce !== compareNonce) {
+        staleNodes.push(node);
+      }
+    });
+    return staleNodes;
+  }
+
+  function finalizeBindingNodeNonces(binding, cycleNonce) {
+    if (!binding) {
+      return;
+    }
+    const updateNonce = typeof cycleNonce === "string" && cycleNonce ? cycleNonce : createRuntimeUpdateNonceToken();
+    walkBindingNodesForNonce(binding, function finalizeNode(node) {
+      if (!node || typeof node !== "object") {
+        return;
+      }
+      const bindingEntries = readNodeBindingEntries(node);
+      if (bindingEntries.length > 0) {
+        let dynamicNonce = createRuntimeUpdateNonceToken();
+        if (dynamicNonce === updateNonce) {
+          dynamicNonce = createRuntimeUpdateNonceToken();
+        }
+        writeNodeUpdateNonce(node, dynamicNonce);
+        return;
+      }
+      if (readNodeUpdateNonce(node) !== updateNonce) {
+        writeNodeUpdateNonce(node, updateNonce);
+      }
+    });
+    binding.lastUpdateNonce = updateNonce;
   }
 
   function evaluateBindingExpression(node, bindingSpec) {
@@ -3557,8 +3733,18 @@
       try {
         const activeScopeElement = state.nextScopeElement;
         state.nextScopeElement = null;
-        if (!activeScopeElement || !renderScopedComponentBinding(binding, activeScopeElement)) {
-          renderBinding(binding);
+        const updateNonce = createRuntimeUpdateNonceToken();
+        const staleNodes = prepareBindingNodeNoncesForUpdate(binding, binding.lastUpdateNonce, updateNonce);
+        try {
+          if (activeScopeElement) {
+            if (!renderScopedComponentBinding(binding, activeScopeElement)) {
+              renderBinding(binding);
+            }
+          } else if (staleNodes.length > 0) {
+            renderBinding(binding);
+          }
+        } finally {
+          finalizeBindingNodeNonces(binding, updateNonce);
         }
       } finally {
         state.inProgress = false;
@@ -3609,6 +3795,8 @@
     getQDomForElement: getQDomForElement,
     updateQHtmlElement: updateQHtmlElement,
     toQHtmlSource: toQHtmlSource,
+    createQSignalEvent: createQSignalEvent,
+    emitQSignal: emitQSignal,
     hydrateComponentElement: hydrateComponentElement,
     initAll: initAll,
     startAutoMountObserver: startAutoMountObserver,

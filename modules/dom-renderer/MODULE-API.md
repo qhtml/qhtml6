@@ -20,6 +20,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - `element`, `text`, `raw-html`
 - `component-instance`, `template-instance`
 - `slot` projection containers
+- `q-signal` definitions invoked through `component-instance` dispatch behavior
 
 ## Component host assignment behavior
 - `component-instance.attributes` map to DOM attributes.
@@ -28,6 +29,9 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 ## Lifecycle and side effects
 - Executes hook/method bodies with `new Function(...)` bound to host element context.
 - Dispatches `QHTMLContentLoaded` custom events on document/global with sequence metadata.
+- Dispatches signal events when rendering signal invocations:
+  - `q-signal`
+  - named event equal to signal id
 - Tracks ownership for slot routing and dynamic lookup in runtime.
 
 ## Failure behavior

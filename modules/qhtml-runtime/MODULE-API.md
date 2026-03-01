@@ -26,6 +26,10 @@ Runtime mount/update engine for `<q-html>` in browser environments.
     - aborts with console error when limits are exceeded
 - `hydrateComponentElement(hostElement)`
   - Hydrate custom-element/component host from registered definitions.
+- `emitQSignal(target, payload, eventNamePrefix?)`
+  - Dispatch runtime signal events (`q-signal` and optional namespaced event).
+- `createQSignalEvent(payload)`
+  - Create a bubbling/composed `q-signal` event object.
 - `initAll(root?, options?)`
   - Mount all `<q-html>` descendants.
 - `startAutoMountObserver(root?, options?)`
@@ -58,6 +62,7 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 ## Side effects
 - Executes lifecycle scripts and inline `on<Event>` handler bodies with dynamic `Function` evaluation.
 - Executes `meta.qBindings` scripts (`q-bind` and assignment `q-script`) with `this` bound to each source QDom node before render/update.
+- Emits runtime signal events through `emitQSignal(...)` helpers.
 - Persists updated QDom into mapped sibling template nodes.
 - Emits/consumes DOM events and mutation observers.
 - Adds context helpers on DOM elements (`qhtmlRoot()`, `root()`, `component`, `slot`, `qdom`).

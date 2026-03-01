@@ -5,7 +5,7 @@
 ## What this module actually does
 
 - Parses QHTML into an AST and then into typed QDom nodes.
-- Supports component and template definitions (`q-component`, `q-template`) and converts element invocations into `component-instance` / `template-instance` nodes when definitions are known.
+- Supports component/template/signal definitions (`q-component`, `q-template`, `q-signal`) and converts element invocations into `component-instance` / `template-instance` nodes when definitions are known.
 - Supports `q-property { ... }` declarations inside `q-component` definitions and maps matching invocation assignments into component instance `props` instead of HTML attributes.
 - Supports binding expressions in assignments: `name: q-bind { ... }` and `name: q-script { ... }` (assignment form), persisted as QDom binding metadata for runtime re-evaluation.
 - Parses top-level lifecycle blocks (`onReady`, `onLoad`, `onLoaded`) and stores them in document metadata.
@@ -35,6 +35,7 @@
 - Function blocks inside component/template definitions
 - Lifecycle hook blocks (document and component/element scope)
 - Slot declarations and slot fills
+- Signal declarations and invocations (`q-signal name { slot { ... } }` and `name { slotName { ... } }`)
 - q-import blocks
 - q-rewrite definitions + invocations
 
@@ -63,4 +64,4 @@ div.notice {
 
 - Uses original source when `meta.dirty` is false and `preserveOriginal` is enabled.
 - Emits explicit QDom shapes when dirty (including slots, invocation nodes, lifecycle scripts).
-- Preserves definition kind: template stays `q-template`, component stays `q-component`.
+- Preserves definition kind: template stays `q-template`, component stays `q-component`, signal stays `q-signal`.

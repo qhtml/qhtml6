@@ -398,6 +398,41 @@ q-component demo-showcase {
           "%}",
           "id-chip {% value {% text {% q-script computed %} %} %}"
         ].join("\n"));
+      case "example-10":
+        return this.decodeSnippet([
+          "q-signal demoPing {%",
+          "  slot {% message %}",
+          "  slot {% level %}",
+          "%}",
+          "div.w3-panel.w3-pale-yellow.w3-border {%",
+          "  p.w3-small.w3-text-grey {% id: \"sig-log\" text {% waiting for demoPing... %} %}",
+          "  button.w3-button.w3-amber {%",
+          "    text {% Emit q-signal %}",
+          "    onclick {%",
+          "      try {",
+          "        var host = this.qhtmlRoot();",
+          "        var root = host && typeof host.qdom === \"function\" ? host.qdom() : null;",
+          "        if (!root || typeof root.appendNode !== \"function\" || typeof root.createInstanceFromQHTML !== \"function\") { return; }",
+          "        var stamp = String(Date.now());",
+          "        root.appendNode(root.createInstanceFromQHTML(\"demoPing { message { text { ping \" + stamp + \" } } level { text { info } } }\"));",
+          "      } catch (evt) { console.log(\"emit q-signal failed\", evt); }",
+          "    %}",
+          "  %}",
+          "%}",
+          "onReady {%",
+          "  try {",
+          "    var host = this;",
+          "    var log = host.querySelector(\"#sig-log\");",
+          "    host.addEventListener(\"demoPing\", function(evt) {",
+          "      var payload = evt && evt.detail ? evt.detail : {};",
+          "      var slots = payload.slots || {};",
+          "      var msg = slots.message && slots.message.length ? slots.message[0] : \"(none)\";",
+          "      var level = slots.level && slots.level.length ? slots.level[0] : \"info\";",
+          "      if (log) { log.textContent = \"demoPing => [\" + level + \"] \" + msg; }",
+          "    });",
+          "  } catch (evt) { console.log(\"signal listener setup failed\", evt); }",
+          "%}"
+        ].join("\n"));
       case "example-11":
         return this.decodeSnippet([
           "q-template faq-item {% div.w3-card.w3-padding.w3-margin-bottom {% slot {% q %} slot {% a %} %} %}",
@@ -709,6 +744,43 @@ q-component demo-showcase {
             "  %}",
           "%}"
         ].join("\n"));
+      case "component-09":
+        return this.decodeSnippet([
+          "q-import {% q-components/q-popup-menu.qhtml %}",
+          "",
+          "div.w3-container.w3-border.w3-round-large.w3-padding {%",
+          "  h4 {% text {% Right-click inside the dashed area %} %}",
+          "  div.w3-panel.w3-pale-blue.w3-border-dashed.w3-round-large {%",
+          "    id: \"ctx-zone\"",
+          "    style {% min-height: 140px; %}",
+          "    p {% text {% This context menu is scoped to this panel only. %} %}",
+          "    q-context-menu {%",
+          "      id: \"ctx-usage\"",
+          "      q-popup-text {% text {% Actions %} %}",
+          "      q-popup-separator {% %}",
+          "      q-popup-item {% content {% text {% Rename %} %} %}",
+          "      q-popup-item {% content {% text {% Duplicate %} %} %}",
+          "      q-popup-submenu {%",
+          "        content {% text {% More %} %}",
+          "        menu {% q-popup-item {% content {% text {% Archive %} %} %} q-popup-item {% content {% text {% Delete %} %} %} %}",
+          "      %}",
+          "    %}",
+          "  %}",
+          "  p.w3-small.w3-text-grey {% id: \"ctx-log\" text {% Last click: none %} %}",
+          "%}",
+          "onReady {%",
+          "  try {",
+          "    var host = this;",
+          "    var menu = host.querySelector(\"#ctx-usage\");",
+          "    var log = host.querySelector(\"#ctx-log\");",
+          "    if (!menu || !log) { return; }",
+          "    menu.addEventListener(\"menuItemClicked\", function(evt) {",
+          "      var payload = evt && evt.detail ? evt.detail : {};",
+          "      log.textContent = \"Last click: \" + String(payload.label || payload.uuid || \"unknown\");",
+          "    });",
+          "  } catch (evt) { console.log(\"context menu wiring failed\", evt); }",
+          "%}"
+        ].join("\n"));
       case "component-10":
         return this.decodeSnippet([
           "q-import {% q-components/q-tabs.qhtml %}",
@@ -834,7 +906,7 @@ q-component demo-showcase {
 
     main.demo-main {
       section.demo-hero {
-        h1 { text { QHTML in 28 Examples } }
+        h1 { text { QHTML in 30 Examples } }
         p { text { Each section is a live q-editor instance with concise code, rendered in a fully QHTML-authored page. } }
         p { text { Use the sidebar to jump between examples. Includes base language samples plus focused q-components usage snippets. } }
         div.demo-chip-row {
@@ -857,6 +929,7 @@ q-component demo-showcase {
       demo-example { id: "example-07" title: "q-component + Named Slot" summary: "Create reusable custom elements with explicit slot contracts." }
       demo-example { id: "example-08" title: "Single-Slot Auto Placement" summary: "If only one slot exists, children auto-route into it." }
       demo-example { id: "example-09" title: "q-script for Values" summary: "Compute selectors/ids/attribute values inline." }
+      demo-example { id: "example-10" title: "q-signal + Named Slots" summary: "Define a signal schema and invoke it with slot payload blocks." }
       demo-example { id: "example-11" title: "Accordion Panel" summary: "Toggle collapsible content with component methods and slots." }
       demo-example { id: "example-13" title: "Form Component" summary: "Handle form state and output with plain q-html methods." }
       demo-example { id: "example-14" title: "Nested Slot Forwarding" summary: "Forward outer slots through inner component layers." }
@@ -874,6 +947,7 @@ q-component demo-showcase {
       demo-example { id: "component-06" title: "q-modal.qhtml usage" summary: "Open and close modal content via component methods." }
       demo-example { id: "component-07" title: "q-sidebar.qhtml usage" summary: "Toggle a sidebar panel and slot-based content." }
       demo-example { id: "component-08" title: "q-store-catalog + q-store-catalog-item usage" summary: "Merged example showing catalog behavior and standalone item card." }
+      demo-example { id: "component-09" title: "q-popup-menu.qhtml usage" summary: "Scoped q-context-menu with item, separator, text, submenu, and click signal." }
       demo-example { id: "component-10" title: "q-tabs.qhtml usage" summary: "Instantiate tabs and switch via showTab(index)." }
       demo-example { id: "component-11" title: "q-tech-tag.qhtml usage" summary: "Placeholder usage for the currently empty file." }
     }

@@ -49,7 +49,7 @@
     }
 
     const explicit = String(definitionNode.definitionType || "").trim().toLowerCase();
-    if (explicit === "component" || explicit === "template") {
+    if (explicit === "component" || explicit === "template" || explicit === "signal") {
       return explicit;
     }
 
@@ -59,6 +59,9 @@
         : "";
     if (originalSource.startsWith("q-template")) {
       return "template";
+    }
+    if (originalSource.startsWith("q-signal")) {
+      return "signal";
     }
 
     return "component";
@@ -886,9 +889,147 @@
     runComponentLifecycleHooks(componentNode, hostElement, targetDocument);
   }
 
+  function serializeSignalSlotValue(node) {
+    if (!node || typeof node !== "object") {
+      return node;
+    }
+    if (core.NODE_TYPES.text && node.kind === core.NODE_TYPES.text) {
+      return String(node.value || "");
+    }
+    if (node.kind === core.NODE_TYPES.rawHtml) {
+      return String(node.html || "");
+    }
+    return cloneNodeDeep(node);
+  }
+
+  function buildSignalPayloadSlots(slotFills) {
+    const payloadSlots = {};
+    const payloadSlotQDom = {};
+    if (!(slotFills instanceof Map)) {
+      return {
+        slots: payloadSlots,
+        slotQDom: payloadSlotQDom,
+      };
+    }
+
+    slotFills.forEach(function eachFill(fillEntry, slotName) {
+      const key = String(slotName || "default").trim() || "default";
+      const nodes = fillEntry && Array.isArray(fillEntry.nodes) ? fillEntry.nodes : [];
+      payloadSlots[key] = [];
+      payloadSlotQDom[key] = [];
+      for (let i = 0; i < nodes.length; i += 1) {
+        const node = nodes[i];
+        payloadSlots[key].push(serializeSignalSlotValue(node));
+        payloadSlotQDom[key].push(cloneNodeDeep(node));
+      }
+    });
+
+    return {
+      slots: payloadSlots,
+      slotQDom: payloadSlotQDom,
+    };
+  }
+
+  function resolveSignalDispatchTarget(parent, targetDocument, context) {
+    const hostStack =
+      context && Array.isArray(context.componentHostStack) ? context.componentHostStack : [];
+    if (hostStack.length > 0) {
+      const host = hostStack[hostStack.length - 1];
+      if (host && typeof host.dispatchEvent === "function") {
+        return host;
+      }
+    }
+    if (parent && typeof parent.dispatchEvent === "function") {
+      return parent;
+    }
+    if (targetDocument && typeof targetDocument.dispatchEvent === "function") {
+      return targetDocument;
+    }
+    return null;
+  }
+
+  function dispatchSignalInstance(componentNode, instanceNode, parent, targetDocument, context) {
+    const templateNodes = Array.isArray(componentNode.templateNodes) ? componentNode.templateNodes : [];
+    const singleSlotName = resolveSingleSlotName(componentNode);
+    const slotNames = collectSlotNames(templateNodes);
+    const ownerInstanceId = ensureInstanceId(instanceNode);
+    const slotFills = splitSlotFills(instanceNode, {
+      singleSlotName: singleSlotName,
+      slotNames: slotNames,
+      ownerComponentId: String(componentNode.componentId || "").trim().toLowerCase(),
+      ownerDefinitionType: inferDefinitionType(componentNode),
+      ownerInstanceId: ownerInstanceId,
+    });
+    const signalName = String(componentNode.componentId || instanceNode.tagName || "").trim();
+    const slotsPayload = buildSignalPayloadSlots(slotFills);
+    const payload = {
+      type: "signal",
+      signal: signalName,
+      component: signalName,
+      signalId: signalName,
+      source: cloneNodeDeep(instanceNode),
+      slots: slotsPayload.slots,
+      slotQDom: slotsPayload.slotQDom,
+    };
+    const target = resolveSignalDispatchTarget(parent, targetDocument, context);
+    if (!target || typeof target.dispatchEvent !== "function") {
+      return;
+    }
+
+    try {
+      if (typeof global.CustomEvent === "function") {
+        target.dispatchEvent(
+          new global.CustomEvent("q-signal", {
+            detail: payload,
+            bubbles: true,
+            composed: true,
+          })
+        );
+      } else {
+        target.dispatchEvent({
+          type: "q-signal",
+          detail: payload,
+        });
+      }
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml signal dispatch failed for '" + signalName + "':", error);
+      }
+    }
+
+    if (!signalName) {
+      return;
+    }
+    try {
+      if (typeof global.CustomEvent === "function") {
+        target.dispatchEvent(
+          new global.CustomEvent(signalName, {
+            detail: payload,
+            bubbles: true,
+            composed: true,
+          })
+        );
+      } else {
+        target.dispatchEvent({
+          type: signalName,
+          detail: payload,
+        });
+      }
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml named signal dispatch failed for '" + signalName + "':", error);
+      }
+    }
+  }
+
   function renderComponentInstance(componentNode, instanceNode, parent, targetDocument, context) {
-    if (inferDefinitionType(componentNode) === "template") {
+    const definitionType = inferDefinitionType(componentNode);
+    if (definitionType === "template") {
       renderComponentTemplateInstance(componentNode, instanceNode, parent, targetDocument, context);
+      return;
+    }
+    if (definitionType === "signal") {
+      dispatchSignalInstance(componentNode, instanceNode, parent, targetDocument, context);
       return;
     }
     renderComponentHostInstance(componentNode, instanceNode, parent, targetDocument, context);

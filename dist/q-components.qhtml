@@ -9,3 +9,4 @@ q-import { q-components/q-checkout-modal.qhtml }
 q-import { q-components/q-estore.qhtml }
 q-import { q-components/q-builder.qhtml }
 q-import { q-components/q-sidebar.qhtml }
+q-import { q-components/q-popup-menu.qhtml }

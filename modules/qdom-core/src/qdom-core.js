@@ -16,6 +16,7 @@
   const TEXT_ALIASES = new Set(["content", "contents", "text", "textcontents", "innertext"]);
   const QDOM_HOST_ID_ATTR = "data-qdom-host-id";
   const QDOM_TEMPLATE_OWNER_ATTR = "data-qdom-for";
+  const UPDATE_NONCE_KEY = "update-nonce";
   let qdomHostIdCounter = 0;
 
   function createNodeMeta(overrides) {
@@ -29,9 +30,103 @@
     );
   }
 
+  function createUpdateNonceToken(length) {
+    const size = Number.isFinite(length) && length > 0 ? Math.floor(length) : 12;
+    const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let out = "";
+    for (let i = 0; i < size; i += 1) {
+      const index = Math.floor(Math.random() * alphabet.length);
+      out += alphabet.charAt(index);
+    }
+    return out || "nonce";
+  }
+
+  function setUpdateNonce(target, nonceValue) {
+    if (!target || (typeof target !== "object" && typeof target !== "function")) {
+      return "";
+    }
+    const next = typeof nonceValue === "string" && nonceValue ? nonceValue : createUpdateNonceToken();
+    try {
+      Object.defineProperty(target, UPDATE_NONCE_KEY, {
+        value: next,
+        configurable: true,
+        writable: true,
+        enumerable: false,
+      });
+    } catch (error) {
+      // ignore nonce write failures on frozen targets
+      try {
+        target[UPDATE_NONCE_KEY] = next;
+      } catch (innerError) {
+        // ignore fallback failure
+      }
+    }
+    return next;
+  }
+
+  function ensureUpdateNonce(target) {
+    if (!target || (typeof target !== "object" && typeof target !== "function")) {
+      return "";
+    }
+    const existing = target[UPDATE_NONCE_KEY];
+    if (typeof existing === "string" && existing) {
+      return existing;
+    }
+    return setUpdateNonce(target);
+  }
+
+  function ensureUpdateNonceInTree(root) {
+    if (!root || (typeof root !== "object" && typeof root !== "function")) {
+      return;
+    }
+    const seen = new WeakSet();
+    const stack = [root];
+    while (stack.length > 0) {
+      const node = stack.pop();
+      if (!node || (typeof node !== "object" && typeof node !== "function")) {
+        continue;
+      }
+      if (seen.has(node)) {
+        continue;
+      }
+      seen.add(node);
+      ensureUpdateNonce(node);
+      const keys = Object.keys(node);
+      for (let i = 0; i < keys.length; i += 1) {
+        const value = node[keys[i]];
+        if (value && (typeof value === "object" || typeof value === "function")) {
+          stack.push(value);
+        }
+      }
+    }
+  }
+
+  function findNearestNodeForPath(rootNode, path) {
+    if (!rootNode || !Array.isArray(path)) {
+      return null;
+    }
+    let cursor = rootNode;
+    let nearest = cursor && typeof cursor.kind === "string" ? cursor : null;
+    for (let i = 0; i < path.length; i += 1) {
+      if (!cursor || (typeof cursor !== "object" && typeof cursor !== "function")) {
+        break;
+      }
+      const key = String(path[i] || "");
+      if (Array.isArray(cursor)) {
+        cursor = cursor[key];
+      } else {
+        cursor = cursor[key];
+      }
+      if (cursor && typeof cursor.kind === "string") {
+        nearest = cursor;
+      }
+    }
+    return nearest;
+  }
+
   function createDocument(options) {
     const opts = options || {};
-    return {
+    const node = {
       kind: NODE_TYPES.document,
       version: 1,
       nodes: Array.isArray(opts.nodes) ? opts.nodes : [],
@@ -44,11 +139,13 @@
         opts.meta || {}
       ),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function createElementNode(options) {
     const opts = options || {};
-    return {
+    const node = {
       kind: NODE_TYPES.element,
       tagName: String(opts.tagName || "div").toLowerCase(),
       attributes: Object.assign({}, opts.attributes || {}),
@@ -58,29 +155,35 @@
       selectorChain: Array.isArray(opts.selectorChain) ? opts.selectorChain.slice() : [String(opts.tagName || "div").toLowerCase()],
       meta: createNodeMeta(opts.meta),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function createTextNode(options) {
     const opts = options || {};
-    return {
+    const node = {
       kind: NODE_TYPES.text,
       value: typeof opts.value === "string" ? opts.value : "",
       meta: createNodeMeta(opts.meta),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function createRawHtmlNode(options) {
     const opts = options || {};
-    return {
+    const node = {
       kind: NODE_TYPES.rawHtml,
       html: typeof opts.html === "string" ? opts.html : "",
       meta: createNodeMeta(opts.meta),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function createComponentNode(options) {
     const opts = options || {};
-    return {
+    const node = {
       kind: NODE_TYPES.component,
       componentId: String(opts.componentId || "").trim(),
       definitionType: String(opts.definitionType || "component").trim().toLowerCase() || "component",
@@ -91,16 +194,20 @@
       properties: Array.isArray(opts.properties) ? opts.properties.slice() : [],
       meta: createNodeMeta(opts.meta),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function createSlotNode(options) {
     const opts = options || {};
-    return {
+    const node = {
       kind: NODE_TYPES.slot,
       name: String(opts.name || "default").trim() || "default",
       children: Array.isArray(opts.children) ? opts.children : [],
       meta: createNodeMeta(opts.meta),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function normalizeInstanceKind(kind) {
@@ -114,7 +221,7 @@
   function createComponentInstanceNode(options) {
     const opts = options || {};
     const tag = String(opts.tagName || opts.componentId || "div").trim().toLowerCase();
-    return {
+    const node = {
       kind: normalizeInstanceKind(opts.kind),
       componentId: String(opts.componentId || tag).trim().toLowerCase(),
       tagName: tag,
@@ -127,6 +234,8 @@
       selectorChain: Array.isArray(opts.selectorChain) ? opts.selectorChain.slice() : [tag],
       meta: createNodeMeta(opts.meta),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function readSlotNodes(node) {
@@ -168,13 +277,15 @@
 
   function createScriptRule(options) {
     const opts = options || {};
-    return {
+    const node = {
       kind: NODE_TYPES.scriptRule,
       selector: String(opts.selector || ""),
       eventName: String(opts.eventName || ""),
       body: typeof opts.body === "string" ? opts.body : "",
       meta: createNodeMeta(opts.meta),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function isNode(value) {
@@ -648,6 +759,8 @@
       NODE_TYPES.slot,
     ]);
 
+    ensureUpdateNonceInTree(documentNode);
+
     function proxify(target, path) {
       if (!target || typeof target !== "object") {
         return target;
@@ -681,11 +794,18 @@
           }
 
           if (previousValue !== value) {
+            const mutationPath = localPath.concat(String(prop));
             markDirty(obj);
             markDirty(documentNode);
+            setUpdateNonce(obj);
+            setUpdateNonce(documentNode);
+            setUpdateNonce(findNearestNodeForPath(documentNode, mutationPath));
+            if (value && (typeof value === "object" || typeof value === "function")) {
+              ensureUpdateNonceInTree(value);
+            }
             callback({
               type: "set",
-              path: localPath.concat(String(prop)),
+              path: mutationPath,
               oldValue: previousValue,
               newValue: value,
               target: obj,
@@ -700,11 +820,15 @@
           const previousValue = obj[prop];
           const didDelete = Reflect.deleteProperty(obj, prop);
           if (didDelete && active) {
+            const mutationPath = localPath.concat(String(prop));
             markDirty(obj);
             markDirty(documentNode);
+            setUpdateNonce(obj);
+            setUpdateNonce(documentNode);
+            setUpdateNonce(findNearestNodeForPath(documentNode, mutationPath));
             callback({
               type: "delete",
-              path: localPath.concat(String(prop)),
+              path: mutationPath,
               oldValue: previousValue,
               target: obj,
             });
@@ -742,6 +866,10 @@
     ensureStringArray: ensureStringArray,
     mergeClasses: mergeClasses,
     observeQDom: observeQDom,
+    UPDATE_NONCE_KEY: UPDATE_NONCE_KEY,
+    createUpdateNonceToken: createUpdateNonceToken,
+    setUpdateNonce: setUpdateNonce,
+    ensureUpdateNonce: ensureUpdateNonce,
     serializeQDomCompressed: serializeQDomCompressed,
     deserializeQDomCompressed: deserializeQDomCompressed,
     saveQDomTemplateBefore: saveQDomTemplateBefore,

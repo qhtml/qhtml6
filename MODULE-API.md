@@ -33,6 +33,7 @@ Root integration module wires lower-level modules for browser consumers, exposes
   - Includes a QDom mutation lab demonstrating live `host.qdom()` edits with chain helpers (`find`, `appendNode`, `createInstanceFromQHTML`, `rewrite`) and serialize/restore flows.
   - Includes inline-handler context demos for `this.qhtml`, `this.component`, `this.slot`, and related `.qdom()` accessors.
   - Includes a live `q-estore` showcase section that imports `q-components.qhtml`, loads encoded inline `items-json`, and exercises `q-estore` API methods from UI controls.
+  - Includes `q-popup-menu` / `q-context-menu` usage with scoped context menu handling and click-signal events.
 - `dist/q-components.qhtml` and `dist/q-components/*.qhtml`
   - Reusable component bundle imported with `q-import { q-components.qhtml }`.
   - Includes shared UI primitives (`q-modal`, `q-form`, `q-grid`, `q-tabs`) and e-store suite:
@@ -40,6 +41,7 @@ Root integration module wires lower-level modules for browser consumers, exposes
     - `q-store-catalog`
     - `q-checkout-modal`
     - `q-estore` (supports encoded inline `items-json` and URL fetch loading with in-memory dedupe).
+    - `q-popup-menu` / `q-context-menu` (scoped context menu UI with item/submenu/text/separator primitives).
 
 ## Side Effects and Dependencies
 - Requires module globals on `globalThis.QHtmlModules` from bundled scripts.
@@ -65,6 +67,10 @@ Root integration module wires lower-level modules for browser consumers, exposes
 - Parser/runtime now support declarative binding metadata:
   - `q-property { ... }` in component definitions declares invocation keys that map into `component-instance.props`.
   - Assignment expressions `name: q-bind { ... }` and `name: q-script { ... }` are preserved as `meta.qBindings` and re-evaluated by runtime on render and `updateQHtmlElement(...)`.
+- Parser/renderer/runtime now support declarative signal definitions and invocations:
+  - `q-signal signalName { slot { a } slot { b } }`
+  - invocation `signalName { a { ... } b { ... } }`
+  - runtime dispatches `q-signal` and named signal events with slot payloads.
 - Rendered DOM nodes now receive inline-handler context refs: `this.qhtml` (owning `<q-html>` host), `this.component` (nearest component host element with component methods and `.qdom()`), and `this.slot` (nearest projected slot context with `name` + `qdom()` access).
 - Nested slot forwarding now normalizes parser-emitted shorthand wrappers in explicit slot payloads and resolves slot ownership by per-instance association for stable `.slot`/`.qdom().findSlotFor(...)` behavior.
 - Runtime now emits a document-level `QHTMLContentLoaded` signal (`QHtml.SIGNALS.QHTMLContentLoaded`) whenever pending `<q-html>` mounts settle.

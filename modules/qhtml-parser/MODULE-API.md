@@ -24,6 +24,10 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - `component.properties` from `q-property { ... }` blocks
     - `component-instance.props` populated when invocation keys match declared component properties
     - `meta.qBindings` entries for assignment expressions (`q-bind` / assignment-form `q-script`)
+    - definition kind preservation for `q-component`, `q-template`, and `q-signal`
+    - signal declaration + invocation parsing:
+      - `q-signal name { slot { slot1 } ... }`
+      - `name { slot1 { ... } ... }`
 
 ### Preprocessing/import APIs
 - `applyQRewriteBlocks(source, options?)`

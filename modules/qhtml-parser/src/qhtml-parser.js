@@ -236,7 +236,7 @@
     if (LIFECYCLE_BLOCKS.has(nameLower)) {
       return next === "{";
     }
-    if (nameLower === "q-template" || nameLower === "q-component" || nameLower === "q-rewrite") {
+    if (nameLower === "q-template" || nameLower === "q-component" || nameLower === "q-signal" || nameLower === "q-rewrite") {
       return isIdentifierStartChar(next) || next === "{";
     }
     if (nameLower === "q-import" || nameLower === "html") {
@@ -488,10 +488,30 @@
       try {
         const itemStart = parser.index;
         const name = parseIdentifier(parser);
+        const nameLower = name.toLowerCase();
         const afterName = parser.index;
         skipWhitespace(parser);
 
         const nextChar = peek(parser);
+        if (nameLower === "q-signal" && nextChar !== "{" && nextChar !== ",") {
+          const signalId = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-signal id", parser.index);
+          }
+          consume(parser);
+          const signalItems = parseBlockItems(parser);
+          expect(parser, "}");
+          items.push({
+            type: "SignalDefinition",
+            signalId: signalId,
+            items: signalItems,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (nextChar === ":") {
           consume(parser);
           const value = parseValue(parser);
@@ -529,9 +549,8 @@
       }
 
       if (nextChar === "{") {
-        const lowerName = name.toLowerCase();
 
-        if (lowerName === "html") {
+        if (nameLower === "html") {
           consume(parser);
           const rawHtml = readBalancedBlockContent(parser);
           items.push({
@@ -544,7 +563,7 @@
           continue;
         }
 
-        if (TEXT_BLOCK_KEYWORDS.has(lowerName)) {
+        if (TEXT_BLOCK_KEYWORDS.has(nameLower)) {
           consume(parser);
           const textBody = readBalancedBlockContent(parser);
           items.push({
@@ -557,7 +576,7 @@
           continue;
         }
 
-        if (lowerName === "style") {
+        if (nameLower === "style") {
           consume(parser);
           const styleBody = readBalancedBlockContent(parser);
           items.push({
@@ -570,7 +589,7 @@
           continue;
         }
 
-        if (lowerName === "q-script") {
+        if (nameLower === "q-script") {
           consume(parser);
           const scriptBody = readBalancedBlockContent(parser);
           items.push({
@@ -583,7 +602,7 @@
           continue;
         }
 
-        if (lowerName === "q-import") {
+        if (nameLower === "q-import") {
           consume(parser);
           const importBody = readBalancedBlockContent(parser);
           items.push({
@@ -596,7 +615,7 @@
           continue;
         }
 
-        if (lowerName === "q-property") {
+        if (nameLower === "q-property") {
           consume(parser);
           const propertyBody = readBalancedBlockContent(parser);
           items.push({
@@ -616,7 +635,7 @@
             type: "EventBlock",
             name: name,
             script: scriptBody,
-            isLifecycle: LIFECYCLE_BLOCKS.has(lowerName),
+            isLifecycle: LIFECYCLE_BLOCKS.has(nameLower),
             start: itemStart,
             end: parser.index,
             raw: parser.source.slice(itemStart, parser.index),
@@ -811,6 +830,26 @@
         body.push({
           type: "ComponentDefinition",
           componentIdExpression: componentIdExpression,
+          items: items,
+          start: start,
+          end: parser.index,
+          raw: parser.source.slice(start, parser.index),
+        });
+        continue;
+      }
+
+      if (firstLower === "q-signal" && peek(parser) !== "{" && peek(parser) !== ",") {
+        const signalId = parseIdentifier(parser);
+        skipWhitespace(parser);
+        if (peek(parser) !== "{") {
+          throw ParseError("Expected '{' after q-signal id", parser.index);
+        }
+        consume(parser);
+        const items = parseBlockItems(parser);
+        expect(parser, "}");
+        body.push({
+          type: "SignalDefinition",
+          signalId: signalId,
           items: items,
           start: start,
           end: parser.index,
@@ -2528,12 +2567,10 @@
   }
 
   function convertElementInvocationToInstance(elementNode, definitionNode) {
-    const definitionType =
-      String(definitionNode && definitionNode.definitionType ? definitionNode.definitionType : "component")
-        .trim()
-        .toLowerCase() === "template"
-        ? "template"
-        : "component";
+    const explicitType = String(definitionNode && definitionNode.definitionType ? definitionNode.definitionType : "component")
+      .trim()
+      .toLowerCase();
+    const definitionType = explicitType === "template" ? "template" : explicitType === "signal" ? "signal" : "component";
     const slotFills = splitInvocationSlotFills(elementNode, definitionNode);
     const declaredProperties = new Set(
       (Array.isArray(definitionNode && definitionNode.properties) ? definitionNode.properties : [])
@@ -2987,6 +3024,13 @@
       });
     }
 
+    if (item.type === "SignalDefinition") {
+      return buildComponentNodeFromAst(item, source, {
+        componentId: item.signalId,
+        definitionType: "signal",
+      });
+    }
+
     if (item.type === "ComponentDefinition") {
       const componentId = resolveComponentIdExpression(item.componentIdExpression, "");
       return buildComponentNodeFromAst(item, source, {
@@ -3251,8 +3295,10 @@
     }
 
     if (node.kind === core.NODE_TYPES.component) {
-      const definitionType = String(node.definitionType || "").trim().toLowerCase() === "template" ? "template" : "component";
-      const keyword = definitionType === "template" ? "q-template" : "q-component";
+      const explicitDefinitionType = String(node.definitionType || "").trim().toLowerCase();
+      const definitionType =
+        explicitDefinitionType === "template" ? "template" : explicitDefinitionType === "signal" ? "signal" : "component";
+      const keyword = definitionType === "template" ? "q-template" : definitionType === "signal" ? "q-signal" : "q-component";
       const definitionId = String(node.componentId || "").trim();
       const lines = [indent + (definitionId ? keyword + " " + definitionId + " {" : keyword + " {")];
       const properties = Array.isArray(node.properties) ? node.properties : [];

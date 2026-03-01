@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-03-01T03:11:22Z */
+/* generated: 2026-03-01T05:44:02Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -20,6 +20,7 @@
   const TEXT_ALIASES = new Set(["content", "contents", "text", "textcontents", "innertext"]);
   const QDOM_HOST_ID_ATTR = "data-qdom-host-id";
   const QDOM_TEMPLATE_OWNER_ATTR = "data-qdom-for";
+  const UPDATE_NONCE_KEY = "update-nonce";
   let qdomHostIdCounter = 0;
 
   function createNodeMeta(overrides) {
@@ -33,9 +34,103 @@
     );
   }
 
+  function createUpdateNonceToken(length) {
+    const size = Number.isFinite(length) && length > 0 ? Math.floor(length) : 12;
+    const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let out = "";
+    for (let i = 0; i < size; i += 1) {
+      const index = Math.floor(Math.random() * alphabet.length);
+      out += alphabet.charAt(index);
+    }
+    return out || "nonce";
+  }
+
+  function setUpdateNonce(target, nonceValue) {
+    if (!target || (typeof target !== "object" && typeof target !== "function")) {
+      return "";
+    }
+    const next = typeof nonceValue === "string" && nonceValue ? nonceValue : createUpdateNonceToken();
+    try {
+      Object.defineProperty(target, UPDATE_NONCE_KEY, {
+        value: next,
+        configurable: true,
+        writable: true,
+        enumerable: false,
+      });
+    } catch (error) {
+      // ignore nonce write failures on frozen targets
+      try {
+        target[UPDATE_NONCE_KEY] = next;
+      } catch (innerError) {
+        // ignore fallback failure
+      }
+    }
+    return next;
+  }
+
+  function ensureUpdateNonce(target) {
+    if (!target || (typeof target !== "object" && typeof target !== "function")) {
+      return "";
+    }
+    const existing = target[UPDATE_NONCE_KEY];
+    if (typeof existing === "string" && existing) {
+      return existing;
+    }
+    return setUpdateNonce(target);
+  }
+
+  function ensureUpdateNonceInTree(root) {
+    if (!root || (typeof root !== "object" && typeof root !== "function")) {
+      return;
+    }
+    const seen = new WeakSet();
+    const stack = [root];
+    while (stack.length > 0) {
+      const node = stack.pop();
+      if (!node || (typeof node !== "object" && typeof node !== "function")) {
+        continue;
+      }
+      if (seen.has(node)) {
+        continue;
+      }
+      seen.add(node);
+      ensureUpdateNonce(node);
+      const keys = Object.keys(node);
+      for (let i = 0; i < keys.length; i += 1) {
+        const value = node[keys[i]];
+        if (value && (typeof value === "object" || typeof value === "function")) {
+          stack.push(value);
+        }
+      }
+    }
+  }
+
+  function findNearestNodeForPath(rootNode, path) {
+    if (!rootNode || !Array.isArray(path)) {
+      return null;
+    }
+    let cursor = rootNode;
+    let nearest = cursor && typeof cursor.kind === "string" ? cursor : null;
+    for (let i = 0; i < path.length; i += 1) {
+      if (!cursor || (typeof cursor !== "object" && typeof cursor !== "function")) {
+        break;
+      }
+      const key = String(path[i] || "");
+      if (Array.isArray(cursor)) {
+        cursor = cursor[key];
+      } else {
+        cursor = cursor[key];
+      }
+      if (cursor && typeof cursor.kind === "string") {
+        nearest = cursor;
+      }
+    }
+    return nearest;
+  }
+
   function createDocument(options) {
     const opts = options || {};
-    return {
+    const node = {
       kind: NODE_TYPES.document,
       version: 1,
       nodes: Array.isArray(opts.nodes) ? opts.nodes : [],
@@ -48,11 +143,13 @@
         opts.meta || {}
       ),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function createElementNode(options) {
     const opts = options || {};
-    return {
+    const node = {
       kind: NODE_TYPES.element,
       tagName: String(opts.tagName || "div").toLowerCase(),
       attributes: Object.assign({}, opts.attributes || {}),
@@ -62,29 +159,35 @@
       selectorChain: Array.isArray(opts.selectorChain) ? opts.selectorChain.slice() : [String(opts.tagName || "div").toLowerCase()],
       meta: createNodeMeta(opts.meta),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function createTextNode(options) {
     const opts = options || {};
-    return {
+    const node = {
       kind: NODE_TYPES.text,
       value: typeof opts.value === "string" ? opts.value : "",
       meta: createNodeMeta(opts.meta),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function createRawHtmlNode(options) {
     const opts = options || {};
-    return {
+    const node = {
       kind: NODE_TYPES.rawHtml,
       html: typeof opts.html === "string" ? opts.html : "",
       meta: createNodeMeta(opts.meta),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function createComponentNode(options) {
     const opts = options || {};
-    return {
+    const node = {
       kind: NODE_TYPES.component,
       componentId: String(opts.componentId || "").trim(),
       definitionType: String(opts.definitionType || "component").trim().toLowerCase() || "component",
@@ -95,16 +198,20 @@
       properties: Array.isArray(opts.properties) ? opts.properties.slice() : [],
       meta: createNodeMeta(opts.meta),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function createSlotNode(options) {
     const opts = options || {};
-    return {
+    const node = {
       kind: NODE_TYPES.slot,
       name: String(opts.name || "default").trim() || "default",
       children: Array.isArray(opts.children) ? opts.children : [],
       meta: createNodeMeta(opts.meta),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function normalizeInstanceKind(kind) {
@@ -118,7 +225,7 @@
   function createComponentInstanceNode(options) {
     const opts = options || {};
     const tag = String(opts.tagName || opts.componentId || "div").trim().toLowerCase();
-    return {
+    const node = {
       kind: normalizeInstanceKind(opts.kind),
       componentId: String(opts.componentId || tag).trim().toLowerCase(),
       tagName: tag,
@@ -131,6 +238,8 @@
       selectorChain: Array.isArray(opts.selectorChain) ? opts.selectorChain.slice() : [tag],
       meta: createNodeMeta(opts.meta),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function readSlotNodes(node) {
@@ -172,13 +281,15 @@
 
   function createScriptRule(options) {
     const opts = options || {};
-    return {
+    const node = {
       kind: NODE_TYPES.scriptRule,
       selector: String(opts.selector || ""),
       eventName: String(opts.eventName || ""),
       body: typeof opts.body === "string" ? opts.body : "",
       meta: createNodeMeta(opts.meta),
     };
+    setUpdateNonce(node);
+    return node;
   }
 
   function isNode(value) {
@@ -652,6 +763,8 @@
       NODE_TYPES.slot,
     ]);
 
+    ensureUpdateNonceInTree(documentNode);
+
     function proxify(target, path) {
       if (!target || typeof target !== "object") {
         return target;
@@ -685,11 +798,18 @@
           }
 
           if (previousValue !== value) {
+            const mutationPath = localPath.concat(String(prop));
             markDirty(obj);
             markDirty(documentNode);
+            setUpdateNonce(obj);
+            setUpdateNonce(documentNode);
+            setUpdateNonce(findNearestNodeForPath(documentNode, mutationPath));
+            if (value && (typeof value === "object" || typeof value === "function")) {
+              ensureUpdateNonceInTree(value);
+            }
             callback({
               type: "set",
-              path: localPath.concat(String(prop)),
+              path: mutationPath,
               oldValue: previousValue,
               newValue: value,
               target: obj,
@@ -704,11 +824,15 @@
           const previousValue = obj[prop];
           const didDelete = Reflect.deleteProperty(obj, prop);
           if (didDelete && active) {
+            const mutationPath = localPath.concat(String(prop));
             markDirty(obj);
             markDirty(documentNode);
+            setUpdateNonce(obj);
+            setUpdateNonce(documentNode);
+            setUpdateNonce(findNearestNodeForPath(documentNode, mutationPath));
             callback({
               type: "delete",
-              path: localPath.concat(String(prop)),
+              path: mutationPath,
               oldValue: previousValue,
               target: obj,
             });
@@ -746,6 +870,10 @@
     ensureStringArray: ensureStringArray,
     mergeClasses: mergeClasses,
     observeQDom: observeQDom,
+    UPDATE_NONCE_KEY: UPDATE_NONCE_KEY,
+    createUpdateNonceToken: createUpdateNonceToken,
+    setUpdateNonce: setUpdateNonce,
+    ensureUpdateNonce: ensureUpdateNonce,
     serializeQDomCompressed: serializeQDomCompressed,
     deserializeQDomCompressed: deserializeQDomCompressed,
     saveQDomTemplateBefore: saveQDomTemplateBefore,
@@ -996,7 +1124,7 @@
     if (LIFECYCLE_BLOCKS.has(nameLower)) {
       return next === "{";
     }
-    if (nameLower === "q-template" || nameLower === "q-component" || nameLower === "q-rewrite") {
+    if (nameLower === "q-template" || nameLower === "q-component" || nameLower === "q-signal" || nameLower === "q-rewrite") {
       return isIdentifierStartChar(next) || next === "{";
     }
     if (nameLower === "q-import" || nameLower === "html") {
@@ -1248,10 +1376,30 @@
       try {
         const itemStart = parser.index;
         const name = parseIdentifier(parser);
+        const nameLower = name.toLowerCase();
         const afterName = parser.index;
         skipWhitespace(parser);
 
         const nextChar = peek(parser);
+        if (nameLower === "q-signal" && nextChar !== "{" && nextChar !== ",") {
+          const signalId = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-signal id", parser.index);
+          }
+          consume(parser);
+          const signalItems = parseBlockItems(parser);
+          expect(parser, "}");
+          items.push({
+            type: "SignalDefinition",
+            signalId: signalId,
+            items: signalItems,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (nextChar === ":") {
           consume(parser);
           const value = parseValue(parser);
@@ -1289,9 +1437,8 @@
       }
 
       if (nextChar === "{") {
-        const lowerName = name.toLowerCase();
 
-        if (lowerName === "html") {
+        if (nameLower === "html") {
           consume(parser);
           const rawHtml = readBalancedBlockContent(parser);
           items.push({
@@ -1304,7 +1451,7 @@
           continue;
         }
 
-        if (TEXT_BLOCK_KEYWORDS.has(lowerName)) {
+        if (TEXT_BLOCK_KEYWORDS.has(nameLower)) {
           consume(parser);
           const textBody = readBalancedBlockContent(parser);
           items.push({
@@ -1317,7 +1464,7 @@
           continue;
         }
 
-        if (lowerName === "style") {
+        if (nameLower === "style") {
           consume(parser);
           const styleBody = readBalancedBlockContent(parser);
           items.push({
@@ -1330,7 +1477,7 @@
           continue;
         }
 
-        if (lowerName === "q-script") {
+        if (nameLower === "q-script") {
           consume(parser);
           const scriptBody = readBalancedBlockContent(parser);
           items.push({
@@ -1343,7 +1490,7 @@
           continue;
         }
 
-        if (lowerName === "q-import") {
+        if (nameLower === "q-import") {
           consume(parser);
           const importBody = readBalancedBlockContent(parser);
           items.push({
@@ -1356,7 +1503,7 @@
           continue;
         }
 
-        if (lowerName === "q-property") {
+        if (nameLower === "q-property") {
           consume(parser);
           const propertyBody = readBalancedBlockContent(parser);
           items.push({
@@ -1376,7 +1523,7 @@
             type: "EventBlock",
             name: name,
             script: scriptBody,
-            isLifecycle: LIFECYCLE_BLOCKS.has(lowerName),
+            isLifecycle: LIFECYCLE_BLOCKS.has(nameLower),
             start: itemStart,
             end: parser.index,
             raw: parser.source.slice(itemStart, parser.index),
@@ -1571,6 +1718,26 @@
         body.push({
           type: "ComponentDefinition",
           componentIdExpression: componentIdExpression,
+          items: items,
+          start: start,
+          end: parser.index,
+          raw: parser.source.slice(start, parser.index),
+        });
+        continue;
+      }
+
+      if (firstLower === "q-signal" && peek(parser) !== "{" && peek(parser) !== ",") {
+        const signalId = parseIdentifier(parser);
+        skipWhitespace(parser);
+        if (peek(parser) !== "{") {
+          throw ParseError("Expected '{' after q-signal id", parser.index);
+        }
+        consume(parser);
+        const items = parseBlockItems(parser);
+        expect(parser, "}");
+        body.push({
+          type: "SignalDefinition",
+          signalId: signalId,
           items: items,
           start: start,
           end: parser.index,
@@ -3288,12 +3455,10 @@
   }
 
   function convertElementInvocationToInstance(elementNode, definitionNode) {
-    const definitionType =
-      String(definitionNode && definitionNode.definitionType ? definitionNode.definitionType : "component")
-        .trim()
-        .toLowerCase() === "template"
-        ? "template"
-        : "component";
+    const explicitType = String(definitionNode && definitionNode.definitionType ? definitionNode.definitionType : "component")
+      .trim()
+      .toLowerCase();
+    const definitionType = explicitType === "template" ? "template" : explicitType === "signal" ? "signal" : "component";
     const slotFills = splitInvocationSlotFills(elementNode, definitionNode);
     const declaredProperties = new Set(
       (Array.isArray(definitionNode && definitionNode.properties) ? definitionNode.properties : [])
@@ -3747,6 +3912,13 @@
       });
     }
 
+    if (item.type === "SignalDefinition") {
+      return buildComponentNodeFromAst(item, source, {
+        componentId: item.signalId,
+        definitionType: "signal",
+      });
+    }
+
     if (item.type === "ComponentDefinition") {
       const componentId = resolveComponentIdExpression(item.componentIdExpression, "");
       return buildComponentNodeFromAst(item, source, {
@@ -4011,8 +4183,10 @@
     }
 
     if (node.kind === core.NODE_TYPES.component) {
-      const definitionType = String(node.definitionType || "").trim().toLowerCase() === "template" ? "template" : "component";
-      const keyword = definitionType === "template" ? "q-template" : "q-component";
+      const explicitDefinitionType = String(node.definitionType || "").trim().toLowerCase();
+      const definitionType =
+        explicitDefinitionType === "template" ? "template" : explicitDefinitionType === "signal" ? "signal" : "component";
+      const keyword = definitionType === "template" ? "q-template" : definitionType === "signal" ? "q-signal" : "q-component";
       const definitionId = String(node.componentId || "").trim();
       const lines = [indent + (definitionId ? keyword + " " + definitionId + " {" : keyword + " {")];
       const properties = Array.isArray(node.properties) ? node.properties : [];
@@ -4373,7 +4547,7 @@
     }
 
     const explicit = String(definitionNode.definitionType || "").trim().toLowerCase();
-    if (explicit === "component" || explicit === "template") {
+    if (explicit === "component" || explicit === "template" || explicit === "signal") {
       return explicit;
     }
 
@@ -4383,6 +4557,9 @@
         : "";
     if (originalSource.startsWith("q-template")) {
       return "template";
+    }
+    if (originalSource.startsWith("q-signal")) {
+      return "signal";
     }
 
     return "component";
@@ -5210,9 +5387,147 @@
     runComponentLifecycleHooks(componentNode, hostElement, targetDocument);
   }
 
+  function serializeSignalSlotValue(node) {
+    if (!node || typeof node !== "object") {
+      return node;
+    }
+    if (core.NODE_TYPES.text && node.kind === core.NODE_TYPES.text) {
+      return String(node.value || "");
+    }
+    if (node.kind === core.NODE_TYPES.rawHtml) {
+      return String(node.html || "");
+    }
+    return cloneNodeDeep(node);
+  }
+
+  function buildSignalPayloadSlots(slotFills) {
+    const payloadSlots = {};
+    const payloadSlotQDom = {};
+    if (!(slotFills instanceof Map)) {
+      return {
+        slots: payloadSlots,
+        slotQDom: payloadSlotQDom,
+      };
+    }
+
+    slotFills.forEach(function eachFill(fillEntry, slotName) {
+      const key = String(slotName || "default").trim() || "default";
+      const nodes = fillEntry && Array.isArray(fillEntry.nodes) ? fillEntry.nodes : [];
+      payloadSlots[key] = [];
+      payloadSlotQDom[key] = [];
+      for (let i = 0; i < nodes.length; i += 1) {
+        const node = nodes[i];
+        payloadSlots[key].push(serializeSignalSlotValue(node));
+        payloadSlotQDom[key].push(cloneNodeDeep(node));
+      }
+    });
+
+    return {
+      slots: payloadSlots,
+      slotQDom: payloadSlotQDom,
+    };
+  }
+
+  function resolveSignalDispatchTarget(parent, targetDocument, context) {
+    const hostStack =
+      context && Array.isArray(context.componentHostStack) ? context.componentHostStack : [];
+    if (hostStack.length > 0) {
+      const host = hostStack[hostStack.length - 1];
+      if (host && typeof host.dispatchEvent === "function") {
+        return host;
+      }
+    }
+    if (parent && typeof parent.dispatchEvent === "function") {
+      return parent;
+    }
+    if (targetDocument && typeof targetDocument.dispatchEvent === "function") {
+      return targetDocument;
+    }
+    return null;
+  }
+
+  function dispatchSignalInstance(componentNode, instanceNode, parent, targetDocument, context) {
+    const templateNodes = Array.isArray(componentNode.templateNodes) ? componentNode.templateNodes : [];
+    const singleSlotName = resolveSingleSlotName(componentNode);
+    const slotNames = collectSlotNames(templateNodes);
+    const ownerInstanceId = ensureInstanceId(instanceNode);
+    const slotFills = splitSlotFills(instanceNode, {
+      singleSlotName: singleSlotName,
+      slotNames: slotNames,
+      ownerComponentId: String(componentNode.componentId || "").trim().toLowerCase(),
+      ownerDefinitionType: inferDefinitionType(componentNode),
+      ownerInstanceId: ownerInstanceId,
+    });
+    const signalName = String(componentNode.componentId || instanceNode.tagName || "").trim();
+    const slotsPayload = buildSignalPayloadSlots(slotFills);
+    const payload = {
+      type: "signal",
+      signal: signalName,
+      component: signalName,
+      signalId: signalName,
+      source: cloneNodeDeep(instanceNode),
+      slots: slotsPayload.slots,
+      slotQDom: slotsPayload.slotQDom,
+    };
+    const target = resolveSignalDispatchTarget(parent, targetDocument, context);
+    if (!target || typeof target.dispatchEvent !== "function") {
+      return;
+    }
+
+    try {
+      if (typeof global.CustomEvent === "function") {
+        target.dispatchEvent(
+          new global.CustomEvent("q-signal", {
+            detail: payload,
+            bubbles: true,
+            composed: true,
+          })
+        );
+      } else {
+        target.dispatchEvent({
+          type: "q-signal",
+          detail: payload,
+        });
+      }
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml signal dispatch failed for '" + signalName + "':", error);
+      }
+    }
+
+    if (!signalName) {
+      return;
+    }
+    try {
+      if (typeof global.CustomEvent === "function") {
+        target.dispatchEvent(
+          new global.CustomEvent(signalName, {
+            detail: payload,
+            bubbles: true,
+            composed: true,
+          })
+        );
+      } else {
+        target.dispatchEvent({
+          type: signalName,
+          detail: payload,
+        });
+      }
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml named signal dispatch failed for '" + signalName + "':", error);
+      }
+    }
+  }
+
   function renderComponentInstance(componentNode, instanceNode, parent, targetDocument, context) {
-    if (inferDefinitionType(componentNode) === "template") {
+    const definitionType = inferDefinitionType(componentNode);
+    if (definitionType === "template") {
       renderComponentTemplateInstance(componentNode, instanceNode, parent, targetDocument, context);
+      return;
+    }
+    if (definitionType === "signal") {
+      dispatchSignalInstance(componentNode, instanceNode, parent, targetDocument, context);
       return;
     }
     renderComponentHostInstance(componentNode, instanceNode, parent, targetDocument, context);
@@ -5450,6 +5765,7 @@
   const FORM_CONTROL_TAGS = new Set(["input", "textarea", "select"]);
   const MAX_UPDATE_CYCLES_PER_TICK = 1000;
   const MAX_UPDATE_REENTRIES_PER_EPOCH = 1000;
+  const UPDATE_NONCE_KEY = typeof core.UPDATE_NONCE_KEY === "string" ? core.UPDATE_NONCE_KEY : "update-nonce";
 
   function ensureInstanceId(node) {
     if (!node || typeof node !== "object") {
@@ -5627,6 +5943,64 @@
       type: QHTML_CONTENT_LOADED_EVENT,
       detail: detail,
     };
+  }
+
+  function createQSignalEvent(payload) {
+    if (typeof global.CustomEvent === "function") {
+      return new global.CustomEvent("q-signal", {
+        detail: payload || {},
+        bubbles: true,
+        composed: true,
+      });
+    }
+    return {
+      type: "q-signal",
+      detail: payload || {},
+    };
+  }
+
+  function emitQSignal(target, payload, eventNamePrefix) {
+    const resolvedTarget =
+      target && typeof target.dispatchEvent === "function"
+        ? target
+        : global.document && typeof global.document.dispatchEvent === "function"
+          ? global.document
+          : null;
+    const normalizedPayload = payload && typeof payload === "object" ? payload : {};
+    const signalName = String(normalizedPayload.signal || "").trim();
+    const prefix = String(eventNamePrefix || "").trim();
+    const emitted = {
+      qSignal: false,
+      namespaced: false,
+    };
+    if (!resolvedTarget) {
+      return emitted;
+    }
+    try {
+      resolvedTarget.dispatchEvent(createQSignalEvent(normalizedPayload));
+      emitted.qSignal = true;
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml emitQSignal failed:", error);
+      }
+    }
+    if (prefix && signalName && typeof global.CustomEvent === "function") {
+      try {
+        resolvedTarget.dispatchEvent(
+          new global.CustomEvent(prefix + ":" + signalName, {
+            detail: normalizedPayload,
+            bubbles: true,
+            composed: true,
+          })
+        );
+        emitted.namespaced = true;
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml emitQSignal namespaced dispatch failed:", error);
+        }
+      }
+    }
+    return emitted;
   }
 
   function emitContentLoadedSignal(doc, source) {
@@ -5877,7 +6251,7 @@
       return "component";
     }
     const explicit = String(definitionNode.definitionType || "").trim().toLowerCase();
-    if (explicit === "component" || explicit === "template") {
+    if (explicit === "component" || explicit === "template" || explicit === "signal") {
       return explicit;
     }
     const originalSource =
@@ -5886,6 +6260,9 @@
         : "";
     if (originalSource.startsWith("q-template")) {
       return "template";
+    }
+    if (originalSource.startsWith("q-signal")) {
+      return "signal";
     }
     return "component";
   }
@@ -6475,6 +6852,120 @@
       return [];
     }
     return node.meta.qBindings;
+  }
+
+  function createRuntimeUpdateNonceToken() {
+    if (core && typeof core.createUpdateNonceToken === "function") {
+      const token = core.createUpdateNonceToken();
+      if (typeof token === "string" && token) {
+        return token;
+      }
+    }
+    const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let out = "";
+    for (let i = 0; i < 12; i += 1) {
+      out += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+    }
+    return out || "nonce";
+  }
+
+  function readNodeUpdateNonce(node) {
+    if (!node || typeof node !== "object") {
+      return "";
+    }
+    const value = node[UPDATE_NONCE_KEY];
+    return typeof value === "string" ? value : "";
+  }
+
+  function writeNodeUpdateNonce(node, nonceValue) {
+    if (!node || typeof node !== "object") {
+      return "";
+    }
+    const next = typeof nonceValue === "string" && nonceValue ? nonceValue : createRuntimeUpdateNonceToken();
+    try {
+      node[UPDATE_NONCE_KEY] = next;
+    } catch (error) {
+      // ignore nonce writes on sealed/frozen objects
+    }
+    return next;
+  }
+
+  function ensureNodeUpdateNonce(node) {
+    const existing = readNodeUpdateNonce(node);
+    if (existing) {
+      return existing;
+    }
+    return writeNodeUpdateNonce(node);
+  }
+
+  function walkBindingNodesForNonce(binding, visitor) {
+    if (!binding || typeof visitor !== "function") {
+      return;
+    }
+    const root = sourceNodeOf(binding.rawQdom || binding.qdom);
+    if (!root || typeof root !== "object") {
+      return;
+    }
+    visitor(root);
+    if (typeof core.walkQDom !== "function") {
+      return;
+    }
+    if (String(root.kind || "").trim().toLowerCase() !== "document") {
+      return;
+    }
+    core.walkQDom(root, function walkNode(node) {
+      visitor(sourceNodeOf(node) || node);
+    });
+  }
+
+  function prepareBindingNodeNoncesForUpdate(binding, lastUpdateNonce, cycleNonce) {
+    const staleNodes = [];
+    const compareNonce = typeof lastUpdateNonce === "string" ? lastUpdateNonce : "";
+    walkBindingNodesForNonce(binding, function markNode(node) {
+      if (!node || typeof node !== "object") {
+        return;
+      }
+      const bindingEntries = readNodeBindingEntries(node);
+      if (bindingEntries.length > 0) {
+        let dynamicNonce = createRuntimeUpdateNonceToken();
+        if (dynamicNonce === cycleNonce) {
+          dynamicNonce = createRuntimeUpdateNonceToken();
+        }
+        writeNodeUpdateNonce(node, dynamicNonce);
+      } else {
+        ensureNodeUpdateNonce(node);
+      }
+      const currentNonce = ensureNodeUpdateNonce(node);
+      if (!compareNonce || currentNonce !== compareNonce) {
+        staleNodes.push(node);
+      }
+    });
+    return staleNodes;
+  }
+
+  function finalizeBindingNodeNonces(binding, cycleNonce) {
+    if (!binding) {
+      return;
+    }
+    const updateNonce = typeof cycleNonce === "string" && cycleNonce ? cycleNonce : createRuntimeUpdateNonceToken();
+    walkBindingNodesForNonce(binding, function finalizeNode(node) {
+      if (!node || typeof node !== "object") {
+        return;
+      }
+      const bindingEntries = readNodeBindingEntries(node);
+      if (bindingEntries.length > 0) {
+        let dynamicNonce = createRuntimeUpdateNonceToken();
+        if (dynamicNonce === updateNonce) {
+          dynamicNonce = createRuntimeUpdateNonceToken();
+        }
+        writeNodeUpdateNonce(node, dynamicNonce);
+        return;
+      }
+      if (readNodeUpdateNonce(node) !== updateNonce) {
+        writeNodeUpdateNonce(node, updateNonce);
+      }
+    });
+    binding.lastUpdateNonce = updateNonce;
   }
 
   function evaluateBindingExpression(node, bindingSpec) {
@@ -8967,8 +9458,18 @@
       try {
         const activeScopeElement = state.nextScopeElement;
         state.nextScopeElement = null;
-        if (!activeScopeElement || !renderScopedComponentBinding(binding, activeScopeElement)) {
-          renderBinding(binding);
+        const updateNonce = createRuntimeUpdateNonceToken();
+        const staleNodes = prepareBindingNodeNoncesForUpdate(binding, binding.lastUpdateNonce, updateNonce);
+        try {
+          if (activeScopeElement) {
+            if (!renderScopedComponentBinding(binding, activeScopeElement)) {
+              renderBinding(binding);
+            }
+          } else if (staleNodes.length > 0) {
+            renderBinding(binding);
+          }
+        } finally {
+          finalizeBindingNodeNonces(binding, updateNonce);
         }
       } finally {
         state.inProgress = false;
@@ -9019,6 +9520,8 @@
     getQDomForElement: getQDomForElement,
     updateQHtmlElement: updateQHtmlElement,
     toQHtmlSource: toQHtmlSource,
+    createQSignalEvent: createQSignalEvent,
+    emitQSignal: emitQSignal,
     hydrateComponentElement: hydrateComponentElement,
     initAll: initAll,
     startAutoMountObserver: startAutoMountObserver,
@@ -9076,3 +9579,4 @@
 
 
 /*** END: src/root-integration.js ***/
+

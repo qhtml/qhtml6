@@ -18,10 +18,14 @@
 
 - `q-component` invocation renders as host custom element wrapper.
 - `q-template` invocation expands inline (no wrapper).
+- `q-signal` invocation dispatches events and renders no host DOM.
 - Component instance `attributes` are applied via `setAttribute(...)`; component instance `props` are applied as direct host-element property assignments.
 - `text` nodes create text nodes; `raw-html` nodes inject parsed HTML fragments.
 - Literal `<slot>` tags are consumed as projection boundaries and removed from final DOM output.
 - Self-referential component recursion is detected and blocked.
+- Signal invocations emit:
+  - `q-signal`
+  - a named event matching the signal id
 
 ## Runtime integration points
 

@@ -15,6 +15,7 @@ This README is written for builders who want a quick, reliable way to author UI 
 - Inline HTML or plain text blocks where needed.
 - Build reusable runtime components with slots and methods.
 - Build compile-time templates that render to pure HTML.
+- Declare and invoke lightweight signals with slot payloads using `q-signal`.
 - Includes WYSIWYG q-component 
 
 ## Quick Start
@@ -223,12 +224,13 @@ Top-level host example:
 ```
 
 
-## Components and templates (`q-component` vs `q-template`)
+## Components, templates, and signals (`q-component` vs `q-template` vs `q-signal`)
 
 QHTML has two reusable-block modes:
 
 - `q-component`: runtime custom-element host for functional behavior
 - `q-template`: compile-time template that renders to pure HTML
+- `q-signal`: event-like definition invoked with named slot payloads
 
 ### `q-component`: runtime host with methods and slot carriers
 
@@ -418,6 +420,32 @@ Behavior:
 - Use `q-component` when you need runtime behavior (`function` methods, direct instance control, host-level state).
 - Use `q-template` for structure-only composition that should compile down to pure HTML output.
 - Default to `q-template` for reusable layout shells, then add `q-component` only where runtime behavior is required.
+
+### `q-signal`: declarative signal payload shape
+
+Use `q-signal` to declare a named signal with slot names, then invoke it by filling those slots.
+
+```qhtml
+q-signal menuItemClicked {
+  slot { uuid }
+  slot { label }
+}
+
+menuItemClicked {
+  uuid { text { abc-123 } }
+  label { text { Rename } }
+}
+```
+
+Runtime behavior:
+
+- Signal invocation does not render visible DOM output.
+- It dispatches:
+  - `q-signal` with payload in `event.detail`
+  - a named event matching the signal id (for example `menuItemClicked`)
+- Slot payloads are available on:
+  - `event.detail.slots`
+  - `event.detail.slotQDom`
 
 
 ### Single-slot injection
@@ -609,6 +637,7 @@ Recursive example:
 - `q-components/q-form.qhtml`
 - `q-components/q-grid.qhtml`
 - `q-components/q-tabs.qhtml`
+- `q-components/q-popup-menu.qhtml`
 - `q-components/q-tech-tag.qhtml` (currently a placeholder file with no exported QHTML tags)
 
 Use it like this:
@@ -684,6 +713,42 @@ Use it like this:
     q-grid-cell.w3-half {
       div.w3-card.w3-padding { text { Right cell } }
     }
+  }
+</q-html>
+```
+
+### `q-popup-menu` / `q-context-menu` example
+
+```qhtml
+<q-html>
+  q-import { q-components.qhtml }
+
+  div {
+    id: "menu-zone"
+    style { min-height: 120px; border: 1px dashed #94a3b8; padding: 8px; }
+    p { text { Right-click inside this box. } }
+
+    q-context-menu {
+      id: "ctx-usage"
+      q-popup-text { text { Actions } }
+      q-popup-separator { }
+      q-popup-item { content { text { Rename } } }
+      q-popup-item { content { text { Duplicate } } }
+      q-popup-submenu {
+        content { text { More } }
+        menu {
+          q-popup-item { content { text { Archive } } }
+          q-popup-item { content { text { Delete } } }
+        }
+      }
+    }
+  }
+
+  onReady {
+    var menu = this.querySelector("#ctx-usage");
+    menu.addEventListener("menuItemClicked", function (evt) {
+      console.log("clicked:", evt.detail && evt.detail.label);
+    });
   }
 </q-html>
 ```

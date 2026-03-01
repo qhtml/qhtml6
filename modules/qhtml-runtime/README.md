@@ -16,6 +16,7 @@
 - Hydrates component host elements and maintains component/slot context accessors in rendered DOM.
 - Re-evaluates assignment bindings (`q-bind` and assignment-form `q-script`) before render and when `update()` is called on a mounted `<q-html>` host.
 - Guards `update()` against binding-driven re-entry loops with per-tick cycle/re-entry limits, aborting noisy recursive updates with a console error instead of spinning forever.
+- Exposes signal helpers for runtime dispatch (`emitQSignal` / `createQSignalEvent`).
 
 ## `.qdom()` model in runtime
 
@@ -64,6 +65,13 @@ The installed node facade includes:
   - `targetCollection: "textContent"` updates node text content
 - Trigger full re-evaluation with `this.closest("q-html").update()` (or `QHtml.updateQHtmlElement(host)`).
 - Trigger component-local re-evaluation with `this.component.update()`; `this.component.root().update()` remains equivalent to full host update.
+
+## Signal helpers
+
+- `QHtml.emitQSignal(target, payload, eventNamePrefix?)`
+  - Dispatches `q-signal` on `target` (or document fallback) and optional namespaced event (`<prefix>:<signal>`).
+- `QHtml.createQSignalEvent(payload)`
+  - Creates a bubbling/composed `q-signal` event object.
 
 `QDomNodeList` supports `at`, `toArray`, `forEach`, `map`, `qhtml`, `htmldom`, and `html`.
 

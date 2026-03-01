@@ -1,0 +1,750 @@
+q-component q-popup-item {
+  function rootNode() {
+    return this.querySelector("[q-popup-item-root='1']");
+  }
+
+  function isDisabled() {
+    var raw = String(this.getAttribute("q-popup-disabled") || "").trim().toLowerCase();
+    if (raw === "1" || raw === "true" || raw === "yes") {
+      return true;
+    }
+    if (this.hasAttribute("disabled")) {
+      var disabledRaw = String(this.getAttribute("disabled") || "").trim().toLowerCase();
+      return disabledRaw !== "0" && disabledRaw !== "false" && disabledRaw !== "no";
+    }
+    return false;
+  }
+
+  function isEnabled() {
+    return !this.isDisabled();
+  }
+
+  function applyDisabledUi() {
+    var root = this.rootNode();
+    if (!root || !root.style) {
+      return;
+    }
+    var disabled = this.isDisabled();
+    root.style.opacity = disabled ? "0.45" : "1";
+    root.style.pointerEvents = disabled ? "none" : "auto";
+    root.style.cursor = disabled ? "default" : "pointer";
+    root.setAttribute("aria-disabled", disabled ? "true" : "false");
+  }
+
+  function enable() {
+    this.setAttribute("q-popup-disabled", "0");
+    this.removeAttribute("disabled");
+    this.applyDisabledUi();
+    return this;
+  }
+
+  function disable() {
+    this.setAttribute("q-popup-disabled", "1");
+    this.setAttribute("disabled", "true");
+    this.applyDisabledUi();
+    return this;
+  }
+
+  onReady {
+    this.applyDisabledUi();
+  }
+
+  div.w3-bar.w3-small {
+    q-popup-item-root: "1"
+    tabindex: "0"
+    style {
+      padding: 0.45rem 0.6rem;
+      border-radius: 0.3rem;
+      transition: background 120ms ease, color 120ms ease;
+      color: #e2e8f0;
+      white-space: nowrap;
+      user-select: none;
+      cursor: pointer;
+    }
+    slot { content }
+  }
+}
+
+q-component q-popup-separator {
+  function isDisabled() {
+    return true;
+  }
+
+  function isEnabled() {
+    return false;
+  }
+
+  function enable() {
+    return this;
+  }
+
+  function disable() {
+    return this;
+  }
+
+  div {
+    style {
+      height: 1px;
+      margin: 0.32rem 0.2rem;
+      background: rgba(148, 163, 184, 0.35);
+    }
+  }
+}
+
+q-component q-popup-text {
+  function rootNode() {
+    return this.querySelector("[q-popup-text-root='1']");
+  }
+
+  function isDisabled() {
+    var raw = String(this.getAttribute("q-popup-disabled") || "").trim().toLowerCase();
+    if (raw === "1" || raw === "true" || raw === "yes") {
+      return true;
+    }
+    if (this.hasAttribute("disabled")) {
+      var disabledRaw = String(this.getAttribute("disabled") || "").trim().toLowerCase();
+      return disabledRaw !== "0" && disabledRaw !== "false" && disabledRaw !== "no";
+    }
+    return false;
+  }
+
+  function isEnabled() {
+    return !this.isDisabled();
+  }
+
+  function applyDisabledUi() {
+    var root = this.rootNode();
+    if (!root || !root.style) {
+      return;
+    }
+    var disabled = this.isDisabled();
+    root.style.opacity = disabled ? "0.45" : "1";
+  }
+
+  function enable() {
+    this.setAttribute("q-popup-disabled", "0");
+    this.removeAttribute("disabled");
+    this.applyDisabledUi();
+    return this;
+  }
+
+  function disable() {
+    this.setAttribute("q-popup-disabled", "1");
+    this.setAttribute("disabled", "true");
+    this.applyDisabledUi();
+    return this;
+  }
+
+  onReady {
+    this.applyDisabledUi();
+  }
+
+  div.w3-small {
+    q-popup-text-root: "1"
+    style {
+      padding: 0.38rem 0.6rem;
+      color: #cbd5e1;
+      user-select: none;
+      white-space: nowrap;
+    }
+    slot { content }
+  }
+}
+
+q-component q-popup-submenu {
+  function rowNode() {
+    return this.querySelector("[q-popup-submenu-row='1']");
+  }
+
+  function panelNode() {
+    return this.querySelector("[q-popup-submenu-panel='1']");
+  }
+
+  function isDisabled() {
+    var raw = String(this.getAttribute("q-popup-disabled") || "").trim().toLowerCase();
+    if (raw === "1" || raw === "true" || raw === "yes") {
+      return true;
+    }
+    if (this.hasAttribute("disabled")) {
+      var disabledRaw = String(this.getAttribute("disabled") || "").trim().toLowerCase();
+      return disabledRaw !== "0" && disabledRaw !== "false" && disabledRaw !== "no";
+    }
+    return false;
+  }
+
+  function isEnabled() {
+    return !this.isDisabled();
+  }
+
+  function applyDisabledUi() {
+    var row = this.rowNode();
+    if (!row || !row.style) {
+      return;
+    }
+    var disabled = this.isDisabled();
+    row.style.opacity = disabled ? "0.45" : "1";
+    row.style.pointerEvents = disabled ? "none" : "auto";
+    row.style.cursor = disabled ? "default" : "pointer";
+    row.setAttribute("aria-disabled", disabled ? "true" : "false");
+  }
+
+  function showSubmenu() {
+    if (this.isDisabled()) {
+      return this;
+    }
+    var panel = this.panelNode();
+    if (!panel || !panel.style) {
+      return this;
+    }
+    panel.style.display = "block";
+    return this;
+  }
+
+  function hideSubmenu() {
+    var panel = this.panelNode();
+    if (!panel || !panel.style) {
+      return this;
+    }
+    panel.style.display = "none";
+    return this;
+  }
+
+  function enable() {
+    this.setAttribute("q-popup-disabled", "0");
+    this.removeAttribute("disabled");
+    this.applyDisabledUi();
+    return this;
+  }
+
+  function disable() {
+    this.setAttribute("q-popup-disabled", "1");
+    this.setAttribute("disabled", "true");
+    this.applyDisabledUi();
+    this.hideSubmenu();
+    return this;
+  }
+
+  onReady {
+    if (this.__qPopupSubmenuReady) {
+      return;
+    }
+    this.__qPopupSubmenuReady = true;
+    var self = this;
+    this.applyDisabledUi();
+    this.hideSubmenu();
+    var row = this.rowNode();
+    if (row && typeof row.addEventListener === "function") {
+      row.addEventListener("click", function(event) {
+        try {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!self.isDisabled()) {
+            if (self.panelNode() && self.panelNode().style && self.panelNode().style.display === "block") {
+              self.hideSubmenu();
+            } else {
+              self.showSubmenu();
+            }
+          }
+        } catch (error) {
+          if (console && typeof console.log === "function") {
+            console.log("q-popup-submenu click failed", error);
+          }
+        }
+      });
+    }
+    this.addEventListener("mouseenter", function() {
+      if (!self.isDisabled()) {
+        self.showSubmenu();
+      }
+    });
+    this.addEventListener("mouseleave", function() {
+      self.hideSubmenu();
+    });
+  }
+
+  div {
+    style {
+      position: relative;
+    }
+    div.w3-bar.w3-small {
+      q-popup-submenu-row: "1"
+      style {
+        padding: 0.45rem 0.6rem;
+        border-radius: 0.3rem;
+        color: #e2e8f0;
+        white-space: nowrap;
+        user-select: none;
+        cursor: pointer;
+      }
+      span { slot { content } }
+      span.w3-right { text { ▸ } }
+    }
+    div.w3-card.w3-round {
+      q-popup-submenu-panel: "1"
+      style {
+        position: absolute;
+        left: calc(100% + 4px);
+        top: 0;
+        min-width: 11rem;
+        padding: 0.25rem;
+        background: #0f172a;
+        border: 1px solid #334155;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.4);
+        display: none;
+        z-index: 7201;
+      }
+      slot { menu }
+    }
+  }
+}
+
+q-component q-popup-menu {
+  function getGlobalRef() {
+    return typeof globalThis !== "undefined" ? globalThis : Function("return this")();
+  }
+
+  function runtime() {
+    var root = this.getGlobalRef();
+    return root && root.QHtml ? root.QHtml : null;
+  }
+
+  function state() {
+    if (!this.__qPopupMenuState || typeof this.__qPopupMenuState !== "object") {
+      this.__qPopupMenuState = {
+        visible: false,
+        enabled: true,
+        scopeTarget: null,
+        boundScopeTarget: null,
+        contextListener: null,
+        globalHandlersBound: false,
+        tracerCounter: 0,
+        lastTriggerEvent: null
+      };
+    }
+    return this.__qPopupMenuState;
+  }
+
+  function panelNode() {
+    return this.querySelector("[q-popup-menu-panel='1']");
+  }
+
+  function isDisabled() {
+    var s = this.state();
+    if (!s.enabled) {
+      return true;
+    }
+    var raw = String(this.getAttribute("q-popup-disabled") || "").trim().toLowerCase();
+    return raw === "1" || raw === "true" || raw === "yes";
+  }
+
+  function isEnabled() {
+    return !this.isDisabled();
+  }
+
+  function enable() {
+    var s = this.state();
+    s.enabled = true;
+    this.setAttribute("q-popup-disabled", "0");
+    return this;
+  }
+
+  function disable() {
+    var s = this.state();
+    s.enabled = false;
+    this.setAttribute("q-popup-disabled", "1");
+    this.hide();
+    return this;
+  }
+
+  function createTracer() {
+    var s = this.state();
+    s.tracerCounter = Number(s.tracerCounter || 0) + 1;
+    var randomPart = Math.random().toString(36).slice(2, 10);
+    return "qpm-" + String(Date.now()) + "-" + String(s.tracerCounter) + "-" + randomPart;
+  }
+
+  function resolveScopeTarget() {
+    var s = this.state();
+    if (s.scopeTarget && s.scopeTarget.nodeType === 1) {
+      return s.scopeTarget;
+    }
+    var parent = this.parentElement;
+    if (parent && String(parent.tagName || "").toLowerCase() === "q-context-menu") {
+      return parent.parentElement || null;
+    }
+    return parent || null;
+  }
+
+  function setScopeTarget(target) {
+    var s = this.state();
+    s.scopeTarget = target && target.nodeType === 1 ? target : null;
+    this.bindScopeTarget();
+    return this;
+  }
+
+  function bindScopeTarget() {
+    var s = this.state();
+    var nextTarget = this.resolveScopeTarget();
+    if (s.boundScopeTarget && s.contextListener && typeof s.boundScopeTarget.removeEventListener === "function") {
+      s.boundScopeTarget.removeEventListener("contextmenu", s.contextListener, true);
+    }
+    s.boundScopeTarget = null;
+    if (!nextTarget || typeof nextTarget.addEventListener !== "function") {
+      return this;
+    }
+    var self = this;
+    s.contextListener = function(event) {
+      try {
+        if (self.isDisabled()) {
+          return;
+        }
+        if (event && event.target && self.contains(event.target)) {
+          event.preventDefault();
+          return;
+        }
+        if (event && typeof event.preventDefault === "function") {
+          event.preventDefault();
+        }
+        if (event && typeof event.stopPropagation === "function") {
+          event.stopPropagation();
+        }
+        self.show(event, { triggerEvent: event, scopeTarget: nextTarget });
+      } catch (error) {
+        if (console && typeof console.log === "function") {
+          console.log("q-popup-menu contextmenu failed", error);
+        }
+      }
+    };
+    nextTarget.addEventListener("contextmenu", s.contextListener, true);
+    s.boundScopeTarget = nextTarget;
+    return this;
+  }
+
+  function ensureGlobalHandlers() {
+    var s = this.state();
+    if (s.globalHandlersBound) {
+      return;
+    }
+    s.globalHandlersBound = true;
+    var self = this;
+    var doc = this.ownerDocument || document;
+    if (doc && typeof doc.addEventListener === "function") {
+      doc.addEventListener("mousedown", function(event) {
+        if (!self.state().visible) {
+          return;
+        }
+        if (event && event.target && self.contains(event.target)) {
+          return;
+        }
+        self.hide();
+      }, true);
+      doc.addEventListener("contextmenu", function(event) {
+        if (!self.state().visible) {
+          return;
+        }
+        if (event && event.target && self.contains(event.target)) {
+          return;
+        }
+        self.hide();
+      }, true);
+      doc.addEventListener("keydown", function(event) {
+        if (!self.state().visible) {
+          return;
+        }
+        var key = event ? String(event.key || "") : "";
+        if (key === "Escape") {
+          self.hide();
+        }
+      }, true);
+    }
+    var root = this.getGlobalRef();
+    if (root && typeof root.addEventListener === "function") {
+      root.addEventListener("resize", function() {
+        if (self.state().visible) {
+          self.hide();
+        }
+      });
+      root.addEventListener("scroll", function() {
+        if (self.state().visible) {
+          self.hide();
+        }
+      }, true);
+    }
+  }
+
+  function positionPanel(x, y) {
+    var panel = this.panelNode();
+    if (!panel || !panel.style) {
+      return this;
+    }
+    var root = this.getGlobalRef();
+    var viewportW = root && root.innerWidth ? Number(root.innerWidth) : 0;
+    var viewportH = root && root.innerHeight ? Number(root.innerHeight) : 0;
+    var left = Number(x || 0);
+    var top = Number(y || 0);
+    panel.style.left = Math.round(left) + "px";
+    panel.style.top = Math.round(top) + "px";
+    var rect = panel.getBoundingClientRect ? panel.getBoundingClientRect() : null;
+    if (rect && viewportW > 0 && rect.right > viewportW) {
+      left = Math.max(0, viewportW - rect.width - 6);
+    }
+    if (rect && viewportH > 0 && rect.bottom > viewportH) {
+      top = Math.max(0, viewportH - rect.height - 6);
+    }
+    panel.style.left = Math.round(left) + "px";
+    panel.style.top = Math.round(top) + "px";
+    return this;
+  }
+
+  function show(x, y, contextInfo) {
+    if (this.isDisabled()) {
+      return this;
+    }
+    var cx = x;
+    var cy = y;
+    var info = contextInfo;
+    if (x && typeof x === "object") {
+      var evt = x;
+      cx = Number(evt.clientX || 0);
+      cy = Number(evt.clientY || 0);
+      info = y;
+    }
+    var panel = this.panelNode();
+    if (!panel || !panel.style) {
+      return this;
+    }
+    var s = this.state();
+    s.lastTriggerEvent = info && info.triggerEvent ? info.triggerEvent : null;
+    panel.style.display = "block";
+    panel.style.visibility = "hidden";
+    this.positionPanel(Number(cx || 0), Number(cy || 0));
+    panel.style.visibility = "visible";
+    s.visible = true;
+    this.setAttribute("q-popup-open", "1");
+    return this;
+  }
+
+  function hide() {
+    var panel = this.panelNode();
+    if (!panel || !panel.style) {
+      return this;
+    }
+    panel.style.display = "none";
+    panel.style.visibility = "hidden";
+    var submenus = this.querySelectorAll("q-popup-submenu");
+    for (var i = 0; i < submenus.length; i += 1) {
+      var node = submenus[i];
+      if (node && typeof node.hideSubmenu === "function") {
+        node.hideSubmenu();
+      }
+    }
+    var s = this.state();
+    s.visible = false;
+    this.setAttribute("q-popup-open", "0");
+    return this;
+  }
+
+  function emitSignal(signalName, detail) {
+    var detailPayload = detail && typeof detail === "object" ? detail : {};
+    var payload = {
+      component: "q-popup-menu",
+      signal: String(signalName || "").trim(),
+      detail: detailPayload
+    };
+    var detailKeys = Object.keys(detailPayload);
+    for (var i = 0; i < detailKeys.length; i += 1) {
+      var key = detailKeys[i];
+      payload[key] = detailPayload[key];
+    }
+    var emitted = null;
+    var rt = this.runtime();
+    if (rt && typeof rt.emitQSignal === "function") {
+      emitted = rt.emitQSignal(this, payload, "q-popup-menu");
+    }
+    if (typeof CustomEvent === "function") {
+      if (!emitted || emitted.qSignal !== true) {
+        this.dispatchEvent(new CustomEvent("q-signal", {
+          detail: payload,
+          bubbles: true,
+          composed: true
+        }));
+      }
+      if (payload.signal) {
+        if (!emitted || emitted.namespaced !== true) {
+          this.dispatchEvent(new CustomEvent("q-popup-menu:" + payload.signal, {
+            detail: payload,
+            bubbles: true,
+            composed: true
+          }));
+        }
+        this.dispatchEvent(new CustomEvent(payload.signal, {
+          detail: payload,
+          bubbles: true,
+          composed: true
+        }));
+      }
+    }
+    return payload;
+  }
+
+  function handleMenuItemClick(itemNode, event) {
+    if (!itemNode || !this.contains(itemNode)) {
+      return this;
+    }
+    if (typeof itemNode.isDisabled === "function" && itemNode.isDisabled()) {
+      return this;
+    }
+    var uuid = String(itemNode.getAttribute("q-popup-item-uuid") || "").trim();
+    if (!uuid) {
+      uuid = this.createTracer();
+      itemNode.setAttribute("q-popup-item-uuid", uuid);
+    }
+    var qdomNode = null;
+    try {
+      if (typeof itemNode.qdom === "function") {
+        qdomNode = itemNode.qdom();
+      }
+    } catch (error) {
+      qdomNode = null;
+    }
+    var label = String(itemNode.textContent || "").trim();
+    var payload = {
+      tracer: uuid,
+      uuid: uuid,
+      label: label,
+      itemQdom: qdomNode,
+      sourceTag: String(itemNode.tagName || "").toLowerCase(),
+      originalEvent: event || null
+    };
+    this.emitSignal("menuItemClicked", payload);
+    this.hide();
+    return this;
+  }
+
+  onReady {
+    if (this.__qPopupMenuReady) {
+      return;
+    }
+    this.__qPopupMenuReady = true;
+    this.ensureGlobalHandlers();
+    this.bindScopeTarget();
+    this.hide();
+    this.style.display = "contents";
+    var self = this;
+    this.addEventListener("click", function(event) {
+      try {
+        var target = event && event.target && event.target.closest ? event.target : null;
+        if (!target) {
+          return;
+        }
+        var clickedItem = target.closest("q-popup-item");
+        if (!clickedItem) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        self.handleMenuItemClick(clickedItem, event);
+      } catch (error) {
+        if (console && typeof console.log === "function") {
+          console.log("q-popup-menu click failed", error);
+        }
+      }
+    });
+  }
+
+  div.w3-card.w3-round {
+    q-popup-menu-panel: "1"
+    style {
+      position: fixed;
+      min-width: 12rem;
+      max-width: min(92vw, 26rem);
+      padding: 0.25rem;
+      background: #0f172a;
+      border: 1px solid #334155;
+      box-shadow: 0 14px 42px rgba(15, 23, 42, 0.5);
+      z-index: 7200;
+      display: none;
+      color: #e2e8f0;
+    }
+    slot { content }
+  }
+}
+
+q-component q-context-menu {
+  function delegate() {
+    return this.querySelector("q-popup-menu[q-context-menu-proxy='1']") || this.querySelector("q-popup-menu");
+  }
+
+  function show(x, y, contextInfo) {
+    var menu = this.delegate();
+    if (menu && typeof menu.show === "function") {
+      menu.show(x, y, contextInfo);
+    }
+    return this;
+  }
+
+  function hide() {
+    var menu = this.delegate();
+    if (menu && typeof menu.hide === "function") {
+      menu.hide();
+    }
+    return this;
+  }
+
+  function enable() {
+    var menu = this.delegate();
+    if (menu && typeof menu.enable === "function") {
+      menu.enable();
+    }
+    return this;
+  }
+
+  function disable() {
+    var menu = this.delegate();
+    if (menu && typeof menu.disable === "function") {
+      menu.disable();
+    }
+    return this;
+  }
+
+  function isEnabled() {
+    var menu = this.delegate();
+    if (menu && typeof menu.isEnabled === "function") {
+      return menu.isEnabled();
+    }
+    return true;
+  }
+
+  function isDisabled() {
+    return !this.isEnabled();
+  }
+
+  function setScopeTarget(target) {
+    var menu = this.delegate();
+    if (menu && typeof menu.setScopeTarget === "function") {
+      menu.setScopeTarget(target);
+    }
+    return this;
+  }
+
+  function bindScopeTarget() {
+    var menu = this.delegate();
+    if (menu && typeof menu.bindScopeTarget === "function") {
+      menu.bindScopeTarget();
+    }
+    return this;
+  }
+
+  onReady {
+    var menu = this.delegate();
+    if (menu && typeof menu.setScopeTarget === "function") {
+      menu.setScopeTarget(this.parentElement || null);
+    }
+    this.style.display = "contents";
+  }
+
+  q-popup-menu {
+    q-context-menu-proxy: "1"
+    slot { content }
+  }
+}
