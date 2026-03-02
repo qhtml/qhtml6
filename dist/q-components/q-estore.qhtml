@@ -1,85 +1,33 @@
 q-component q-estore {
-  function logIssue(label, error) {
-    try {
-      const logger = typeof console !== "undefined" ? console : null;
-      if (logger && typeof logger.log === "function") {
-        logger.log("[q-estore] " + String(label || "error"), error);
-      }
-    } catch (ignored) { }
+  q-property { state catalog checkout statusNode }
+  q-signal statusChanged(text)
+  q-signal storeReady()
+
+  state: q-bind {
+    if (this.__qEstoreState && typeof this.__qEstoreState === "object") {
+      return this.__qEstoreState;
+    }
+    this.__qEstoreState = {
+      cache: new Map(),
+      inflight: new Map(),
+      autoloadStarted: false,
+      lastStatus: "",
+    };
+    return this.__qEstoreState;
   }
 
-  function callCatalog(methodName, args, fallback, label) {
-    try {
-      const catalog = this.getCatalog();
-      return catalog[methodName].apply(catalog, Array.isArray(args) ? args : []);
-    } catch (error) {
-      this.logIssue(label || ("catalog." + String(methodName) + " failed"), error);
-      return fallback;
-    }
-  }
-
-  function callCheckout(methodName, args, fallback, label) {
-    try {
-      const checkout = this.getCheckoutModal();
-      return checkout[methodName].apply(checkout, Array.isArray(args) ? args : []);
-    } catch (error) {
-      this.logIssue(label || ("checkout." + String(methodName) + " failed"), error);
-      return fallback;
-    }
-  }
-
-  function ensureState() {
-    const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
-    let state = qdomNode && typeof qdomNode === "object" ? qdomNode.__qEstoreState : null;
-    if (!state || typeof state !== "object") {
-      state = {};
-      if (qdomNode && typeof qdomNode === "object") {
-        try {
-          Object.defineProperty(qdomNode, "__qEstoreState", {
-            value: state,
-            configurable: true,
-            writable: true,
-            enumerable: false,
-          });
-        } catch (error) {
-          qdomNode.__qEstoreState = state;
-        }
-      }
-    }
-    if (qdomNode && typeof qdomNode === "object") {
-      state = qdomNode.__qEstoreState || state;
-    }
-    if (!(state.cache instanceof Map)) {
-      state.cache = new Map();
-    }
-    if (!(state.inflight instanceof Map)) {
-      state.inflight = new Map();
-    }
-    if (typeof state.autoloadStarted !== "boolean") {
-      state.autoloadStarted = false;
-    }
-    if (typeof state.lastStatus !== "string") {
-      state.lastStatus = "";
-    }
-    this.__qEstoreState = state;
-    return state;
-  }
-
-  function getCatalog() {
-    return this.querySelector("[q-estore-catalog='1']");
-  }
-
-  function getCheckoutModal() {
-    return this.querySelector("[q-estore-checkout='1']");
-  }
+  catalog: q-bind { return this.querySelector("[q-estore-catalog='1']"); }
+  checkout: q-bind { return this.querySelector("[q-estore-checkout='1']"); }
+  statusNode: q-bind { return this.querySelector("[q-estore-status='1']"); }
 
   function setStatus(text) {
-    const state = this.ensureState();
+    const state = this.component.state;
     state.lastStatus = String(text || "");
-    const node = this.querySelector("[q-estore-status='1']");
+    const node = this.component.statusNode;
     if (node) {
       node.textContent = state.lastStatus;
     }
+    this.component.statusChanged(state.lastStatus);
   }
 
   function resolveItemsUrl(url) {
@@ -171,84 +119,55 @@ q-component q-estore {
   }
 
   function loadItems(items) {
-    const loaded = this.callCatalog("setCatalogItems", [items || []], null, "loadItems:setCatalogItems");
-    if (!Array.isArray(loaded)) {
-      this.setStatus("Catalog is not ready yet.");
-      return [];
-    }
+    const loaded = this.component.catalog.setCatalogItems(items || []);
     this.syncCheckoutFromCatalog();
     this.setStatus("Loaded " + loaded.length + " catalog items.");
     return loaded;
   }
 
   function addCatalogItem(item) {
-    const loaded = this.callCatalog("addCatalogItem", [item || {}], null, "addCatalogItem failed");
-    if (!Array.isArray(loaded)) {
-      return [];
-    }
+    const loaded = this.component.catalog.addCatalogItem(item || {});
     this.setStatus("Catalog now has " + loaded.length + " items.");
     return loaded;
   }
 
   function addToCart(item, quantity) {
-    const out = this.callCatalog("addToCart", [item || {}, quantity], null, "addToCart failed");
-    if (!Array.isArray(out)) {
-      return [];
-    }
+    const out = this.component.catalog.addToCart(item || {}, quantity);
     this.syncCheckoutFromCatalog();
     return out;
   }
 
   function getCartItems() {
-    const out = this.callCatalog("getCartItems", [], null, "getCartItems failed");
-    return Array.isArray(out) ? out : [];
+    return this.component.catalog.getCartItems();
   }
 
   function clearCartItems() {
-    const cleared = this.callCatalog("clearCart", [], null, "clearCartItems failed");
-    if (!Array.isArray(cleared)) {
-      return [];
-    }
+    const cleared = this.component.catalog.clearCart();
     this.syncCheckoutFromCatalog();
     this.setStatus("Cart was cleared.");
     return cleared;
   }
 
   function getSubtotalBeforeTax() {
-    const subtotal = this.callCatalog("getCartSubtotal", [], null, "getSubtotalBeforeTax failed");
-    const n = Number(subtotal);
-    return Number.isFinite(n) ? n : 0;
+    return this.component.catalog.getCartSubtotal();
   }
 
   function syncCheckoutFromCatalog() {
-    try {
-      this.ensureState();
-      const cartItems = this.callCatalog("getCartItems", [], null, "syncCheckoutFromCatalog:getCartItems");
-      if (!Array.isArray(cartItems)) { return; }
-      this.callCheckout("setItems", [cartItems], null, "syncCheckoutFromCatalog:setItems");
-      const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
-      if (qdomNode && typeof qdomNode === "object") {
-        if (!qdomNode.meta || typeof qdomNode.meta !== "object") {
-          qdomNode.meta = {};
-        }
-        qdomNode.meta.lastSyncedCartCount = cartItems.length;
-      }
-    } catch (error) {
-      this.logIssue("syncCheckoutFromCatalog failed", error);
-    }
+    const cartItems = this.component.catalog.getCartItems();
+    this.component.checkout.setItems(cartItems);
   }
 
   function showCheckoutModal() {
     this.syncCheckoutFromCatalog();
-    this.callCheckout("show", [], null, "showCheckoutModal failed");
+    this.component.checkout.show();
   }
 
   function hideCheckoutModal() {
-    this.callCheckout("hide", [], null, "hideCheckoutModal failed");
+    this.component.checkout.hide();
   }
 
   function loadItemsFromUrl(url) {
-    const state = this.ensureState();
+    const state = this.component.state;
     const self = this;
     const inline = this.getInlineItemsJson();
     const explicit = String(url || "").trim();
@@ -327,28 +246,19 @@ q-component q-estore {
       return;
     }
     this.__qEstoreReady = true;
-    const state = this.ensureState();
+    const state = this.component.state;
     if (state.lastStatus) {
       this.setStatus(state.lastStatus);
     }
 
     const self = this;
-    const catalog = this.getCatalog();
-    if (catalog) {
-      catalog.addEventListener("q-store-catalog:checkout", function(event) {
-        event.stopPropagation();
-        self.showCheckoutModal();
-      });
-      catalog.addEventListener("q-store-catalog:cart-change", function(event) {
-        event.stopPropagation();
-        self.syncCheckoutFromCatalog();
-
-        const detail = event && event.detail ? event.detail : {};
-        const totalCount = Number(detail.totalCount || 0);
-        const subtotalFormatted = String(detail.subtotalFormatted || "$0.00");
-        self.setStatus("Cart updated: " + totalCount + " items, subtotal " + subtotalFormatted + ".");
-      });
-    }
+    this.component.catalog.checkoutRequested.connect(function() {
+      self.showCheckoutModal();
+    });
+    this.component.catalog.cartChanged.connect(function(lastItem, items, totalCount, subtotal, subtotalFormatted) {
+      self.syncCheckoutFromCatalog();
+      self.setStatus("Cart updated: " + Number(totalCount || 0) + " items, subtotal " + String(subtotalFormatted || "$0.00") + ".");
+    });
 
     const autoload = String(this.getAttribute("autoload") || "true").toLowerCase() !== "false";
     if (autoload) {
@@ -364,6 +274,7 @@ q-component q-estore {
     } else {
       this.setStatus("Autoload disabled. Call loadItemsFromUrl(url) to start.");
     }
+    this.component.storeReady();
   }
 
   div.w3-card.w3-round-large.w3-border.w3-white.w3-padding {

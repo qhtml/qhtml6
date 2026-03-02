@@ -50,6 +50,9 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - QDom mutation helpers include `replaceWithQHTML(source, rootNode?)` and `rewrite(parameterBindings?, callback)`.
   - `rewrite(...)` executes `callback` with default bindings `{ this: currentNodeFacade }`.
   - The callback return value is stringified and applied to the calling node via `replaceWithQHTML(...)`.
+- QDom projection helpers:
+  - `show(prop1, prop2, ...)` returns `[projectedTree]` with only requested keys on each QDom node.
+  - `map({ fromKey: toKey, ... })` returns `[projectedTree]` with key names remapped recursively.
 - QDom facades expose `root(options?)`:
   - default returns owning `<q-html>` host element
   - `{ qdom: true }` or `"qdom"` returns the QDom document root facade

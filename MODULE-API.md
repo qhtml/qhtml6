@@ -64,6 +64,9 @@ Root integration module wires lower-level modules for browser consumers, exposes
 - q-import resolution now uses persistent in-memory URL caches (sync + async) with async pending-request dedupe so repeated imports reuse memory instead of refetching.
 - Live observed QDom proxies now expose `.qdom()` on `document`, `component-instance`, `template-instance`, and `slot` nodes to retrieve subtree roots for targeted mutation.
 - QDom subtree objects now expose chain helpers for runtime mutation: `find(selector)`, `findAll(selector)`, `findSlotFor(target)`, `listSlots([ownerInstanceId])` (plus `slots([ownerInstanceId])` alias where it does not conflict with native slot arrays), `slot(name)`, `appendNode(nodeOrQHtml)`, `setAttribute`, `removeAttribute`, `createInstanceFromQHTML(source)`, `rewrite(parameterBindings?, callback)` (callback-driven source rewrite of the calling node), and `serialize()` (compressed payload for the current qdom node/subtree).
+- QDom subtree objects also expose projection/transform helpers:
+  - `show(prop1, prop2, ...)` returns `[projectedTree]` including only requested keys.
+  - `map({ fromKey: toKey, ... })` returns `[projectedTree]` with recursive key remapping.
 - Parser/runtime now support declarative binding metadata:
   - `q-property { ... }` in component definitions declares invocation keys that map into `component-instance.props`.
   - Assignment expressions `name: q-bind { ... }` and `name: q-script { ... }` are preserved as `meta.qBindings` and re-evaluated by runtime on render and `updateQHtmlElement(...)`.

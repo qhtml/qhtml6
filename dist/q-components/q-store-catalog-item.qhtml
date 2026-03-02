@@ -1,4 +1,20 @@
 q-component q-store-catalog-item {
+  q-property { item }
+  q-signal addRequested(item)
+
+  item: q-bind {
+    if (this.__qStoreCatalogItem && typeof this.__qStoreCatalogItem === "object") {
+      return this.__qStoreCatalogItem;
+    }
+    this.__qStoreCatalogItem = {
+      id: "",
+      name: "Untitled item",
+      description: "",
+      price: 0,
+    };
+    return this.__qStoreCatalogItem;
+  }
+
   function normalizeNumber(value, fallback) {
     const n = Number(value);
     if (Number.isFinite(n)) {
@@ -24,6 +40,7 @@ q-component q-store-catalog-item {
 
   function setItem(item) {
     const normalized = this.normalizeItem(item);
+    this.component.item = normalized;
     this.__qStoreCatalogItem = normalized;
 
     this.setAttribute("data-item-name", normalized.name);
@@ -51,8 +68,8 @@ q-component q-store-catalog-item {
   }
 
   function getItem() {
-    if (this.__qStoreCatalogItem) {
-      return this.normalizeItem(this.__qStoreCatalogItem);
+    if (this.component.item && typeof this.component.item === "object") {
+      return this.normalizeItem(this.component.item);
     }
     return this.normalizeItem({
       id: this.getAttribute("data-item-id"),
@@ -62,14 +79,9 @@ q-component q-store-catalog-item {
     });
   }
 
-  function emitAdd() {
+  function triggerAdd() {
     const payload = this.getItem();
-    this.dispatchEvent(
-      new CustomEvent("q-store-catalog:add", {
-        bubbles: true,
-        detail: payload,
-      })
-    );
+    this.component.addRequested(payload);
   }
 
   onReady {
@@ -102,11 +114,7 @@ q-component q-store-catalog-item {
           type: "button";
           text { Add to cart }
           onclick {
-            try {
-              this.closest("q-store-catalog-item").emitAdd();
-            } catch (evt) {
-              console.log("q-store-catalog-item add failed", evt);
-            }
+            this.component.triggerAdd();
           }
         }
       }

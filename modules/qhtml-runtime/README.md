@@ -62,6 +62,9 @@ The installed node facade includes:
   - `rewrite(parameterBindings?, callback)` rewrites the current calling node from callback output.
   - Default callback bindings are `{ this: currentNodeFacade }`.
   - Callback return value is converted to string and applied through `replaceWithQHTML(...)`.
+- Projection helpers:
+  - `show(prop1, prop2, ...)` returns `[projectedTree]` with only requested node keys.
+  - `map({ fromKey: toKey, ... })` returns `[projectedTree]` with recursive key remapping.
 
 ## Binding model (`q-bind` / assignment `q-script`)
 

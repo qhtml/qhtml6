@@ -1,4 +1,21 @@
 q-component q-checkout-modal {
+  q-property { items modalHost linesNode subtotalNode countNode payloadNode }
+  q-signal itemsChanged(items, totalCount, subtotal)
+
+  items: q-bind {
+    if (Array.isArray(this.__checkoutItems)) {
+      return this.__checkoutItems;
+    }
+    this.__checkoutItems = [];
+    return this.__checkoutItems;
+  }
+
+  modalHost: q-bind { return this.querySelector("q-modal"); }
+  linesNode: q-bind { return this.querySelector("[q-checkout-lines='1']"); }
+  subtotalNode: q-bind { return this.querySelector("[q-checkout-subtotal='1']"); }
+  countNode: q-bind { return this.querySelector("[q-checkout-count='1']"); }
+  payloadNode: q-bind { return this.querySelector("[q-checkout-payload='1']"); }
+
   function normalizeNumber(value, fallback) {
     const n = Number(value);
     if (Number.isFinite(n)) {
@@ -31,14 +48,7 @@ q-component q-checkout-modal {
     };
   }
 
-  function ensureState() {
-    if (!Array.isArray(this.__checkoutItems)) {
-      this.__checkoutItems = [];
-    }
-  }
-
   function setItems(items) {
-    this.ensureState();
     const list = Array.isArray(items) ? items : [];
     const grouped = {};
 
@@ -53,7 +63,8 @@ q-component q-checkout-modal {
       }
     }
 
-    this.__checkoutItems = Object.keys(grouped).map((key) => grouped[key]);
+    this.component.items = Object.keys(grouped).map((key) => grouped[key]);
+    this.__checkoutItems = this.component.items;
     this.renderItems();
     return this.getItems();
   }
@@ -70,30 +81,29 @@ q-component q-checkout-modal {
   }
 
   function clearItems() {
-    this.ensureState();
-    this.__checkoutItems = [];
+    this.component.items = [];
+    this.__checkoutItems = this.component.items;
     this.renderItems();
     return [];
   }
 
   function removeItem(nameOrId) {
-    this.ensureState();
     const target = String(nameOrId || "").trim().toLowerCase();
     if (!target) {
       return this.getItems();
     }
-    this.__checkoutItems = this.__checkoutItems.filter((line) => {
+    this.component.items = this.component.items.filter((line) => {
       const idText = String(line.id || "").trim().toLowerCase();
       const nameText = String(line.name || "").trim().toLowerCase();
       return idText !== target && nameText !== target;
     });
+    this.__checkoutItems = this.component.items;
     this.renderItems();
     return this.getItems();
   }
 
   function getItems() {
-    this.ensureState();
-    return this.__checkoutItems.map((line) => this.normalizeLineItem(line));
+    return this.component.items.map((line) => this.normalizeLineItem(line));
   }
 
   function getSubtotalBeforeTax() {
@@ -105,31 +115,20 @@ q-component q-checkout-modal {
     return subtotal;
   }
 
-  function getModalHost() {
-    return this.querySelector("q-modal");
-  }
-
   function show() {
     this.renderItems();
-    const modal = this.getModalHost();
-    if (modal && typeof modal.show === "function") {
-      modal.show();
-    }
+    this.component.modalHost.show();
   }
 
   function hide() {
-    const modal = this.getModalHost();
-    if (modal && typeof modal.hide === "function") {
-      modal.hide();
-    }
+    this.component.modalHost.hide();
   }
 
   function renderItems() {
-    this.ensureState();
-    const listNode = this.querySelector("[q-checkout-lines='1']");
-    const subtotalNode = this.querySelector("[q-checkout-subtotal='1']");
-    const countNode = this.querySelector("[q-checkout-count='1']");
-    const payloadNode = this.querySelector("[q-checkout-payload='1']");
+    const listNode = this.component.linesNode;
+    const subtotalNode = this.component.subtotalNode;
+    const countNode = this.component.countNode;
+    const payloadNode = this.component.payloadNode;
     if (!listNode) {
       return;
     }
@@ -181,15 +180,7 @@ q-component q-checkout-modal {
       payloadNode.value = JSON.stringify(items);
       payloadNode.textContent = payloadNode.value;
     }
-
-    const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
-    if (qdomNode && typeof qdomNode === "object") {
-      if (!qdomNode.meta || typeof qdomNode.meta !== "object") {
-        qdomNode.meta = {};
-      }
-      qdomNode.meta.checkoutItemCount = totalCount;
-      qdomNode.meta.checkoutSubtotalBeforeTax = subtotal;
-    }
+    this.component.itemsChanged(items, totalCount, subtotal);
   }
 
   onReady {
@@ -197,7 +188,6 @@ q-component q-checkout-modal {
       return;
     }
     this.__qCheckoutModalReady = true;
-    this.ensureState();
     this.renderItems();
     this.hide();
   }

@@ -3379,15 +3379,130 @@
       return proxy;
     }
 
-    function isQDomTypedNode(value) {
-      return !!(value && typeof value === "object" && typeof value.kind === "string");
-    }
-
-    function createNodeFacade(targetNode) {
-      const sourceTarget = sourceNodeOf(targetNode) || targetNode;
-      if (!sourceTarget || typeof sourceTarget !== "object") {
-        return sourceTarget;
+      function isQDomTypedNode(value) {
+        return !!(value && typeof value === "object" && typeof value.kind === "string");
       }
+
+      function projectedTagNameForNode(node) {
+        if (!node || typeof node !== "object") {
+          return "";
+        }
+        if (typeof node.tagName === "string" && node.tagName.trim()) {
+          return node.tagName.trim();
+        }
+        const kind = String(node.kind || "").trim().toLowerCase();
+        if (!kind) {
+          return "";
+        }
+        if (kind === "document") {
+          return "document";
+        }
+        if (kind === "component") {
+          return String(node.componentId || "component").trim() || "component";
+        }
+        if (kind === "component-instance" || kind === "template-instance") {
+          return String(node.componentId || node.tagName || kind).trim() || kind;
+        }
+        if (kind === "slot") {
+          return "slot";
+        }
+        return kind;
+      }
+
+      function cloneForOutput(value, options, visited) {
+        if (value == null) {
+          return value;
+        }
+        if (typeof value === "function") {
+          return undefined;
+        }
+        if (typeof value !== "object") {
+          return value;
+        }
+        if (visited.has(value)) {
+          return "[Circular]";
+        }
+
+        if (Array.isArray(value)) {
+          visited.add(value);
+          const out = [];
+          for (let i = 0; i < value.length; i += 1) {
+            const next = cloneForOutput(value[i], options, visited);
+            if (typeof next !== "undefined") {
+              out.push(next);
+            }
+          }
+          visited.delete(value);
+          return out;
+        }
+
+        const opts = options && typeof options === "object" ? options : {};
+        const mapSpec =
+          opts.mapSpec && typeof opts.mapSpec === "object" && !Array.isArray(opts.mapSpec)
+            ? opts.mapSpec
+            : null;
+        const whitelist =
+          opts.whitelist instanceof Set ? opts.whitelist : null;
+        const shouldFilterNodeKeys = !!(whitelist && isQDomTypedNode(value));
+        const keys = shouldFilterNodeKeys ? Array.from(whitelist) : Object.keys(value);
+        const wantsTagNameAlias =
+          isQDomTypedNode(value) &&
+          ((!Object.prototype.hasOwnProperty.call(value, "tagName") &&
+            shouldFilterNodeKeys &&
+            whitelist &&
+            whitelist.has("tagName")) ||
+            (!Object.prototype.hasOwnProperty.call(value, "tagName") &&
+              !shouldFilterNodeKeys &&
+              mapSpec &&
+              Object.prototype.hasOwnProperty.call(mapSpec, "tagName")));
+
+        visited.add(value);
+        const out = {};
+        for (let i = 0; i < keys.length; i += 1) {
+          const key = String(keys[i] || "");
+          if (!key || !Object.prototype.hasOwnProperty.call(value, key)) {
+            continue;
+          }
+          const mappedKey =
+            mapSpec && Object.prototype.hasOwnProperty.call(mapSpec, key)
+              ? String(mapSpec[key] || "").trim() || key
+              : key;
+          const next = cloneForOutput(value[key], opts, visited);
+          if (typeof next !== "undefined") {
+            out[mappedKey] = next;
+          }
+        }
+        if (wantsTagNameAlias) {
+          const mappedKey =
+            mapSpec && Object.prototype.hasOwnProperty.call(mapSpec, "tagName")
+              ? String(mapSpec.tagName || "").trim() || "tagName"
+              : "tagName";
+          out[mappedKey] = projectedTagNameForNode(value);
+        }
+        visited.delete(value);
+        return out;
+      }
+
+      function normalizeShowKeys(args) {
+        const keys = [];
+        const seen = new Set();
+        const input = Array.isArray(args) ? args : [];
+        for (let i = 0; i < input.length; i += 1) {
+          const key = String(input[i] == null ? "" : input[i]).trim();
+          if (!key || seen.has(key)) {
+            continue;
+          }
+          seen.add(key);
+          keys.push(key);
+        }
+        return keys;
+      }
+
+      function createNodeFacade(targetNode) {
+        const sourceTarget = sourceNodeOf(targetNode) || targetNode;
+        if (!sourceTarget || typeof sourceTarget !== "object") {
+          return sourceTarget;
+        }
       if (nodeFacadeCache.has(sourceTarget)) {
         return nodeFacadeCache.get(sourceTarget);
       }
@@ -4550,6 +4665,30 @@
         writable: false,
         value: function serialize() {
           return core.serializeQDomCompressed(node);
+        },
+      });
+      Object.defineProperty(node, "show", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function show() {
+          const keys = normalizeShowKeys(Array.prototype.slice.call(arguments));
+          const sourceTarget = sourceNodeOf(node) || node;
+          const options = keys.length > 0 ? { whitelist: new Set(keys) } : {};
+          return [cloneForOutput(sourceTarget, options, new Set())];
+        },
+      });
+      Object.defineProperty(node, "map", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function map(mappingSpec) {
+          const mapping =
+            mappingSpec && typeof mappingSpec === "object" && !Array.isArray(mappingSpec)
+              ? mappingSpec
+              : {};
+          const sourceTarget = sourceNodeOf(node) || node;
+          return [cloneForOutput(sourceTarget, { mapSpec: mapping }, new Set())];
         },
       });
       Object.defineProperty(node, "deserialize", {

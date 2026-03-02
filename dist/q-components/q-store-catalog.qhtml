@@ -1,4 +1,28 @@
 q-component q-store-catalog {
+  q-property { state itemsHost cartCountNode cartTotalNode cartJsonNode }
+  q-signal cartChanged(lastItem, items, totalCount, subtotal, subtotalFormatted)
+  q-signal checkoutRequested(items, subtotal)
+
+  state: q-bind {
+    if (this.__qStoreCatalogState && typeof this.__qStoreCatalogState === "object") {
+      return this.__qStoreCatalogState;
+    }
+    this.__qStoreCatalogState = {
+      catalogItems: [],
+      cart: {},
+      filterText: "",
+    };
+    return this.__qStoreCatalogState;
+  }
+
+  itemsHost: q-bind {
+    return this.qdom().find("[q-store-catalog-items='1']");
+  }
+
+  cartCountNode: q-bind { return this.querySelector("[q-store-cart-count='1']"); }
+  cartTotalNode: q-bind { return this.querySelector("[q-store-cart-total='1']"); }
+  cartJsonNode: q-bind { return this.querySelector("[q-store-catalog-cart-json='1']"); }
+
   function normalizeNumber(value, fallback) {
     const n = Number(value);
     if (Number.isFinite(n)) {
@@ -23,27 +47,7 @@ q-component q-store-catalog {
   }
 
   function ensureState() {
-    const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
-    let state = qdomNode && typeof qdomNode === "object" ? qdomNode.__qStoreCatalogState : null;
-    if (!state || typeof state !== "object") {
-      state = {};
-      if (qdomNode && typeof qdomNode === "object") {
-        try {
-          Object.defineProperty(qdomNode, "__qStoreCatalogState", {
-            value: state,
-            configurable: true,
-            writable: true,
-            enumerable: false,
-          });
-        } catch (error) {
-          qdomNode.__qStoreCatalogState = state;
-        }
-      }
-    }
-    if (qdomNode && typeof qdomNode === "object") {
-      state = qdomNode.__qStoreCatalogState || state;
-    }
-
+    const state = this.component.state;
     if (!Array.isArray(state.catalogItems)) {
       state.catalogItems = [];
     }
@@ -183,24 +187,19 @@ q-component q-store-catalog {
       totalCount += this.normalizeNumber(items[i].quantity, 0);
     }
     const subtotal = this.getCartSubtotal();
-    this.dispatchEvent(
-      new CustomEvent("q-store-catalog:cart-change", {
-        bubbles: true,
-        detail: {
-          lastItem: lastItem ? this.normalizeItem(lastItem) : null,
-          items: items,
-          totalCount: totalCount,
-          subtotal: subtotal,
-          subtotalFormatted: this.formatCurrency(subtotal),
-        },
-      })
+    this.component.cartChanged(
+      lastItem ? this.normalizeItem(lastItem) : null,
+      items,
+      totalCount,
+      subtotal,
+      this.formatCurrency(subtotal)
     );
   }
 
   function updateCartSummary() {
-    const countNode = this.querySelector("[q-store-cart-count='1']");
-    const totalNode = this.querySelector("[q-store-cart-total='1']");
-    const cartJsonNode = this.querySelector("[q-store-catalog-cart-json='1']");
+    const countNode = this.component.cartCountNode;
+    const totalNode = this.component.cartTotalNode;
+    const cartJsonNode = this.component.cartJsonNode;
 
     const items = this.getCartItems();
     let totalCount = 0;
@@ -218,15 +217,6 @@ q-component q-store-catalog {
     if (cartJsonNode) {
       cartJsonNode.value = JSON.stringify(items);
       cartJsonNode.textContent = cartJsonNode.value;
-    }
-
-    const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
-    if (qdomNode && typeof qdomNode === "object") {
-      if (!qdomNode.meta || typeof qdomNode.meta !== "object") {
-        qdomNode.meta = {};
-      }
-      qdomNode.meta.cartItemCount = totalCount;
-      qdomNode.meta.cartSubtotalBeforeTax = subtotal;
     }
   }
 
@@ -276,65 +266,12 @@ q-component q-store-catalog {
   }
 
   function getItemsHostNode() {
-    const liveMarker = this.querySelector("[q-store-catalog-items='1']");
-    if (liveMarker && typeof liveMarker.qdom === "function") {
-      try {
-        const mapped = liveMarker.qdom();
-        if (mapped && typeof mapped.appendNode === "function") {
-          return mapped;
-        }
-      } catch (error) {
-      }
-    }
-
-    const root = typeof this.qdom === "function" ? this.qdom() : null;
-    if (!root || typeof root !== "object") {
-      return null;
-    }
-    if (typeof root.find === "function") {
-      const marker = root.find("[q-store-catalog-items='1']");
-      if (marker && typeof marker.appendNode === "function") {
-        return marker;
-      }
-    }
-    if (typeof root.createInstanceFromQHTML === "function" && typeof root.appendNode === "function") {
-      const fallbackNode = root.createInstanceFromQHTML(
-        "div { q-store-catalog-items: \"1\"; class: \"w3-row-padding w3-padding-bottom\"; }"
-      );
-      if (fallbackNode) {
-        const appended = root.appendNode(fallbackNode);
-        if (Array.isArray(appended)) {
-          return appended.length ? appended[0] : null;
-        }
-        return appended || null;
-      }
-    }
-    return null;
+    return this.component.itemsHost;
   }
 
   function clearNodeChildren(node) {
-    if (!node || typeof node !== "object") {
-      return;
-    }
-
     const childrenValue = node.children;
-    if (typeof childrenValue === "function") {
-      try {
-        if (typeof childrenValue.splice === "function") {
-          const count = Number(childrenValue.length || 0);
-          childrenValue.splice(0, count);
-          return;
-        }
-      } catch (error) {
-      }
-    }
-
-    if (Array.isArray(childrenValue)) {
-      childrenValue.length = 0;
-      return;
-    }
-
-    node.children = [];
+    childrenValue.splice(0, Number(childrenValue.length || 0));
   }
 
   function generateCatalogItem(item) {
@@ -366,24 +303,12 @@ q-component q-store-catalog {
 
   function renderCatalog() {
     const state = this.ensureState();
-    const root = typeof this.qdom === "function" ? this.qdom() : null;
-    if (!root || typeof root.createInstanceFromQHTML !== "function") {
-      return;
-    }
+    const root = this.qdom();
 
     const itemsHost = this.getItemsHostNode();
-    if (!itemsHost || typeof itemsHost.appendNode !== "function") {
-      const retries = Number(this.__qStoreCatalogRenderRetry || 0);
-      if (retries < 60 && typeof setTimeout === "function") {
-        this.__qStoreCatalogRenderRetry = retries + 1;
-        const self = this;
-        setTimeout(function retryRenderCatalog() {
-          self.renderCatalog();
-        }, 16);
-      }
+    if (!itemsHost) {
       return;
     }
-    this.__qStoreCatalogRenderRetry = 0;
 
     const query = state.filterText;
     const source = this.getCatalogItems();
@@ -418,15 +343,7 @@ q-component q-store-catalog {
   }
 
   function requestCheckout() {
-    this.dispatchEvent(
-      new CustomEvent("q-store-catalog:checkout", {
-        bubbles: true,
-        detail: {
-          items: this.getCartItems(),
-          subtotal: this.getCartSubtotal(),
-        },
-      })
-    );
+    this.component.checkoutRequested(this.getCartItems(), this.getCartSubtotal());
   }
 
   onReady {
@@ -434,32 +351,20 @@ q-component q-store-catalog {
       return;
     }
     this.__qStoreCatalogReady = true;
-    const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
-    if (qdomNode && typeof qdomNode === "object" && !qdomNode.__qhtmlPersistRenderTree) {
-      try {
-        Object.defineProperty(qdomNode, "__qhtmlPersistRenderTree", {
-          value: true,
-          configurable: true,
-          writable: true,
-          enumerable: false,
-        });
-      } catch (error) {
-        qdomNode.__qhtmlPersistRenderTree = true;
-      }
-      if (!qdomNode.meta || typeof qdomNode.meta !== "object") {
-        qdomNode.meta = {};
-      }
-      qdomNode.meta.__catalogPersistInit = (Number(qdomNode.meta.__catalogPersistInit || 0) + 1);
-    }
+
     const self = this;
-    this.ensureState();
-    this.addEventListener("q-store-catalog:add", function(event) {
+    this.component.state = this.ensureState();
+
+    this.addEventListener("addRequested", function(event) {
       if (event.target === self) {
         return;
       }
       event.stopPropagation();
-      self.addToCart(event.detail || {}, 1);
+      const detail = event && event.detail ? event.detail : {};
+      const payload = detail.params && typeof detail.params === "object" ? detail.params.item : null;
+      self.addToCart(payload || {}, 1);
     });
+
     this.renderCatalog();
     this.updateCartSummary();
   }
@@ -480,11 +385,7 @@ q-component q-store-catalog {
             type: "button";
             text { Checkout }
             onclick {
-              try {
-                this.component.requestCheckout();
-              } catch (evt) {
-                console.log("q-store-catalog checkout failed", evt);
-              }
+              this.component.requestCheckout();
             }
           }
           div.w3-small.w3-margin-top {
@@ -509,11 +410,7 @@ q-component q-store-catalog {
           input.w3-input.w3-border.w3-round-large {
             placeholder: "Filter catalog by name or description";
             oninput {
-              try {
-                this.component.setFilter(this.value);
-              } catch (evt) {
-                console.log("q-store-catalog filter failed", evt);
-              }
+              this.component.setFilter(this.value);
             }
           }
         }
