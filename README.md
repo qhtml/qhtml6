@@ -1,63 +1,67 @@
 # QHTML.js v6.0.3
 
-QHTML is a compact language and runtime for building real web apps with readable block syntax, reusable components, signals, and live QDOM editing.
+QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
 - Live demo: https://qhtml.github.io/qhtml6/dist/demo.html
-
-- For a comprehensive Wiki and introduction to QHTML language, please visit https://github.com/qhtml/qhtml.js for many more examples of 5.x features.
-
+- Dev testbed: `dist/test.html`
+- Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
 ## Whats New in v6.0.3
 
-- `q-bind` now evaluates with a DOM-capable runtime context (`closest`, `querySelector`, etc).
-- Built-in `q-bind` evaluation safety: each binding body is wrapped in runtime `try/catch`.
-- Pre-render selector fallback for `q-bind` against QDOM/raw-html content.
-- Host `onReady` dispatch now runs through runtime callback queueing.
-- Inline source ingestion now preserves literal HTML children in `<q-html>` / `<q-editor>` source.
-- Runtime log spam is disabled by default and gated behind `window.QHTML_RUNTIME_DEBUG` (or `window.QHTML_DEBUG`).
-- `q-property` support for explicit component properties.
-- Function-style component signals (`q-signal mySignal(param1, param2)` + `.connect/.disconnect/.emit`).
-- `.qdom().deserialize(serialized, shouldReplaceQDom)` for append-or-replace import flow.
-- Scoped component updates via `this.component.update()` and full host updates via `this.component.root().update()`.
+- `q-bind` evaluates with a DOM-capable runtime `this` (`closest`, `querySelector`, etc).
+- `q-bind` evaluation is wrapped in runtime `try/catch` (binding failures log, page continues).
+- Host `onReady` dispatch runs through the runtime callback queue (more reliable “ready” timing).
+- Inline source ingestion preserves literal HTML children in `<q-html>` and `<q-editor>` source.
+- Runtime logs are gated behind `window.QHTML_RUNTIME_DEBUG` (or `window.QHTML_DEBUG`).
+- `q-property` for explicit component properties.
+- Function-style component signals: `q-signal mySignal(a, b)` plus `.connect/.disconnect/.emit`.
+- `.qdom().deserialize(serialized, shouldReplaceQDom)` append-or-replace import flow.
+- Scoped updates: `this.component.update()` and full host updates: `this.component.root().update()`.
 
 ## 1. Quick Start
 
-### Create a file named `index.html`:
+### 1. Include `qhtml.js`
 
 ```html
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>QHTML Quick Start</title>
-    <script src="qhtml.js"></script>
-  </head>
-  <body>
-    <q-html>
-      h1 { text { Hello QHTML } }
-      p { text { Your first QHTML render is running. } }
-    </q-html>
-  </body>
-</html>
+<script src="qhtml.js"></script>
 ```
 
-### Copy to the same folder these files:
-  - required `dist/qhtml.js` 
-  - optional `dist/q-components/*` and `dist/q-components.html`
-  - recommended `dist/*.css dist/*.js`
-```bash
-cp dist/*.js /path/to/project
-cp dist/*.css /path/to/project
-cp dist/q-components* /path/to/project -R
+Optional: component library and UI tools (modal, form, grid, tabs, builder, editor):
+
+```html
+<script src="q-editor.js"></script>
 ```
 
-### Run it from a local HTTP server.
+Files:
+- Required: `dist/qhtml.js`
+- Optional: `dist/q-editor.js`, `dist/q-components/`, `dist/w3.css` + `dist/w3-tags.js`, `dist/bs.css` + `dist/bs-tags.js`
+
+### 2. Write QHTML in a `<q-html>` tag
+
+```html
+<q-html>
+  h1 { text { Hello QHTML } }
+  p { text { Your first QHTML render is running. } }
+</q-html>
+```
+
+Resulting HTML:
+
+```html
+<q-html>
+  <h1>Hello QHTML</h1>
+  <p>Your first QHTML render is running.</p>
+</q-html>
+```
+
+### 3. Run from a local HTTP server (not `file:///`)
+
 ```bash
-cd /path/to/project
 python -m http.server
 ```
-### Visit page 
-``` web browser to http://localhost:8000/index.html ```
+
+Visit: `http://localhost:8000/`
+
 ## 2. Core Syntax
 
 ### Elements and nesting
@@ -66,8 +70,72 @@ python -m http.server
 <q-html>
   div {
     h2 { text { Product } }
-    p { text { Lightweight UI syntax. } }
+    p  { text { Lightweight UI syntax. } }
   }
+</q-html>
+```
+
+Resulting HTML:
+
+```html
+<q-html>
+  <div>
+    <h2>Product</h2>
+    <p>Lightweight UI syntax.</p>
+  </div>
+</q-html>
+```
+
+### Selector chains (creates nested elements)
+
+```qhtml
+<q-html>
+  div section h3 { text { Nested } }
+</q-html>
+```
+
+Resulting HTML:
+
+```html
+<q-html>
+  <div><section><h3>Nested</h3></section></div>
+</q-html>
+```
+
+### Multiple siblings (comma selectors)
+
+```qhtml
+<q-html>
+  h1, h2 { text { Headline } }
+</q-html>
+```
+
+Resulting HTML:
+
+```html
+<q-html>
+  <h1>Headline</h1>
+  <h2>Headline</h2>
+</q-html>
+```
+
+### Class and id shorthand
+
+```qhtml
+<q-html>
+  .card#main {
+    p { text { Card body } }
+  }
+</q-html>
+```
+
+Resulting HTML:
+
+```html
+<q-html>
+  <div id="main" class="card">
+    <p>Card body</p>
+  </div>
 </q-html>
 ```
 
@@ -83,84 +151,174 @@ python -m http.server
 </q-html>
 ```
 
-### `text`, `html`, and `style`
+Resulting HTML:
+
+```html
+<q-html>
+  <a href="https://example.com" target="_blank">Open Example</a>
+</q-html>
+```
+
+### `text`, `html`, and `style` blocks
 
 ```qhtml
 <q-html>
   p {
-    style {
-      font-size: 20px;
-      margin: 0;
-    }
+    style { font-size: 20px; margin: 0; }
     text { Plain text content }
   }
-  div {
-    html { <strong>Real HTML fragment</strong> }
-  }
+  div { html { <strong>Real HTML fragment</strong> } }
 </q-html>
 ```
 
-### Events
+Resulting HTML:
+
+```html
+<q-html>
+  <p style="font-size: 20px; margin: 0;">Plain text content</p>
+  <div><strong>Real HTML fragment</strong></div>
+</q-html>
+```
+
+### Text aliases (attribute form)
+
+These keys write `textContent`: `content`, `contents`, `text`, `textContents`, `innerText`.
+
+```qhtml
+<q-html>
+  span { content: "Hello" }
+</q-html>
+```
+
+Resulting HTML:
+
+```html
+<q-html>
+  <span>Hello</span>
+</q-html>
+```
+
+## 3. Events and Lifecycle
+
+### Inline events
 
 ```qhtml
 <q-html>
   button {
     text { Click }
-    onclick {
-      this.textContent = "Clicked";
-    }
+    onclick { this.textContent = "Clicked"; }
   }
 </q-html>
 ```
 
-### Lifecycle
+Resulting HTML:
+
+```html
+<q-html>
+  <button onclick="this.textContent = &quot;Clicked&quot;;">Click</button>
+</q-html>
+```
+
+### Lifecycle blocks
+
+`onReady {}` runs after the host’s content is mounted.
 
 ```qhtml
 <q-html>
-  onReady {
-    this.setAttribute("data-ready", "1");
-  }
+  onReady { this.setAttribute("data-ready", "1"); }
   div { text { Host ready hook executed. } }
 </q-html>
 ```
 
-## 3. State with `q-bind`
+Resulting HTML:
+
+```html
+<q-html data-ready="1">
+  <div>Host ready hook executed.</div>
+</q-html>
+```
+
+## 4. State with `q-bind`
 
 `q-bind` computes assignment values. After state changes, call `this.closest("q-html").update()`.
 
+### Bind to text
+
 ```qhtml
 <q-html>
-  onReady {
-    window.counter = 0;
-  }
+  onReady { window.counter = 0; }
 
-  h3 {
-    content: q-bind {
-      return "Count: " + String(window.counter || 0);
-    }
-  }
+  h3 { content: q-bind { return "Count: " + String(window.counter); } }
 
   button {
     text { Increment }
     onclick {
-      window.counter = (window.counter || 0) + 1;
+      window.counter += 1;
       this.closest("q-html").update();
     }
   }
 </q-html>
 ```
 
-## 4. Components
+### Bind to an attribute
 
-Define reusable UI with `q-component`.
+```qhtml
+<q-html>
+  onReady { window.active = true; }
+  div { class: q-bind { return window.active ? "on" : "off"; } }
+</q-html>
+```
+
+### Bind to a DOM property (`prop.`) vs attribute (`attr.`)
+
+```qhtml
+<q-html>
+  onReady { window.name = "Ada"; }
+  input { prop.value: q-bind { return window.name; } }
+</q-html>
+```
+
+## 5. `q-script`
+
+`q-script {}` runs JavaScript and replaces itself with the returned value:
+
+- If the return looks like QHTML, it is parsed as QHTML.
+- Otherwise, it becomes a text node.
+
+### Inline replacement
+
+```qhtml
+<q-html>
+  div {
+    q-script { return "p { text { Inserted by q-script } }"; }
+  }
+</q-html>
+```
+
+### Assignment form (like `q-bind`, but with `q-script`)
+
+```qhtml
+<q-html>
+  h3 { content: q-script { return "Computed at mount"; } }
+</q-html>
+```
+
+## 6. Components
+
+`q-component` defines a runtime host element with:
+
+- `q-property` fields
+- `function ... {}` methods on `this.component`
+- `q-signal ...` signals on `this.component`
+- `slot { name }` placeholders for projection
+
+### Minimal component with properties and a slot
 
 ```qhtml
 <q-html>
   q-component app-card {
     q-property { title }
-
     div {
-      class: "card"
       h3 { content: q-bind { return this.component.title; } }
       slot { body }
     }
@@ -168,48 +326,117 @@ Define reusable UI with `q-component`.
 
   app-card {
     title: "Welcome"
-    p { slot: "body" text { This is projected content. } }
+    body { p { text { Projected content. } } }
   }
 </q-html>
 ```
 
-## 5. Signals
+### `q-property` syntax
 
-Signals are callable from component instances and support connection to methods.
+```qhtml
+q-component my-comp {
+  q-property title
+  q-property selected: true
+}
+```
+
+### Bind a named child node to a component property (`property <name> { ... }`)
+
+This creates a real child node and assigns it to `this.component.<name>`.
+
+```qhtml
+q-component my-comp {
+  property builder { q-builder { } }
+  onReady { this.component.builder.setAttribute("data-bound", "1"); }
+}
+```
+
+## 7. Signals
+
+There are two signal forms: component signals (function-style) and QHTML signal definitions.
+
+### 7.1 Component signals (function-style)
 
 ```qhtml
 <q-html>
   q-component sender-box {
     q-signal sent(message)
-
     button {
       text { Send }
-      onclick {
-        this.component.sent("Signal payload from sender-box");
-      }
+      onclick { this.component.sent("Hello"); }
     }
   }
 
   q-component receiver-box {
-    function onMessage(message) {
-      this.querySelector("#out").textContent = message;
-    }
-
+    function onMessage(message) { this.querySelector("#out").textContent = message; }
     sender-box { id: "sender" }
     p { id: "out" text { Waiting... } }
-
-    onReady {
-      this.querySelector("#sender").sent.connect(this.component.onMessage);
-    }
+    onReady { this.querySelector("#sender").sent.connect(this.component.onMessage); }
   }
 
   receiver-box { }
 </q-html>
 ```
 
-## 6. QDOM API
+### 7.2 `q-signal name { ... }` definitions (slot payload signals)
 
-You can edit mounted QHTML directly through `.qdom()`.
+Defining `q-signal menuItemClicked { ... }` lets you “call” it by writing `menuItemClicked { ... }`.
+This dispatches a DOM `CustomEvent` named `menuItemClicked` with `event.detail.slots` and `event.detail.slotQDom`.
+
+```qhtml
+<q-html>
+  q-signal menuItemClicked {
+    slot { itemId }
+  }
+
+  div {
+    onmenuItemClicked {
+      const id = (event.detail && event.detail.slots && event.detail.slots.itemId || [""])[0];
+      this.querySelector("#out").textContent = "Clicked: " + id;
+    }
+
+    button { text { A } onclick { menuItemClicked { itemId { A } } } }
+    button { text { B } onclick { menuItemClicked { itemId { B } } } }
+    p { id: "out" text { ... } }
+  }
+</q-html>
+```
+
+## 8. `q-rewrite`
+
+`q-rewrite` is a pre-parse macro that expands calls like `name { ... }` before the rest of QHTML is parsed.
+
+### Template-style rewrite
+
+```qhtml
+q-rewrite pill {
+  slot { label }
+  span { class: "pill" slot { label } }
+}
+
+pill { label { text { OK } } }
+```
+
+### Return-style rewrite (`this.qdom().slot("name")`)
+
+```qhtml
+q-rewrite choose-class {
+  slot { active }
+  return {
+    q-script {
+      return this.qdom().slot("active").trim() === "true" ? "on" : "off";
+    }
+  }
+}
+
+div { class: choose-class { active { true } } }
+```
+
+## 9. QDOM API
+
+Mounted `<q-html>` elements expose `.qdom()` (the source-of-truth tree). Mutate QDOM, then call `.update()` to re-render.
+
+### Find and append
 
 ```html
 <q-html id="page">
@@ -225,51 +452,132 @@ You can edit mounted QHTML directly through `.qdom()`.
 </script>
 ```
 
+### Replace a node with QHTML
+
+```js
+const host = document.querySelector("q-html");
+host.qdom().find("#items").replaceWithQHTML("ul { li { text { Replaced } } }");
+host.update();
+```
+
+### `qdom().rewrite(...)` (QDOM-side equivalent of a `q-rewrite`)
+
+```js
+document.querySelector("q-html").qdom().find("#items").rewrite(function () {
+  return "div { class: 'box' text { Rewritten } }";
+});
+document.querySelector("q-html").update();
+```
+
 ### Serialize / Deserialize
 
 ```js
 const host = document.querySelector("q-html");
 const serialized = host.qdom().serialize();
 
-// Append into current qdom
-host.qdom().deserialize(serialized, false);
+host.qdom().deserialize(serialized, false); // append
 host.update();
 
-// Replace current qdom
-host.qdom().deserialize(serialized, true);
+host.qdom().deserialize(serialized, true);  // replace
 host.update();
 ```
 
-## 7. Builder and Editor
+### Scoped vs full updates
 
-- `dist/test.html` is the framework development testbed.
+```js
+this.component.update();        // this component subtree
+this.component.root().update(); // whole <q-html>
+```
+
+## 10. Builder and Editor
+
 - `dist/demo.html` is the component usage gallery.
 - `q-editor` supports authoring live QHTML and previewing output.
 - `q-builder` provides visual inspect/edit workflows on mounted `<q-html>` content.
 
-## 8. Debug Tips
+### `<q-editor>` (inline QHTML source)
 
-- Enable runtime logs only when needed:
+`<q-editor>` takes QHTML as literal text content (not nested `<q-html>`).
+
+```html
+<q-editor>
+  h3 { text { Hello from q-editor } }
+</q-editor>
+```
+
+### `q-import { ... }` (include QHTML files)
+
+`q-import` loads another `.qhtml` file and expands it inline in the current source before parsing continues.
+
+```qhtml
+<q-html>
+  q-import { q-components/q-modal.qhtml }
+  q-modal { title { text { Hello } } body { text { Modal body } } }
+</q-html>
+```
+
+### `q-template` (compile-time pure HTML)
+
+`q-template` instances render their template nodes directly (no runtime host element, no `this.component`).
+
+```qhtml
+<q-html>
+  q-template badge {
+    span { class: "badge" slot { label } }
+  }
+  badge { label { text { New } } }
+</q-html>
+```
+
+## 11. Debug Tips
 
 ```js
 window.QHTML_RUNTIME_DEBUG = true;
 ```
 
-- Force full host refresh:
-
 ```js
 document.querySelector("q-html").update();
 ```
 
-- Refresh only one component subtree:
-
 ```js
-this.component.update();
+document.querySelector("q-html").invalidate({ forceBindings: true });
 ```
 
-## 9. Module READMEs
+## 12. Optional Tag Libraries (`w3-tags.js`, `bs-tags.js`)
 
-For internal architecture and module APIs, see:
+These scripts register custom elements like `w3-card` and `bs-btn` so you can use them as tag names. They apply CSS classes to their first non-`w3-*` / non-`bs-*` descendant and then remove the custom wrapper elements.
+
+### W3CSS tags
+
+```html
+<link rel="stylesheet" href="w3.css" />
+<script src="w3-tags.js"></script>
+```
+
+```qhtml
+<q-html>
+  w3-card w3-padding {
+    div { text { This div receives W3 classes. } }
+  }
+</q-html>
+```
+
+### Bootstrap tags
+
+```html
+<link rel="stylesheet" href="bs.css" />
+<script src="bs-tags.js"></script>
+```
+
+```qhtml
+<q-html>
+  bs-btn bs-btn-primary {
+    button { text { Primary button } }
+  }
+</q-html>
+```
+
+## 13. Module READMEs
 
 - `modules/qdom-core/README.md`
 - `modules/qhtml-parser/README.md`
