@@ -241,46 +241,6 @@ Resulting HTML:
 </q-html>
 ```
 
-## 4. State with `q-bind`
-
-`q-bind` computes assignment values. After state changes, call `this.closest("q-html").update()`.
-
-### Bind to text
-
-You can use q-bind with q-properties in q-components to re-evaluate after calling this.component.update(). 
-```
-q-component my-component {
-q-property myprop: q-bind { return window.getSelection().baseNode.textContent }
-}
-
-my-component { div { q-bind { return this.component.myprop } } }
-/*my-component.myprop === <whatever is selected when this.component.update() is called> */
-
-
-## 5. `q-script`
-
-`q-script {}` runs JavaScript and replaces itself with the returned value:
-
-- If the return looks like QHTML, it is parsed as QHTML.
-- Otherwise, it becomes a text node.
-
-### Inline replacement
-
-```qhtml
-<q-html>
-  div {
-    q-script { return "p { text { Inserted by q-script } }"; }
-  }
-</q-html>
-```
-
-### Assignment form (like `q-bind`, but with `q-script`)
-
-```qhtml
-<q-html>
-  h3 {  q-script { return "text { Computed at mount }"; } }
-</q-html>
-```
 
 ### Escaping `{` and `}` in block content
 
@@ -365,6 +325,47 @@ mycomp {
   }
 }
 ```
+## 4. State with `q-bind`
+
+`q-bind` computes assignment values. After state changes, call `this.closest("q-html").update()`.
+
+### Bind to text
+
+You can use q-bind with q-properties in q-components to re-evaluate after calling this.component.update(). 
+```
+q-component my-component {
+  q-property myprop: q-bind { return window.getSelection().baseNode.textContent }
+}
+
+my-component { div { q-bind { return this.component.myprop } } }
+/*my-component.myprop === <whatever is selected when this.component.update() is called> */
+```
+
+## 5. `q-script`
+
+`q-script {}` runs JavaScript and replaces itself with the returned value:
+
+- If the return looks like QHTML, it is parsed as QHTML.
+- Otherwise, it becomes a text node.
+
+### Inline replacement
+
+```qhtml
+<q-html>
+  div {
+    q-script { return "p { text { Inserted by q-script } }"; }
+  }
+</q-html>
+```
+
+### Assignment form (like `q-bind`, but with `q-script`)
+
+```qhtml
+<q-html>
+  h3 {  q-script { return "text { Computed at mount }"; } }
+</q-html>
+```
+
 
 ### `q-keyword` syntax (scoped keyword aliasing)
 
@@ -406,6 +407,11 @@ Invalid direct aliasing is rejected:
 q-keyword a { q-component }
 q-keyword b { a }   // error: alias cannot target another alias
 ```
+
+* Note* it is still may be possible to design a system that loops forever using q-keword combined with other features.
+* If you want to create that and freeze your web browser, there are only basic safe guards in place that do not recursively prevent such behavior  on all cases.
+
+* Note * If you define your keyword as `#` or `.` or something like that, there may be some undesired artifacts rendered into the HTML DOM output. 
 
 ## 7. Signals
 
