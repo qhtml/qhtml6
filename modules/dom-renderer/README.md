@@ -1,6 +1,11 @@
-# dom-renderer
+# dom-renderer v6.0.3
 
 `dom-renderer` converts QDom into real browser DOM nodes. It is the rendering engine for both full `<q-html>` mounts and standalone component hydration.
+
+## What's New in v6.0.3
+
+- Renderer remains aligned with updated runtime binding/lifecycle flows in `v6.0.3`.
+- Component/template projection and signal render semantics are kept stable for builder/editor usage.
 
 ## What this module actually does
 
@@ -19,6 +24,7 @@
 - `q-component` invocation renders as host custom element wrapper.
 - `q-template` invocation expands inline (no wrapper).
 - `q-signal` invocation dispatches events and renders no host DOM.
+- Component-local signal declarations (`q-signal name(param1, ...)`) bind callable host methods with `.connect/.disconnect/.emit`.
 - Component instance `attributes` are applied via `setAttribute(...)`; component instance `props` are applied as direct host-element property assignments.
 - `text` nodes create text nodes; `raw-html` nodes inject parsed HTML fragments.
 - Literal `<slot>` tags are consumed as projection boundaries and removed from final DOM output.

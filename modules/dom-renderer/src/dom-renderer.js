@@ -43,6 +43,13 @@
     return out;
   }
 
+  function sourceNodeOf(node) {
+    if (!node || typeof node !== "object") {
+      return null;
+    }
+    return node.__qhtmlSourceNode && typeof node.__qhtmlSourceNode === "object" ? node.__qhtmlSourceNode : node;
+  }
+
   function inferDefinitionType(definitionNode) {
     if (!definitionNode || typeof definitionNode !== "object") {
       return "component";
@@ -566,6 +573,32 @@
       return;
     }
     try {
+      if (thisArg && thisArg.nodeType === 1) {
+        let hasComponentContext = false;
+        try {
+          hasComponentContext = thisArg.component != null;
+        } catch (ignoredReadComponentContext) {
+          hasComponentContext = false;
+        }
+        if (!hasComponentContext) {
+          let resolvedComponent = null;
+          if (
+            typeof thisArg.getAttribute === "function" &&
+            thisArg.getAttribute("qhtml-component-instance") === "1"
+          ) {
+            resolvedComponent = thisArg;
+          } else if (typeof thisArg.closest === "function") {
+            resolvedComponent = thisArg.closest("[qhtml-component-instance='1']");
+          }
+          if (resolvedComponent) {
+            try {
+              thisArg.component = resolvedComponent;
+            } catch (ignoredSetComponentContext) {
+              // best effort only; lifecycle hooks still run even if assignment is blocked
+            }
+          }
+        }
+      }
       const fn = new Function("event", "document", hook.body);
       fn.call(thisArg, null, targetDocument);
     } catch (error) {
@@ -666,13 +699,139 @@
     }
   }
 
-  function bindComponentMethods(componentNode, hostElement) {
-    if (!componentNode || !Array.isArray(componentNode.methods)) {
+  function dispatchSignalPayload(target, signalName, payload) {
+    if (!target || typeof target.dispatchEvent !== "function") {
+      return;
+    }
+    try {
+      if (typeof global.CustomEvent === "function") {
+        target.dispatchEvent(
+          new global.CustomEvent("q-signal", {
+            detail: payload,
+            bubbles: true,
+            composed: true,
+          })
+        );
+      } else {
+        target.dispatchEvent({
+          type: "q-signal",
+          detail: payload,
+        });
+      }
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml signal dispatch failed for '" + signalName + "':", error);
+      }
+    }
+
+    if (!signalName) {
       return;
     }
 
-    for (let i = 0; i < componentNode.methods.length; i += 1) {
-      const method = componentNode.methods[i];
+    try {
+      if (typeof global.CustomEvent === "function") {
+        target.dispatchEvent(
+          new global.CustomEvent(signalName, {
+            detail: payload,
+            bubbles: true,
+            composed: true,
+          })
+        );
+      } else {
+        target.dispatchEvent({
+          type: signalName,
+          detail: payload,
+        });
+      }
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml named signal dispatch failed for '" + signalName + "':", error);
+      }
+    }
+  }
+
+  function bindComponentMethods(componentNode, hostElement) {
+    if (!componentNode || !hostElement) {
+      return;
+    }
+    const componentAttributes = componentNode.attributes && typeof componentNode.attributes === "object"
+      ? componentNode.attributes
+      : {};
+    const declaredProperties = Array.isArray(componentNode.properties)
+      ? componentNode.properties.map(function mapDeclared(entry) { return String(entry || "").trim(); }).filter(Boolean)
+      : [];
+    for (let i = 0; i < declaredProperties.length; i += 1) {
+      const propertyName = declaredProperties[i];
+      if (!propertyName || INVALID_METHOD_NAMES.has(propertyName)) {
+        continue;
+      }
+      const existingDescriptor = Object.getOwnPropertyDescriptor(hostElement, propertyName);
+      if (existingDescriptor && existingDescriptor.configurable === false) {
+        continue;
+      }
+      const storageKey = "__qhtmlDeclaredPropValue__" + propertyName;
+      const bindingKey = "__qhtmlDeclaredPropBinding__" + propertyName;
+      const hasInitialValue = Object.prototype.hasOwnProperty.call(hostElement, propertyName);
+      const initialValue = hasInitialValue ? hostElement[propertyName] : undefined;
+      const rawDefault = Object.prototype.hasOwnProperty.call(componentAttributes, propertyName)
+        ? componentAttributes[propertyName]
+        : undefined;
+      let literalDefault = rawDefault;
+      let compiledBinding = null;
+      const bindingMatch = typeof rawDefault === "string" ? rawDefault.match(/^\s*q-(bind|script)\s*\{([\s\S]*)\}\s*$/i) : null;
+      if (bindingMatch) {
+        try {
+          compiledBinding = new Function(String(bindingMatch[2] || ""));
+        } catch (error) {
+          compiledBinding = null;
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml declared property binding compile failed:", propertyName, error);
+          }
+        }
+        literalDefault = undefined;
+      }
+      try {
+        Object.defineProperty(hostElement, propertyName, {
+          configurable: true,
+          enumerable: true,
+          get: function getDeclaredComponentProperty() {
+            if (Object.prototype.hasOwnProperty.call(this, storageKey)) {
+              return this[storageKey];
+            }
+            const bindingFn = this[bindingKey];
+            if (typeof bindingFn === "function") {
+              try {
+                return bindingFn.call(this);
+              } catch (error) {
+                if (global.console && typeof global.console.error === "function") {
+                  global.console.error("qhtml declared property binding failed:", propertyName, error);
+                }
+                return null;
+              }
+            }
+            return literalDefault;
+          },
+          set: function setDeclaredComponentProperty(value) {
+            this[storageKey] = value;
+          },
+        });
+        if (compiledBinding) {
+          hostElement[bindingKey] = compiledBinding;
+        }
+        if (hasInitialValue) {
+          hostElement[propertyName] = initialValue;
+        }
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml declared property binding install failed:", propertyName, error);
+        }
+      }
+    }
+
+    const methods = Array.isArray(componentNode.methods) ? componentNode.methods : [];
+
+    for (let i = 0; i < methods.length; i += 1) {
+      const method = methods[i];
       const name = method && typeof method.name === "string" ? method.name.trim() : "";
       if (!name || INVALID_METHOD_NAMES.has(name)) {
         continue;
@@ -693,6 +852,135 @@
       hostElement[name] = function componentMethodProxy() {
         return compiled.apply(hostElement, arguments);
       };
+    }
+
+    function buildConnectedSignalArgs(detail, parameterNames, fallbackEvent) {
+      const payload = detail && typeof detail === "object" ? detail : {};
+      const params = payload.params && typeof payload.params === "object" ? payload.params : null;
+      const slots = payload.slots && typeof payload.slots === "object" ? payload.slots : null;
+      if (Array.isArray(payload.args)) {
+        return payload.args.slice();
+      }
+      if (params && parameterNames.length > 0) {
+        const args = [];
+        for (let i = 0; i < parameterNames.length; i += 1) {
+          const key = parameterNames[i];
+          args.push(Object.prototype.hasOwnProperty.call(params, key) ? params[key] : null);
+        }
+        return args;
+      }
+      if (slots && parameterNames.length > 0) {
+        const args = [];
+        for (let i = 0; i < parameterNames.length; i += 1) {
+          const key = parameterNames[i];
+          const list = slots[key];
+          args.push(Array.isArray(list) && list.length > 0 ? list[0] : null);
+        }
+        return args;
+      }
+      if (slots) {
+        const keys = Object.keys(slots);
+        const args = [];
+        for (let i = 0; i < keys.length; i += 1) {
+          const list = slots[keys[i]];
+          args.push(Array.isArray(list) && list.length > 0 ? list[0] : null);
+        }
+        return args;
+      }
+      return [fallbackEvent];
+    }
+
+    function createComponentSignalEmitter(signalName, parameterNames) {
+      const connectionMap = new Map();
+      const componentId = String(componentNode.componentId || hostElement.tagName || "").trim().toLowerCase();
+      const signalFn = function componentSignalProxy() {
+        const args = Array.prototype.slice.call(arguments);
+        const payloadSlots = {};
+        const payloadSlotQDom = {};
+        const payloadParams = {};
+        for (let j = 0; j < parameterNames.length; j += 1) {
+          const paramName = parameterNames[j];
+          const value = j < args.length ? args[j] : null;
+          payloadParams[paramName] = value;
+          payloadSlots[paramName] = [serializeSignalSlotValue(value)];
+          payloadSlotQDom[paramName] = [cloneNodeDeep(value)];
+        }
+        const payload = {
+          type: "signal",
+          signal: signalName,
+          component: componentId,
+          signalId: signalName,
+          source: null,
+          args: args.map(serializeSignalSlotValue),
+          params: payloadParams,
+          slots: payloadSlots,
+          slotQDom: payloadSlotQDom,
+        };
+        dispatchSignalPayload(hostElement, signalName, payload);
+        return payload;
+      };
+
+      signalFn.connect = function connectSignalHandler(handler) {
+        if (typeof handler !== "function") {
+          return null;
+        }
+        if (connectionMap.has(handler)) {
+          return handler;
+        }
+        const wrapped = function onConnectedSignal(event) {
+          const detail = event && event.detail ? event.detail : {};
+          const args = buildConnectedSignalArgs(detail, parameterNames, event);
+          return handler.apply(hostElement, args);
+        };
+        connectionMap.set(handler, wrapped);
+        if (typeof hostElement.addEventListener === "function") {
+          hostElement.addEventListener(signalName, wrapped);
+        }
+        return handler;
+      };
+
+      signalFn.disconnect = function disconnectSignalHandler(handler) {
+        if (!handler) {
+          connectionMap.forEach(function eachWrapped(wrapped) {
+            if (typeof hostElement.removeEventListener === "function") {
+              hostElement.removeEventListener(signalName, wrapped);
+            }
+          });
+          connectionMap.clear();
+          return true;
+        }
+        if (typeof handler !== "function") {
+          return false;
+        }
+        const wrapped = connectionMap.get(handler);
+        if (!wrapped) {
+          return false;
+        }
+        if (typeof hostElement.removeEventListener === "function") {
+          hostElement.removeEventListener(signalName, wrapped);
+        }
+        connectionMap.delete(handler);
+        return true;
+      };
+
+      signalFn.emit = function emitSignalProxy() {
+        return signalFn.apply(hostElement, arguments);
+      };
+
+      return signalFn;
+    }
+
+    const signalDeclarations = Array.isArray(componentNode.signalDeclarations) ? componentNode.signalDeclarations : [];
+    for (let i = 0; i < signalDeclarations.length; i += 1) {
+      const signalDecl = signalDeclarations[i] || {};
+      const signalName = String(signalDecl.name || "").trim();
+      if (!signalName || INVALID_METHOD_NAMES.has(signalName) || typeof hostElement[signalName] === "function") {
+        continue;
+      }
+      const parameterNames = Array.isArray(signalDecl.parameters)
+        ? signalDecl.parameters.map(function mapName(entry) { return String(entry || "").trim(); }).filter(Boolean)
+        : [];
+      hostElement[signalName] = createComponentSignalEmitter(signalName, parameterNames);
     }
   }
 
@@ -822,6 +1110,20 @@
         ownerInstanceId: ownerInstanceId,
       });
       expanded = materializeSlots(templateNodes, slotFills);
+      const propertyDefinitions = Array.isArray(componentNode.propertyDefinitions) ? componentNode.propertyDefinitions : [];
+      if (propertyDefinitions.length > 0) {
+        const propertyNodes = [];
+        for (let pi = 0; pi < propertyDefinitions.length; pi += 1) {
+          const entry = propertyDefinitions[pi];
+          const nodes = entry && Array.isArray(entry.nodes) ? entry.nodes : [];
+          for (let ni = 0; ni < nodes.length; ni += 1) {
+            propertyNodes.push(nodes[ni]);
+          }
+        }
+        if (propertyNodes.length > 0) {
+          expanded = expanded.concat(propertyNodes);
+        }
+      }
       if (persistRenderTree) {
         try {
           Object.defineProperty(instanceNode, "__qhtmlRenderTree", {
@@ -842,6 +1144,73 @@
 
     for (let i = 0; i < expanded.length; i += 1) {
       renderNode(expanded[i], hostElement, targetDocument, context);
+    }
+  }
+
+  function bindDeclaredComponentPropertyNodes(componentNode, hostElement, context) {
+    if (!componentNode || !hostElement) {
+      return;
+    }
+    const propertyDefinitions = Array.isArray(componentNode.propertyDefinitions) ? componentNode.propertyDefinitions : [];
+    if (propertyDefinitions.length === 0) {
+      return;
+    }
+    const nodeMap =
+      context &&
+      context.capture &&
+      context.capture.nodeMap &&
+      typeof context.capture.nodeMap.get === "function"
+        ? context.capture.nodeMap
+        : null;
+    const resolvedByName = {};
+    for (let i = 0; i < propertyDefinitions.length; i += 1) {
+      const entry = propertyDefinitions[i] || {};
+      const propertyName = String(entry.name || "").trim();
+      if (!propertyName || Object.prototype.hasOwnProperty.call(resolvedByName, propertyName)) {
+        continue;
+      }
+      resolvedByName[propertyName] = null;
+    }
+    const propertyNames = Object.keys(resolvedByName);
+    if (propertyNames.length === 0 || !nodeMap) {
+      for (let i = 0; i < propertyNames.length; i += 1) {
+        hostElement[propertyNames[i]] = null;
+      }
+      return;
+    }
+
+    const candidates = [hostElement];
+    if (typeof hostElement.querySelectorAll === "function") {
+      const descendants = hostElement.querySelectorAll("*");
+      for (let i = 0; i < descendants.length; i += 1) {
+        candidates.push(descendants[i]);
+      }
+    }
+
+    for (let i = 0; i < candidates.length; i += 1) {
+      const element = candidates[i];
+      if (!element || element.nodeType !== 1) {
+        continue;
+      }
+      const mapped = sourceNodeOf(nodeMap.get(element));
+      if (!mapped || typeof mapped !== "object") {
+        continue;
+      }
+      const propertyName =
+        mapped.meta && typeof mapped.meta.__qhtmlPropertyBindingName === "string"
+          ? String(mapped.meta.__qhtmlPropertyBindingName || "").trim()
+          : "";
+      if (!propertyName || !Object.prototype.hasOwnProperty.call(resolvedByName, propertyName)) {
+        continue;
+      }
+      if (!resolvedByName[propertyName]) {
+        resolvedByName[propertyName] = element;
+      }
+    }
+
+    for (let i = 0; i < propertyNames.length; i += 1) {
+      const propertyName = propertyNames[i];
+      hostElement[propertyName] = resolvedByName[propertyName];
     }
   }
 
@@ -885,7 +1254,9 @@
       stack.pop();
     }
     stripRenderedSlotElements(hostElement);
+    bindDeclaredComponentPropertyNodes(componentNode, hostElement, context);
 
+    runLifecycleHooks(instanceNode, hostElement, targetDocument);
     runComponentLifecycleHooks(componentNode, hostElement, targetDocument);
   }
 
@@ -976,50 +1347,7 @@
       return;
     }
 
-    try {
-      if (typeof global.CustomEvent === "function") {
-        target.dispatchEvent(
-          new global.CustomEvent("q-signal", {
-            detail: payload,
-            bubbles: true,
-            composed: true,
-          })
-        );
-      } else {
-        target.dispatchEvent({
-          type: "q-signal",
-          detail: payload,
-        });
-      }
-    } catch (error) {
-      if (global.console && typeof global.console.error === "function") {
-        global.console.error("qhtml signal dispatch failed for '" + signalName + "':", error);
-      }
-    }
-
-    if (!signalName) {
-      return;
-    }
-    try {
-      if (typeof global.CustomEvent === "function") {
-        target.dispatchEvent(
-          new global.CustomEvent(signalName, {
-            detail: payload,
-            bubbles: true,
-            composed: true,
-          })
-        );
-      } else {
-        target.dispatchEvent({
-          type: signalName,
-          detail: payload,
-        });
-      }
-    } catch (error) {
-      if (global.console && typeof global.console.error === "function") {
-        global.console.error("qhtml named signal dispatch failed for '" + signalName + "':", error);
-      }
-    }
+    dispatchSignalPayload(target, signalName, payload);
   }
 
   function renderComponentInstance(componentNode, instanceNode, parent, targetDocument, context) {

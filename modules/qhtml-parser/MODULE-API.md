@@ -28,6 +28,9 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - signal declaration + invocation parsing:
       - `q-signal name { slot { slot1 } ... }`
       - `name { slot1 { ... } ... }`
+    - component-local signal method declarations:
+      - `q-signal name(param1, param2)` inside `q-component`
+      - emitted in QDom as `component.signalDeclarations`
 
 ### Preprocessing/import APIs
 - `applyQRewriteBlocks(source, options?)`

@@ -17,13 +17,23 @@ onReady {
   var host = this;
   if (!host || host.__qbuilderPageEditWired) { return; }
   host.__qbuilderPageEditWired = true;
-  host.setAttribute("data-page-edit-mode", "0");
-  if (typeof host.qdom === "function") {
-    var qdomHost = host.qdom();
-    if (qdomHost && typeof qdomHost.find === "function" && !qdomHost.find("q-builder[q-builder-runtime='1']")) {
-      qdomHost.appendNode(qdomHost.createQComponentInstance("q-builder", { "q-builder-runtime": "1" }));
+  var initialMode = "0";
+  try {
+    initialMode = typeof getBuilderConfig === "function"
+      ? String(getBuilderConfig("edit_mode") || "").trim()
+      : "0";
+  } catch (ignoredInitialMode) { initialMode = "0"; }
+  host.setAttribute("data-page-edit-mode", initialMode === "1" ? "1" : "0");
+  try {
+    var runtimeBuilder = host.querySelector("q-builder[q-builder-runtime='1']");
+    if (runtimeBuilder) {
+      if (typeof runtimeBuilder.enabled !== "undefined") {
+        runtimeBuilder.enabled = initialMode === "1";
+      } else if (typeof qbuilder !== "undefined" && qbuilder && typeof qbuilder.inspect === "function") {
+        qbuilder.inspect(host, initialMode === "1");
+      }
     }
-  }
+  } catch (ignoredBuilderInit) { }
 }
 
 q-component nav-bar {
@@ -39,6 +49,58 @@ q-template q-input-with-label {
     span.w3-label { slot { label } }
     slot { input-element }
   }
+}
+
+q-component toggle-builder-button {
+  q-signal toggleBuilder()
+
+  onReady {
+    try { this.style.display = "contents"; } catch (ignoredDisplay) { }
+  }
+
+  function toggle() {
+    try {
+      this.toggleBuilder();
+    } catch (evt) {
+      try { console.log("Cannot emit toggleBuilder signal", evt); } catch (ignoredLog) { }
+    }
+  }
+
+  li {
+    id: "toggle-editor"
+    data-page-edit-toggle: "1"
+    class: q-bind {
+      var mode = typeof getBuilderConfig === "function"
+        ? String(getBuilderConfig("edit_mode") || "").trim()
+        : "0";
+      return mode === "1" ? "w3-button w3-green" : "w3-button w3-orange";
+    }
+    content: q-bind {
+      var mode = typeof getBuilderConfig === "function"
+        ? String(getBuilderConfig("edit_mode") || "").trim()
+        : "0";
+      return mode === "1" ? "Edit Mode: ON" : "Edit Mode: OFF";
+    }
+    onclick {
+      try {
+        this.component.toggle();
+        var host = this.closest("q-html");
+        var builder = host && host.querySelector ? host.querySelector("q-builder[q-builder-runtime='1']") : null;
+        var active = builder && builder.enabled ? "1" : "0";
+        if (typeof setBuilderConfig === "function") { setBuilderConfig("edit-mode", active); }
+        if (host && typeof host.setAttribute === "function") { host.setAttribute("data-page-edit-mode", active); }
+        this.setAttribute("class", active === "1" ? "w3-button w3-green" : "w3-button w3-orange");
+        this.textContent = active === "1" ? "Edit Mode: ON" : "Edit Mode: OFF";
+      } catch (evt) {
+        try { console.log("Cannot toggle builder", evt); } catch (ignoredLog) { }
+      }
+    }
+  }
+}
+
+q-builder {
+  id: "page-builder"
+  q-builder-runtime: "1"
 }
 
 div.w3-black.w3-text-white.w3-bar, nav-bar {
@@ -129,39 +191,23 @@ div.w3-quarter.w3-nav.w3-col.w3-right.w3-padding {
           }
         }
 
-        li {
-          id: "toggle-editor"
-          data-page-edit-toggle: "1"
-          class: q-bind {
-            var mode = typeof getBuilderConfig === "function"
-              ? String(getBuilderConfig("edit_mode") || "").trim()
-              : "0";
-            return mode === "1" ? "w3-button w3-green" : "w3-button w3-orange";
-          }
-          content: q-bind {
-            var mode = typeof getBuilderConfig === "function"
-              ? String(getBuilderConfig("edit_mode") || "").trim()
-              : "0";
-            return mode === "1" ? "Edit Mode: ON" : "Edit Mode: OFF";
-          }
-          onclick {
-            var host = this.closest("q-html");
-            if (!host) { return; }
-            var current = typeof getBuilderConfig === "function"
-              ? String(getBuilderConfig("edit_mode") || "").trim()
-              : "0";
-            var active = current === "1" ? "0" : "1";
-            if (typeof setBuilderConfig === "function") {
-              setBuilderConfig("edit-mode", active);
-            }
-            host.setAttribute("data-page-edit-mode", active);
-            if (typeof qbuilder !== "undefined" && qbuilder && typeof qbuilder.inspect === "function") {
-              qbuilder.inspect(host, active === "1");
-            }
+        toggle-builder-button {
+          onReady {
             try {
-              this.setAttribute("class", active === "1" ? "w3-button w3-green" : "w3-button w3-orange");
-              this.textContent = active === "1" ? "Edit Mode: ON" : "Edit Mode: OFF";
-            } catch (ignoredToggleUi) { }
+              var host = this.component && this.component.closest ? this.component.closest("q-html") : null;
+              var builder = host && host.querySelector ? host.querySelector("q-builder[q-builder-runtime='1']") : null;
+              if (!builder && typeof document !== "undefined" && document && document.querySelector) {
+                builder = document.querySelector("q-builder[q-builder-runtime='1']");
+              }
+              if (builder && typeof builder.toggle === "function" && this.component && this.component.toggleBuilder && typeof this.component.toggleBuilder.connect === "function") {
+                this.component.toggleBuilder.connect(builder.toggle);
+                this.component.setAttribute("data-toggle-connected", "1");
+              } else {
+                this.component.setAttribute("data-toggle-connected", "0");
+              }
+            } catch (evt) {
+              try { console.log("Cannot connect toggle-builder-button", evt); } catch (ignoredLog) { }
+            }
           }
         }
       }

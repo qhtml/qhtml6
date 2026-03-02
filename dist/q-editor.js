@@ -129,6 +129,57 @@
     });
   }
 
+  function serializeSourceChildNode(node) {
+    if (!node || typeof node !== 'object') {
+      return '';
+    }
+    if (node.nodeType === Node.TEXT_NODE) {
+      return String(node.nodeValue || '');
+    }
+    if (node.nodeType === Node.CDATA_SECTION_NODE) {
+      return '<![CDATA[' + String(node.nodeValue || '') + ']]>';
+    }
+    if (node.nodeType === Node.COMMENT_NODE) {
+      return '<!--' + String(node.nodeValue || '') + '-->';
+    }
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      if (typeof node.outerHTML === 'string') {
+        return node.outerHTML;
+      }
+      const tagName = String(node.tagName || '').trim().toLowerCase() || 'div';
+      const attrs = node.attributes && typeof node.attributes.length === 'number' ? node.attributes : [];
+      let attrText = '';
+      for (let i = 0; i < attrs.length; i += 1) {
+        const attr = attrs[i];
+        if (!attr || typeof attr.name !== 'string') continue;
+        const value = String(attr.value == null ? '' : attr.value).replace(/"/g, '&quot;');
+        attrText += ' ' + attr.name + '="' + value + '"';
+      }
+      const children = node.childNodes && typeof node.childNodes.length === 'number' ? node.childNodes : [];
+      let inner = '';
+      for (let i = 0; i < children.length; i += 1) {
+        inner += serializeSourceChildNode(children[i]);
+      }
+      return '<' + tagName + attrText + '>' + inner + '</' + tagName + '>';
+    }
+    return '';
+  }
+
+  function readInlineSourceFromElement(element) {
+    if (!element || element.nodeType !== Node.ELEMENT_NODE) {
+      return '';
+    }
+    const children = element.childNodes && typeof element.childNodes.length === 'number' ? element.childNodes : [];
+    if (children.length === 0) {
+      return typeof element.textContent === 'string' ? element.textContent : '';
+    }
+    let out = '';
+    for (let i = 0; i < children.length; i += 1) {
+      out += serializeSourceChildNode(children[i]);
+    }
+    return out;
+  }
+
   function formatHtmlOutput(html) {
     const source = String(html || '').trim();
     if (!source) return '';
@@ -989,7 +1040,7 @@
         this._clearPendingMount();
 
         const initialFromAttr = this.getAttribute('initial-qhtml');
-        const initialFromBody = this.textContent || '';
+        const initialFromBody = readInlineSourceFromElement(this);
         const initialSource = initialFromAttr != null ? String(initialFromAttr) : initialFromBody;
 
         this.textContent = '';

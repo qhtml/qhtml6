@@ -1817,6 +1817,17 @@ q-component q-builder {
     }
   }
 
+  function toggle() {
+    try {
+      var next = !(this.enabled === true);
+      this.enabled = next;
+      return this.enabled === true;
+    } catch (error) {
+      this.logIssue("toggle failed", error);
+      return false;
+    }
+  }
+
   function openSelected() {
     var s = this.state();
     if (s.selectedEl) { this.setTarget(s.selectedEl); }
@@ -1961,6 +1972,64 @@ q-component q-builder {
     });
 
     var globalRef = this.getGlobalRef();
+    function resolveBuilderHost(builder, fallbackHost) {
+      if (fallbackHost && fallbackHost.nodeType === 1) { return fallbackHost; }
+      try {
+        if (builder && typeof builder.state === "function") {
+          var s = builder.state();
+          if (s && s.host && s.host.nodeType === 1) { return s.host; }
+        }
+      } catch (ignoredState) { }
+      try {
+        if (builder && typeof builder.closest === "function") {
+          return builder.closest("q-html");
+        }
+      } catch (ignoredClosest) { }
+      return null;
+    }
+    function installBuilderEnabledProperty(builder, fallbackHost) {
+      if (!builder || builder.nodeType !== 1) { return; }
+      var resolvedHost = resolveBuilderHost(builder, fallbackHost);
+      try {
+        if (!Object.prototype.hasOwnProperty.call(builder, "__qbuilderEnabledAccessorInstalled")) {
+          Object.defineProperty(builder, "enabled", {
+            configurable: true,
+            enumerable: false,
+            get: function() {
+              try {
+                return !!(this.state && this.state().inspect);
+              } catch (ignoredGet) { return false; }
+            },
+            set: function(value) {
+              try {
+                var host = resolveBuilderHost(this, null);
+                if (host && typeof globalRef.qbuilder !== "undefined" && globalRef.qbuilder && typeof globalRef.qbuilder.inspect === "function") {
+                  globalRef.qbuilder.inspect(host, value !== false);
+                  return;
+                }
+                if (typeof this.setInspectMode === "function") {
+                  this.setInspectMode(value !== false, host);
+                }
+              } catch (ignoredSet) { }
+            }
+          });
+          Object.defineProperty(builder, "__qbuilderEnabledAccessorInstalled", {
+            configurable: true,
+            enumerable: false,
+            writable: true,
+            value: true
+          });
+        }
+      } catch (ignoredDefineEnabled) { }
+      try {
+        if (resolvedHost && typeof builder.setInspectMode === "function") {
+          var s = builder.state ? builder.state() : null;
+          if (s && !s.host) { builder.setInspectMode(!!s.inspect, resolvedHost); }
+        }
+      } catch (ignoredHostSeed) { }
+    }
+    installBuilderEnabledProperty(this, this.closest ? this.closest("q-html") : null);
+
     if (globalRef.__qbuilderApiInstalled) { return; }
     globalRef.__qbuilderApiInstalled = true;
     var inspectStateByHost = new WeakMap();
@@ -2034,6 +2103,7 @@ q-component q-builder {
         qdomHost.appendNode(qdomHost.createQComponentInstance("q-builder", { "q-builder-runtime": "1" }));
         instance = host.querySelector("q-builder[q-builder-runtime='1']");
       }
+      installBuilderEnabledProperty(instance, host);
       return instance || null;
     }
 
@@ -2138,12 +2208,15 @@ q-component q-builder {
     globalRef.qbuilder = {
       create: function(target) {
         var host = resolveHost(target) || (typeof document !== "undefined" ? document.querySelector("q-html") : null);
-        return ensureRuntime(host);
+        var builder = ensureRuntime(host);
+        installBuilderEnabledProperty(builder, host);
+        return builder;
       },
       inspect: function(target, enabled) {
         var host = resolveHost(target) || (typeof document !== "undefined" ? document.querySelector("q-html") : null);
         var builder = ensureRuntime(host);
         if (!host || !builder || typeof builder.setInspectMode !== "function") { return builder; }
+        installBuilderEnabledProperty(builder, host);
         bindInspectHost(host);
         var state = inspectStateByHost.get(host);
         if (state) {

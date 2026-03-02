@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-03-01T23:08:31Z */
+/* generated: 2026-03-02T05:04:25Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -192,7 +192,9 @@
       componentId: String(opts.componentId || "").trim(),
       definitionType: String(opts.definitionType || "component").trim().toLowerCase() || "component",
       templateNodes: Array.isArray(opts.templateNodes) ? opts.templateNodes : [],
+      propertyDefinitions: Array.isArray(opts.propertyDefinitions) ? opts.propertyDefinitions : [],
       methods: Array.isArray(opts.methods) ? opts.methods : [],
+      signalDeclarations: Array.isArray(opts.signalDeclarations) ? opts.signalDeclarations : [],
       lifecycleScripts: Array.isArray(opts.lifecycleScripts) ? opts.lifecycleScripts : [],
       attributes: Object.assign({}, opts.attributes || {}),
       properties: Array.isArray(opts.properties) ? opts.properties.slice() : [],
@@ -232,6 +234,7 @@
       attributes: Object.assign({}, opts.attributes || {}),
       props: Object.assign({}, opts.props || {}),
       slots: Array.isArray(opts.slots) ? opts.slots : [],
+      lifecycleScripts: Array.isArray(opts.lifecycleScripts) ? opts.lifecycleScripts : [],
       children: Array.isArray(opts.children) ? opts.children : [],
       textContent: typeof opts.textContent === "string" ? opts.textContent : null,
       selectorMode: opts.selectorMode || "single",
@@ -1002,6 +1005,17 @@
     }
   }
 
+  function skipInlineWhitespace(parser) {
+    while (!eof(parser)) {
+      const ch = peek(parser);
+      if (ch === " " || ch === "\t") {
+        parser.index += 1;
+        continue;
+      }
+      break;
+    }
+  }
+
   function expect(parser, expected) {
     const ch = consume(parser);
     if (ch !== expected) {
@@ -1355,6 +1369,76 @@
     return names;
   }
 
+  function readBalancedParenthesizedContent(parser) {
+    const start = parser.index;
+    let depth = 1;
+    let quote = "";
+    let escaped = false;
+
+    while (!eof(parser)) {
+      const ch = consume(parser);
+
+      if (quote) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+
+      if (ch === '"' || ch === "'" || ch === "`") {
+        quote = ch;
+        continue;
+      }
+
+      if (ch === "(") {
+        depth += 1;
+      } else if (ch === ")") {
+        depth -= 1;
+        if (depth === 0) {
+          return parser.source.slice(start, parser.index - 1);
+        }
+      }
+    }
+
+    throw ParseError("Unterminated signal parameter list", parser.index);
+  }
+
+  function parseSignalParameterNames(rawParams) {
+    const text = String(rawParams || "");
+    if (!text.trim()) {
+      return [];
+    }
+    const out = [];
+    const seen = new Set();
+    const parts = text.split(",");
+    for (let i = 0; i < parts.length; i += 1) {
+      const token = String(parts[i] || "").trim();
+      if (!token) {
+        continue;
+      }
+      const match = token.match(/^[A-Za-z_$][A-Za-z0-9_$]*/);
+      if (!match) {
+        continue;
+      }
+      const name = String(match[0] || "").trim();
+      const normalized = name.toLowerCase();
+      if (!name || seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      out.push(name);
+    }
+    return out;
+  }
+
   function parseBlockItems(parser) {
     const items = [];
 
@@ -1383,17 +1467,96 @@
         const nextChar = peek(parser);
         if (nameLower === "q-signal" && nextChar !== "{" && nextChar !== ",") {
           const signalId = parseIdentifier(parser);
+          let parameterSource = "";
+          let parameterNames = [];
+          skipInlineWhitespace(parser);
+          if (peek(parser) === "(") {
+            consume(parser);
+            parameterSource = readBalancedParenthesizedContent(parser);
+            parameterNames = parseSignalParameterNames(parameterSource);
+          }
+          const declarationTailStart = parser.index;
+          skipInlineWhitespace(parser);
+          if (peek(parser) === "{") {
+            consume(parser);
+            const signalItems = parseBlockItems(parser);
+            expect(parser, "}");
+            items.push({
+              type: "SignalDefinition",
+              signalId: signalId,
+              items: signalItems,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+          parser.index = declarationTailStart;
+          const trailing = parseBareValue(parser);
+          const signature =
+            String(signalId || "") +
+            "(" +
+            (parameterSource || parameterNames.join(", ")) +
+            ")" +
+            (trailing ? " " + trailing : "");
+          items.push({
+            type: "SignalDeclaration",
+            name: String(signalId || "").trim(),
+            signature: signature,
+            parameters: parameterNames,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-property" && nextChar !== "{") {
+          const propertyNameStart = parser.index;
+          const propertyName = parseIdentifier(parser);
+          const propertyNameEnd = parser.index;
+          const normalizedPropertyName = String(propertyName || "").trim();
+          if (!normalizedPropertyName) {
+            throw ParseError("Expected property name after q-property", parser.index);
+          }
+          items.push({
+            type: "QPropertyBlock",
+            properties: [normalizedPropertyName],
+            start: itemStart,
+            end: propertyNameEnd,
+            raw: parser.source.slice(itemStart, propertyNameEnd),
+          });
+          skipWhitespace(parser);
+          if (peek(parser) === ":") {
+            consume(parser);
+            const value = parseValue(parser);
+            items.push({
+              type: "Property",
+              name: normalizedPropertyName,
+              value: value,
+              start: propertyNameStart,
+              end: parser.index,
+              raw: parser.source.slice(propertyNameStart, parser.index),
+            });
+          }
+          continue;
+        }
+        if (nameLower === "property" && nextChar !== "{") {
+          const propertyName = parseIdentifier(parser);
+          const normalizedPropertyName = String(propertyName || "").trim();
+          if (!normalizedPropertyName) {
+            throw ParseError("Expected property name after property", parser.index);
+          }
           skipWhitespace(parser);
           if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after q-signal id", parser.index);
+            throw ParseError("Expected '{' after property name", parser.index);
           }
           consume(parser);
-          const signalItems = parseBlockItems(parser);
+          const propertyItems = parseBlockItems(parser);
           expect(parser, "}");
           items.push({
-            type: "SignalDefinition",
-            signalId: signalId,
-            items: signalItems,
+            type: "PropertyDefinitionBlock",
+            name: normalizedPropertyName,
+            items: propertyItems,
             start: itemStart,
             end: parser.index,
             raw: parser.source.slice(itemStart, parser.index),
@@ -3553,6 +3716,7 @@
       attributes: mappedAttributes,
       props: mappedProps,
       slots: slots,
+      lifecycleScripts: Array.isArray(elementNode.lifecycleScripts) ? elementNode.lifecycleScripts.slice() : [],
       children: Array.isArray(elementNode.children) ? elementNode.children : [],
       textContent: typeof elementNode.textContent === "string" ? elementNode.textContent : null,
       selectorMode: elementNode.selectorMode || "single",
@@ -3751,13 +3915,25 @@
     return String(fallback || "").trim();
   }
 
+  function markPropertyBindingNode(node, propertyName) {
+    if (!node || typeof node !== "object") {
+      return;
+    }
+    if (!node.meta || typeof node.meta !== "object") {
+      node.meta = {};
+    }
+    node.meta.__qhtmlPropertyBindingName = String(propertyName || "").trim();
+  }
+
   function buildComponentNodeFromAst(astNode, source, options) {
     const opts = options || {};
     const componentAttributes = {};
     const componentProperties = [];
     const componentPropertiesSeen = new Set();
     const templateNodes = [];
+    const propertyDefinitions = [];
     const methods = [];
+    const signalDeclarations = [];
     const lifecycleScripts = [];
     const definitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
     let componentId = String(opts.componentId || "").trim();
@@ -3782,10 +3958,37 @@
         const assignment = parseAssignmentName(item.name);
         const key = normalizePropertyName(assignment.name);
         const value = coercePropertyValue(item.value);
-        if (key === "id") {
-          componentId = String(value || componentId || "").trim();
+        if (key === "id" && !componentId) {
+          componentId = String(value || "").trim();
         } else {
           componentAttributes[assignment.name] = value;
+        }
+        continue;
+      }
+      if (item.type === "PropertyDefinitionBlock") {
+        if (definitionType === "component") {
+          const propertyName = String(item.name || "").trim();
+          const normalized = normalizePropertyName(propertyName);
+          if (propertyName && normalized && !componentPropertiesSeen.has(normalized)) {
+            componentPropertiesSeen.add(normalized);
+            componentProperties.push(propertyName);
+          }
+          const propertyNodes = [];
+          const nestedItems = Array.isArray(item.items) ? item.items : [];
+          for (let j = 0; j < nestedItems.length; j += 1) {
+            const propertyNode = convertAstItemToNode(nestedItems[j], source);
+            if (!propertyNode) {
+              continue;
+            }
+            if (propertyName) {
+              markPropertyBindingNode(propertyNode, propertyName);
+            }
+            propertyNodes.push(propertyNode);
+          }
+          propertyDefinitions.push({
+            name: propertyName,
+            nodes: propertyNodes,
+          });
         }
         continue;
       }
@@ -3804,6 +4007,19 @@
             parameters: String(item.parameters || "").trim(),
             body: compactScriptBody(item.body || ""),
           });
+        }
+        continue;
+      }
+      if (item.type === "SignalDeclaration") {
+        if (definitionType === "component") {
+          const signalName = String(item.name || "").trim();
+          if (signalName) {
+            signalDeclarations.push({
+              name: signalName,
+              signature: String(item.signature || "").trim(),
+              parameters: Array.isArray(item.parameters) ? item.parameters.slice() : [],
+            });
+          }
         }
         continue;
       }
@@ -3827,6 +4043,8 @@
       definitionType: definitionType,
       templateNodes: templateNodes,
       methods: methods,
+      propertyDefinitions: propertyDefinitions,
+      signalDeclarations: signalDeclarations,
       lifecycleScripts: lifecycleScripts,
       attributes: componentAttributes,
       properties: componentProperties,
@@ -4082,6 +4300,39 @@
     return lines.join("\n");
   }
 
+  function serializeSignalDeclarationBlock(signalDecl, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    if (!signalDecl || typeof signalDecl !== "object") {
+      return "";
+    }
+    const name = String(signalDecl.name || "").trim();
+    if (!name) {
+      return "";
+    }
+    const parameters = Array.isArray(signalDecl.parameters)
+      ? signalDecl.parameters.map(function mapParam(entry) { return String(entry || "").trim(); }).filter(Boolean)
+      : [];
+    return indent + "q-signal " + name + "(" + parameters.join(", ") + ")";
+  }
+
+  function serializePropertyDefinitionBlock(propertyDef, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    if (!propertyDef || typeof propertyDef !== "object") {
+      return "";
+    }
+    const name = String(propertyDef.name || "").trim();
+    if (!name) {
+      return "";
+    }
+    const lines = [indent + "property " + name + " {"];
+    const nodes = Array.isArray(propertyDef.nodes) ? propertyDef.nodes : [];
+    for (let i = 0; i < nodes.length; i += 1) {
+      lines.push(serializeNode(nodes[i], indentLevel + 1));
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
   function serializeTextBlock(name, value, indentLevel) {
     const indent = "  ".repeat(indentLevel);
     const blockName = String(name || "text").trim() || "text";
@@ -4207,7 +4458,23 @@
         const key = attrKeys[i];
         lines.push(indent + "  " + key + ": \"" + escapeQuoted(coercePropertyValue(attrs[key])) + "\"");
       }
+      if (definitionType === "component" && Array.isArray(node.propertyDefinitions)) {
+        for (let i = 0; i < node.propertyDefinitions.length; i += 1) {
+          const serializedPropertyDefinition = serializePropertyDefinitionBlock(node.propertyDefinitions[i], indentLevel + 1);
+          if (serializedPropertyDefinition) {
+            lines.push(serializedPropertyDefinition);
+          }
+        }
+      }
       if (definitionType === "component" && Array.isArray(node.methods)) {
+        if (Array.isArray(node.signalDeclarations)) {
+          for (let i = 0; i < node.signalDeclarations.length; i += 1) {
+            const serializedSignalDeclaration = serializeSignalDeclarationBlock(node.signalDeclarations[i], indentLevel + 1);
+            if (serializedSignalDeclaration) {
+              lines.push(serializedSignalDeclaration);
+            }
+          }
+        }
         for (let i = 0; i < node.methods.length; i += 1) {
           lines.push(serializeFunctionBlock(node.methods[i], indentLevel + 1));
         }
@@ -4303,6 +4570,13 @@
       } else if (Array.isArray(node.children)) {
         for (let i = 0; i < node.children.length; i += 1) {
           lines.push(serializeNode(node.children[i], indentLevel + 1));
+        }
+      }
+
+      if (Array.isArray(node.lifecycleScripts)) {
+        for (let i = 0; i < node.lifecycleScripts.length; i += 1) {
+          const hook = node.lifecycleScripts[i] || {};
+          lines.push(serializeScriptBlock(hook.name, hook.body, indentLevel + 1));
         }
       }
 
@@ -4539,6 +4813,13 @@
       out.__qhtmlSourceNode = sourceNode;
     }
     return out;
+  }
+
+  function sourceNodeOf(node) {
+    if (!node || typeof node !== "object") {
+      return null;
+    }
+    return node.__qhtmlSourceNode && typeof node.__qhtmlSourceNode === "object" ? node.__qhtmlSourceNode : node;
   }
 
   function inferDefinitionType(definitionNode) {
@@ -5064,6 +5345,32 @@
       return;
     }
     try {
+      if (thisArg && thisArg.nodeType === 1) {
+        let hasComponentContext = false;
+        try {
+          hasComponentContext = thisArg.component != null;
+        } catch (ignoredReadComponentContext) {
+          hasComponentContext = false;
+        }
+        if (!hasComponentContext) {
+          let resolvedComponent = null;
+          if (
+            typeof thisArg.getAttribute === "function" &&
+            thisArg.getAttribute("qhtml-component-instance") === "1"
+          ) {
+            resolvedComponent = thisArg;
+          } else if (typeof thisArg.closest === "function") {
+            resolvedComponent = thisArg.closest("[qhtml-component-instance='1']");
+          }
+          if (resolvedComponent) {
+            try {
+              thisArg.component = resolvedComponent;
+            } catch (ignoredSetComponentContext) {
+              // best effort only; lifecycle hooks still run even if assignment is blocked
+            }
+          }
+        }
+      }
       const fn = new Function("event", "document", hook.body);
       fn.call(thisArg, null, targetDocument);
     } catch (error) {
@@ -5164,13 +5471,139 @@
     }
   }
 
-  function bindComponentMethods(componentNode, hostElement) {
-    if (!componentNode || !Array.isArray(componentNode.methods)) {
+  function dispatchSignalPayload(target, signalName, payload) {
+    if (!target || typeof target.dispatchEvent !== "function") {
+      return;
+    }
+    try {
+      if (typeof global.CustomEvent === "function") {
+        target.dispatchEvent(
+          new global.CustomEvent("q-signal", {
+            detail: payload,
+            bubbles: true,
+            composed: true,
+          })
+        );
+      } else {
+        target.dispatchEvent({
+          type: "q-signal",
+          detail: payload,
+        });
+      }
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml signal dispatch failed for '" + signalName + "':", error);
+      }
+    }
+
+    if (!signalName) {
       return;
     }
 
-    for (let i = 0; i < componentNode.methods.length; i += 1) {
-      const method = componentNode.methods[i];
+    try {
+      if (typeof global.CustomEvent === "function") {
+        target.dispatchEvent(
+          new global.CustomEvent(signalName, {
+            detail: payload,
+            bubbles: true,
+            composed: true,
+          })
+        );
+      } else {
+        target.dispatchEvent({
+          type: signalName,
+          detail: payload,
+        });
+      }
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml named signal dispatch failed for '" + signalName + "':", error);
+      }
+    }
+  }
+
+  function bindComponentMethods(componentNode, hostElement) {
+    if (!componentNode || !hostElement) {
+      return;
+    }
+    const componentAttributes = componentNode.attributes && typeof componentNode.attributes === "object"
+      ? componentNode.attributes
+      : {};
+    const declaredProperties = Array.isArray(componentNode.properties)
+      ? componentNode.properties.map(function mapDeclared(entry) { return String(entry || "").trim(); }).filter(Boolean)
+      : [];
+    for (let i = 0; i < declaredProperties.length; i += 1) {
+      const propertyName = declaredProperties[i];
+      if (!propertyName || INVALID_METHOD_NAMES.has(propertyName)) {
+        continue;
+      }
+      const existingDescriptor = Object.getOwnPropertyDescriptor(hostElement, propertyName);
+      if (existingDescriptor && existingDescriptor.configurable === false) {
+        continue;
+      }
+      const storageKey = "__qhtmlDeclaredPropValue__" + propertyName;
+      const bindingKey = "__qhtmlDeclaredPropBinding__" + propertyName;
+      const hasInitialValue = Object.prototype.hasOwnProperty.call(hostElement, propertyName);
+      const initialValue = hasInitialValue ? hostElement[propertyName] : undefined;
+      const rawDefault = Object.prototype.hasOwnProperty.call(componentAttributes, propertyName)
+        ? componentAttributes[propertyName]
+        : undefined;
+      let literalDefault = rawDefault;
+      let compiledBinding = null;
+      const bindingMatch = typeof rawDefault === "string" ? rawDefault.match(/^\s*q-(bind|script)\s*\{([\s\S]*)\}\s*$/i) : null;
+      if (bindingMatch) {
+        try {
+          compiledBinding = new Function(String(bindingMatch[2] || ""));
+        } catch (error) {
+          compiledBinding = null;
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml declared property binding compile failed:", propertyName, error);
+          }
+        }
+        literalDefault = undefined;
+      }
+      try {
+        Object.defineProperty(hostElement, propertyName, {
+          configurable: true,
+          enumerable: true,
+          get: function getDeclaredComponentProperty() {
+            if (Object.prototype.hasOwnProperty.call(this, storageKey)) {
+              return this[storageKey];
+            }
+            const bindingFn = this[bindingKey];
+            if (typeof bindingFn === "function") {
+              try {
+                return bindingFn.call(this);
+              } catch (error) {
+                if (global.console && typeof global.console.error === "function") {
+                  global.console.error("qhtml declared property binding failed:", propertyName, error);
+                }
+                return null;
+              }
+            }
+            return literalDefault;
+          },
+          set: function setDeclaredComponentProperty(value) {
+            this[storageKey] = value;
+          },
+        });
+        if (compiledBinding) {
+          hostElement[bindingKey] = compiledBinding;
+        }
+        if (hasInitialValue) {
+          hostElement[propertyName] = initialValue;
+        }
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml declared property binding install failed:", propertyName, error);
+        }
+      }
+    }
+
+    const methods = Array.isArray(componentNode.methods) ? componentNode.methods : [];
+
+    for (let i = 0; i < methods.length; i += 1) {
+      const method = methods[i];
       const name = method && typeof method.name === "string" ? method.name.trim() : "";
       if (!name || INVALID_METHOD_NAMES.has(name)) {
         continue;
@@ -5191,6 +5624,135 @@
       hostElement[name] = function componentMethodProxy() {
         return compiled.apply(hostElement, arguments);
       };
+    }
+
+    function buildConnectedSignalArgs(detail, parameterNames, fallbackEvent) {
+      const payload = detail && typeof detail === "object" ? detail : {};
+      const params = payload.params && typeof payload.params === "object" ? payload.params : null;
+      const slots = payload.slots && typeof payload.slots === "object" ? payload.slots : null;
+      if (Array.isArray(payload.args)) {
+        return payload.args.slice();
+      }
+      if (params && parameterNames.length > 0) {
+        const args = [];
+        for (let i = 0; i < parameterNames.length; i += 1) {
+          const key = parameterNames[i];
+          args.push(Object.prototype.hasOwnProperty.call(params, key) ? params[key] : null);
+        }
+        return args;
+      }
+      if (slots && parameterNames.length > 0) {
+        const args = [];
+        for (let i = 0; i < parameterNames.length; i += 1) {
+          const key = parameterNames[i];
+          const list = slots[key];
+          args.push(Array.isArray(list) && list.length > 0 ? list[0] : null);
+        }
+        return args;
+      }
+      if (slots) {
+        const keys = Object.keys(slots);
+        const args = [];
+        for (let i = 0; i < keys.length; i += 1) {
+          const list = slots[keys[i]];
+          args.push(Array.isArray(list) && list.length > 0 ? list[0] : null);
+        }
+        return args;
+      }
+      return [fallbackEvent];
+    }
+
+    function createComponentSignalEmitter(signalName, parameterNames) {
+      const connectionMap = new Map();
+      const componentId = String(componentNode.componentId || hostElement.tagName || "").trim().toLowerCase();
+      const signalFn = function componentSignalProxy() {
+        const args = Array.prototype.slice.call(arguments);
+        const payloadSlots = {};
+        const payloadSlotQDom = {};
+        const payloadParams = {};
+        for (let j = 0; j < parameterNames.length; j += 1) {
+          const paramName = parameterNames[j];
+          const value = j < args.length ? args[j] : null;
+          payloadParams[paramName] = value;
+          payloadSlots[paramName] = [serializeSignalSlotValue(value)];
+          payloadSlotQDom[paramName] = [cloneNodeDeep(value)];
+        }
+        const payload = {
+          type: "signal",
+          signal: signalName,
+          component: componentId,
+          signalId: signalName,
+          source: null,
+          args: args.map(serializeSignalSlotValue),
+          params: payloadParams,
+          slots: payloadSlots,
+          slotQDom: payloadSlotQDom,
+        };
+        dispatchSignalPayload(hostElement, signalName, payload);
+        return payload;
+      };
+
+      signalFn.connect = function connectSignalHandler(handler) {
+        if (typeof handler !== "function") {
+          return null;
+        }
+        if (connectionMap.has(handler)) {
+          return handler;
+        }
+        const wrapped = function onConnectedSignal(event) {
+          const detail = event && event.detail ? event.detail : {};
+          const args = buildConnectedSignalArgs(detail, parameterNames, event);
+          return handler.apply(hostElement, args);
+        };
+        connectionMap.set(handler, wrapped);
+        if (typeof hostElement.addEventListener === "function") {
+          hostElement.addEventListener(signalName, wrapped);
+        }
+        return handler;
+      };
+
+      signalFn.disconnect = function disconnectSignalHandler(handler) {
+        if (!handler) {
+          connectionMap.forEach(function eachWrapped(wrapped) {
+            if (typeof hostElement.removeEventListener === "function") {
+              hostElement.removeEventListener(signalName, wrapped);
+            }
+          });
+          connectionMap.clear();
+          return true;
+        }
+        if (typeof handler !== "function") {
+          return false;
+        }
+        const wrapped = connectionMap.get(handler);
+        if (!wrapped) {
+          return false;
+        }
+        if (typeof hostElement.removeEventListener === "function") {
+          hostElement.removeEventListener(signalName, wrapped);
+        }
+        connectionMap.delete(handler);
+        return true;
+      };
+
+      signalFn.emit = function emitSignalProxy() {
+        return signalFn.apply(hostElement, arguments);
+      };
+
+      return signalFn;
+    }
+
+    const signalDeclarations = Array.isArray(componentNode.signalDeclarations) ? componentNode.signalDeclarations : [];
+    for (let i = 0; i < signalDeclarations.length; i += 1) {
+      const signalDecl = signalDeclarations[i] || {};
+      const signalName = String(signalDecl.name || "").trim();
+      if (!signalName || INVALID_METHOD_NAMES.has(signalName) || typeof hostElement[signalName] === "function") {
+        continue;
+      }
+      const parameterNames = Array.isArray(signalDecl.parameters)
+        ? signalDecl.parameters.map(function mapName(entry) { return String(entry || "").trim(); }).filter(Boolean)
+        : [];
+      hostElement[signalName] = createComponentSignalEmitter(signalName, parameterNames);
     }
   }
 
@@ -5320,6 +5882,20 @@
         ownerInstanceId: ownerInstanceId,
       });
       expanded = materializeSlots(templateNodes, slotFills);
+      const propertyDefinitions = Array.isArray(componentNode.propertyDefinitions) ? componentNode.propertyDefinitions : [];
+      if (propertyDefinitions.length > 0) {
+        const propertyNodes = [];
+        for (let pi = 0; pi < propertyDefinitions.length; pi += 1) {
+          const entry = propertyDefinitions[pi];
+          const nodes = entry && Array.isArray(entry.nodes) ? entry.nodes : [];
+          for (let ni = 0; ni < nodes.length; ni += 1) {
+            propertyNodes.push(nodes[ni]);
+          }
+        }
+        if (propertyNodes.length > 0) {
+          expanded = expanded.concat(propertyNodes);
+        }
+      }
       if (persistRenderTree) {
         try {
           Object.defineProperty(instanceNode, "__qhtmlRenderTree", {
@@ -5340,6 +5916,73 @@
 
     for (let i = 0; i < expanded.length; i += 1) {
       renderNode(expanded[i], hostElement, targetDocument, context);
+    }
+  }
+
+  function bindDeclaredComponentPropertyNodes(componentNode, hostElement, context) {
+    if (!componentNode || !hostElement) {
+      return;
+    }
+    const propertyDefinitions = Array.isArray(componentNode.propertyDefinitions) ? componentNode.propertyDefinitions : [];
+    if (propertyDefinitions.length === 0) {
+      return;
+    }
+    const nodeMap =
+      context &&
+      context.capture &&
+      context.capture.nodeMap &&
+      typeof context.capture.nodeMap.get === "function"
+        ? context.capture.nodeMap
+        : null;
+    const resolvedByName = {};
+    for (let i = 0; i < propertyDefinitions.length; i += 1) {
+      const entry = propertyDefinitions[i] || {};
+      const propertyName = String(entry.name || "").trim();
+      if (!propertyName || Object.prototype.hasOwnProperty.call(resolvedByName, propertyName)) {
+        continue;
+      }
+      resolvedByName[propertyName] = null;
+    }
+    const propertyNames = Object.keys(resolvedByName);
+    if (propertyNames.length === 0 || !nodeMap) {
+      for (let i = 0; i < propertyNames.length; i += 1) {
+        hostElement[propertyNames[i]] = null;
+      }
+      return;
+    }
+
+    const candidates = [hostElement];
+    if (typeof hostElement.querySelectorAll === "function") {
+      const descendants = hostElement.querySelectorAll("*");
+      for (let i = 0; i < descendants.length; i += 1) {
+        candidates.push(descendants[i]);
+      }
+    }
+
+    for (let i = 0; i < candidates.length; i += 1) {
+      const element = candidates[i];
+      if (!element || element.nodeType !== 1) {
+        continue;
+      }
+      const mapped = sourceNodeOf(nodeMap.get(element));
+      if (!mapped || typeof mapped !== "object") {
+        continue;
+      }
+      const propertyName =
+        mapped.meta && typeof mapped.meta.__qhtmlPropertyBindingName === "string"
+          ? String(mapped.meta.__qhtmlPropertyBindingName || "").trim()
+          : "";
+      if (!propertyName || !Object.prototype.hasOwnProperty.call(resolvedByName, propertyName)) {
+        continue;
+      }
+      if (!resolvedByName[propertyName]) {
+        resolvedByName[propertyName] = element;
+      }
+    }
+
+    for (let i = 0; i < propertyNames.length; i += 1) {
+      const propertyName = propertyNames[i];
+      hostElement[propertyName] = resolvedByName[propertyName];
     }
   }
 
@@ -5383,7 +6026,9 @@
       stack.pop();
     }
     stripRenderedSlotElements(hostElement);
+    bindDeclaredComponentPropertyNodes(componentNode, hostElement, context);
 
+    runLifecycleHooks(instanceNode, hostElement, targetDocument);
     runComponentLifecycleHooks(componentNode, hostElement, targetDocument);
   }
 
@@ -5474,50 +6119,7 @@
       return;
     }
 
-    try {
-      if (typeof global.CustomEvent === "function") {
-        target.dispatchEvent(
-          new global.CustomEvent("q-signal", {
-            detail: payload,
-            bubbles: true,
-            composed: true,
-          })
-        );
-      } else {
-        target.dispatchEvent({
-          type: "q-signal",
-          detail: payload,
-        });
-      }
-    } catch (error) {
-      if (global.console && typeof global.console.error === "function") {
-        global.console.error("qhtml signal dispatch failed for '" + signalName + "':", error);
-      }
-    }
-
-    if (!signalName) {
-      return;
-    }
-    try {
-      if (typeof global.CustomEvent === "function") {
-        target.dispatchEvent(
-          new global.CustomEvent(signalName, {
-            detail: payload,
-            bubbles: true,
-            composed: true,
-          })
-        );
-      } else {
-        target.dispatchEvent({
-          type: signalName,
-          detail: payload,
-        });
-      }
-    } catch (error) {
-      if (global.console && typeof global.console.error === "function") {
-        global.console.error("qhtml named signal dispatch failed for '" + signalName + "':", error);
-      }
-    }
+    dispatchSignalPayload(target, signalName, payload);
   }
 
   function renderComponentInstance(componentNode, instanceNode, parent, targetDocument, context) {
@@ -6185,7 +6787,14 @@
     return id ? tag + "#" + id : tag;
   }
 
+  function isRuntimeDebugLoggingEnabled() {
+    return !!(global && (global.QHTML_RUNTIME_DEBUG === true || global.QHTML_DEBUG === true));
+  }
+
   function logRuntimeEvent(message, details) {
+    if (!isRuntimeDebugLoggingEnabled()) {
+      return;
+    }
     if (!global.console || typeof global.console.log !== "function") {
       return;
     }
@@ -6222,6 +6831,7 @@
         timestamp: 0,
         emitQueued: false,
         runtimeManaged: false,
+        callbacks: [],
       };
       try {
         Object.defineProperty(doc, "__qhtmlContentLoadedState", {
@@ -6239,7 +6849,41 @@
     if (typeof state.timestamp !== "number") state.timestamp = 0;
     if (typeof state.emitQueued !== "boolean") state.emitQueued = false;
     if (typeof state.runtimeManaged !== "boolean") state.runtimeManaged = false;
+    if (!Array.isArray(state.callbacks)) state.callbacks = [];
     return state;
+  }
+
+  function enqueueContentLoadedCallback(doc, callback) {
+    if (typeof callback !== "function") {
+      return false;
+    }
+    const state = ensureContentLoadedState(doc);
+    if (!state) {
+      return false;
+    }
+    state.callbacks.push(callback);
+    return true;
+  }
+
+  function flushContentLoadedCallbacks(doc, detail) {
+    const state = ensureContentLoadedState(doc);
+    if (!state || !Array.isArray(state.callbacks) || state.callbacks.length === 0) {
+      return;
+    }
+    const callbacks = state.callbacks.splice(0, state.callbacks.length);
+    for (let i = 0; i < callbacks.length; i += 1) {
+      const callback = callbacks[i];
+      if (typeof callback !== "function") {
+        continue;
+      }
+      try {
+        callback(detail);
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml content-loaded callback failed:", error);
+        }
+      }
+    }
   }
 
   function createSignalEvent(detail) {
@@ -6324,6 +6968,7 @@
       timestamp: state.timestamp,
       source: source || null,
     };
+    flushContentLoadedCallbacks(doc, detail);
 
     if (typeof doc.dispatchEvent === "function") {
       try {
@@ -6446,18 +7091,10 @@
       return;
     }
 
-    if (!doc || typeof doc.addEventListener !== "function" || typeof doc.dispatchEvent !== "function") {
+    if (!enqueueContentLoadedCallback(doc, execute)) {
       execute();
       return;
     }
-
-    const handler = function onContentLoaded() {
-      if (typeof doc.removeEventListener === "function") {
-        doc.removeEventListener(QHTML_CONTENT_LOADED_EVENT, handler);
-      }
-      execute();
-    };
-    doc.addEventListener(QHTML_CONTENT_LOADED_EVENT, handler);
   }
 
   function isQScriptElement(node) {
@@ -6479,6 +7116,59 @@
     return body.replace(/(^|[^A-Za-z0-9_$])#([A-Za-z_][A-Za-z0-9_-]*)/g, function replaceSelector(_, prefix, id) {
       return prefix + 'document.querySelector("#' + id + '")';
     });
+  }
+
+  function serializeSourceChildNode(node) {
+    if (!node || typeof node !== "object") {
+      return "";
+    }
+    if (node.nodeType === 3) {
+      return String(node.nodeValue || "");
+    }
+    if (node.nodeType === 4) {
+      return "<![CDATA[" + String(node.nodeValue || "") + "]]>";
+    }
+    if (node.nodeType === 8) {
+      return "<!--" + String(node.nodeValue || "") + "-->";
+    }
+    if (node.nodeType === 1) {
+      if (typeof node.outerHTML === "string") {
+        return node.outerHTML;
+      }
+      const tagName = String(node.tagName || "").trim().toLowerCase() || "div";
+      const attrs = node.attributes && typeof node.attributes.length === "number" ? node.attributes : [];
+      let attrText = "";
+      for (let i = 0; i < attrs.length; i += 1) {
+        const attr = attrs[i];
+        if (!attr || typeof attr.name !== "string") {
+          continue;
+        }
+        const value = String(attr.value == null ? "" : attr.value).replace(/"/g, "&quot;");
+        attrText += " " + attr.name + '="' + value + '"';
+      }
+      const children = node.childNodes && typeof node.childNodes.length === "number" ? node.childNodes : [];
+      let inner = "";
+      for (let i = 0; i < children.length; i += 1) {
+        inner += serializeSourceChildNode(children[i]);
+      }
+      return "<" + tagName + attrText + ">" + inner + "</" + tagName + ">";
+    }
+    return "";
+  }
+
+  function readInlineSourceFromElement(element) {
+    if (!element || element.nodeType !== 1) {
+      return "";
+    }
+    const children = element.childNodes && typeof element.childNodes.length === "number" ? element.childNodes : [];
+    if (children.length === 0) {
+      return typeof element.textContent === "string" ? element.textContent : "";
+    }
+    let out = "";
+    for (let i = 0; i < children.length; i += 1) {
+      out += serializeSourceChildNode(children[i]);
+    }
+    return out;
   }
 
   function resolveImportBaseUrl(qHtmlElement, options) {
@@ -8079,16 +8769,258 @@
     );
   }
 
-  function evaluateBindingExpression(node, bindingSpec) {
+  function createBindingExecutionContext(binding, node) {
+    const sourceNode = sourceNodeOf(node) || node;
+    const host = binding && binding.host && binding.host.nodeType === 1 ? binding.host : null;
+    const domElements = collectMappedDomElements(binding, sourceNode);
+    const qdomRoot = sourceNodeOf(binding && (binding.rawQdom || binding.qdom));
+
+    function querySelectorInDetachedRawHtml(rawHtml, selector) {
+      if (!rawHtml || !selector) {
+        return null;
+      }
+      const targetDocument = (binding && binding.doc) || (host && host.ownerDocument) || global.document;
+      if (!targetDocument || typeof targetDocument.createElement !== "function") {
+        return null;
+      }
+      try {
+        const template = targetDocument.createElement("template");
+        template.innerHTML = String(rawHtml || "");
+        if (!template.content || typeof template.content.querySelector !== "function") {
+          return null;
+        }
+        return template.content.querySelector(selector);
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function resolveSelectorFromQDom(selector) {
+      const query = String(selector || "").trim();
+      if (!query || !qdomRoot || typeof qdomRoot !== "object") {
+        return null;
+      }
+      let found = null;
+      function walk(nodeCandidate) {
+        if (found || !nodeCandidate || typeof nodeCandidate !== "object") {
+          return;
+        }
+        const nodeKind = String(nodeCandidate.kind || "").trim().toLowerCase();
+        if (nodeKind === "raw-html") {
+          found = querySelectorInDetachedRawHtml(nodeCandidate.html, query);
+          if (found) {
+            return;
+          }
+        }
+        if (
+          (nodeKind === "element" || nodeKind === "component-instance" || nodeKind === "template-instance") &&
+          nodeCandidate.attributes &&
+          typeof nodeCandidate.attributes === "object" &&
+          query.charAt(0) === "#" &&
+          String(nodeCandidate.attributes.id || "") === query.slice(1)
+        ) {
+          found = {
+            getAttribute: function bindingQDomSelectorGetAttribute(name) {
+              const key = String(name || "").trim();
+              if (!key) {
+                return null;
+              }
+              if (!nodeCandidate.attributes || typeof nodeCandidate.attributes !== "object") {
+                return null;
+              }
+              if (!Object.prototype.hasOwnProperty.call(nodeCandidate.attributes, key)) {
+                return null;
+              }
+              return String(nodeCandidate.attributes[key]);
+            },
+            hasAttribute: function bindingQDomSelectorHasAttribute(name) {
+              const key = String(name || "").trim();
+              if (!key || !nodeCandidate.attributes || typeof nodeCandidate.attributes !== "object") {
+                return false;
+              }
+              return Object.prototype.hasOwnProperty.call(nodeCandidate.attributes, key);
+            },
+          };
+          return;
+        }
+
+        const collections = [
+          Array.isArray(nodeCandidate.nodes) ? nodeCandidate.nodes : null,
+          Array.isArray(nodeCandidate.templateNodes) ? nodeCandidate.templateNodes : null,
+          Array.isArray(nodeCandidate.children) ? nodeCandidate.children : null,
+          Array.isArray(nodeCandidate.slots) ? nodeCandidate.slots : null,
+        ];
+        for (let i = 0; i < collections.length; i += 1) {
+          const list = collections[i];
+          if (!list) {
+            continue;
+          }
+          for (let j = 0; j < list.length; j += 1) {
+            walk(list[j]);
+            if (found) {
+              return;
+            }
+          }
+        }
+      }
+      walk(qdomRoot);
+      return found;
+    }
+
+    function wrapDomElementForBinding(element) {
+      if (!element || element.nodeType !== 1) {
+        return element;
+      }
+      return new Proxy(element, {
+        get: function getBindingElementProperty(target, prop, receiver) {
+          if (prop === "closest") {
+            return function bindingClosest(selector) {
+              if (typeof target.closest !== "function") {
+                return null;
+              }
+              const matched = target.closest(selector);
+              if (
+                matched &&
+                matched.nodeType === 1 &&
+                String(matched.tagName || "").trim().toLowerCase() === "q-html"
+              ) {
+                return wrapDomElementForBinding(matched);
+              }
+              return matched;
+            };
+          }
+          if (prop === "querySelector") {
+            return function bindingQuerySelector(selector) {
+              const nativeMatch =
+                typeof target.querySelector === "function" ? target.querySelector(selector) : null;
+              if (nativeMatch) {
+                return nativeMatch;
+              }
+              if (String(target.tagName || "").trim().toLowerCase() === "q-html") {
+                return resolveSelectorFromQDom(selector);
+              }
+              return null;
+            };
+          }
+          if (prop === "querySelectorAll") {
+            return function bindingQuerySelectorAll(selector) {
+              if (typeof target.querySelectorAll === "function") {
+                return target.querySelectorAll(selector);
+              }
+              return [];
+            };
+          }
+          const value = Reflect.get(target, prop, receiver);
+          if (typeof value === "function") {
+            return function callBindingElementMethod() {
+              return value.apply(target, arguments);
+            };
+          }
+          return value;
+        },
+      });
+    }
+
+    if (domElements.length > 0) {
+      return wrapDomElementForBinding(domElements[0]);
+    }
+    const attributes =
+      sourceNode && sourceNode.attributes && typeof sourceNode.attributes === "object" ? sourceNode.attributes : null;
+    const context = {
+      qhtmlRoot: host,
+      root: function bindingRootAccessor() {
+        return host;
+      },
+      qdom: function bindingQdomAccessor() {
+        return installQDomFactories(sourceNode);
+      },
+      closest: function bindingClosest(selector) {
+        const query = String(selector || "").trim();
+        if (!query || !host) {
+          return null;
+        }
+        if (typeof host.matches === "function" && host.matches(query)) {
+          return wrapDomElementForBinding(host);
+        }
+        const resolved = typeof host.closest === "function" ? host.closest(query) : null;
+        if (
+          resolved &&
+          resolved.nodeType === 1 &&
+          String(resolved.tagName || "").trim().toLowerCase() === "q-html"
+        ) {
+          return wrapDomElementForBinding(resolved);
+        }
+        return resolved;
+      },
+      querySelector: function bindingQuerySelector(selector) {
+        if (host && typeof host.querySelector === "function") {
+          const nativeMatch = host.querySelector(selector);
+          if (nativeMatch) {
+            return nativeMatch;
+          }
+        }
+        return resolveSelectorFromQDom(selector);
+      },
+      querySelectorAll: function bindingQuerySelectorAll(selector) {
+        if (!host || typeof host.querySelectorAll !== "function") {
+          return [];
+        }
+        return host.querySelectorAll(selector);
+      },
+      getAttribute: function bindingGetAttribute(name) {
+        const key = String(name || "").trim();
+        if (!key || !attributes || !Object.prototype.hasOwnProperty.call(attributes, key)) {
+          return null;
+        }
+        return String(attributes[key]);
+      },
+      hasAttribute: function bindingHasAttribute(name) {
+        const key = String(name || "").trim();
+        if (!key || !attributes) {
+          return false;
+        }
+        return Object.prototype.hasOwnProperty.call(attributes, key);
+      },
+      setAttribute: function bindingSetAttribute(name, value) {
+        const key = String(name || "").trim();
+        if (!key || !sourceNode || typeof sourceNode !== "object") {
+          return;
+        }
+        if (!sourceNode.attributes || typeof sourceNode.attributes !== "object") {
+          sourceNode.attributes = {};
+        }
+        sourceNode.attributes[key] = String(value == null ? "" : value);
+      },
+      removeAttribute: function bindingRemoveAttribute(name) {
+        const key = String(name || "").trim();
+        if (!key || !sourceNode || typeof sourceNode !== "object") {
+          return;
+        }
+        if (!sourceNode.attributes || typeof sourceNode.attributes !== "object") {
+          return;
+        }
+        delete sourceNode.attributes[key];
+      },
+    };
+    if (host) {
+      context.document = host.ownerDocument || global.document || null;
+    }
+    return context;
+  }
+
+  function evaluateBindingExpression(binding, node, bindingSpec) {
     const scriptBody = String(bindingSpec && bindingSpec.script ? bindingSpec.script : "").trim();
     if (!scriptBody) {
       return undefined;
     }
     try {
-      const fn = new Function(scriptBody);
-      return fn.call(node || {});
+      const wrappedBody = "try {\n" + scriptBody + "\n} catch (__qbindError) { return undefined; }";
+      const fn = new Function(wrappedBody);
+      const context = createBindingExecutionContext(binding, node);
+      const fallbackContext = sourceNodeOf(node) || node || {};
+      return fn.call(context || fallbackContext);
     } catch (error) {
-      if (global.console && typeof global.console.error === "function") {
+      if (isRuntimeDebugLoggingEnabled() && global.console && typeof global.console.error === "function") {
         global.console.error("qhtml q-bind evaluation failed:", error);
       }
       return undefined;
@@ -8279,7 +9211,7 @@
         if (opts.forceAll !== true && !shouldEvaluateQBind && hasCachedFingerprint) {
           continue;
         }
-        const value = evaluateBindingExpression(node, entry);
+        const value = evaluateBindingExpression(opts.binding, node, entry);
         const normalized = normalizeBindingValueForNode(entry, value);
         const nextFingerprint = createBindingValueFingerprint(normalized);
         if (hasCachedFingerprint && cacheEntry.fingerprint === nextFingerprint) {
@@ -10485,10 +11417,7 @@
       }
     }
 
-    const source =
-      typeof qHtmlElement.textContent === "string" && qHtmlElement.textContent.length > 0
-        ? qHtmlElement.textContent
-        : (qHtmlElement.innerHTML || "");
+    const source = readInlineSourceFromElement(qHtmlElement);
     const companionScript = findCompanionQScript(qHtmlElement);
     let rules = [];
     if (companionScript) {

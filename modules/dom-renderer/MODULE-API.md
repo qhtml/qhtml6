@@ -32,6 +32,11 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - Dispatches signal events when rendering signal invocations:
   - `q-signal`
   - named event equal to signal id
+- Binds component-local signal declarations (`q-signal name(param1, ...)`) onto host instances as callable methods:
+  - `instance.name(...)`
+  - `instance.name.connect(fn)`
+  - `instance.name.disconnect(fn?)`
+  - `instance.name.emit(...)`
 - Tracks ownership for slot routing and dynamic lookup in runtime.
 
 ## Failure behavior

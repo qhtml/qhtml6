@@ -19,6 +19,7 @@ Exports via `globalThis.QHtmlModules.qdomCore`.
 - `createRawHtmlNode(options?)`
 - `createComponentNode(options?)`
   - Normalizes `properties` as an array for declared `q-component` property names.
+  - Supports `signalDeclarations` array for component-local callable signal definitions.
 - `createComponentInstanceNode(options?)`
   - Normalizes `props` as an object for component-instance property values.
 - `createSlotNode(options?)`

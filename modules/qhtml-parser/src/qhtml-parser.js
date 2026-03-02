@@ -114,6 +114,17 @@
     }
   }
 
+  function skipInlineWhitespace(parser) {
+    while (!eof(parser)) {
+      const ch = peek(parser);
+      if (ch === " " || ch === "\t") {
+        parser.index += 1;
+        continue;
+      }
+      break;
+    }
+  }
+
   function expect(parser, expected) {
     const ch = consume(parser);
     if (ch !== expected) {
@@ -467,6 +478,76 @@
     return names;
   }
 
+  function readBalancedParenthesizedContent(parser) {
+    const start = parser.index;
+    let depth = 1;
+    let quote = "";
+    let escaped = false;
+
+    while (!eof(parser)) {
+      const ch = consume(parser);
+
+      if (quote) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+
+      if (ch === '"' || ch === "'" || ch === "`") {
+        quote = ch;
+        continue;
+      }
+
+      if (ch === "(") {
+        depth += 1;
+      } else if (ch === ")") {
+        depth -= 1;
+        if (depth === 0) {
+          return parser.source.slice(start, parser.index - 1);
+        }
+      }
+    }
+
+    throw ParseError("Unterminated signal parameter list", parser.index);
+  }
+
+  function parseSignalParameterNames(rawParams) {
+    const text = String(rawParams || "");
+    if (!text.trim()) {
+      return [];
+    }
+    const out = [];
+    const seen = new Set();
+    const parts = text.split(",");
+    for (let i = 0; i < parts.length; i += 1) {
+      const token = String(parts[i] || "").trim();
+      if (!token) {
+        continue;
+      }
+      const match = token.match(/^[A-Za-z_$][A-Za-z0-9_$]*/);
+      if (!match) {
+        continue;
+      }
+      const name = String(match[0] || "").trim();
+      const normalized = name.toLowerCase();
+      if (!name || seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      out.push(name);
+    }
+    return out;
+  }
+
   function parseBlockItems(parser) {
     const items = [];
 
@@ -495,17 +576,96 @@
         const nextChar = peek(parser);
         if (nameLower === "q-signal" && nextChar !== "{" && nextChar !== ",") {
           const signalId = parseIdentifier(parser);
+          let parameterSource = "";
+          let parameterNames = [];
+          skipInlineWhitespace(parser);
+          if (peek(parser) === "(") {
+            consume(parser);
+            parameterSource = readBalancedParenthesizedContent(parser);
+            parameterNames = parseSignalParameterNames(parameterSource);
+          }
+          const declarationTailStart = parser.index;
+          skipInlineWhitespace(parser);
+          if (peek(parser) === "{") {
+            consume(parser);
+            const signalItems = parseBlockItems(parser);
+            expect(parser, "}");
+            items.push({
+              type: "SignalDefinition",
+              signalId: signalId,
+              items: signalItems,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+          parser.index = declarationTailStart;
+          const trailing = parseBareValue(parser);
+          const signature =
+            String(signalId || "") +
+            "(" +
+            (parameterSource || parameterNames.join(", ")) +
+            ")" +
+            (trailing ? " " + trailing : "");
+          items.push({
+            type: "SignalDeclaration",
+            name: String(signalId || "").trim(),
+            signature: signature,
+            parameters: parameterNames,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-property" && nextChar !== "{") {
+          const propertyNameStart = parser.index;
+          const propertyName = parseIdentifier(parser);
+          const propertyNameEnd = parser.index;
+          const normalizedPropertyName = String(propertyName || "").trim();
+          if (!normalizedPropertyName) {
+            throw ParseError("Expected property name after q-property", parser.index);
+          }
+          items.push({
+            type: "QPropertyBlock",
+            properties: [normalizedPropertyName],
+            start: itemStart,
+            end: propertyNameEnd,
+            raw: parser.source.slice(itemStart, propertyNameEnd),
+          });
+          skipWhitespace(parser);
+          if (peek(parser) === ":") {
+            consume(parser);
+            const value = parseValue(parser);
+            items.push({
+              type: "Property",
+              name: normalizedPropertyName,
+              value: value,
+              start: propertyNameStart,
+              end: parser.index,
+              raw: parser.source.slice(propertyNameStart, parser.index),
+            });
+          }
+          continue;
+        }
+        if (nameLower === "property" && nextChar !== "{") {
+          const propertyName = parseIdentifier(parser);
+          const normalizedPropertyName = String(propertyName || "").trim();
+          if (!normalizedPropertyName) {
+            throw ParseError("Expected property name after property", parser.index);
+          }
           skipWhitespace(parser);
           if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after q-signal id", parser.index);
+            throw ParseError("Expected '{' after property name", parser.index);
           }
           consume(parser);
-          const signalItems = parseBlockItems(parser);
+          const propertyItems = parseBlockItems(parser);
           expect(parser, "}");
           items.push({
-            type: "SignalDefinition",
-            signalId: signalId,
-            items: signalItems,
+            type: "PropertyDefinitionBlock",
+            name: normalizedPropertyName,
+            items: propertyItems,
             start: itemStart,
             end: parser.index,
             raw: parser.source.slice(itemStart, parser.index),
@@ -2665,6 +2825,7 @@
       attributes: mappedAttributes,
       props: mappedProps,
       slots: slots,
+      lifecycleScripts: Array.isArray(elementNode.lifecycleScripts) ? elementNode.lifecycleScripts.slice() : [],
       children: Array.isArray(elementNode.children) ? elementNode.children : [],
       textContent: typeof elementNode.textContent === "string" ? elementNode.textContent : null,
       selectorMode: elementNode.selectorMode || "single",
@@ -2863,13 +3024,25 @@
     return String(fallback || "").trim();
   }
 
+  function markPropertyBindingNode(node, propertyName) {
+    if (!node || typeof node !== "object") {
+      return;
+    }
+    if (!node.meta || typeof node.meta !== "object") {
+      node.meta = {};
+    }
+    node.meta.__qhtmlPropertyBindingName = String(propertyName || "").trim();
+  }
+
   function buildComponentNodeFromAst(astNode, source, options) {
     const opts = options || {};
     const componentAttributes = {};
     const componentProperties = [];
     const componentPropertiesSeen = new Set();
     const templateNodes = [];
+    const propertyDefinitions = [];
     const methods = [];
+    const signalDeclarations = [];
     const lifecycleScripts = [];
     const definitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
     let componentId = String(opts.componentId || "").trim();
@@ -2894,10 +3067,37 @@
         const assignment = parseAssignmentName(item.name);
         const key = normalizePropertyName(assignment.name);
         const value = coercePropertyValue(item.value);
-        if (key === "id") {
-          componentId = String(value || componentId || "").trim();
+        if (key === "id" && !componentId) {
+          componentId = String(value || "").trim();
         } else {
           componentAttributes[assignment.name] = value;
+        }
+        continue;
+      }
+      if (item.type === "PropertyDefinitionBlock") {
+        if (definitionType === "component") {
+          const propertyName = String(item.name || "").trim();
+          const normalized = normalizePropertyName(propertyName);
+          if (propertyName && normalized && !componentPropertiesSeen.has(normalized)) {
+            componentPropertiesSeen.add(normalized);
+            componentProperties.push(propertyName);
+          }
+          const propertyNodes = [];
+          const nestedItems = Array.isArray(item.items) ? item.items : [];
+          for (let j = 0; j < nestedItems.length; j += 1) {
+            const propertyNode = convertAstItemToNode(nestedItems[j], source);
+            if (!propertyNode) {
+              continue;
+            }
+            if (propertyName) {
+              markPropertyBindingNode(propertyNode, propertyName);
+            }
+            propertyNodes.push(propertyNode);
+          }
+          propertyDefinitions.push({
+            name: propertyName,
+            nodes: propertyNodes,
+          });
         }
         continue;
       }
@@ -2916,6 +3116,19 @@
             parameters: String(item.parameters || "").trim(),
             body: compactScriptBody(item.body || ""),
           });
+        }
+        continue;
+      }
+      if (item.type === "SignalDeclaration") {
+        if (definitionType === "component") {
+          const signalName = String(item.name || "").trim();
+          if (signalName) {
+            signalDeclarations.push({
+              name: signalName,
+              signature: String(item.signature || "").trim(),
+              parameters: Array.isArray(item.parameters) ? item.parameters.slice() : [],
+            });
+          }
         }
         continue;
       }
@@ -2939,6 +3152,8 @@
       definitionType: definitionType,
       templateNodes: templateNodes,
       methods: methods,
+      propertyDefinitions: propertyDefinitions,
+      signalDeclarations: signalDeclarations,
       lifecycleScripts: lifecycleScripts,
       attributes: componentAttributes,
       properties: componentProperties,
@@ -3194,6 +3409,39 @@
     return lines.join("\n");
   }
 
+  function serializeSignalDeclarationBlock(signalDecl, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    if (!signalDecl || typeof signalDecl !== "object") {
+      return "";
+    }
+    const name = String(signalDecl.name || "").trim();
+    if (!name) {
+      return "";
+    }
+    const parameters = Array.isArray(signalDecl.parameters)
+      ? signalDecl.parameters.map(function mapParam(entry) { return String(entry || "").trim(); }).filter(Boolean)
+      : [];
+    return indent + "q-signal " + name + "(" + parameters.join(", ") + ")";
+  }
+
+  function serializePropertyDefinitionBlock(propertyDef, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    if (!propertyDef || typeof propertyDef !== "object") {
+      return "";
+    }
+    const name = String(propertyDef.name || "").trim();
+    if (!name) {
+      return "";
+    }
+    const lines = [indent + "property " + name + " {"];
+    const nodes = Array.isArray(propertyDef.nodes) ? propertyDef.nodes : [];
+    for (let i = 0; i < nodes.length; i += 1) {
+      lines.push(serializeNode(nodes[i], indentLevel + 1));
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
   function serializeTextBlock(name, value, indentLevel) {
     const indent = "  ".repeat(indentLevel);
     const blockName = String(name || "text").trim() || "text";
@@ -3319,7 +3567,23 @@
         const key = attrKeys[i];
         lines.push(indent + "  " + key + ": \"" + escapeQuoted(coercePropertyValue(attrs[key])) + "\"");
       }
+      if (definitionType === "component" && Array.isArray(node.propertyDefinitions)) {
+        for (let i = 0; i < node.propertyDefinitions.length; i += 1) {
+          const serializedPropertyDefinition = serializePropertyDefinitionBlock(node.propertyDefinitions[i], indentLevel + 1);
+          if (serializedPropertyDefinition) {
+            lines.push(serializedPropertyDefinition);
+          }
+        }
+      }
       if (definitionType === "component" && Array.isArray(node.methods)) {
+        if (Array.isArray(node.signalDeclarations)) {
+          for (let i = 0; i < node.signalDeclarations.length; i += 1) {
+            const serializedSignalDeclaration = serializeSignalDeclarationBlock(node.signalDeclarations[i], indentLevel + 1);
+            if (serializedSignalDeclaration) {
+              lines.push(serializedSignalDeclaration);
+            }
+          }
+        }
         for (let i = 0; i < node.methods.length; i += 1) {
           lines.push(serializeFunctionBlock(node.methods[i], indentLevel + 1));
         }
@@ -3415,6 +3679,13 @@
       } else if (Array.isArray(node.children)) {
         for (let i = 0; i < node.children.length; i += 1) {
           lines.push(serializeNode(node.children[i], indentLevel + 1));
+        }
+      }
+
+      if (Array.isArray(node.lifecycleScripts)) {
+        for (let i = 0; i < node.lifecycleScripts.length; i += 1) {
+          const hook = node.lifecycleScripts[i] || {};
+          lines.push(serializeScriptBlock(hook.name, hook.body, indentLevel + 1));
         }
       }
 

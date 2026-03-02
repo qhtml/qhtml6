@@ -1,6 +1,11 @@
-# release-bundle
+# release-bundle v6.0.3
 
 `release-bundle` is the packaging module for producing the browser-distributed `dist/qhtml.js` artifact.
+
+## What's New in v6.0.3
+
+- Bundle now ships the updated runtime behavior for safer `q-bind`, queued host ready dispatch, and source-preserving mount parsing.
+- Build output remains a single ordered artifact for browser use: `dist/qhtml.js`.
 
 ## What this module actually does
 

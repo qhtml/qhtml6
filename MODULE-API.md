@@ -71,6 +71,10 @@ Root integration module wires lower-level modules for browser consumers, exposes
   - `q-signal signalName { slot { a } slot { b } }`
   - invocation `signalName { a { ... } b { ... } }`
   - runtime dispatches `q-signal` and named signal events with slot payloads.
+- `q-component` now supports function-style signal declarations:
+  - `q-signal signalName(param1, param2)` inside component body
+  - runtime binds callable instance methods (`instance.signalName(...)`)
+  - bound signal methods expose `.connect(fn)`, `.disconnect(fn?)`, `.emit(...)`
 - Rendered DOM nodes now receive inline-handler context refs: `this.qhtml` (owning `<q-html>` host), `this.component` (nearest component host element with component methods and `.qdom()`), and `this.slot` (nearest projected slot context with `name` + `qdom()` access).
 - Nested slot forwarding now normalizes parser-emitted shorthand wrappers in explicit slot payloads and resolves slot ownership by per-instance association for stable `.slot`/`.qdom().findSlotFor(...)` behavior.
 - Runtime now emits a document-level `QHTMLContentLoaded` signal (`QHtml.SIGNALS.QHTMLContentLoaded`) whenever pending `<q-html>` mounts settle.

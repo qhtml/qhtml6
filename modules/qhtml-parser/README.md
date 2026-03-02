@@ -1,6 +1,12 @@
-# qhtml-parser
+# qhtml-parser v6.0.3
 
 `qhtml-parser` is the language layer for QHTML v6. It parses QHTML source into QDom, applies macro/script preprocessing, resolves imports, and serializes QDom back to source.
+
+## What's New in v6.0.3
+
+- Expanded support for modern component declarations (`q-property`, function-style `q-signal` declarations).
+- Improved binding metadata handoff for runtime `q-bind` / assignment `q-script`.
+- Better compatibility with mixed inline HTML/text authoring patterns used in live editors.
 
 ## What this module actually does
 
@@ -36,6 +42,9 @@
 - Lifecycle hook blocks (document and component/element scope)
 - Slot declarations and slot fills
 - Signal declarations and invocations (`q-signal name { slot { ... } }` and `name { slotName { ... } }`)
+- Component-local signal method declarations:
+  - `q-signal mySignal(param1, param2)` inside `q-component`
+  - parsed into component metadata (`component.signalDeclarations`)
 - q-import blocks
 - q-rewrite definitions + invocations
 

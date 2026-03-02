@@ -1,6 +1,11 @@
-# qdom-core
+# qdom-core v6.0.3
 
 `qdom-core` is the canonical data-model module for QHTML v6. It defines QDom node shapes, constructors, traversal helpers, deep observation, and compressed persistence utilities used by parser/runtime/renderer.
+
+## What's New in v6.0.3
+
+- Serialization/deserialization flows are now a first-class part of app-level import/export workflows.
+- Stable persistence and observation behavior remains the source-of-truth foundation for runtime patching.
 
 ## What this module actually does
 

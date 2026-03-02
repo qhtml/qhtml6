@@ -1,6 +1,14 @@
-# qhtml-runtime
+# qhtml-runtime v6.0.3
 
 `qhtml-runtime` is the browser orchestration layer. It mounts `<q-html>` blocks, keeps QDom observed, applies incremental updates, wires inline event handlers, and exposes the `.qdom()` developer API.
+
+## What's New in v6.0.3
+
+- `q-bind` now executes with a DOM-capable context instead of raw QDOM-only context.
+- Runtime wraps each `q-bind` evaluation in built-in `try/catch` to avoid noisy hard failures.
+- `onReady` host execution is queued through runtime callbacks, not ad-hoc procedural listeners.
+- Inline source extraction preserves literal child HTML in `<q-html>` and `q-editor` flows.
+- Runtime debug logs are off by default and enabled only with `window.QHTML_RUNTIME_DEBUG` / `window.QHTML_DEBUG`.
 
 ## What this module actually does
 
