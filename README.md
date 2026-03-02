@@ -3,7 +3,7 @@
 QHTML is a compact language and runtime for building real web apps with readable block syntax, reusable components, signals, and live QDOM editing.
 
 Live demo: https://qhtml.github.io/qhtml6/dist/demo.html
-
+For a comprehensive Wiki and introduction to QHTML language, please visit https://github.com/qhtml/qhtml.js for many more examples of 5.x features.
 ## Whats New in v6.0.3
 
 - `q-bind` now evaluates with a DOM-capable runtime context (`closest`, `querySelector`, etc).
