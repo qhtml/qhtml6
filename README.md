@@ -1,10 +1,18 @@
-# QHTML.js v6.0.3
+# QHTML.js v6.0.4
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
 - Live demo: https://qhtml.github.io/qhtml6/dist/demo.html
 - Dev testbed: `dist/test.html`
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
+
+## Whats New in v6.0.4
+
+- `q-keyword` scoped keyword aliasing: `q-keyword component { q-component }`.
+- Alias scope is lexical (parent block + descendants), with child-scope override support.
+- Alias mappings are stored on parsed QDOM nodes as `node.keywords`.
+- Direct-only alias rules: aliases cannot point to other aliases.
+- `tag#id.class` selector shorthand support finalized for elements and component instances.
 
 ## Whats New in v6.0.3
 
@@ -15,6 +23,7 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Runtime logs are gated behind `window.QHTML_RUNTIME_DEBUG` (or `window.QHTML_DEBUG`).
 - `q-property` for explicit component properties.
 - Function-style component signals: `q-signal mySignal(a, b)` plus `.connect/.disconnect/.emit`.
+- Component aliases: `q-alias name { return ... }` for computed host properties.
 - `.qdom().deserialize(serialized, shouldReplaceQDom)` append-or-replace import flow.
 - Scoped updates: `this.component.update()` and full host updates: `this.component.root().update()`.
 
@@ -107,8 +116,7 @@ Resulting HTML:
 
 ```qhtml
 <q-html>
-  div.card {
-    id: "main"
+  div#main.card {
     p { text { Card body } }
   }
 </q-html>
@@ -122,6 +130,33 @@ Resulting HTML:
     <p>Card body</p>
   </div>
 </q-html>
+```
+
+Multiple selectors with shorthand:
+
+```qhtml
+<q-html>
+  div#my-id.my-class,span.my-class,h2#id2 { hello world }
+</q-html>
+```
+
+Resulting HTML:
+
+```html
+<q-html>
+  <div id="my-id" class="my-class">
+    <span class="my-class">
+      <h2 id="id2">hello world</h2>
+    </span>
+  </div>
+</q-html>
+```
+
+Component instances also support selector shorthand:
+
+```qhtml
+q-component my-card { div { text { Card } } }
+my-card#card-1.primary { }
 ```
 
 ### Attributes
@@ -247,6 +282,26 @@ my-component { div { q-bind { return this.component.myprop } } }
 </q-html>
 ```
 
+### Escaping `{` and `}` in block content
+
+Use `\{` and `\}` when you want literal braces inside block bodies.
+
+```qhtml
+<q-html>
+  div {
+    text { hello \} world }
+  }
+</q-html>
+```
+
+Resulting HTML:
+
+```html
+<q-html>
+  <div>hello } world</div>
+</q-html>
+```
+
 ## 6. Components
 
 `q-component` defines a runtime host element with:
@@ -254,6 +309,7 @@ my-component { div { q-bind { return this.component.myprop } } }
 - `q-property` fields
 - `function ... {}` methods on `this.component`
 - `q-signal ...` signals on `this.component`
+- `q-alias ... { ... }` computed alias properties on `this.component`
 - `slot { name }` placeholders for projection
 
 ### Minimal component with properties and a slot
@@ -293,6 +349,62 @@ q-component my-comp {
   property builder { q-builder { } }
   onReady { this.component.builder.setAttribute("data-bound", "1"); }
 }
+```
+
+### `q-alias` syntax
+
+```qhtml
+q-component mycomp {
+  q-alias myotherprop { return this.querySelector("#mydiv").myprop; }
+}
+
+mycomp {
+  div {
+    id: "mydiv"
+    q-property myprop: "hello world"
+  }
+}
+```
+
+### `q-keyword` syntax (scoped keyword aliasing)
+
+`q-keyword` remaps a keyword head inside the current scope.
+
+```qhtml
+q-keyword component { q-component }
+
+component card-box {
+  div { text { hello } }
+}
+
+card-box { }
+```
+
+Scope is local to the parent block and inherited by children:
+
+```qhtml
+div {
+  q-keyword box { span }
+  box { text { inside } }  // -> span { ... }
+}
+
+box { text { outside } }    // unchanged (no alias in this scope)
+```
+
+`q-keyword` supports raw keyword heads, including assignment-style forms:
+
+```qhtml
+q-component my-comp {
+  q-keyword titleFrom { q-property title: q-bind }
+  titleFrom { return "hello" }
+}
+```
+
+Invalid direct aliasing is rejected:
+
+```qhtml
+q-keyword a { q-component }
+q-keyword b { a }   // error: alias cannot target another alias
 ```
 
 ## 7. Signals
@@ -379,6 +491,8 @@ div { class: choose-class { active { true } } }
 ## 9. QDOM API
 
 Mounted `<q-html>` elements expose `.qdom()` (the source-of-truth tree). Mutate QDOM, then call `.update()` to re-render.
+
+When `q-keyword` aliases are active during parse, generated QDOM nodes include a `keywords` map (effective alias table at parse time).
 
 ### Find and append
 

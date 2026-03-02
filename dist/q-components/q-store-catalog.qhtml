@@ -16,7 +16,7 @@ q-component q-store-catalog {
   }
 
   itemsHost: q-bind {
-    return this.qdom().find("[q-store-catalog-items='1']");
+    return this.querySelector("[q-store-catalog-items='1']");
   }
 
   cartCountNode: q-bind { return this.querySelector("[q-store-cart-count='1']"); }
@@ -252,58 +252,21 @@ q-component q-store-catalog {
     return this.setCatalogItems(parsed);
   }
 
-  function escapeQHtmlText(value) {
-    return String(value == null ? "" : value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/{/g, "&#123;")
-      .replace(/}/g, "&#125;");
-  }
-
-  function quoteAttribute(value) {
-    return JSON.stringify(String(value == null ? "" : value));
-  }
-
   function getItemsHostNode() {
     return this.component.itemsHost;
   }
 
   function clearNodeChildren(node) {
-    const childrenValue = node.children;
-    childrenValue.splice(0, Number(childrenValue.length || 0));
-  }
-
-  function generateCatalogItem(item) {
-    const normalized = this.normalizeItem(item);
-    const description = normalized.description || "No description provided.";
-    return (
-      "div.w3-col.l4.m6.s12.w3-margin-bottom {\n" +
-      "  q-store-catalog-item {\n" +
-      "    data-item-id: " + this.quoteAttribute(normalized.id || "") + ";\n" +
-      "    data-item-name: " + this.quoteAttribute(normalized.name) + ";\n" +
-      "    data-item-description: " + this.quoteAttribute(description) + ";\n" +
-      "    data-item-price: " + this.quoteAttribute(String(this.normalizeNumber(normalized.price, 0))) + ";\n" +
-      "    item-name { html { " + this.escapeQHtmlText(normalized.name) + " } }\n" +
-      "    item-description { html { " + this.escapeQHtmlText(description) + " } }\n" +
-      "    item-price { html { " + this.escapeQHtmlText(this.formatCurrency(normalized.price)) + " } }\n" +
-      "  }\n" +
-      "}"
-    );
-  }
-
-  function generateEstoreItem(name, price, description, id) {
-    return this.generateCatalogItem({
-      id: id,
-      name: name,
-      description: description,
-      price: price,
-    });
+    if (!node || typeof node.removeChild !== "function") {
+      return;
+    }
+    while (node.firstChild) {
+      node.removeChild(node.firstChild);
+    }
   }
 
   function renderCatalog() {
     const state = this.ensureState();
-    const root = this.qdom();
 
     const itemsHost = this.getItemsHostNode();
     if (!itemsHost) {
@@ -323,19 +286,27 @@ q-component q-store-catalog {
     try {
       this.clearNodeChildren(itemsHost);
       if (!list.length) {
-        itemsHost.appendNode(
-          root.createInstanceFromQHTML(
-            "div.w3-col.s12.w3-panel.w3-pale-yellow.w3-border.w3-round-large { text { " +
-              (query ? "No catalog items matched your filter." : "Catalog is empty.") +
-              " } }"
-          )
-        );
+        const emptyPanel = document.createElement("div");
+        emptyPanel.className = "w3-col s12 w3-panel w3-pale-yellow w3-border w3-round-large";
+        emptyPanel.textContent = query ? "No catalog items matched your filter." : "Catalog is empty.";
+        itemsHost.appendChild(emptyPanel);
         return;
       }
 
       for (let i = 0; i < list.length; i += 1) {
-        const item = list[i];
-        itemsHost.appendNode(root.createInstanceFromQHTML(this.generateCatalogItem(item)));
+        const item = this.normalizeItem(list[i]);
+        const wrapper = document.createElement("div");
+        wrapper.className = "w3-col l4 m6 s12 w3-margin-bottom";
+
+        const catalogItem = document.createElement("q-store-catalog-item");
+        catalogItem.setAttribute("qhtml-external-component-instance", "1");
+        catalogItem.setAttribute("data-item-id", item.id || "");
+        catalogItem.setAttribute("data-item-name", item.name);
+        catalogItem.setAttribute("data-item-description", item.description || "No description provided.");
+        catalogItem.setAttribute("data-item-price", String(this.normalizeNumber(item.price, 0)));
+
+        wrapper.appendChild(catalogItem);
+        itemsHost.appendChild(wrapper);
       }
     } finally {
       this.__qStoreCatalogRenderInProgress = false;

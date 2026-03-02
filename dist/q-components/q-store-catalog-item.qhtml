@@ -40,7 +40,7 @@ q-component q-store-catalog-item {
 
   function setItem(item) {
     const normalized = this.normalizeItem(item);
-    this.component.item = normalized;
+    this.item = normalized;
     this.__qStoreCatalogItem = normalized;
 
     this.setAttribute("data-item-name", normalized.name);
@@ -68,8 +68,8 @@ q-component q-store-catalog-item {
   }
 
   function getItem() {
-    if (this.component.item && typeof this.component.item === "object") {
-      return this.normalizeItem(this.component.item);
+    if (this.item && typeof this.item === "object") {
+      return this.normalizeItem(this.item);
     }
     return this.normalizeItem({
       id: this.getAttribute("data-item-id"),
@@ -81,7 +81,7 @@ q-component q-store-catalog-item {
 
   function triggerAdd() {
     const payload = this.getItem();
-    this.component.addRequested(payload);
+    this.addRequested(payload);
   }
 
   onReady {
@@ -114,7 +114,7 @@ q-component q-store-catalog-item {
           type: "button";
           text { Add to cart }
           onclick {
-            this.component.triggerAdd();
+            this.closest("q-store-catalog").addToCart(this.closest("q-store-catalog-item").getItem(), 1);
           }
         }
       }

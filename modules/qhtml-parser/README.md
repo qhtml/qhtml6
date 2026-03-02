@@ -1,6 +1,12 @@
-# qhtml-parser v6.0.3
+# qhtml-parser v6.0.4
 
 `qhtml-parser` is the language layer for QHTML v6. It parses QHTML source into QDom, applies macro/script preprocessing, resolves imports, and serializes QDom back to source.
+
+## What's New in v6.0.4
+
+- Added scoped keyword aliasing with `q-keyword name { replacement-head }`.
+- Added direct-only alias enforcement (`alias -> alias` is a parse error).
+- Added per-node alias metadata handoff via `node.keywords` in parsed QDom.
 
 ## What's New in v6.0.3
 
@@ -13,6 +19,10 @@
 - Parses QHTML into an AST and then into typed QDom nodes.
 - Supports component/template/signal definitions (`q-component`, `q-template`, `q-signal`) and converts element invocations into `component-instance` / `template-instance` nodes when definitions are known.
 - Supports `q-property { ... }` declarations inside `q-component` definitions and maps matching invocation assignments into component instance `props` instead of HTML attributes.
+- Supports scoped keyword remapping with `q-keyword`:
+  - `q-keyword component { q-component }`
+  - scope is lexical (current block + descendants)
+  - child scopes may override parent aliases
 - Supports binding expressions in assignments: `name: q-bind { ... }` and `name: q-script { ... }` (assignment form), persisted as QDom binding metadata for runtime re-evaluation.
 - Parses top-level lifecycle blocks (`onReady`, `onLoad`, `onLoaded`) and stores them in document metadata.
 - Parses `on<Event>` inline event blocks into script-bearing element attributes.
@@ -45,8 +55,12 @@
 - Component-local signal method declarations:
   - `q-signal mySignal(param1, param2)` inside `q-component`
   - parsed into component metadata (`component.signalDeclarations`)
+- Component alias declarations:
+  - `q-alias aliasName { return ... }` inside `q-component`
+  - parsed into component metadata (`component.aliasDeclarations`)
 - q-import blocks
 - q-rewrite definitions + invocations
+- q-keyword declarations and alias invocation expansion
 
 `q-script` in this module is mixed-mode:
 - Standalone structural `q-script { ... }` is source-time expansion support.
@@ -67,6 +81,16 @@ div.notice {
 
 ```html
 <div class="notice">Hello</div>
+```
+
+Scoped keyword alias example:
+
+```qhtml
+q-keyword component { q-component }
+
+component app-card {
+  div { text { Hi } }
+}
 ```
 
 ## Serializer behavior

@@ -25,6 +25,7 @@
 - `q-template` invocation expands inline (no wrapper).
 - `q-signal` invocation dispatches events and renders no host DOM.
 - Component-local signal declarations (`q-signal name(param1, ...)`) bind callable host methods with `.connect/.disconnect/.emit`.
+- Component alias declarations (`q-alias name { return ... }`) bind computed getter properties on the component host.
 - Component instance `attributes` are applied via `setAttribute(...)`; component instance `props` are applied as direct host-element property assignments.
 - `text` nodes create text nodes; `raw-html` nodes inject parsed HTML fragments.
 - Literal `<slot>` tags are consumed as projection boundaries and removed from final DOM output.

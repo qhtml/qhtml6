@@ -246,7 +246,7 @@ q-component q-checkout-modal {
         button.w3-button.w3-red.w3-round.w3-margin-right {
           text { Clear Cart }
           onclick {
-            this.component.clearItems();
+            this.closest("q-checkout-modal").clearItems();
           }
         }
         span.w3-small.w3-text-grey {

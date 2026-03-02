@@ -37,6 +37,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - `instance.name.connect(fn)`
   - `instance.name.disconnect(fn?)`
   - `instance.name.emit(...)`
+- Binds component alias declarations (`q-alias aliasName { return ... }`) onto host instances as computed properties (`instance.aliasName`).
 - Tracks ownership for slot routing and dynamic lookup in runtime.
 
 ## Failure behavior

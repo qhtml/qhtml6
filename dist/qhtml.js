@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-03-02T10:48:53Z */
+/* generated: 2026-03-02T13:13:57Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -195,6 +195,7 @@
       propertyDefinitions: Array.isArray(opts.propertyDefinitions) ? opts.propertyDefinitions : [],
       methods: Array.isArray(opts.methods) ? opts.methods : [],
       signalDeclarations: Array.isArray(opts.signalDeclarations) ? opts.signalDeclarations : [],
+      aliasDeclarations: Array.isArray(opts.aliasDeclarations) ? opts.aliasDeclarations : [],
       lifecycleScripts: Array.isArray(opts.lifecycleScripts) ? opts.lifecycleScripts : [],
       attributes: Object.assign({}, opts.attributes || {}),
       properties: Array.isArray(opts.properties) ? opts.properties.slice() : [],
@@ -920,6 +921,13 @@
     return error;
   }
 
+  function KeywordAliasError(message, index) {
+    const error = new Error(message + " (at index " + index + ")");
+    error.name = "QHtmlKeywordAliasError";
+    error.index = index;
+    return error;
+  }
+
   function parserFor(source) {
     return {
       source: String(source || ""),
@@ -1118,6 +1126,12 @@
     if (token.nameLower === "function") {
       return true;
     }
+    if (token.nameLower === "q-alias") {
+      return isIdentifierStartChar(next) || next === "{";
+    }
+    if (token.nameLower === "q-keyword") {
+      return isIdentifierStartChar(next);
+    }
     if (isEventBlockName(token.name) && next === "{") {
       return true;
     }
@@ -1140,6 +1154,9 @@
     }
     if (nameLower === "q-template" || nameLower === "q-component" || nameLower === "q-signal" || nameLower === "q-rewrite") {
       return isIdentifierStartChar(next) || next === "{";
+    }
+    if (nameLower === "q-keyword") {
+      return isIdentifierStartChar(next);
     }
     if (nameLower === "q-import" || nameLower === "html") {
       return next === "{";
@@ -1268,53 +1285,123 @@
   }
 
   function parseSelectorList(parser, firstSelector) {
-    const selectors = [firstSelector || parseIdentifier(parser)];
+    const selectors = [firstSelector || parseSelectorToken(parser)];
     skipWhitespace(parser);
     while (peek(parser) === ",") {
       consume(parser);
       skipWhitespace(parser);
-      selectors.push(parseIdentifier(parser));
+      selectors.push(parseSelectorToken(parser));
       skipWhitespace(parser);
     }
     return selectors;
   }
 
-  function readBalancedBlockContent(parser) {
+  function isValidSelectorToken(token) {
+    const value = String(token || "").trim();
+    if (!value) {
+      return false;
+    }
+    if (!/^(?:[^.#\s]+)?(?:[.#][A-Za-z_][A-Za-z0-9_-]*)*$/.test(value)) {
+      return false;
+    }
+    if (value.charAt(0) === "." || value.charAt(0) === "#") {
+      return /^(?:[.#][A-Za-z_][A-Za-z0-9_-]*)+$/.test(value);
+    }
+    return true;
+  }
+
+  function parseSelectorTokenTail(parser, baseToken) {
+    let token = String(baseToken || "");
+
+    while (peek(parser) === "." || peek(parser) === "#") {
+      const marker = consume(parser);
+      if (!isIdentifierStartChar(peek(parser))) {
+        throw ParseError("Expected identifier after '" + marker + "' in selector", parser.index);
+      }
+      token += marker + parseIdentifier(parser);
+    }
+
+    if (!isValidSelectorToken(token)) {
+      throw ParseError("Invalid selector token '" + token + "'", parser.index);
+    }
+    return token;
+  }
+
+  function parseSelectorToken(parser) {
+    skipWhitespace(parser);
     const start = parser.index;
+    let token = "";
+    if (isIdentifierStartChar(peek(parser))) {
+      token = String(parseIdentifier(parser) || "");
+    } else if (peek(parser) === "." || peek(parser) === "#") {
+      while (peek(parser) === "." || peek(parser) === "#") {
+        const marker = consume(parser);
+        if (!isIdentifierStartChar(peek(parser))) {
+          throw ParseError("Expected identifier after '" + marker + "' in selector", parser.index);
+        }
+        token += marker + parseIdentifier(parser);
+      }
+    }
+    if (!token) {
+      throw ParseError("Expected selector", start);
+    }
+    return parseSelectorTokenTail(parser, token);
+  }
+
+  function readBalancedBlockContent(parser) {
     let depth = 1;
     let quote = "";
     let escaped = false;
+    let out = "";
 
     while (!eof(parser)) {
       const ch = consume(parser);
 
       if (quote) {
         if (escaped) {
+          out += ch;
           escaped = false;
           continue;
         }
         if (ch === "\\") {
+          out += ch;
           escaped = true;
           continue;
         }
         if (ch === quote) {
           quote = "";
         }
+        out += ch;
         continue;
       }
 
       if (ch === '"' || ch === "'" || ch === "`") {
         quote = ch;
+        out += ch;
+        continue;
+      }
+
+      if (ch === "\\") {
+        const next = peek(parser);
+        if (next === "{" || next === "}" || next === "\\") {
+          out += consume(parser);
+          continue;
+        }
+        out += ch;
         continue;
       }
 
       if (ch === "{") {
         depth += 1;
+        out += ch;
       } else if (ch === "}") {
         depth -= 1;
         if (depth === 0) {
-          return parser.source.slice(start, parser.index - 1);
+          return out;
         }
+        out += ch;
+      } else {
+        out += ch;
       }
     }
 
@@ -1370,41 +1457,59 @@
   }
 
   function readBalancedParenthesizedContent(parser) {
-    const start = parser.index;
     let depth = 1;
     let quote = "";
     let escaped = false;
+    let out = "";
 
     while (!eof(parser)) {
       const ch = consume(parser);
 
       if (quote) {
         if (escaped) {
+          out += ch;
           escaped = false;
           continue;
         }
         if (ch === "\\") {
+          out += ch;
           escaped = true;
           continue;
         }
         if (ch === quote) {
           quote = "";
         }
+        out += ch;
         continue;
       }
 
       if (ch === '"' || ch === "'" || ch === "`") {
         quote = ch;
+        out += ch;
+        continue;
+      }
+
+      if (ch === "\\") {
+        const next = peek(parser);
+        if (next === "(" || next === ")" || next === "\\") {
+          out += consume(parser);
+          continue;
+        }
+        out += ch;
         continue;
       }
 
       if (ch === "(") {
         depth += 1;
+        out += ch;
       } else if (ch === ")") {
         depth -= 1;
         if (depth === 0) {
-          return parser.source.slice(start, parser.index - 1);
+          return out;
         }
+        out += ch;
+      } else {
+        out += ch;
       }
     }
 
@@ -1439,7 +1544,211 @@
     return out;
   }
 
-  function parseBlockItems(parser) {
+  function cloneKeywordAliases(keywordAliases) {
+    if (keywordAliases instanceof Map) {
+      return new Map(keywordAliases);
+    }
+    return new Map();
+  }
+
+  function keywordAliasesToObject(keywordAliases) {
+    if (!(keywordAliases instanceof Map) || keywordAliases.size === 0) {
+      return null;
+    }
+    const out = {};
+    keywordAliases.forEach(function eachAlias(spec, key) {
+      const aliasName = String((spec && spec.name) || key || "").trim();
+      const replacementHead = String((spec && spec.replacementHead) || "").trim();
+      if (!aliasName || !replacementHead) {
+        return;
+      }
+      out[aliasName] = replacementHead;
+    });
+    return Object.keys(out).length > 0 ? out : null;
+  }
+
+  function readFirstIdentifierLower(text) {
+    const input = String(text || "");
+    const start = skipWhitespaceInSource(input, 0);
+    const token = scanIdentifierTokenAt(input, start);
+    return token && token.nameLower ? token.nameLower : "";
+  }
+
+  function parseKeywordAliasDeclaration(parser, keywordAliases, declarationStart) {
+    const aliasName = parseIdentifier(parser);
+    const normalizedAliasName = String(aliasName || "").trim();
+    const normalizedAliasLower = normalizedAliasName.toLowerCase();
+    if (!normalizedAliasName) {
+      throw ParseError("Expected alias name after q-keyword", parser.index);
+    }
+
+    skipWhitespace(parser);
+    if (peek(parser) !== "{") {
+      throw ParseError("Expected '{' after q-keyword alias name", parser.index);
+    }
+    consume(parser);
+
+    const replacementHeadRaw = readBalancedBlockContent(parser);
+    const replacementHead = String(replacementHeadRaw || "").trim();
+    if (!replacementHead) {
+      throw KeywordAliasError("q-keyword replacement cannot be empty", declarationStart);
+    }
+
+    const replacementFirstLower = readFirstIdentifierLower(replacementHead);
+    if (replacementFirstLower && replacementFirstLower === normalizedAliasLower) {
+      throw KeywordAliasError("q-keyword '" + normalizedAliasName + "' cannot reference itself", declarationStart);
+    }
+    if (replacementFirstLower && keywordAliases instanceof Map && keywordAliases.has(replacementFirstLower)) {
+      throw KeywordAliasError(
+        "q-keyword '" + normalizedAliasName + "' cannot target another q-keyword '" + replacementFirstLower + "'",
+        declarationStart
+      );
+    }
+
+    const spec = {
+      name: normalizedAliasName,
+      nameLower: normalizedAliasLower,
+      replacementHead: replacementHead,
+      replacementFirstLower: replacementFirstLower,
+    };
+    if (keywordAliases instanceof Map) {
+      keywordAliases.set(normalizedAliasLower, spec);
+    }
+    return spec;
+  }
+
+  function ensureAliasReplacementIsDirect(aliasSpec, keywordAliases, parser, atIndex) {
+    const spec = aliasSpec && typeof aliasSpec === "object" ? aliasSpec : null;
+    if (!spec || !(keywordAliases instanceof Map)) {
+      return;
+    }
+    const replacementFirstLower =
+      spec.replacementFirstLower || readFirstIdentifierLower(String(spec.replacementHead || ""));
+    if (!replacementFirstLower) {
+      return;
+    }
+    if (replacementFirstLower === String(spec.nameLower || "").toLowerCase()) {
+      throw KeywordAliasError("q-keyword '" + spec.name + "' cannot reference itself", atIndex);
+    }
+    if (keywordAliases.has(replacementFirstLower)) {
+      throw KeywordAliasError(
+        "q-keyword '" + spec.name + "' cannot target another q-keyword '" + replacementFirstLower + "'",
+        atIndex
+      );
+    }
+  }
+
+  function findItemBoundaryInSource(source, startIndex, options) {
+    const input = String(source || "");
+    const opts = options || {};
+    const mode = String(opts.mode || "block").toLowerCase() === "top" ? "top" : "block";
+    const stopChar = mode === "block" ? String(opts.stopChar || "}") : "";
+    let i = Math.max(0, Number(startIndex) || 0);
+    let depth = 0;
+    let quote = "";
+    let escaped = false;
+
+    while (i < input.length) {
+      const ch = input.charAt(i);
+
+      if (quote) {
+        if (escaped) {
+          escaped = false;
+          i += 1;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          i += 1;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        i += 1;
+        continue;
+      }
+
+      if (ch === "/" && input.charAt(i + 1) === "/") {
+        i += 2;
+        while (i < input.length) {
+          const lineCh = input.charAt(i);
+          if (lineCh === "\n" || lineCh === "\r") {
+            break;
+          }
+          i += 1;
+        }
+        continue;
+      }
+      if (ch === "/" && input.charAt(i + 1) === "*") {
+        i += 2;
+        while (i < input.length && !(input.charAt(i) === "*" && input.charAt(i + 1) === "/")) {
+          i += 1;
+        }
+        i = i < input.length ? i + 2 : input.length;
+        continue;
+      }
+
+      if (ch === '"' || ch === "'" || ch === "`") {
+        quote = ch;
+        i += 1;
+        continue;
+      }
+
+      if (ch === "{") {
+        depth += 1;
+        i += 1;
+        continue;
+      }
+
+      if (ch === "}") {
+        if (depth === 0) {
+          return i;
+        }
+        depth -= 1;
+        i += 1;
+        continue;
+      }
+
+      if (depth === 0) {
+        if (ch === ";" || ch === "\n" || ch === "\r") {
+          return i;
+        }
+        if (mode === "block" && stopChar && ch === stopChar) {
+          return i;
+        }
+      }
+
+      i += 1;
+    }
+
+    return input.length;
+  }
+
+  function parseAliasedItemsFromSource(sourceText, mode, keywordAliases) {
+    const text = String(sourceText || "");
+    if (!text.trim()) {
+      return [];
+    }
+
+    if (String(mode || "").toLowerCase() === "top") {
+      const nestedAst = parseQHtmlToAst(text, {
+        keywordAliases: cloneKeywordAliases(keywordAliases),
+      });
+      return Array.isArray(nestedAst.body) ? nestedAst.body : [];
+    }
+
+    const nestedParser = parserFor(text);
+    const nestedItems = parseBlockItems(nestedParser, cloneKeywordAliases(keywordAliases));
+    skipWhitespaceAndSemicolons(nestedParser);
+    if (!eof(nestedParser)) {
+      throw ParseError("Unable to parse aliased block invocation", nestedParser.index);
+    }
+    return nestedItems;
+  }
+
+  function parseBlockItems(parser, keywordAliases) {
+    const scopedKeywordAliases = cloneKeywordAliases(keywordAliases);
     const items = [];
 
     while (!eof(parser)) {
@@ -1459,11 +1768,32 @@
       const recoveryStart = parser.index;
       try {
         const itemStart = parser.index;
-        const name = parseIdentifier(parser);
-        const nameLower = name.toLowerCase();
+        const nameBase = parseIdentifier(parser);
+        const name = parseSelectorTokenTail(parser, nameBase);
+        const nameLower = nameBase.toLowerCase();
         const afterName = parser.index;
         skipWhitespace(parser);
 
+        if (nameLower === "q-keyword") {
+          parseKeywordAliasDeclaration(parser, scopedKeywordAliases, itemStart);
+          continue;
+        }
+
+        const aliasSpec = scopedKeywordAliases.get(nameLower);
+        if (aliasSpec) {
+          ensureAliasReplacementIsDirect(aliasSpec, scopedKeywordAliases, parser, itemStart);
+          const itemEnd = findItemBoundaryInSource(parser.source, itemStart, { mode: "block", stopChar: "}" });
+          const rest = parser.source.slice(afterName, itemEnd);
+          const expandedSource = String(aliasSpec.replacementHead || "") + rest;
+          const expandedItems = parseAliasedItemsFromSource(expandedSource, "block", scopedKeywordAliases);
+          parser.index = itemEnd;
+          for (let i = 0; i < expandedItems.length; i += 1) {
+            items.push(expandedItems[i]);
+          }
+          continue;
+        }
+
+        const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
         const nextChar = peek(parser);
         if (nameLower === "q-signal" && nextChar !== "{" && nextChar !== ",") {
           const signalId = parseIdentifier(parser);
@@ -1479,12 +1809,13 @@
           skipInlineWhitespace(parser);
           if (peek(parser) === "{") {
             consume(parser);
-            const signalItems = parseBlockItems(parser);
+            const signalItems = parseBlockItems(parser, scopedKeywordAliases);
             expect(parser, "}");
             items.push({
               type: "SignalDefinition",
               signalId: signalId,
               items: signalItems,
+              keywords: keywordSnapshot,
               start: itemStart,
               end: parser.index,
               raw: parser.source.slice(itemStart, parser.index),
@@ -1504,6 +1835,7 @@
             name: String(signalId || "").trim(),
             signature: signature,
             parameters: parameterNames,
+            keywords: keywordSnapshot,
             start: itemStart,
             end: parser.index,
             raw: parser.source.slice(itemStart, parser.index),
@@ -1521,6 +1853,7 @@
           items.push({
             type: "QPropertyBlock",
             properties: [normalizedPropertyName],
+            keywords: keywordSnapshot,
             start: itemStart,
             end: propertyNameEnd,
             raw: parser.source.slice(itemStart, propertyNameEnd),
@@ -1533,11 +1866,35 @@
               type: "Property",
               name: normalizedPropertyName,
               value: value,
+              keywords: keywordSnapshot,
               start: propertyNameStart,
               end: parser.index,
               raw: parser.source.slice(propertyNameStart, parser.index),
             });
           }
+          continue;
+        }
+        if (nameLower === "q-alias" && nextChar !== "{" && nextChar !== ",") {
+          const aliasName = parseIdentifier(parser);
+          const normalizedAliasName = String(aliasName || "").trim();
+          if (!normalizedAliasName) {
+            throw ParseError("Expected alias name after q-alias", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-alias name", parser.index);
+          }
+          consume(parser);
+          const aliasBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "AliasDeclaration",
+            name: normalizedAliasName,
+            body: compactScriptBody(aliasBody),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
           continue;
         }
         if (nameLower === "property" && nextChar !== "{") {
@@ -1551,12 +1908,13 @@
             throw ParseError("Expected '{' after property name", parser.index);
           }
           consume(parser);
-          const propertyItems = parseBlockItems(parser);
+          const propertyItems = parseBlockItems(parser, scopedKeywordAliases);
           expect(parser, "}");
           items.push({
             type: "PropertyDefinitionBlock",
             name: normalizedPropertyName,
             items: propertyItems,
+            keywords: keywordSnapshot,
             start: itemStart,
             end: parser.index,
             raw: parser.source.slice(itemStart, parser.index),
@@ -1570,6 +1928,7 @@
             type: "Property",
             name: name,
             value: value,
+            keywords: keywordSnapshot,
             start: itemStart,
             end: parser.index,
             raw: parser.source.slice(itemStart, parser.index),
@@ -1577,36 +1936,22 @@
           continue;
         }
 
-      if (nextChar === ",") {
-        const selectors = parseSelectorList(parser, name);
-        const prefixDirectives = parseLeadingSelectorDirectiveBlocks(parser);
-        skipWhitespace(parser);
-        if (peek(parser) !== "{") {
-          throw ParseError("Expected '{' after selector", parser.index);
-        }
-        consume(parser);
-        const childItems = parseBlockItems(parser);
-        expect(parser, "}");
-        items.push({
-          type: "Element",
-          selectors: selectors,
-          prefixDirectives: prefixDirectives,
-          items: childItems,
-          start: itemStart,
-          end: parser.index,
-          raw: parser.source.slice(itemStart, parser.index),
-        });
-        continue;
-      }
-
-      if (nextChar === "{") {
-
-        if (nameLower === "html") {
+        if (nextChar === ",") {
+          const selectors = parseSelectorList(parser, name);
+          const prefixDirectives = parseLeadingSelectorDirectiveBlocks(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after selector", parser.index);
+          }
           consume(parser);
-          const rawHtml = readBalancedBlockContent(parser);
+          const childItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
           items.push({
-            type: "HtmlBlock",
-            html: rawHtml,
+            type: "Element",
+            selectors: selectors,
+            prefixDirectives: prefixDirectives,
+            items: childItems,
+            keywords: keywordSnapshot,
             start: itemStart,
             end: parser.index,
             raw: parser.source.slice(itemStart, parser.index),
@@ -1614,12 +1959,123 @@
           continue;
         }
 
-        if (TEXT_BLOCK_KEYWORDS.has(nameLower)) {
+        if (nextChar === "{") {
+          if (nameLower === "html") {
+            consume(parser);
+            const rawHtml = readBalancedBlockContent(parser);
+            items.push({
+              type: "HtmlBlock",
+              html: rawHtml,
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
+          if (TEXT_BLOCK_KEYWORDS.has(nameLower)) {
+            consume(parser);
+            const textBody = readBalancedBlockContent(parser);
+            items.push({
+              type: "TextBlock",
+              text: textBody,
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
+          if (nameLower === "style") {
+            consume(parser);
+            const styleBody = readBalancedBlockContent(parser);
+            items.push({
+              type: "StyleBlock",
+              css: styleBody,
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
+          if (nameLower === "q-script") {
+            consume(parser);
+            const scriptBody = readBalancedBlockContent(parser);
+            items.push({
+              type: "QScriptInline",
+              script: scriptBody,
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
+          if (nameLower === "q-import") {
+            consume(parser);
+            const importBody = readBalancedBlockContent(parser);
+            items.push({
+              type: "ImportBlock",
+              path: String(importBody || "").trim(),
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
+          if (nameLower === "q-property") {
+            consume(parser);
+            const propertyBody = readBalancedBlockContent(parser);
+            items.push({
+              type: "QPropertyBlock",
+              properties: parseQPropertyNames(propertyBody),
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
+          if (isEventBlockName(name)) {
+            consume(parser);
+            const scriptBody = readBalancedBlockContent(parser);
+            items.push({
+              type: "EventBlock",
+              name: name,
+              script: scriptBody,
+              isLifecycle: LIFECYCLE_BLOCKS.has(nameLower),
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
+          parser.index = afterName;
+          const prefixDirectives = parseLeadingSelectorDirectiveBlocks(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after selector", parser.index);
+          }
           consume(parser);
-          const textBody = readBalancedBlockContent(parser);
+          const childItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+
           items.push({
-            type: "TextBlock",
-            text: textBody,
+            type: "Element",
+            selectors: [name],
+            prefixDirectives: prefixDirectives,
+            items: childItems,
+            keywords: keywordSnapshot,
             start: itemStart,
             end: parser.index,
             raw: parser.source.slice(itemStart, parser.index),
@@ -1627,135 +2083,48 @@
           continue;
         }
 
-        if (nameLower === "style") {
-          consume(parser);
-          const styleBody = readBalancedBlockContent(parser);
+        if (nextChar === "}") {
           items.push({
-            type: "StyleBlock",
-            css: styleBody,
-            start: itemStart,
-            end: parser.index,
-            raw: parser.source.slice(itemStart, parser.index),
-          });
-          continue;
-        }
-
-        if (nameLower === "q-script") {
-          consume(parser);
-          const scriptBody = readBalancedBlockContent(parser);
-          items.push({
-            type: "QScriptInline",
-            script: scriptBody,
-            start: itemStart,
-            end: parser.index,
-            raw: parser.source.slice(itemStart, parser.index),
-          });
-          continue;
-        }
-
-        if (nameLower === "q-import") {
-          consume(parser);
-          const importBody = readBalancedBlockContent(parser);
-          items.push({
-            type: "ImportBlock",
-            path: String(importBody || "").trim(),
-            start: itemStart,
-            end: parser.index,
-            raw: parser.source.slice(itemStart, parser.index),
-          });
-          continue;
-        }
-
-        if (nameLower === "q-property") {
-          consume(parser);
-          const propertyBody = readBalancedBlockContent(parser);
-          items.push({
-            type: "QPropertyBlock",
-            properties: parseQPropertyNames(propertyBody),
-            start: itemStart,
-            end: parser.index,
-            raw: parser.source.slice(itemStart, parser.index),
-          });
-          continue;
-        }
-
-        if (isEventBlockName(name)) {
-          consume(parser);
-          const scriptBody = readBalancedBlockContent(parser);
-          items.push({
-            type: "EventBlock",
+            type: "BareWord",
             name: name,
-            script: scriptBody,
-            isLifecycle: LIFECYCLE_BLOCKS.has(nameLower),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: afterName,
+            raw: parser.source.slice(itemStart, afterName),
+          });
+          continue;
+        }
+
+        if (String(name || "").toLowerCase() === "function") {
+          parser.index = afterName;
+          skipWhitespace(parser);
+          const signatureStart = parser.index;
+          while (!eof(parser) && peek(parser) !== "{") {
+            parser.index += 1;
+          }
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after function signature", parser.index);
+          }
+          const signature = parser.source.slice(signatureStart, parser.index).trim();
+          const sigMatch = signature.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*\(([\s\S]*)\)$/);
+          const methodName = sigMatch ? String(sigMatch[1] || "").trim() : "";
+          const parameters = sigMatch ? String(sigMatch[2] || "").trim() : "";
+
+          consume(parser);
+          const methodBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "FunctionBlock",
+            name: methodName,
+            signature: signature,
+            parameters: parameters,
+            body: methodBody,
+            keywords: keywordSnapshot,
             start: itemStart,
             end: parser.index,
             raw: parser.source.slice(itemStart, parser.index),
           });
           continue;
         }
-
-        parser.index = afterName;
-        const prefixDirectives = parseLeadingSelectorDirectiveBlocks(parser);
-        skipWhitespace(parser);
-        if (peek(parser) !== "{") {
-          throw ParseError("Expected '{' after selector", parser.index);
-        }
-        consume(parser);
-        const childItems = parseBlockItems(parser);
-        expect(parser, "}");
-
-        items.push({
-          type: "Element",
-          selectors: [name],
-          prefixDirectives: prefixDirectives,
-          items: childItems,
-          start: itemStart,
-          end: parser.index,
-          raw: parser.source.slice(itemStart, parser.index),
-        });
-        continue;
-      }
-
-      if (nextChar === "}") {
-        items.push({
-          type: "BareWord",
-          name: name,
-          start: itemStart,
-          end: afterName,
-          raw: parser.source.slice(itemStart, afterName),
-        });
-        continue;
-      }
-
-      if (String(name || "").toLowerCase() === "function") {
-        parser.index = afterName;
-        skipWhitespace(parser);
-        const signatureStart = parser.index;
-        while (!eof(parser) && peek(parser) !== "{") {
-          parser.index += 1;
-        }
-        if (peek(parser) !== "{") {
-          throw ParseError("Expected '{' after function signature", parser.index);
-        }
-        const signature = parser.source.slice(signatureStart, parser.index).trim();
-        const sigMatch = signature.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*\(([\s\S]*)\)$/);
-        const methodName = sigMatch ? String(sigMatch[1] || "").trim() : "";
-        const parameters = sigMatch ? String(sigMatch[2] || "").trim() : "";
-
-        consume(parser);
-        const methodBody = readBalancedBlockContent(parser);
-        items.push({
-          type: "FunctionBlock",
-          name: methodName,
-          signature: signature,
-          parameters: parameters,
-          body: methodBody,
-          start: itemStart,
-          end: parser.index,
-          raw: parser.source.slice(itemStart, parser.index),
-        });
-        continue;
-      }
 
         parser.index = afterName;
         const rest = parseBareValue(parser);
@@ -1763,6 +2132,7 @@
         items.push({
           type: "RawTextLine",
           text: text,
+          keywords: keywordSnapshot,
           start: itemStart,
           end: parser.index,
           raw: parser.source.slice(itemStart, parser.index),
@@ -1783,8 +2153,8 @@
     return items;
   }
 
-  function parseQHtmlToAst(source) {
-    const parser = parserFor(source);
+  function parseTopLevelItems(parser, keywordAliases) {
+    const scopedKeywordAliases = cloneKeywordAliases(keywordAliases);
     const body = [];
 
     while (!eof(parser)) {
@@ -1804,151 +2174,181 @@
       const recoveryStart = parser.index;
       try {
         const start = parser.index;
-        const firstSelector = parseIdentifier(parser);
-        const firstLower = firstSelector.toLowerCase();
+        const firstSelectorBase = parseIdentifier(parser);
+        const firstSelector = parseSelectorTokenTail(parser, firstSelectorBase);
+        const firstLower = firstSelectorBase.toLowerCase();
+        const afterFirstSelector = parser.index;
         skipWhitespace(parser);
 
-      if (LIFECYCLE_BLOCKS.has(firstLower) && peek(parser) === "{") {
-        consume(parser);
-        const scriptBody = readBalancedBlockContent(parser);
-        body.push({
-          type: "LifecycleBlock",
-          name: firstSelector,
-          script: scriptBody,
-          isLifecycle: true,
-          start: start,
-          end: parser.index,
-          raw: parser.source.slice(start, parser.index),
-        });
-        continue;
-      }
-
-      if (firstLower === "q-template" && peek(parser) !== "{" && peek(parser) !== ",") {
-        const templateId = parseIdentifier(parser);
-        skipWhitespace(parser);
-        if (peek(parser) !== "{") {
-          throw ParseError("Expected '{' after q-template id", parser.index);
+        if (firstLower === "q-keyword") {
+          parseKeywordAliasDeclaration(parser, scopedKeywordAliases, start);
+          continue;
         }
-        consume(parser);
-        const items = parseBlockItems(parser);
-        expect(parser, "}");
-        body.push({
-          type: "TemplateDefinition",
-          templateId: templateId,
-          items: items,
-          start: start,
-          end: parser.index,
-          raw: parser.source.slice(start, parser.index),
-        });
-        continue;
-      }
 
-      if (firstLower === "q-component" && peek(parser) !== "{" && peek(parser) !== ",") {
-        const componentIdExprStart = parser.index;
-        let componentIdExpression = null;
-
-        if (parser.source.slice(parser.index, parser.index + 8).toLowerCase() === "q-script") {
-          const keyword = parseIdentifier(parser);
-          skipWhitespace(parser);
-          if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after q-script in component id expression", parser.index);
+        const aliasSpec = scopedKeywordAliases.get(firstLower);
+        if (aliasSpec) {
+          ensureAliasReplacementIsDirect(aliasSpec, scopedKeywordAliases, parser, start);
+          const itemEnd = findItemBoundaryInSource(parser.source, start, { mode: "top" });
+          const rest = parser.source.slice(afterFirstSelector, itemEnd);
+          const expandedSource = String(aliasSpec.replacementHead || "") + rest;
+          const expandedItems = parseAliasedItemsFromSource(expandedSource, "top", scopedKeywordAliases);
+          parser.index = itemEnd;
+          for (let i = 0; i < expandedItems.length; i += 1) {
+            body.push(expandedItems[i]);
           }
+          continue;
+        }
+
+        const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
+
+        if (LIFECYCLE_BLOCKS.has(firstLower) && peek(parser) === "{") {
           consume(parser);
           const scriptBody = readBalancedBlockContent(parser);
-          componentIdExpression = {
-            type: "QScriptExpression",
-            keyword: keyword,
+          body.push({
+            type: "LifecycleBlock",
+            name: firstSelector,
             script: scriptBody,
-            raw: parser.source.slice(componentIdExprStart, parser.index),
-          };
-        } else {
-          const componentId = parseIdentifier(parser);
-          componentIdExpression = {
-            type: "IdentifierExpression",
-            identifier: componentId,
-            raw: parser.source.slice(componentIdExprStart, parser.index),
-          };
+            isLifecycle: true,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
         }
 
+        if (firstLower === "q-template" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const templateId = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-template id", parser.index);
+          }
+          consume(parser);
+          const items = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          body.push({
+            type: "TemplateDefinition",
+            templateId: templateId,
+            items: items,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-component" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const componentIdExprStart = parser.index;
+          let componentIdExpression = null;
+
+          if (parser.source.slice(parser.index, parser.index + 8).toLowerCase() === "q-script") {
+            const keyword = parseIdentifier(parser);
+            skipWhitespace(parser);
+            if (peek(parser) !== "{") {
+              throw ParseError("Expected '{' after q-script in component id expression", parser.index);
+            }
+            consume(parser);
+            const scriptBody = readBalancedBlockContent(parser);
+            componentIdExpression = {
+              type: "QScriptExpression",
+              keyword: keyword,
+              script: scriptBody,
+              raw: parser.source.slice(componentIdExprStart, parser.index),
+            };
+          } else {
+            const componentId = parseIdentifier(parser);
+            componentIdExpression = {
+              type: "IdentifierExpression",
+              identifier: componentId,
+              raw: parser.source.slice(componentIdExprStart, parser.index),
+            };
+          }
+
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-component id", parser.index);
+          }
+          consume(parser);
+          const items = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+
+          body.push({
+            type: "ComponentDefinition",
+            componentIdExpression: componentIdExpression,
+            items: items,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-signal" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const signalId = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-signal id", parser.index);
+          }
+          consume(parser);
+          const items = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          body.push({
+            type: "SignalDefinition",
+            signalId: signalId,
+            items: items,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        const selectors = parseSelectorList(parser, firstSelector);
+        const prefixDirectives = parseLeadingSelectorDirectiveBlocks(parser);
         skipWhitespace(parser);
+
         if (peek(parser) !== "{") {
-          throw ParseError("Expected '{' after q-component id", parser.index);
+          throw ParseError("Expected '{' at top level", parser.index);
         }
+
         consume(parser);
-        const items = parseBlockItems(parser);
-        expect(parser, "}");
-
-        body.push({
-          type: "ComponentDefinition",
-          componentIdExpression: componentIdExpression,
-          items: items,
-          start: start,
-          end: parser.index,
-          raw: parser.source.slice(start, parser.index),
-        });
-        continue;
-      }
-
-      if (firstLower === "q-signal" && peek(parser) !== "{" && peek(parser) !== ",") {
-        const signalId = parseIdentifier(parser);
-        skipWhitespace(parser);
-        if (peek(parser) !== "{") {
-          throw ParseError("Expected '{' after q-signal id", parser.index);
+        if (selectors.length === 1 && selectors[0].toLowerCase() === "html") {
+          const rawHtml = readBalancedBlockContent(parser);
+          body.push({
+            type: "HtmlBlock",
+            html: rawHtml,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
         }
-        consume(parser);
-        const items = parseBlockItems(parser);
-        expect(parser, "}");
-        body.push({
-          type: "SignalDefinition",
-          signalId: signalId,
-          items: items,
-          start: start,
-          end: parser.index,
-          raw: parser.source.slice(start, parser.index),
-        });
-        continue;
-      }
 
-      const selectors = parseSelectorList(parser, firstSelector);
-      const prefixDirectives = parseLeadingSelectorDirectiveBlocks(parser);
-      skipWhitespace(parser);
+        if (selectors.length === 1 && selectors[0].toLowerCase() === "q-import") {
+          const importBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "ImportBlock",
+            path: String(importBody || "").trim(),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
 
-      if (peek(parser) !== "{") {
-        throw ParseError("Expected '{' at top level", parser.index);
-      }
-
-      consume(parser);
-      if (selectors.length === 1 && selectors[0].toLowerCase() === "html") {
-        const rawHtml = readBalancedBlockContent(parser);
-        body.push({
-          type: "HtmlBlock",
-          html: rawHtml,
-          start: start,
-          end: parser.index,
-          raw: parser.source.slice(start, parser.index),
-        });
-        continue;
-      }
-
-      if (selectors.length === 1 && selectors[0].toLowerCase() === "q-import") {
-        const importBody = readBalancedBlockContent(parser);
-        body.push({
-          type: "ImportBlock",
-          path: String(importBody || "").trim(),
-          start: start,
-          end: parser.index,
-          raw: parser.source.slice(start, parser.index),
-        });
-        continue;
-      }
-
-        const items = parseBlockItems(parser);
+        const items = parseBlockItems(parser, scopedKeywordAliases);
         expect(parser, "}");
         body.push({
           type: "Element",
           selectors: selectors,
           prefixDirectives: prefixDirectives,
           items: items,
+          keywords: keywordSnapshot,
           start: start,
           end: parser.index,
           raw: parser.source.slice(start, parser.index),
@@ -1966,6 +2366,14 @@
       }
     }
 
+    return body;
+  }
+
+  function parseQHtmlToAst(source, options) {
+    const parser = parserFor(source);
+    const opts = options || {};
+    const keywordAliases = cloneKeywordAliases(opts.keywordAliases);
+    const body = parseTopLevelItems(parser, keywordAliases);
     return {
       type: "Program",
       body: body,
@@ -2633,6 +3041,12 @@
       }
       if (ch === "`") {
         inBacktick = true;
+        continue;
+      }
+      if (ch === "\\") {
+        if (next === "{" || next === "}" || next === "\\") {
+          i += 1;
+        }
         continue;
       }
 
@@ -3925,6 +4339,31 @@
     node.meta.__qhtmlPropertyBindingName = String(propertyName || "").trim();
   }
 
+  function applyKeywordAliasesToNode(node, keywordMap) {
+    if (!node || typeof node !== "object") {
+      return;
+    }
+    if (!keywordMap || typeof keywordMap !== "object" || Array.isArray(keywordMap)) {
+      return;
+    }
+    const keys = Object.keys(keywordMap);
+    if (keys.length === 0) {
+      return;
+    }
+    const mapped = {};
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim();
+      const value = String(keywordMap[key] || "").trim();
+      if (!key || !value) {
+        continue;
+      }
+      mapped[key] = value;
+    }
+    if (Object.keys(mapped).length > 0) {
+      node.keywords = mapped;
+    }
+  }
+
   function buildComponentNodeFromAst(astNode, source, options) {
     const opts = options || {};
     const componentAttributes = {};
@@ -3934,6 +4373,7 @@
     const propertyDefinitions = [];
     const methods = [];
     const signalDeclarations = [];
+    const aliasDeclarations = [];
     const lifecycleScripts = [];
     const definitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
     let componentId = String(opts.componentId || "").trim();
@@ -4023,6 +4463,18 @@
         }
         continue;
       }
+      if (item.type === "AliasDeclaration") {
+        if (definitionType === "component") {
+          const aliasName = String(item.name || "").trim();
+          if (aliasName) {
+            aliasDeclarations.push({
+              name: aliasName,
+              body: compactScriptBody(item.body || ""),
+            });
+          }
+        }
+        continue;
+      }
       if (item.type === "EventBlock" && item.isLifecycle) {
         if (definitionType === "component") {
           lifecycleScripts.push({
@@ -4038,13 +4490,14 @@
       }
     }
 
-    return core.createComponentNode({
+    const componentNode = core.createComponentNode({
       componentId: componentId,
       definitionType: definitionType,
       templateNodes: templateNodes,
       methods: methods,
       propertyDefinitions: propertyDefinitions,
       signalDeclarations: signalDeclarations,
+      aliasDeclarations: aliasDeclarations,
       lifecycleScripts: lifecycleScripts,
       attributes: componentAttributes,
       properties: componentProperties,
@@ -4053,6 +4506,8 @@
         sourceRange: [astNode.start, astNode.end],
       },
     });
+    applyKeywordAliasesToNode(componentNode, astNode.keywords);
+    return componentNode;
   }
 
   function buildElementFromAst(astElement, source) {
@@ -4088,6 +4543,7 @@
         leaf.slotDirectives = prefixDirectives;
       }
       processElementItems(leaf, astElement.items, source);
+      applyKeywordAliasesToNode(leaf, astElement.keywords);
       return leaf;
     }
 
@@ -4103,6 +4559,9 @@
 
     for (let i = 0; i < chain.length - 1; i += 1) {
       chain[i].children.push(chain[i + 1]);
+    }
+    for (let i = 0; i < chain.length; i += 1) {
+      applyKeywordAliasesToNode(chain[i], astElement.keywords);
     }
 
     const leaf = chain[chain.length - 1];
@@ -4146,13 +4605,15 @@
     }
 
     if (item.type === "HtmlBlock") {
-      return core.createRawHtmlNode({
+      const htmlNode = core.createRawHtmlNode({
         html: item.html,
         meta: {
           originalSource: item.raw,
           sourceRange: [item.start, item.end],
         },
       });
+      applyKeywordAliasesToNode(htmlNode, item.keywords);
+      return htmlNode;
     }
 
     if (item.type === "StyleBlock") {
@@ -4166,17 +4627,20 @@
         },
       });
       styleElement.textContent = String(item.css || "").trim();
+      applyKeywordAliasesToNode(styleElement, item.keywords);
       return styleElement;
     }
 
     if (item.type === "TextBlock" || item.type === "RawTextLine" || item.type === "BareWord") {
-      return createTextContentNode(item.type === "TextBlock" ? String(item.text || "") : String(item.text || item.name || ""), {
+      const textNode = createTextContentNode(item.type === "TextBlock" ? String(item.text || "") : String(item.text || item.name || ""), {
         originalSource: item.raw || null,
         sourceRange:
           typeof item.start === "number" && typeof item.end === "number"
             ? [item.start, item.end]
             : null,
       });
+      applyKeywordAliasesToNode(textNode, item.keywords);
+      return textNode;
     }
 
     return null;
@@ -4313,6 +4777,27 @@
       ? signalDecl.parameters.map(function mapParam(entry) { return String(entry || "").trim(); }).filter(Boolean)
       : [];
     return indent + "q-signal " + name + "(" + parameters.join(", ") + ")";
+  }
+
+  function serializeAliasDeclarationBlock(aliasDecl, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    if (!aliasDecl || typeof aliasDecl !== "object") {
+      return "";
+    }
+    const name = String(aliasDecl.name || "").trim();
+    if (!name) {
+      return "";
+    }
+    const body = String(aliasDecl.body || "");
+    const lines = [indent + "q-alias " + name + " {"];
+    if (body) {
+      const chunks = body.split("\n");
+      for (let i = 0; i < chunks.length; i += 1) {
+        lines.push(indent + "  " + chunks[i]);
+      }
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
   }
 
   function serializePropertyDefinitionBlock(propertyDef, indentLevel) {
@@ -4472,6 +4957,14 @@
             const serializedSignalDeclaration = serializeSignalDeclarationBlock(node.signalDeclarations[i], indentLevel + 1);
             if (serializedSignalDeclaration) {
               lines.push(serializedSignalDeclaration);
+            }
+          }
+        }
+        if (Array.isArray(node.aliasDeclarations)) {
+          for (let i = 0; i < node.aliasDeclarations.length; i += 1) {
+            const serializedAliasDeclaration = serializeAliasDeclarationBlock(node.aliasDeclarations[i], indentLevel + 1);
+            if (serializedAliasDeclaration) {
+              lines.push(serializedAliasDeclaration);
             }
           }
         }
@@ -5411,11 +5904,6 @@
     const state = doc && doc.__qhtmlContentLoadedState && typeof doc.__qhtmlContentLoadedState === "object" ? doc.__qhtmlContentLoadedState : null;
     const runtimeManaged = !!(state && state.runtimeManaged);
     const alreadySignaled = !!(state && Number(state.sequence || 0) > 0 && Number(state.pending || 0) === 0);
-    if (!runtimeManaged || alreadySignaled) {
-      runLifecycleHookNow(hook, thisArg, doc || targetDocument, errorLabel);
-      return;
-    }
-
     const readyStore = ensureReadyHookState(thisArg);
     const key = String(hook.name || "onready") + "::" + String(hook.body || "");
     if (readyStore && (readyStore[key] === "pending" || readyStore[key] === "done")) {
@@ -5435,8 +5923,23 @@
       runLifecycleHookNow(hook, thisArg, doc || targetDocument, errorLabel);
     };
 
+    const deferExecute = function deferExecuteReadyHook() {
+      if (typeof global.setTimeout === "function") {
+        global.setTimeout(execute, 0);
+      } else {
+        execute();
+      }
+    };
+
+    if (!runtimeManaged || alreadySignaled) {
+      // Always defer onReady at least one tick so runtime accessors (like element.qdom())
+      // can be attached after render and before hook execution.
+      deferExecute();
+      return;
+    }
+
     if (!doc || typeof doc.addEventListener !== "function" || typeof doc.dispatchEvent !== "function") {
-      execute();
+      deferExecute();
       return;
     }
 
@@ -5596,6 +6099,56 @@
       } catch (error) {
         if (global.console && typeof global.console.error === "function") {
           global.console.error("qhtml declared property binding install failed:", propertyName, error);
+        }
+      }
+    }
+
+    const aliasDeclarations = Array.isArray(componentNode.aliasDeclarations) ? componentNode.aliasDeclarations : [];
+    for (let i = 0; i < aliasDeclarations.length; i += 1) {
+      const aliasDecl = aliasDeclarations[i] || {};
+      const aliasName = String(aliasDecl.name || "").trim();
+      if (!aliasName || INVALID_METHOD_NAMES.has(aliasName)) {
+        continue;
+      }
+      const existingDescriptor = Object.getOwnPropertyDescriptor(hostElement, aliasName);
+      if (existingDescriptor && existingDescriptor.configurable === false) {
+        continue;
+      }
+      const aliasBody = String(aliasDecl.body || "");
+      const aliasOverrideKey = "__qhtmlAliasOverride__" + aliasName;
+      let compiledAlias = null;
+      try {
+        compiledAlias = new Function(aliasBody);
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml q-alias compile failed:", aliasName, error);
+        }
+        continue;
+      }
+      try {
+        Object.defineProperty(hostElement, aliasName, {
+          configurable: true,
+          enumerable: true,
+          get: function getComponentAliasProperty() {
+            if (Object.prototype.hasOwnProperty.call(this, aliasOverrideKey)) {
+              return this[aliasOverrideKey];
+            }
+            try {
+              return compiledAlias.call(this);
+            } catch (error) {
+              if (global.console && typeof global.console.error === "function") {
+                global.console.error("qhtml q-alias evaluation failed:", aliasName, error);
+              }
+              return null;
+            }
+          },
+          set: function setComponentAliasProperty(value) {
+            this[aliasOverrideKey] = value;
+          },
+        });
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml q-alias install failed:", aliasName, error);
         }
       }
     }
@@ -5828,7 +6381,9 @@
           renderNode(node.children[i], element, targetDocument, context);
         }
       }
-      runLifecycleHooks(node, element, targetDocument);
+      if (!context.disableLifecycleHooks) {
+        runLifecycleHooks(node, element, targetDocument);
+      }
     } finally {
       if (slotRef) {
         context.slotStack.pop();
@@ -6028,8 +6583,10 @@
     stripRenderedSlotElements(hostElement);
     bindDeclaredComponentPropertyNodes(componentNode, hostElement, context);
 
-    runLifecycleHooks(instanceNode, hostElement, targetDocument);
-    runComponentLifecycleHooks(componentNode, hostElement, targetDocument);
+    if (!context.disableLifecycleHooks) {
+      runLifecycleHooks(instanceNode, hostElement, targetDocument);
+      runComponentLifecycleHooks(componentNode, hostElement, targetDocument);
+    }
   }
 
   function serializeSignalSlotValue(node) {
@@ -6148,6 +6705,7 @@
       componentStack: [],
       componentHostStack: [],
       slotStack: [],
+      disableLifecycleHooks: !!(options && options.disableLifecycleHooks),
       capture: options && options.capture ? options.capture : null,
     };
 
@@ -6283,6 +6841,7 @@
     const context = {
       componentRegistry: registry,
       componentStack: Array.isArray(opts.componentStack) ? opts.componentStack : [],
+      disableLifecycleHooks: !!opts.disableLifecycleHooks,
     };
 
     const instanceNode = domElementToInstanceNode(hostElement);
@@ -6310,7 +6869,9 @@
     }
     stripRenderedSlotElements(hostElement);
 
-    runComponentLifecycleHooks(componentNode, hostElement, doc);
+    if (!context.disableLifecycleHooks) {
+      runComponentLifecycleHooks(componentNode, hostElement, doc);
+    }
     return hostElement;
   }
 
@@ -6363,6 +6924,7 @@
     "slots",
     "lifecycleScripts",
     "methods",
+    "aliasDeclarations",
     "scripts",
     "html",
   ]);
@@ -7305,7 +7867,7 @@
 
     const internalMarker = hostElement.getAttribute ? hostElement.getAttribute("qhtml-component-instance") : "";
     const externalMarker = hostElement.getAttribute ? hostElement.getAttribute("qhtml-external-component-instance") : "";
-    if (internalMarker === "1" && externalMarker !== "1") {
+    if (internalMarker === "1") {
       return;
     }
     if (isWithinQHtml(hostElement) && externalMarker !== "1") {
@@ -7540,7 +8102,12 @@
     if (FORCED_FULL_RENDER_KEYS.has(last)) {
       return true;
     }
-    if (tail.indexOf("methods") !== -1 || tail.indexOf("lifecycleScripts") !== -1 || tail.indexOf("scripts") !== -1) {
+    if (
+      tail.indexOf("methods") !== -1 ||
+      tail.indexOf("lifecycleScripts") !== -1 ||
+      tail.indexOf("aliasDeclarations") !== -1 ||
+      tail.indexOf("scripts") !== -1
+    ) {
       return true;
     }
     if (isNumericPathSegment(last) && FORCED_FULL_RENDER_KEYS.has(prev)) {

@@ -979,7 +979,7 @@
     const renderHost = function renderHost(targetDocument) {
       const doc = targetDocument || document;
       const host = doc.createElement('div');
-      renderer.renderIntoElement(qdom, host, doc);
+      renderer.renderIntoElement(qdom, host, doc, { disableLifecycleHooks: true });
       return { doc: doc, host: host };
     };
 

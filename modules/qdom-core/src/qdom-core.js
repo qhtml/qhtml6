@@ -191,6 +191,7 @@
       propertyDefinitions: Array.isArray(opts.propertyDefinitions) ? opts.propertyDefinitions : [],
       methods: Array.isArray(opts.methods) ? opts.methods : [],
       signalDeclarations: Array.isArray(opts.signalDeclarations) ? opts.signalDeclarations : [],
+      aliasDeclarations: Array.isArray(opts.aliasDeclarations) ? opts.aliasDeclarations : [],
       lifecycleScripts: Array.isArray(opts.lifecycleScripts) ? opts.lifecycleScripts : [],
       attributes: Object.assign({}, opts.attributes || {}),
       properties: Array.isArray(opts.properties) ? opts.properties.slice() : [],

@@ -181,6 +181,26 @@
         <p>The sidebar is built with <code>document.querySelectorAll(".example-class")</code> and links to each section anchor.</p>
       </section>
 
+      <section class="example-class" id="q-keyword" data-title="q-keyword syntax usage">
+        <div class="example-head">
+          <h3>q-keyword syntax usage</h3>
+          <p>Scoped keyword remapping with direct-only alias rules.</p>
+        </div>
+        <div class="example-body">
+          <q-editor>
+q-keyword component { q-component }
+
+component tiny-card {
+  div.w3-card.w3-padding {
+    text { Tiny Card }
+  }
+}
+
+tiny-card { }
+          </q-editor>
+        </div>
+      </section>
+
       <section class="example-class" id="q-builder" data-title="q-builder.qhtml usage">
         <div class="example-head">
           <h3>q-builder.qhtml usage</h3>
@@ -227,7 +247,7 @@ div.w3-container.w3-border.w3-round-large.w3-padding.w3-margin-top {
 q-import { q-components/q-modal.qhtml }
 q-import { q-components/q-form.qhtml }
 q-import { q-components/q-grid.qhtml }
-q-import { q-components/q-checkout-modal.qhtml }
+q-import { q-components/q-checkout-modal.qhtml?v=cart-fix-3 }
 
 button.w3-button.w3-indigo {
   text { Open Checkout Modal }
@@ -255,10 +275,10 @@ q-checkout-modal { id: "checkout-usage" }
 q-import { q-components/q-form.qhtml }
 q-import { q-components/q-grid.qhtml }
 q-import { q-components/q-modal.qhtml }
-q-import { q-components/q-store-catalog-item.qhtml }
-q-import { q-components/q-store-catalog.qhtml }
-q-import { q-components/q-checkout-modal.qhtml }
-q-import { q-components/q-estore.qhtml }
+q-import { q-components/q-store-catalog-item.qhtml?v=cart-fix-2 }
+q-import { q-components/q-store-catalog.qhtml?v=cart-fix-2 }
+q-import { q-components/q-checkout-modal.qhtml?v=cart-fix-3 }
+q-import { q-components/q-estore.qhtml?v=cart-fix-2 }
 
 q-estore {
   items-json: "[{\"id\":\"sku-1\",\"name\":\"Starter\",\"description\":\"Inline demo item\",\"price\":12.5}]"
@@ -377,8 +397,8 @@ div.w3-container.w3-border.w3-round-large {
           <q-editor>
 q-import { q-components/q-form.qhtml }
 q-import { q-components/q-grid.qhtml }
-q-import { q-components/q-store-catalog-item.qhtml }
-q-import { q-components/q-store-catalog.qhtml }
+q-import { q-components/q-store-catalog-item.qhtml?v=cart-fix-2 }
+q-import { q-components/q-store-catalog.qhtml?v=cart-fix-2 }
 
 button.w3-button.w3-green.w3-margin-bottom {
   text { Add Sample Item }
@@ -396,7 +416,7 @@ q-store-catalog { id: "catalog-usage" }
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-store-catalog-item.qhtml }
+q-import { q-components/q-store-catalog-item.qhtml?v=cart-fix-2 }
 
 q-store-catalog-item {
   data-item-id: "widget-a"

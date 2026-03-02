@@ -36,6 +36,7 @@
     "slots",
     "lifecycleScripts",
     "methods",
+    "aliasDeclarations",
     "scripts",
     "html",
   ]);
@@ -978,7 +979,7 @@
 
     const internalMarker = hostElement.getAttribute ? hostElement.getAttribute("qhtml-component-instance") : "";
     const externalMarker = hostElement.getAttribute ? hostElement.getAttribute("qhtml-external-component-instance") : "";
-    if (internalMarker === "1" && externalMarker !== "1") {
+    if (internalMarker === "1") {
       return;
     }
     if (isWithinQHtml(hostElement) && externalMarker !== "1") {
@@ -1213,7 +1214,12 @@
     if (FORCED_FULL_RENDER_KEYS.has(last)) {
       return true;
     }
-    if (tail.indexOf("methods") !== -1 || tail.indexOf("lifecycleScripts") !== -1 || tail.indexOf("scripts") !== -1) {
+    if (
+      tail.indexOf("methods") !== -1 ||
+      tail.indexOf("lifecycleScripts") !== -1 ||
+      tail.indexOf("aliasDeclarations") !== -1 ||
+      tail.indexOf("scripts") !== -1
+    ) {
       return true;
     }
     if (isNumericPathSegment(last) && FORCED_FULL_RENDER_KEYS.has(prev)) {

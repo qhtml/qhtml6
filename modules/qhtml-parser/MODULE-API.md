@@ -10,8 +10,9 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
 - `KNOWN_HTML_TAGS` — tag allowlist/recognition set used during parsing decisions.
 
 ### Core parse APIs
-- `parseQHtmlToAst(source)`
+- `parseQHtmlToAst(source, options?)`
   - Produces intermediate AST for diagnostics/tooling.
+  - `options.keywordAliases` (Map) seeds scoped alias state for nested parse contexts.
 - `parseQHtmlToQDom(source, options?)`
   - Produces QDom document.
   - Key options:
@@ -25,12 +26,17 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - `component-instance.props` populated when invocation keys match declared component properties
     - `meta.qBindings` entries for assignment expressions (`q-bind` / assignment-form `q-script`)
     - definition kind preservation for `q-component`, `q-template`, and `q-signal`
+    - scoped keyword alias parsing via `q-keyword name { replacement-head }`
+    - per-node alias metadata as `node.keywords`
     - signal declaration + invocation parsing:
       - `q-signal name { slot { slot1 } ... }`
       - `name { slot1 { ... } ... }`
     - component-local signal method declarations:
       - `q-signal name(param1, param2)` inside `q-component`
       - emitted in QDom as `component.signalDeclarations`
+    - component alias declarations:
+      - `q-alias aliasName { return ... }` inside `q-component`
+      - emitted in QDom as `component.aliasDeclarations`
 
 ### Preprocessing/import APIs
 - `applyQRewriteBlocks(source, options?)`
@@ -51,6 +57,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
 
 ## Error model
 - Throws `QHtmlParseError` with `.index` for syntax errors.
+- Throws `QHtmlKeywordAliasError` with `.index` for invalid alias declarations/usages (self-reference or alias-to-alias).
 - Import/macro stages throw descriptive `Error` messages for recursion/limits/unbalanced blocks.
 
 ## Binding semantics

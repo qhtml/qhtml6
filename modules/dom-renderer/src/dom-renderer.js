@@ -639,11 +639,6 @@
     const state = doc && doc.__qhtmlContentLoadedState && typeof doc.__qhtmlContentLoadedState === "object" ? doc.__qhtmlContentLoadedState : null;
     const runtimeManaged = !!(state && state.runtimeManaged);
     const alreadySignaled = !!(state && Number(state.sequence || 0) > 0 && Number(state.pending || 0) === 0);
-    if (!runtimeManaged || alreadySignaled) {
-      runLifecycleHookNow(hook, thisArg, doc || targetDocument, errorLabel);
-      return;
-    }
-
     const readyStore = ensureReadyHookState(thisArg);
     const key = String(hook.name || "onready") + "::" + String(hook.body || "");
     if (readyStore && (readyStore[key] === "pending" || readyStore[key] === "done")) {
@@ -663,8 +658,23 @@
       runLifecycleHookNow(hook, thisArg, doc || targetDocument, errorLabel);
     };
 
+    const deferExecute = function deferExecuteReadyHook() {
+      if (typeof global.setTimeout === "function") {
+        global.setTimeout(execute, 0);
+      } else {
+        execute();
+      }
+    };
+
+    if (!runtimeManaged || alreadySignaled) {
+      // Always defer onReady at least one tick so runtime accessors (like element.qdom())
+      // can be attached after render and before hook execution.
+      deferExecute();
+      return;
+    }
+
     if (!doc || typeof doc.addEventListener !== "function" || typeof doc.dispatchEvent !== "function") {
-      execute();
+      deferExecute();
       return;
     }
 
@@ -824,6 +834,56 @@
       } catch (error) {
         if (global.console && typeof global.console.error === "function") {
           global.console.error("qhtml declared property binding install failed:", propertyName, error);
+        }
+      }
+    }
+
+    const aliasDeclarations = Array.isArray(componentNode.aliasDeclarations) ? componentNode.aliasDeclarations : [];
+    for (let i = 0; i < aliasDeclarations.length; i += 1) {
+      const aliasDecl = aliasDeclarations[i] || {};
+      const aliasName = String(aliasDecl.name || "").trim();
+      if (!aliasName || INVALID_METHOD_NAMES.has(aliasName)) {
+        continue;
+      }
+      const existingDescriptor = Object.getOwnPropertyDescriptor(hostElement, aliasName);
+      if (existingDescriptor && existingDescriptor.configurable === false) {
+        continue;
+      }
+      const aliasBody = String(aliasDecl.body || "");
+      const aliasOverrideKey = "__qhtmlAliasOverride__" + aliasName;
+      let compiledAlias = null;
+      try {
+        compiledAlias = new Function(aliasBody);
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml q-alias compile failed:", aliasName, error);
+        }
+        continue;
+      }
+      try {
+        Object.defineProperty(hostElement, aliasName, {
+          configurable: true,
+          enumerable: true,
+          get: function getComponentAliasProperty() {
+            if (Object.prototype.hasOwnProperty.call(this, aliasOverrideKey)) {
+              return this[aliasOverrideKey];
+            }
+            try {
+              return compiledAlias.call(this);
+            } catch (error) {
+              if (global.console && typeof global.console.error === "function") {
+                global.console.error("qhtml q-alias evaluation failed:", aliasName, error);
+              }
+              return null;
+            }
+          },
+          set: function setComponentAliasProperty(value) {
+            this[aliasOverrideKey] = value;
+          },
+        });
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml q-alias install failed:", aliasName, error);
         }
       }
     }
@@ -1056,7 +1116,9 @@
           renderNode(node.children[i], element, targetDocument, context);
         }
       }
-      runLifecycleHooks(node, element, targetDocument);
+      if (!context.disableLifecycleHooks) {
+        runLifecycleHooks(node, element, targetDocument);
+      }
     } finally {
       if (slotRef) {
         context.slotStack.pop();
@@ -1256,8 +1318,10 @@
     stripRenderedSlotElements(hostElement);
     bindDeclaredComponentPropertyNodes(componentNode, hostElement, context);
 
-    runLifecycleHooks(instanceNode, hostElement, targetDocument);
-    runComponentLifecycleHooks(componentNode, hostElement, targetDocument);
+    if (!context.disableLifecycleHooks) {
+      runLifecycleHooks(instanceNode, hostElement, targetDocument);
+      runComponentLifecycleHooks(componentNode, hostElement, targetDocument);
+    }
   }
 
   function serializeSignalSlotValue(node) {
@@ -1376,6 +1440,7 @@
       componentStack: [],
       componentHostStack: [],
       slotStack: [],
+      disableLifecycleHooks: !!(options && options.disableLifecycleHooks),
       capture: options && options.capture ? options.capture : null,
     };
 
@@ -1511,6 +1576,7 @@
     const context = {
       componentRegistry: registry,
       componentStack: Array.isArray(opts.componentStack) ? opts.componentStack : [],
+      disableLifecycleHooks: !!opts.disableLifecycleHooks,
     };
 
     const instanceNode = domElementToInstanceNode(hostElement);
@@ -1538,7 +1604,9 @@
     }
     stripRenderedSlotElements(hostElement);
 
-    runComponentLifecycleHooks(componentNode, hostElement, doc);
+    if (!context.disableLifecycleHooks) {
+      runComponentLifecycleHooks(componentNode, hostElement, doc);
+    }
     return hostElement;
   }
 
