@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-03-02T13:13:57Z */
+/* generated: 2026-03-02T14:00:05Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -9336,6 +9336,152 @@
     );
   }
 
+  function ensureBindingComponentScopeCache(binding) {
+    if (!binding || (typeof binding !== "object" && typeof binding !== "function")) {
+      return null;
+    }
+    if (!binding.__qhtmlBindingComponentScopeCache || typeof binding.__qhtmlBindingComponentScopeCache !== "object") {
+      binding.__qhtmlBindingComponentScopeCache = new WeakMap();
+    }
+    return binding.__qhtmlBindingComponentScopeCache;
+  }
+
+  function childCollectionsForScopeLookup(node) {
+    if (!node || typeof node !== "object") {
+      return [];
+    }
+    const out = [];
+    if (Array.isArray(node.nodes) && node.nodes.length > 0) {
+      out.push(node.nodes);
+    }
+    if (Array.isArray(node.templateNodes) && node.templateNodes.length > 0) {
+      out.push(node.templateNodes);
+    }
+    if (Array.isArray(node.children) && node.children.length > 0) {
+      out.push(node.children);
+    }
+    if (Array.isArray(node.slots) && node.slots.length > 0) {
+      out.push(node.slots);
+    }
+    return out;
+  }
+
+  function resolveBindingComponentScopeNode(binding, targetNode) {
+    const normalizedTarget = sourceNodeOf(targetNode) || targetNode;
+    if (!normalizedTarget || typeof normalizedTarget !== "object") {
+      return null;
+    }
+    const targetKind = String(normalizedTarget.kind || "").trim().toLowerCase();
+    if (targetKind === "component-instance" || targetKind === "template-instance") {
+      return normalizedTarget;
+    }
+    const cache = ensureBindingComponentScopeCache(binding);
+    if (cache && cache.has(normalizedTarget)) {
+      return cache.get(normalizedTarget) || null;
+    }
+    const root = sourceNodeOf(binding && (binding.rawQdom || binding.qdom));
+    if (!root || typeof root !== "object") {
+      if (cache) {
+        cache.set(normalizedTarget, null);
+      }
+      return null;
+    }
+
+    let resolvedScope = null;
+    function walk(node, activeScope) {
+      const normalized = sourceNodeOf(node) || node;
+      if (!normalized || typeof normalized !== "object") {
+        return false;
+      }
+
+      const kind = String(normalized.kind || "").trim().toLowerCase();
+      const nextScope =
+        kind === "component-instance" || kind === "template-instance" ? normalized : activeScope;
+
+      if (cache) {
+        cache.set(normalized, nextScope || null);
+      }
+      if (normalized === normalizedTarget) {
+        resolvedScope = nextScope || null;
+        return true;
+      }
+
+      const collections = childCollectionsForScopeLookup(normalized);
+      for (let i = 0; i < collections.length; i += 1) {
+        const list = collections[i];
+        for (let j = 0; j < list.length; j += 1) {
+          if (walk(list[j], nextScope)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    walk(root, null);
+    if (cache && !cache.has(normalizedTarget)) {
+      cache.set(normalizedTarget, resolvedScope || null);
+    }
+    return resolvedScope;
+  }
+
+  function createBindingComponentScopeProxy(binding, scopeNode) {
+    const normalizedScope = sourceNodeOf(scopeNode) || scopeNode;
+    if (!normalizedScope || typeof normalizedScope !== "object") {
+      return null;
+    }
+    if (normalizedScope.__qhtmlBindingComponentProxy && typeof normalizedScope.__qhtmlBindingComponentProxy === "object") {
+      return normalizedScope.__qhtmlBindingComponentProxy;
+    }
+
+    const proxy = new Proxy({}, {
+      get: function getComponentScopeValue(target, prop) {
+        if (prop === "qdom") {
+          return function bindingComponentScopeQdom() {
+            return installQDomFactories(normalizedScope);
+          };
+        }
+        const key = typeof prop === "string" ? prop : "";
+        if (!key) {
+          return undefined;
+        }
+        const props = normalizedScope.props && typeof normalizedScope.props === "object" ? normalizedScope.props : null;
+        if (props && Object.prototype.hasOwnProperty.call(props, key)) {
+          return props[key];
+        }
+        const attrs =
+          normalizedScope.attributes && typeof normalizedScope.attributes === "object" ? normalizedScope.attributes : null;
+        if (attrs && Object.prototype.hasOwnProperty.call(attrs, key)) {
+          return attrs[key];
+        }
+        return undefined;
+      },
+      set: function setComponentScopeValue(target, prop, value) {
+        const key = typeof prop === "string" ? prop : "";
+        if (!key) {
+          return true;
+        }
+        if (!normalizedScope.props || typeof normalizedScope.props !== "object") {
+          normalizedScope.props = {};
+        }
+        normalizedScope.props[key] = value;
+        return true;
+      },
+    });
+
+    try {
+      Object.defineProperty(normalizedScope, "__qhtmlBindingComponentProxy", {
+        value: proxy,
+        configurable: true,
+        writable: true,
+        enumerable: false,
+      });
+    } catch (error) {
+      normalizedScope.__qhtmlBindingComponentProxy = proxy;
+    }
+    return proxy;
+  }
+
   function createBindingExecutionContext(binding, node) {
     const sourceNode = sourceNodeOf(node) || node;
     const host = binding && binding.host && binding.host.nodeType === 1 ? binding.host : null;
@@ -9440,6 +9586,19 @@
       }
       return new Proxy(element, {
         get: function getBindingElementProperty(target, prop, receiver) {
+          if (prop === "component") {
+            let existing = null;
+            try {
+              existing = Reflect.get(target, prop, receiver);
+            } catch (ignoredComponentRead) {
+              existing = null;
+            }
+            if (existing) {
+              return existing;
+            }
+            const scopeNode = resolveBindingComponentScopeNode(binding, sourceNode);
+            return createBindingComponentScopeProxy(binding, scopeNode);
+          }
           if (prop === "closest") {
             return function bindingClosest(selector) {
               if (typeof target.closest !== "function") {
@@ -9495,6 +9654,7 @@
       sourceNode && sourceNode.attributes && typeof sourceNode.attributes === "object" ? sourceNode.attributes : null;
     const context = {
       qhtmlRoot: host,
+      component: createBindingComponentScopeProxy(binding, resolveBindingComponentScopeNode(binding, sourceNode)),
       root: function bindingRootAccessor() {
         return host;
       },
@@ -10012,6 +10172,15 @@
         hydrateRegisteredComponentHostsInNode(binding.doc, binding.doc);
         attachDomQDomAccessors(binding);
         restoreDomPropertyState(binding, restorableState, binding.host);
+      });
+      // Run a post-render binding pass with live DOM mapping so bindings that depend
+      // on runtime component context (for example this.component.<prop>) apply to
+      // the final rendered elements on the first render, not only after update().
+      withDomMutationSyncSuppressed(binding, function patchBindingsPostRender() {
+        evaluateAllNodeBindings(binding, {
+          forceAll: true,
+          patchDom: true,
+        });
       });
       attachDomControlSync(binding);
       attachDomMutationSync(binding);
