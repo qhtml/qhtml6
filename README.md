@@ -19,7 +19,7 @@ Live demo: https://qhtml.github.io/qhtml6/dist/demo.html
 
 ## 1. Quick Start
 
-Create a file named `index.html`:
+### Create a file named `index.html`:
 
 ```html
 <!doctype html>
@@ -27,7 +27,7 @@ Create a file named `index.html`:
   <head>
     <meta charset="utf-8" />
     <title>QHTML Quick Start</title>
-    <script src="./dist/qhtml.js"></script>
+    <script src="qhtml.js"></script>
   </head>
   <body>
     <q-html>
@@ -38,8 +38,23 @@ Create a file named `index.html`:
 </html>
 ```
 
-Run it from a local HTTP server.
+### Copy to the same folder these files:
+  - required `dist/qhtml.js` 
+  - optional `dist/q-components/*` and `dist/q-components.html`
+  - recommended `dist/*.css dist/*.js`
+```bash
+cp dist/*.js /path/to/project
+cp dist/*.css /path/to/project
+cp dist/q-components* /path/to/project -R
+```
 
+### Run it from a local HTTP server.
+```bash
+cd /path/to/project
+python -m http.server
+```
+### Visit page 
+``` web browser to http://localhost:8000/index.html ```
 ## 2. Core Syntax
 
 ### Elements and nesting
