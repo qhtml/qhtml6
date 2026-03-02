@@ -90,7 +90,7 @@ Resulting HTML:
 
 ```qhtml
 <q-html>
-  div section h3 { text { Nested } }
+  div,section,h3 { text { Nested } }
 </q-html>
 ```
 
@@ -102,28 +102,13 @@ Resulting HTML:
 </q-html>
 ```
 
-### Multiple siblings (comma selectors)
-
-```qhtml
-<q-html>
-  h1, h2 { text { Headline } }
-</q-html>
-```
-
-Resulting HTML:
-
-```html
-<q-html>
-  <h1>Headline</h1>
-  <h2>Headline</h2>
-</q-html>
-```
 
 ### Class and id shorthand
 
 ```qhtml
 <q-html>
-  .card#main {
+  div.card {
+    id: "main"
     p { text { Card body } }
   }
 </q-html>
@@ -180,23 +165,6 @@ Resulting HTML:
 </q-html>
 ```
 
-### Text aliases (attribute form)
-
-These keys write `textContent`: `content`, `contents`, `text`, `textContents`, `innerText`.
-
-```qhtml
-<q-html>
-  span { content: "Hello" }
-</q-html>
-```
-
-Resulting HTML:
-
-```html
-<q-html>
-  <span>Hello</span>
-</q-html>
-```
 
 ## 3. Events and Lifecycle
 
@@ -244,39 +212,15 @@ Resulting HTML:
 
 ### Bind to text
 
-```qhtml
-<q-html>
-  onReady { window.counter = 0; }
-
-  h3 { content: q-bind { return "Count: " + String(window.counter); } }
-
-  button {
-    text { Increment }
-    onclick {
-      window.counter += 1;
-      this.closest("q-html").update();
-    }
-  }
-</q-html>
+You can use q-bind with q-properties in q-components to re-evaluate after calling this.component.update(). 
 ```
+q-component my-component {
+q-property myprop: q-bind { return window.getSelection().baseNode.textContent }
+}
 
-### Bind to an attribute
+my-component { div { q-bind { return this.component.myprop } } }
+/*my-component.myprop === <whatever is selected when this.component.update() is called> */
 
-```qhtml
-<q-html>
-  onReady { window.active = true; }
-  div { class: q-bind { return window.active ? "on" : "off"; } }
-</q-html>
-```
-
-### Bind to a DOM property (`prop.`) vs attribute (`attr.`)
-
-```qhtml
-<q-html>
-  onReady { window.name = "Ada"; }
-  input { prop.value: q-bind { return window.name; } }
-</q-html>
-```
 
 ## 5. `q-script`
 
@@ -299,7 +243,7 @@ Resulting HTML:
 
 ```qhtml
 <q-html>
-  h3 { content: q-script { return "Computed at mount"; } }
+  h3 {  q-script { return "text { Computed at mount }"; } }
 </q-html>
 ```
 
@@ -319,7 +263,7 @@ Resulting HTML:
   q-component app-card {
     q-property { title }
     div {
-      h3 { content: q-bind { return this.component.title; } }
+      h3 { q-bind { return this.component.title; } }
       slot { body }
     }
   }
