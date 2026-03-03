@@ -14,8 +14,9 @@ QHTML is a compact language and runtime for building web UIs with readable block
 ## Whats New in v6.0.5
 
 - Added `q-macro` compile-time inline expansion:
-  - `q-macro name { slot { ... } return { ... } }`
-  - Invocations expand before parse (similar timing to `q-script` replacement, but macro output is plain source expansion).
+  - `q-macro my-macro { slot { in1 } return { div,span,${in1} { hello world } } }`
+  - `my-macro { in1 { h3 } }` creates `<div><span><h3>hello world </h3></span></div>`
+  - Invocations expand before parse (similar timing to `q-script` replacement, but macro output is plain qhtml expansion instead of javascript).
 - Added scoped `${reference}` placeholders:
   - `${slotName}` resolves from current macro slot scope.
   - Works inline inside selectors, text, script strings, and other source fragments emitted by macros.
