@@ -6,6 +6,44 @@
   }
 
   const qEditorImportSourceCache = new Map();
+  const qEditorCodeMirrorState = { promise: null };
+  const QHTML_CANONICAL_KEYWORDS = [
+    'q-component',
+    'q-template',
+    'q-rewrite',
+    'q-script',
+    'q-bind',
+    'q-property',
+    'q-signal',
+    'q-alias',
+    'q-import',
+    'q-keyword',
+    'slot',
+    'style',
+    'text',
+    'html',
+    'onReady'
+  ];
+  const QHTML_KEYWORD_COMPLETIONS = [
+    'q-component',
+    'q-template',
+    'q-rewrite',
+    'q-script',
+    'q-bind',
+    'q-property',
+    'q-signal',
+    'q-alias',
+    'q-import',
+    'q-keyword',
+    'slot',
+    'style',
+    'text',
+    'html',
+    'onReady'
+  ];
+  const QHTML_PUNCTUATION_CHARS = new Set(['{', '}', '[', ']', '(', ')', ':', ';', ',']);
+  const QEDITOR_CODEMIRROR_SCRIPT = 'codemirror/codemirror.js';
+  const QEDITOR_CODEMIRROR_CSS = 'codemirror/codemirror.css';
 
   const HTML_TAGS = new Set([
     'a', 'abbr', 'address', 'area', 'article', 'aside', 'audio', 'b', 'base', 'bdi', 'bdo', 'blockquote', 'body',
@@ -18,6 +56,128 @@
     'strong', 'style', 'sub', 'summary', 'sup', 'svg', 'table', 'tbody', 'td', 'template', 'textarea', 'tfoot',
     'th', 'thead', 'time', 'title', 'tr', 'track', 'u', 'ul', 'var', 'video', 'wbr'
   ]);
+
+  function resolveQEditorScriptBaseUrl() {
+    const scripts = document && document.scripts ? Array.from(document.scripts) : [];
+    for (let i = scripts.length - 1; i >= 0; i -= 1) {
+      const src = scripts[i] && typeof scripts[i].src === 'string' ? scripts[i].src.trim() : '';
+      if (!src) continue;
+      if (!/\/q-editor\.js(?:$|[?#])/.test(src)) continue;
+      try {
+        return new URL('.', src).toString();
+      } catch (error) {
+        // ignore malformed script src and continue
+      }
+    }
+    if (document && typeof document.baseURI === 'string' && document.baseURI.trim()) {
+      return document.baseURI.trim();
+    }
+    if (globalScope.location && typeof globalScope.location.href === 'string' && globalScope.location.href.trim()) {
+      return globalScope.location.href.trim();
+    }
+    return '';
+  }
+
+  const qEditorScriptBaseUrl = resolveQEditorScriptBaseUrl();
+
+  function resolveQEditorAssetUrl(relativePath) {
+    const rel = String(relativePath || '').trim();
+    if (!rel) return '';
+    try {
+      return new URL(rel, qEditorScriptBaseUrl || document.baseURI || globalScope.location.href || '').toString();
+    } catch (error) {
+      return rel;
+    }
+  }
+
+  function getCodeMirrorGlobal() {
+    const cm = globalScope.CM || null;
+    if (!cm || typeof cm !== 'object') return null;
+    if (!cm['codemirror'] || !cm['@codemirror/state'] || !cm['@codemirror/view']) return null;
+    return cm;
+  }
+
+  function ensureCodeMirrorStylesheet() {
+    const href = resolveQEditorAssetUrl(QEDITOR_CODEMIRROR_CSS);
+    if (!href || !document || !document.head) return;
+    if (document.querySelector('link[data-qeditor-codemirror-css="1"]')) {
+      return;
+    }
+    const existing = Array.from(document.querySelectorAll('link[rel="stylesheet"][href]')).find(function findLink(link) {
+      const src = String(link.getAttribute('href') || '').trim();
+      return src === href || /\/codemirror\/codemirror\.css(?:$|[?#])/.test(src);
+    });
+    if (existing) {
+      existing.setAttribute('data-qeditor-codemirror-css', '1');
+      return;
+    }
+    const link = document.createElement('link');
+    link.setAttribute('rel', 'stylesheet');
+    link.setAttribute('href', href);
+    link.setAttribute('data-qeditor-codemirror-css', '1');
+    document.head.appendChild(link);
+  }
+
+  function ensureCodeMirrorLoaded() {
+    const ready = getCodeMirrorGlobal();
+    if (ready) {
+      ensureCodeMirrorStylesheet();
+      return Promise.resolve(ready);
+    }
+    if (qEditorCodeMirrorState.promise) {
+      return qEditorCodeMirrorState.promise;
+    }
+
+    qEditorCodeMirrorState.promise = new Promise(function loadCodeMirror(resolve, reject) {
+      ensureCodeMirrorStylesheet();
+      const scriptUrl = resolveQEditorAssetUrl(QEDITOR_CODEMIRROR_SCRIPT);
+      if (!scriptUrl || !document || !document.head) {
+        reject(new Error('Unable to resolve CodeMirror script URL for q-editor.'));
+        return;
+      }
+
+      const existing = Array.from(document.querySelectorAll('script[src]')).find(function findScript(script) {
+        const src = String(script.getAttribute('src') || '').trim();
+        return src === scriptUrl || /\/codemirror\/codemirror\.js(?:$|[?#])/.test(src);
+      });
+
+      const onReady = function onReady() {
+        const cm = getCodeMirrorGlobal();
+        if (cm) {
+          resolve(cm);
+          return;
+        }
+        reject(new Error('CodeMirror loaded but global CM exports are unavailable.'));
+      };
+
+      if (existing) {
+        if (getCodeMirrorGlobal()) {
+          resolve(getCodeMirrorGlobal());
+          return;
+        }
+        existing.addEventListener('load', onReady, { once: true });
+        existing.addEventListener('error', function onExistingError() {
+          reject(new Error('Failed to load existing CodeMirror script.'));
+        }, { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.async = true;
+      script.src = scriptUrl;
+      script.setAttribute('data-qeditor-codemirror-script', '1');
+      script.addEventListener('load', onReady, { once: true });
+      script.addEventListener('error', function onLoadError() {
+        reject(new Error('Failed to load CodeMirror from ' + scriptUrl));
+      }, { once: true });
+      document.head.appendChild(script);
+    }).catch(function onLoadFailure(error) {
+      qEditorCodeMirrorState.promise = null;
+      throw error;
+    });
+
+    return qEditorCodeMirrorState.promise;
+  }
 
   function getQHtmlModules() {
     const modules = globalScope.QHtmlModules || null;
@@ -289,6 +449,37 @@
     return result;
   }
 
+  function stripQhtmlCommentsForDepth(line, inBlockComment) {
+    const input = String(line || '');
+    let out = '';
+    let block = !!inBlockComment;
+    let i = 0;
+    while (i < input.length) {
+      const ch = input[i];
+      const next = input[i + 1];
+      if (block) {
+        if (ch === '*' && next === '/') {
+          block = false;
+          i += 2;
+          continue;
+        }
+        i += 1;
+        continue;
+      }
+      if (ch === '/' && next === '*') {
+        block = true;
+        i += 2;
+        continue;
+      }
+      if (ch === '/' && next === '/') {
+        break;
+      }
+      out += ch;
+      i += 1;
+    }
+    return { text: out, inBlockComment: block };
+  }
+
   function lineOffsets(lines) {
     const starts = [];
     let pos = 0;
@@ -338,6 +529,7 @@
     const oldLeading = [];
     const newLeading = [];
     let depth = 0;
+    let inBlockCommentForDepth = false;
 
     for (let idx = 0; idx < lines.length; idx += 1) {
       const originalLine = lines[idx];
@@ -364,7 +556,10 @@
       newLines.push(formattedLine);
       newLeading[idx] = keepAsTyped ? oldLead : desiredIndent.length;
 
-      const analysisLine = stripQhtmlQuotedSections(trimmed).replace(/\/\/.*$/, '');
+      const analysisQuoted = stripQhtmlQuotedSections(trimmed);
+      const analysisResult = stripQhtmlCommentsForDepth(analysisQuoted, inBlockCommentForDepth);
+      const analysisLine = analysisResult.text;
+      inBlockCommentForDepth = analysisResult.inBlockComment;
       const opens = (analysisLine.match(/\{/g) || []).length;
       const closes = (analysisLine.match(/\}/g) || []).length;
       depth = Math.max(0, depth + opens - closes);
@@ -442,6 +637,422 @@
       names.add(String(match[1] || '').toLowerCase());
     }
     return names;
+  }
+
+  function normalizeSemanticIdentifier(value) {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(text)) return '';
+    return text.toLowerCase();
+  }
+
+  function addSemanticIdentifier(set, value) {
+    if (!(set instanceof Set)) return;
+    const normalized = normalizeSemanticIdentifier(value);
+    if (!normalized) return;
+    set.add(normalized);
+  }
+
+  function buildCodeMask(source) {
+    const text = String(source || '');
+    const mask = new Uint8Array(text.length);
+    let inSingle = false;
+    let inDouble = false;
+    let inBacktick = false;
+    let inLineComment = false;
+    let inBlockComment = false;
+    let escaped = false;
+
+    for (let i = 0; i < text.length; i += 1) {
+      const ch = text[i];
+      const next = text[i + 1];
+
+      if (inLineComment) {
+        if (ch === '\n' || ch === '\r') {
+          inLineComment = false;
+          mask[i] = 1;
+        }
+        continue;
+      }
+      if (inBlockComment) {
+        if (ch === '*' && next === '/') {
+          i += 1;
+          inBlockComment = false;
+        }
+        continue;
+      }
+      if (inSingle) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === '\\') {
+          escaped = true;
+          continue;
+        }
+        if (ch === '\'') {
+          inSingle = false;
+        }
+        continue;
+      }
+      if (inDouble) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === '\\') {
+          escaped = true;
+          continue;
+        }
+        if (ch === '"') {
+          inDouble = false;
+        }
+        continue;
+      }
+      if (inBacktick) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === '\\') {
+          escaped = true;
+          continue;
+        }
+        if (ch === '`') {
+          inBacktick = false;
+        }
+        continue;
+      }
+
+      if (ch === '/' && next === '/') {
+        inLineComment = true;
+        i += 1;
+        continue;
+      }
+      if (ch === '/' && next === '*') {
+        inBlockComment = true;
+        i += 1;
+        continue;
+      }
+      if (ch === '\'') {
+        inSingle = true;
+        continue;
+      }
+      if (ch === '"') {
+        inDouble = true;
+        continue;
+      }
+      if (ch === '`') {
+        inBacktick = true;
+        continue;
+      }
+
+      mask[i] = 1;
+    }
+
+    return mask;
+  }
+
+  function isCodeRange(mask, from, to) {
+    if (!(mask instanceof Uint8Array)) return true;
+    const start = Math.max(0, Number(from) || 0);
+    const end = Math.max(start, Number(to) || start);
+    for (let i = start; i < end; i += 1) {
+      if (mask[i] !== 1) return false;
+    }
+    return true;
+  }
+
+  function collectDotOrHashRanges(source, mask, markerChar, includeMarker) {
+    const text = String(source || '');
+    const out = [];
+    const marker = String(markerChar || '.');
+    const includePrefix = includeMarker === true;
+    const re = new RegExp('\\' + marker + '([A-Za-z_][A-Za-z0-9_-]*)', 'g');
+    let match;
+    while ((match = re.exec(text))) {
+      const name = String(match[1] || '');
+      if (!name) continue;
+      const nameFrom = match.index + 1;
+      const from = includePrefix ? match.index : nameFrom;
+      const to = nameFrom + name.length;
+      if (!isCodeRange(mask, match.index, to)) continue;
+      out.push({ from: from, to: to, name: name.toLowerCase() });
+    }
+    return out;
+  }
+
+  function collectAttrValueNameRanges(source, attrName) {
+    const text = String(source || '');
+    const name = String(attrName || '').trim().toLowerCase();
+    if (!name) return [];
+    const out = [];
+    const re = new RegExp('\\b' + name + '\\s*:\\s*(["\'])([\\s\\S]*?)\\1', 'gi');
+    let match;
+    while ((match = re.exec(text))) {
+      const value = String(match[2] || '');
+      const valueStart = re.lastIndex - value.length - 1;
+      if (name === 'class') {
+        const tokenRe = /[A-Za-z_][A-Za-z0-9_-]*/g;
+        let tokenMatch;
+        while ((tokenMatch = tokenRe.exec(value))) {
+          const from = valueStart + tokenMatch.index;
+          const token = String(tokenMatch[0] || '');
+          out.push({ from: from, to: from + token.length, name: token.toLowerCase() });
+        }
+      } else {
+        const trimmed = value.trim();
+        if (trimmed && /^[A-Za-z_][A-Za-z0-9_-]*$/.test(trimmed)) {
+          const innerIndex = value.indexOf(trimmed);
+          const from = valueStart + Math.max(0, innerIndex);
+          out.push({ from: from, to: from + trimmed.length, name: trimmed.toLowerCase() });
+        }
+      }
+    }
+    return out;
+  }
+
+  function collectKeywordAliasNames(source) {
+    const text = String(source || '');
+    const aliases = new Set();
+    const canonical = new Set(QHTML_CANONICAL_KEYWORDS.map(function mapKeyword(name) {
+      return String(name || '').toLowerCase();
+    }));
+    const re = /\bq-keyword\s+([A-Za-z_][A-Za-z0-9_-]*)\s*\{\s*([A-Za-z_][A-Za-z0-9_-]*)\s*\}/gi;
+    let match;
+    while ((match = re.exec(text))) {
+      const left = normalizeSemanticIdentifier(match[1]);
+      const right = normalizeSemanticIdentifier(match[2]);
+      if (!left || !right) continue;
+      if (canonical.has(left) && !canonical.has(right)) {
+        aliases.add(right);
+      } else if (canonical.has(right) && !canonical.has(left)) {
+        aliases.add(left);
+      } else if (!canonical.has(left)) {
+        aliases.add(left);
+      }
+    }
+    return aliases;
+  }
+
+  function collectCanonicalAliasNames(source, canonicalKeyword) {
+    const text = String(source || '');
+    const canonical = normalizeSemanticIdentifier(canonicalKeyword);
+    const names = new Set();
+    if (!canonical) return names;
+    names.add(canonical);
+    const re = /\bq-keyword\s+([A-Za-z_][A-Za-z0-9_-]*)\s*\{\s*([A-Za-z_][A-Za-z0-9_-]*)\s*\}/gi;
+    let match;
+    while ((match = re.exec(text))) {
+      const left = normalizeSemanticIdentifier(match[1]);
+      const right = normalizeSemanticIdentifier(match[2]);
+      if (!left || !right) continue;
+      if (left === canonical) {
+        names.add(right);
+      } else if (right === canonical) {
+        names.add(left);
+      }
+    }
+    return names;
+  }
+
+  function collectScriptBodyRanges(source, mask, scriptKeywordNames) {
+    const text = String(source || '');
+    const out = [];
+    const scriptNames = scriptKeywordNames instanceof Set ? scriptKeywordNames : new Set(['q-bind', 'q-script']);
+    let i = 0;
+    while (i < text.length) {
+      const ch = text[i];
+      if (!isIdentStart(ch)) {
+        i += 1;
+        continue;
+      }
+      let j = i + 1;
+      while (j < text.length && isIdentChar(text[j])) j += 1;
+      const name = text.slice(i, j).toLowerCase();
+      if (!scriptNames.has(name) || !isCodeRange(mask, i, j)) {
+        i = j;
+        continue;
+      }
+      const ws = skipWhitespaceInText(text, j);
+      if (text[ws] !== '{') {
+        i = j;
+        continue;
+      }
+      const balanced = readBalancedBrace(text, ws);
+      if (!balanced) {
+        i = j;
+        continue;
+      }
+      const innerFrom = balanced.start + 1;
+      const innerTo = balanced.end;
+      if (innerTo > innerFrom && isCodeRange(mask, innerFrom, innerTo)) {
+        out.push({ from: innerFrom, to: innerTo });
+      }
+      i = balanced.end + 1;
+    }
+    return out;
+  }
+
+  function collectPunctuationRanges(source, mask) {
+    const text = String(source || '');
+    const out = [];
+    for (let i = 0; i < text.length; i += 1) {
+      const ch = text[i];
+      if (!QHTML_PUNCTUATION_CHARS.has(ch)) continue;
+      if (!isCodeRange(mask, i, i + 1)) continue;
+      out.push({ from: i, to: i + 1 });
+    }
+    return out;
+  }
+
+  function skipWhitespaceInText(text, index) {
+    let i = Math.max(0, Number(index) || 0);
+    while (i < text.length && /\s/.test(text[i])) i += 1;
+    return i;
+  }
+
+  function collectSemanticIdentifiersFromQDom(source) {
+    const names = new Set();
+    const componentNames = new Set();
+    const tagNames = new Set();
+    const keywords = new Set(QHTML_CANONICAL_KEYWORDS.map(function mapKeyword(name) {
+      return String(name || '').toLowerCase();
+    }));
+    const modules = getQHtmlModules();
+    if (!modules || !modules.qhtmlParser) {
+      return { names: names, componentNames: componentNames, tagNames: tagNames, keywords: keywords };
+    }
+
+    try {
+      const qdom = modules.qhtmlParser.parseQHtmlToQDom(String(source || ''), {
+        resolveImportsBeforeParse: false
+      });
+      const core = modules.qdomCore || null;
+      const walk = core && typeof core.walkQDom === 'function'
+        ? function walkQDomTree(callback) {
+            core.walkQDom(qdom, callback);
+          }
+        : function walkGeneric(callback) {
+            const stack = [qdom];
+            const seen = new Set();
+            while (stack.length > 0) {
+              const node = stack.pop();
+              if (!node || typeof node !== 'object') continue;
+              if (seen.has(node)) continue;
+              seen.add(node);
+              callback(node);
+              const keys = Object.keys(node);
+              for (let i = 0; i < keys.length; i += 1) {
+                const value = node[keys[i]];
+                if (value && typeof value === 'object') {
+                  stack.push(value);
+                }
+              }
+            }
+          };
+
+      walk(function visitNode(node) {
+        if (!node || typeof node !== 'object') return;
+        const kind = String(node.kind || '').toLowerCase();
+        if (kind === 'component') {
+          addSemanticIdentifier(names, node.componentId);
+          addSemanticIdentifier(componentNames, node.componentId);
+          const defType = String(node.definitionType || '').toLowerCase();
+          if (defType === 'template' || defType === 'signal') {
+            addSemanticIdentifier(names, node.componentId);
+          }
+          if (Array.isArray(node.properties)) {
+            node.properties.forEach(function eachPropertyName(name) {
+              addSemanticIdentifier(names, name);
+            });
+          }
+          if (Array.isArray(node.methods)) {
+            node.methods.forEach(function eachMethod(method) {
+              addSemanticIdentifier(names, method && method.name);
+            });
+          }
+          if (Array.isArray(node.signalDeclarations)) {
+            node.signalDeclarations.forEach(function eachSignal(signal) {
+              addSemanticIdentifier(names, signal && signal.name);
+            });
+          }
+          if (Array.isArray(node.aliasDeclarations)) {
+            node.aliasDeclarations.forEach(function eachAlias(alias) {
+              addSemanticIdentifier(names, alias && alias.name);
+            });
+          }
+          if (Array.isArray(node.propertyDefinitions)) {
+            node.propertyDefinitions.forEach(function eachDef(def) {
+              addSemanticIdentifier(names, def && def.name);
+            });
+          }
+        }
+        if (kind === 'component-instance' || kind === 'template-instance') {
+          addSemanticIdentifier(names, node.componentId || node.tagName);
+          addSemanticIdentifier(componentNames, node.componentId || node.tagName);
+        }
+        if (kind === 'slot') {
+          addSemanticIdentifier(names, node.name);
+        }
+        if (kind === 'element') {
+          const tag = normalizeSemanticIdentifier(node.tagName);
+          if (tag) {
+            if (HTML_TAGS.has(tag)) {
+              addSemanticIdentifier(tagNames, tag);
+            } else {
+              addSemanticIdentifier(names, tag);
+            }
+          }
+        }
+        if (node.keywords && typeof node.keywords === 'object') {
+          const keys = Object.keys(node.keywords);
+          for (let i = 0; i < keys.length; i += 1) {
+            const mapped = normalizeSemanticIdentifier(node.keywords[keys[i]]);
+            if (mapped && keywords.has(mapped)) {
+              addSemanticIdentifier(keywords, mapped);
+            }
+          }
+        }
+      });
+    } catch (error) {
+      // ignore parser errors for incomplete source while typing
+    }
+
+    const fallbackRe = /\b(?:q-component|component|q-template|template|q-rewrite|rewrite|q-signal|signal)\s+([A-Za-z_][A-Za-z0-9_-]*)\b/gi;
+    let fallbackMatch;
+    while ((fallbackMatch = fallbackRe.exec(String(source || '')))) {
+      addSemanticIdentifier(names, fallbackMatch[1]);
+      addSemanticIdentifier(componentNames, fallbackMatch[1]);
+    }
+    const symbolRe = /\b(?:q-property|property|function)\s+([A-Za-z_][A-Za-z0-9_-]*)\b/gi;
+    while ((fallbackMatch = symbolRe.exec(String(source || '')))) {
+      addSemanticIdentifier(names, fallbackMatch[1]);
+    }
+
+    return { names: names, componentNames: componentNames, tagNames: tagNames, keywords: keywords };
+  }
+
+  function collectIdentifierRangesByName(source, mask, lowerName) {
+    const text = String(source || '');
+    const needle = String(lowerName || '').toLowerCase();
+    if (!needle) return [];
+    const out = [];
+    const lowered = text.toLowerCase();
+    let idx = 0;
+    while ((idx = lowered.indexOf(needle, idx)) !== -1) {
+      const from = idx;
+      const to = idx + needle.length;
+      const before = from > 0 ? text[from - 1] : '';
+      const after = to < text.length ? text[to] : '';
+      const beforeOk = !before || !isIdentChar(before);
+      const afterOk = !after || !isIdentChar(after);
+      if (beforeOk && afterOk && isCodeRange(mask, from, to)) {
+        out.push({ from: from, to: to, name: needle });
+      }
+      idx = to;
+    }
+    return out;
   }
 
   function isIdentStart(ch) {
@@ -595,6 +1206,17 @@
 
     while (i < text.length) {
       const ch = text[i];
+
+      if (ch === '/' && text[i + 1] === '*') {
+        const end = text.indexOf('*/', i + 2);
+        if (end === -1) {
+          out += wrapToken('qe-tok-comment', text.slice(i));
+          break;
+        }
+        out += wrapToken('qe-tok-comment', text.slice(i, end + 2));
+        i = end + 2;
+        continue;
+      }
 
       if (ch === '/' && text[i + 1] === '/') {
         const end = text.indexOf('\n', i);
@@ -1029,6 +1651,11 @@
       this._previewListeners = [];
       this._previewQHtmlNode = null;
       this._previewMountBinding = null;
+      this._cmView = null;
+      this._cmHost = null;
+      this._cmLoadError = null;
+      this._semanticCacheSource = null;
+      this._semanticCacheModel = null;
     }
 
     connectedCallback() {
@@ -1049,6 +1676,7 @@
         this._bindEvents();
         this._setTab('qhtml');
         this.setQhtmlSource(initialSource);
+        this._initializeCodeMirror();
       };
 
       if (document.readyState === 'loading' && !this.hasAttribute('initial-qhtml')) {
@@ -1073,11 +1701,26 @@
       this._clearTimer('_formatTimer');
       this._detachPreviewListeners();
       this._unmountPreviewQHtml();
+      this._destroyCodeMirror();
     }
 
     setQhtmlSource(source) {
       const normalized = String(source || '').replace(/\r\n/g, '\n');
       this._source = formatQhtml(normalized);
+      this._semanticCacheSource = null;
+      this._semanticCacheModel = null;
+      if (this._cmView && this._cmView.state && this._cmView.state.doc) {
+        const currentDoc = this._cmView.state.doc.toString();
+        if (currentDoc !== this._source) {
+          const nextCursor = Math.min(this._source.length, this._cmView.state.selection.main.head);
+          this._isApplyingFormat = true;
+          this._cmView.dispatch({
+            changes: { from: 0, to: currentDoc.length, insert: this._source },
+            selection: { anchor: nextCursor, head: nextCursor }
+          });
+          this._isApplyingFormat = false;
+        }
+      }
       if (this._qhtmlInput) {
         this._qhtmlInput.value = this._source;
       }
@@ -1130,6 +1773,14 @@
           'q-editor .qe-copy{position:absolute;top:.6rem;right:.6rem;z-index:2;appearance:none;border:0;background:#111827;color:#fff;padding:.35rem .55rem;border-radius:8px;cursor:pointer;font-size:.66rem}' +
           'q-editor .qe-editor-wrap{display:grid;min-height:20rem;background:var(--qe-bg)}' +
           'q-editor .qe-editor-wrap>*{grid-area:1 / 1}' +
+          'q-editor .qe-cm-host{display:none;min-height:20rem;overflow:hidden}' +
+          'q-editor .qe-cm-host[data-active="true"]{display:block}' +
+          'q-editor .qe-cm-host .cm-editor{height:100%;min-height:20rem;background:var(--qe-bg);color:var(--qe-fg)}' +
+          'q-editor .qe-cm-host .cm-scroller{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.45}' +
+          'q-editor .qe-cm-host .cm-gutters{background:#0b1328;border-right:1px solid #24314a;color:#8b9ab8}' +
+          'q-editor .qe-cm-host .cm-content,.qe-cm-host .cm-line{caret-color:#f8fafc}' +
+          'q-editor .qe-cm-host .cm-activeLine{background:rgba(130,170,255,.10)}' +
+          'q-editor .qe-cm-host .cm-activeLineGutter{background:rgba(130,170,255,.12)}' +
           'q-editor .qe-highlight,q-editor .qe-input,q-editor .qe-code,q-editor .qe-preview{box-sizing:border-box;width:100%;min-height:20rem;margin:0;padding:1rem;border:0;font:inherit;font-size:13px;line-height:1.45;white-space:pre;overflow:auto}' +
           'q-editor .qe-highlight{pointer-events:none;background:var(--qe-bg);color:var(--qe-fg)}' +
           'q-editor .qe-input{resize:none;background:transparent;color:transparent;caret-color:#f8fafc;outline:none}' +
@@ -1157,6 +1808,15 @@
           'q-editor .qe-tok-htmltext{color:var(--qe-htmltext)}' +
           'q-editor .qe-tok-jskw{color:var(--qe-jskw)}' +
           'q-editor .qe-tok-brace,q-editor .qe-tok-angle,q-editor .qe-tok-punc{color:#9aa4b2}' +
+          'q-editor .qe-cm-host .cm-content *{color:inherit}' +
+          'q-editor .qe-cm-host .cm-content{color:#ffffff}' +
+          'q-editor .qe-cm-host .cm-content .qe-sem-keyword{color:#9cdcfe !important;font-weight:600}' +
+          'q-editor .qe-cm-host .cm-content .qe-sem-tag{color:#82aaff !important}' +
+          'q-editor .qe-cm-host .cm-content .qe-sem-name{color:#7ee787 !important}' +
+          'q-editor .qe-cm-host .cm-content .qe-sem-class{color:#569cd6 !important}' +
+          'q-editor .qe-cm-host .cm-content .qe-sem-id{color:#7ee787 !important}' +
+          'q-editor .qe-cm-host .cm-content .qe-sem-punc{color:#b8c0cc !important}' +
+          'q-editor .qe-cm-host .cm-content .qe-sem-script{color:#ffffff !important}' +
         '</style>' +
         '<div class="qe">' +
           '<div class="qe-tabs" role="tablist" aria-label="Q Editor tabs">' +
@@ -1172,6 +1832,7 @@
           '</div>' +
           '<section class="qe-panel" data-tab="qhtml" data-active="true" aria-hidden="false">' +
             '<div class="qe-editor-wrap">' +
+              '<div class="qe-cm-host" data-active="false" aria-label="QHTML editor"></div>' +
               '<pre class="qe-highlight qe-qhtml-highlight" aria-hidden="true"></pre>' +
               '<textarea class="qe-input" spellcheck="false" wrap="off"></textarea>' +
             '</div>' +
@@ -1195,6 +1856,7 @@
       this._panels = Array.from(this.querySelectorAll('.qe-panel'));
       this._qhtmlInput = this.querySelector('.qe-input');
       this._qhtmlHighlight = this.querySelector('.qe-qhtml-highlight');
+      this._cmHost = this.querySelector('.qe-cm-host');
       this._htmlNode = this.querySelector('.qe-html');
       this._previewNode = this.querySelector('.qe-preview');
       this._qdomNode = this.querySelector('.qe-qdom');
@@ -1244,6 +1906,358 @@
       });
     }
 
+    _buildCompletionOptions() {
+      const names = new Set(QHTML_KEYWORD_COMPLETIONS);
+      const components = this._componentNames && this._componentNames.size
+        ? this._componentNames
+        : collectComponentNames(this._source || '');
+      components.forEach(function addComponent(name) {
+        if (name) names.add(String(name));
+      });
+      return Array.from(names).sort().map(function toOption(label) {
+        const value = String(label || '').trim();
+        return {
+          label: value,
+          type: value.indexOf('q-') === 0 || value === 'slot' || value === 'style' || value === 'text' || value === 'html'
+            ? 'keyword'
+            : 'type'
+        };
+      });
+    }
+
+    _getSemanticHighlightModel(source) {
+      const text = String(source || '');
+      if (this._semanticCacheSource === text && this._semanticCacheModel) {
+        return this._semanticCacheModel;
+      }
+
+      const codeMask = buildCodeMask(text);
+      const semantic = collectSemanticIdentifiersFromQDom(text);
+      const keywords = semantic && semantic.keywords instanceof Set
+        ? new Set(semantic.keywords)
+        : new Set(QHTML_CANONICAL_KEYWORDS.map(function mapKeyword(name) {
+            return String(name || '').toLowerCase();
+          }));
+      QHTML_CANONICAL_KEYWORDS.forEach(function eachKeyword(name) {
+        addSemanticIdentifier(keywords, name);
+      });
+
+      const objectNames = new Set();
+      if (semantic && semantic.names instanceof Set) {
+        semantic.names.forEach(function eachName(name) {
+          const normalized = normalizeSemanticIdentifier(name);
+          if (!normalized || keywords.has(normalized)) return;
+          objectNames.add(normalized);
+        });
+      }
+      if (semantic && semantic.componentNames instanceof Set) {
+        semantic.componentNames.forEach(function eachComponent(name) {
+          const normalized = normalizeSemanticIdentifier(name);
+          if (!normalized || keywords.has(normalized)) return;
+          objectNames.add(normalized);
+        });
+      }
+      collectKeywordAliasNames(text).forEach(function eachAliasName(name) {
+        const normalized = normalizeSemanticIdentifier(name);
+        if (!normalized || keywords.has(normalized)) return;
+        objectNames.add(normalized);
+      });
+
+      const classRanges = []
+        .concat(collectDotOrHashRanges(text, codeMask, '.', true))
+        .concat(collectAttrValueNameRanges(text, 'class'));
+      const idRanges = []
+        .concat(collectDotOrHashRanges(text, codeMask, '#', true))
+        .concat(collectAttrValueNameRanges(text, 'id'));
+      const scriptKeywordNames = new Set();
+      collectCanonicalAliasNames(text, 'q-bind').forEach(function eachName(name) {
+        scriptKeywordNames.add(name);
+      });
+      collectCanonicalAliasNames(text, 'q-script').forEach(function eachName(name) {
+        scriptKeywordNames.add(name);
+      });
+      const scriptRanges = collectScriptBodyRanges(text, codeMask, scriptKeywordNames);
+      const punctuationRanges = collectPunctuationRanges(text, codeMask);
+
+      const keywordRanges = [];
+      keywords.forEach(function eachKeywordName(name) {
+        keywordRanges.push.apply(keywordRanges, collectIdentifierRangesByName(text, codeMask, name));
+      });
+
+      const objectRanges = [];
+      objectNames.forEach(function eachObjectName(name) {
+        objectRanges.push.apply(objectRanges, collectIdentifierRangesByName(text, codeMask, name));
+      });
+      const tagRanges = [];
+      const tagNames = semantic && semantic.tagNames instanceof Set ? semantic.tagNames : new Set();
+      tagNames.forEach(function eachTagName(name) {
+        tagRanges.push.apply(tagRanges, collectIdentifierRangesByName(text, codeMask, name));
+      });
+
+      const model = {
+        keywordRanges: keywordRanges,
+        tagRanges: tagRanges,
+        objectRanges: objectRanges,
+        classRanges: classRanges,
+        idRanges: idRanges,
+        scriptRanges: scriptRanges,
+        punctuationRanges: punctuationRanges
+      };
+      this._semanticCacheSource = text;
+      this._semanticCacheModel = model;
+      return model;
+    }
+
+    _buildCodeMirrorDecorations(editorState, cmState, cmView) {
+      if (!editorState || !cmState || !cmView || !cmState.RangeSetBuilder || !cmView.Decoration) {
+        return cmView && cmView.Decoration && cmView.Decoration.none ? cmView.Decoration.none : null;
+      }
+      const text = editorState.doc ? editorState.doc.toString() : '';
+      const model = this._getSemanticHighlightModel(text);
+      const builder = new cmState.RangeSetBuilder();
+      const markCache = new Map();
+      const emitted = new Set();
+      const pendingRanges = [];
+
+      const markFor = function markFor(className) {
+        if (markCache.has(className)) return markCache.get(className);
+        const mark = cmView.Decoration.mark({ class: className });
+        markCache.set(className, mark);
+        return mark;
+      };
+
+      const emitRange = function emitRange(from, to, className) {
+        const start = Math.max(0, Number(from) || 0);
+        const end = Math.max(start, Number(to) || start);
+        if (end <= start) return;
+        const key = start + ':' + end + ':' + className;
+        if (emitted.has(key)) return;
+        emitted.add(key);
+        pendingRanges.push({
+          from: start,
+          to: end,
+          className: String(className || '')
+        });
+      };
+
+      (Array.isArray(model.keywordRanges) ? model.keywordRanges : []).forEach(function eachKeywordRange(range) {
+        emitRange(range.from, range.to, 'qe-sem-keyword');
+      });
+
+      (Array.isArray(model.tagRanges) ? model.tagRanges : []).forEach(function eachTagRange(range) {
+        emitRange(range.from, range.to, 'qe-sem-tag');
+      });
+
+      (Array.isArray(model.objectRanges) ? model.objectRanges : []).forEach(function eachObjectRange(range) {
+        emitRange(range.from, range.to, 'qe-sem-name');
+      });
+
+      (Array.isArray(model.classRanges) ? model.classRanges : []).forEach(function eachClassRange(range) {
+        emitRange(range.from, range.to, 'qe-sem-class');
+      });
+
+      (Array.isArray(model.idRanges) ? model.idRanges : []).forEach(function eachIdRange(range) {
+        emitRange(range.from, range.to, 'qe-sem-id');
+      });
+
+      (Array.isArray(model.scriptRanges) ? model.scriptRanges : []).forEach(function eachScriptRange(range) {
+        emitRange(range.from, range.to, 'qe-sem-script');
+      });
+
+      (Array.isArray(model.punctuationRanges) ? model.punctuationRanges : []).forEach(function eachPunctuationRange(range) {
+        emitRange(range.from, range.to, 'qe-sem-punc');
+      });
+
+      pendingRanges.sort(function sortRanges(a, b) {
+        const fromDiff = Number(a.from || 0) - Number(b.from || 0);
+        if (fromDiff !== 0) return fromDiff;
+        const toDiff = Number(a.to || 0) - Number(b.to || 0);
+        if (toDiff !== 0) return toDiff;
+        if (a.className < b.className) return -1;
+        if (a.className > b.className) return 1;
+        return 0;
+      });
+      for (let i = 0; i < pendingRanges.length; i += 1) {
+        const entry = pendingRanges[i];
+        builder.add(entry.from, entry.to, markFor(entry.className));
+      }
+
+      return builder.finish();
+    }
+
+    _createCodeMirrorSemanticExtension(cmState, cmView) {
+      if (!cmState || !cmView || !cmState.StateField || !cmView.EditorView) {
+        return null;
+      }
+      const owner = this;
+      const buildDecorations = function buildDecorations(state) {
+        return owner._buildCodeMirrorDecorations(state, cmState, cmView);
+      };
+
+      return cmState.StateField.define({
+        create: function createDecorations(state) {
+          return buildDecorations(state);
+        },
+        update: function updateDecorations(decorations, transaction) {
+          if (transaction && transaction.docChanged) {
+            return buildDecorations(transaction.state);
+          }
+          return decorations;
+        },
+        provide: function provideDecorations(field) {
+          return cmView.EditorView.decorations.from(field);
+        }
+      });
+    }
+
+    async _initializeCodeMirror() {
+      if (this._cmView || !this._cmHost) {
+        return;
+      }
+
+      let cmModules = null;
+      try {
+        cmModules = await ensureCodeMirrorLoaded();
+      } catch (error) {
+        this._cmLoadError = error;
+        if (globalScope.console && typeof globalScope.console.error === 'function') {
+          globalScope.console.error('q-editor CodeMirror load failed:', error);
+        }
+        return;
+      }
+
+      if (!this.isConnected || this._cmView || !this._cmHost) {
+        return;
+      }
+
+      const cmCore = cmModules && cmModules['codemirror'] ? cmModules['codemirror'] : null;
+      const cmState = cmModules && cmModules['@codemirror/state'] ? cmModules['@codemirror/state'] : null;
+      const cmView = cmModules && cmModules['@codemirror/view'] ? cmModules['@codemirror/view'] : null;
+      const cmCommands = cmModules && cmModules['@codemirror/commands'] ? cmModules['@codemirror/commands'] : null;
+      const cmLangHtml = cmModules && cmModules['@codemirror/lang-html'] ? cmModules['@codemirror/lang-html'] : null;
+      if (!cmCore || !cmState || !cmView || !cmState.EditorState || !cmView.EditorView) {
+        return;
+      }
+
+      const extensions = [];
+      if (cmCore.basicSetup) {
+        extensions.push(cmCore.basicSetup);
+      }
+      if (cmLangHtml && typeof cmLangHtml.html === 'function') {
+        extensions.push(cmLangHtml.html());
+      }
+      const semanticExtension = this._createCodeMirrorSemanticExtension(cmState, cmView);
+      if (semanticExtension) {
+        extensions.push(semanticExtension);
+      }
+      if (cmState.EditorState.tabSize && typeof cmState.EditorState.tabSize.of === 'function') {
+        extensions.push(cmState.EditorState.tabSize.of(2));
+      }
+      if (cmView.EditorView.lineWrapping) {
+        extensions.push(cmView.EditorView.lineWrapping);
+      }
+      if (
+        cmView.keymap && typeof cmView.keymap.of === 'function' &&
+        cmCommands && cmCommands.indentWithTab
+      ) {
+        extensions.push(cmView.keymap.of([cmCommands.indentWithTab]));
+      }
+      if (cmState.EditorState.languageData && typeof cmState.EditorState.languageData.of === 'function') {
+        extensions.push(cmState.EditorState.languageData.of((state, pos) => {
+          void state;
+          void pos;
+          const options = this._buildCompletionOptions();
+          return [{
+            autocomplete: function autocompleteQHtml(context) {
+              const before = context && typeof context.matchBefore === 'function'
+                ? context.matchBefore(/[A-Za-z_][A-Za-z0-9_-]*/)
+                : null;
+              if (!before) {
+                if (!context || context.explicit !== true) {
+                  return null;
+                }
+                return { from: context.pos, options: options };
+              }
+              if (before.from === before.to && context.explicit !== true) {
+                return null;
+              }
+              return {
+                from: before.from,
+                options: options
+              };
+            }
+          }];
+        }));
+      }
+      if (cmView.EditorView.updateListener && typeof cmView.EditorView.updateListener.of === 'function') {
+        extensions.push(cmView.EditorView.updateListener.of((update) => {
+          if (!update || !update.docChanged) {
+            return;
+          }
+          this._source = update.state.doc.toString();
+          this._semanticCacheSource = null;
+          this._semanticCacheModel = null;
+          if (this._isApplyingFormat) {
+            return;
+          }
+          this._scheduleAutoFormat(220);
+          this._scheduleRender(160);
+        }));
+      }
+      if (cmView.EditorView.theme && typeof cmView.EditorView.theme === 'function') {
+        extensions.push(cmView.EditorView.theme({
+          '&': { backgroundColor: '#0f1220', color: '#dbeafe' },
+          '.cm-content': { caretColor: '#f8fafc' },
+          '&.cm-focused .cm-cursor': { borderLeftColor: '#f8fafc' },
+          '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
+            backgroundColor: 'rgba(130,170,255,.35)'
+          }
+        }, { dark: true }));
+      }
+
+      const initialDoc = String(this._source || '');
+      const editorState = cmState.EditorState.create({
+        doc: initialDoc,
+        extensions: extensions
+      });
+
+      this._cmHost.innerHTML = '';
+      this._cmView = new cmView.EditorView({
+        state: editorState,
+        parent: this._cmHost
+      });
+      this._cmHost.setAttribute('data-active', 'true');
+      if (this._qhtmlInput) {
+        this._qhtmlInput.style.display = 'none';
+      }
+      if (this._qhtmlHighlight) {
+        this._qhtmlHighlight.style.display = 'none';
+      }
+    }
+
+    _destroyCodeMirror() {
+      if (this._cmView && typeof this._cmView.destroy === 'function') {
+        try {
+          this._cmView.destroy();
+        } catch (error) {
+          // ignore destroy failures during detach
+        }
+      }
+      this._cmView = null;
+      if (this._cmHost) {
+        this._cmHost.removeAttribute('data-active');
+        this._cmHost.innerHTML = '';
+      }
+      if (this._qhtmlInput) {
+        this._qhtmlInput.style.display = '';
+      }
+      if (this._qhtmlHighlight) {
+        this._qhtmlHighlight.style.display = '';
+      }
+      this._semanticCacheSource = null;
+      this._semanticCacheModel = null;
+    }
+
     _setTab(tabName) {
       this._activeTab = tabName;
       this._tabs.forEach((tab) => {
@@ -1258,6 +2272,9 @@
       if (tabName === 'qhtml') {
         this._refreshQhtmlHighlight();
         this._syncQhtmlScroll();
+        if (this._cmView && typeof this._cmView.focus === 'function') {
+          this._cmView.focus();
+        }
       }
       if (tabName === 'html' || tabName === 'preview' || tabName === 'qdom') {
         this._scheduleRender(0);
@@ -1271,14 +2288,43 @@
     }
 
     _scheduleAutoFormat(delayMs) {
-      if (!this._qhtmlInput) return;
+      if (!this._qhtmlInput && !this._cmView) return;
       this._scheduleTimer('_formatTimer', delayMs, () => {
         this._applyAutoFormat();
       });
     }
 
     _applyAutoFormat() {
-      if (!this._qhtmlInput || this._isApplyingFormat) return;
+      if (this._isApplyingFormat) return;
+
+      if (this._cmView && this._cmView.state && this._cmView.state.doc) {
+        const value = this._cmView.state.doc.toString();
+        const selection = this._cmView.state.selection && this._cmView.state.selection.main
+          ? this._cmView.state.selection.main
+          : { anchor: value.length, head: value.length };
+        const start = Math.min(selection.anchor, selection.head);
+        const end = Math.max(selection.anchor, selection.head);
+        const formatted = formatQhtmlForEditing(value, start, end, 1);
+        if (!formatted || typeof formatted.text !== 'string' || formatted.text === value) {
+          return;
+        }
+
+        const isForward = selection.anchor <= selection.head;
+        const nextAnchor = isForward ? formatted.cursorStart : formatted.cursorEnd;
+        const nextHead = isForward ? formatted.cursorEnd : formatted.cursorStart;
+
+        this._isApplyingFormat = true;
+        this._cmView.dispatch({
+          changes: { from: 0, to: value.length, insert: formatted.text },
+          selection: { anchor: nextAnchor, head: nextHead }
+        });
+        this._isApplyingFormat = false;
+        this._source = formatted.text;
+        this._scheduleRender(0);
+        return;
+      }
+
+      if (!this._qhtmlInput) return;
       const value = String(this._qhtmlInput.value || '');
       const start = typeof this._qhtmlInput.selectionStart === 'number' ? this._qhtmlInput.selectionStart : value.length;
       const end = typeof this._qhtmlInput.selectionEnd === 'number' ? this._qhtmlInput.selectionEnd : start;
@@ -1303,12 +2349,14 @@
     }
 
     _syncQhtmlScroll() {
+      if (this._cmView) return;
       if (!this._qhtmlInput || !this._qhtmlHighlight) return;
       this._qhtmlHighlight.scrollTop = this._qhtmlInput.scrollTop;
       this._qhtmlHighlight.scrollLeft = this._qhtmlInput.scrollLeft;
     }
 
     _refreshQhtmlHighlight() {
+      if (this._cmView) return;
       if (!this._qhtmlHighlight) return;
       const components = this._componentNames && this._componentNames.size
         ? this._componentNames

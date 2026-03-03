@@ -21,6 +21,21 @@
   const TEXT_BLOCK_KEYWORDS = new Set(["text", "innertext"]);
   const LIFECYCLE_BLOCKS = new Set(["onready", "onload", "onloaded"]);
   const BINDING_EXPRESSION_KEYWORDS = new Set(["q-bind", "q-script"]);
+  const CANONICAL_KEYWORD_TARGETS = new Set([
+    "q-component",
+    "q-template",
+    "q-rewrite",
+    "q-script",
+    "q-bind",
+    "q-property",
+    "q-signal",
+    "q-alias",
+    "q-import",
+    "slot",
+    "style",
+    "text",
+    "html",
+  ]);
 
   function ParseError(message, index) {
     const error = new Error(message + " (at index " + index + ")");
@@ -348,7 +363,27 @@
     return parser.source.slice(start, parser.index).trim();
   }
 
-  function parseExpressionValue(parser) {
+  function resolveBindingExpressionKeyword(lowerKeyword, keywordAliases) {
+    const normalized = String(lowerKeyword || "").trim().toLowerCase();
+    if (BINDING_EXPRESSION_KEYWORDS.has(normalized)) {
+      return normalized;
+    }
+    if (!(keywordAliases instanceof Map)) {
+      return "";
+    }
+    const aliasSpec = keywordAliases.get(normalized);
+    if (!aliasSpec || typeof aliasSpec !== "object") {
+      return "";
+    }
+    const mapped = String(
+      aliasSpec.replacementFirstLower || readFirstIdentifierLower(String(aliasSpec.replacementHead || ""))
+    )
+      .trim()
+      .toLowerCase();
+    return BINDING_EXPRESSION_KEYWORDS.has(mapped) ? mapped : "";
+  }
+
+  function parseExpressionValue(parser, keywordAliases) {
     const snapshot = parser.index;
     const first = peek(parser);
     if (!/[A-Za-z_]/.test(String(first || ""))) {
@@ -356,7 +391,8 @@
     }
     const keyword = parseIdentifier(parser);
     const lowerKeyword = String(keyword || "").trim().toLowerCase();
-    if (!BINDING_EXPRESSION_KEYWORDS.has(lowerKeyword)) {
+    const resolvedKeyword = resolveBindingExpressionKeyword(lowerKeyword, keywordAliases);
+    if (!resolvedKeyword) {
       parser.index = snapshot;
       return null;
     }
@@ -370,8 +406,8 @@
     consume(parser);
     const scriptBody = readBalancedBlockContent(parser);
     return {
-      type: lowerKeyword === "q-bind" ? "QBindExpression" : "QScriptExpression",
-      keyword: keyword,
+      type: resolvedKeyword === "q-bind" ? "QBindExpression" : "QScriptExpression",
+      keyword: resolvedKeyword,
       script: scriptBody,
       raw: parser.source.slice(snapshot, parser.index),
       start: snapshot,
@@ -379,13 +415,13 @@
     };
   }
 
-  function parseValue(parser) {
+  function parseValue(parser, keywordAliases) {
     skipWhitespace(parser);
     const ch = peek(parser);
     if (ch === '"' || ch === "'") {
       return parseQuotedString(parser);
     }
-    const expression = parseExpressionValue(parser);
+    const expression = parseExpressionValue(parser, keywordAliases);
     if (expression) {
       return expression;
     }
@@ -460,10 +496,30 @@
     let depth = 1;
     let quote = "";
     let escaped = false;
+    let inLineComment = false;
+    let inBlockComment = false;
     let out = "";
 
     while (!eof(parser)) {
       const ch = consume(parser);
+      const next = peek(parser);
+
+      if (inLineComment) {
+        out += ch;
+        if (ch === "\n" || ch === "\r") {
+          inLineComment = false;
+        }
+        continue;
+      }
+
+      if (inBlockComment) {
+        out += ch;
+        if (ch === "*" && next === "/") {
+          out += consume(parser);
+          inBlockComment = false;
+        }
+        continue;
+      }
 
       if (quote) {
         if (escaped) {
@@ -489,8 +545,21 @@
         continue;
       }
 
+      if (ch === "/" && next === "/") {
+        out += ch;
+        out += consume(parser);
+        inLineComment = true;
+        continue;
+      }
+
+      if (ch === "/" && next === "*") {
+        out += ch;
+        out += consume(parser);
+        inBlockComment = true;
+        continue;
+      }
+
       if (ch === "\\") {
-        const next = peek(parser);
         if (next === "{" || next === "}" || next === "\\") {
           out += consume(parser);
           continue;
@@ -682,6 +751,20 @@
     return token && token.nameLower ? token.nameLower : "";
   }
 
+  function readSingleIdentifierLower(text) {
+    const input = String(text || "");
+    const start = skipWhitespaceInSource(input, 0);
+    const token = scanIdentifierTokenAt(input, start);
+    if (!token || !token.nameLower) {
+      return "";
+    }
+    const end = skipWhitespaceInSource(input, token.end);
+    if (end < input.length) {
+      return "";
+    }
+    return token.nameLower;
+  }
+
   function parseKeywordAliasDeclaration(parser, keywordAliases, declarationStart) {
     const aliasName = parseIdentifier(parser);
     const normalizedAliasName = String(aliasName || "").trim();
@@ -702,25 +785,43 @@
       throw KeywordAliasError("q-keyword replacement cannot be empty", declarationStart);
     }
 
-    const replacementFirstLower = readFirstIdentifierLower(replacementHead);
-    if (replacementFirstLower && replacementFirstLower === normalizedAliasLower) {
-      throw KeywordAliasError("q-keyword '" + normalizedAliasName + "' cannot reference itself", declarationStart);
+    let effectiveAliasName = normalizedAliasName;
+    let effectiveAliasLower = normalizedAliasLower;
+    let effectiveReplacementHead = replacementHead;
+    let replacementFirstLower = readFirstIdentifierLower(effectiveReplacementHead);
+
+    const singleReplacementLower = readSingleIdentifierLower(effectiveReplacementHead);
+    if (
+      CANONICAL_KEYWORD_TARGETS.has(normalizedAliasLower) &&
+      singleReplacementLower &&
+      !CANONICAL_KEYWORD_TARGETS.has(singleReplacementLower)
+    ) {
+      // Accept reversed declarations too:
+      // q-keyword q-component { component } -> q-keyword component { q-component }
+      effectiveAliasName = singleReplacementLower;
+      effectiveAliasLower = singleReplacementLower;
+      effectiveReplacementHead = normalizedAliasName;
+      replacementFirstLower = normalizedAliasLower;
+    }
+
+    if (replacementFirstLower && replacementFirstLower === effectiveAliasLower) {
+      throw KeywordAliasError("q-keyword '" + effectiveAliasName + "' cannot reference itself", declarationStart);
     }
     if (replacementFirstLower && keywordAliases instanceof Map && keywordAliases.has(replacementFirstLower)) {
       throw KeywordAliasError(
-        "q-keyword '" + normalizedAliasName + "' cannot target another q-keyword '" + replacementFirstLower + "'",
+        "q-keyword '" + effectiveAliasName + "' cannot target another q-keyword '" + replacementFirstLower + "'",
         declarationStart
       );
     }
 
     const spec = {
-      name: normalizedAliasName,
-      nameLower: normalizedAliasLower,
-      replacementHead: replacementHead,
+      name: effectiveAliasName,
+      nameLower: effectiveAliasLower,
+      replacementHead: effectiveReplacementHead,
       replacementFirstLower: replacementFirstLower,
     };
     if (keywordAliases instanceof Map) {
-      keywordAliases.set(normalizedAliasLower, spec);
+      keywordAliases.set(effectiveAliasLower, spec);
     }
     return spec;
   }
@@ -969,7 +1070,7 @@
           skipWhitespace(parser);
           if (peek(parser) === ":") {
             consume(parser);
-            const value = parseValue(parser);
+            const value = parseValue(parser, scopedKeywordAliases);
             items.push({
               type: "Property",
               name: normalizedPropertyName,
@@ -980,6 +1081,26 @@
               raw: parser.source.slice(propertyNameStart, parser.index),
             });
           }
+          continue;
+        }
+        if (nameLower === "q-template" && nextChar !== "{" && nextChar !== ",") {
+          const templateId = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-template id", parser.index);
+          }
+          consume(parser);
+          const templateItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          items.push({
+            type: "TemplateDefinition",
+            templateId: templateId,
+            items: templateItems,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
           continue;
         }
         if (nameLower === "q-alias" && nextChar !== "{" && nextChar !== ",") {
@@ -1031,7 +1152,7 @@
         }
         if (nextChar === ":") {
           consume(parser);
-          const value = parseValue(parser);
+          const value = parseValue(parser, scopedKeywordAliases);
           items.push({
             type: "Property",
             name: name,
@@ -1116,6 +1237,29 @@
             items.push({
               type: "QScriptInline",
               script: scriptBody,
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
+          if (nameLower === "q-bind" || nameLower === "q-script") {
+            consume(parser);
+            const expressionBody = readBalancedBlockContent(parser);
+            const expressionType = nameLower === "q-script" ? "QScriptExpression" : "QBindExpression";
+            items.push({
+              type: "Property",
+              name: "content",
+              value: {
+                type: expressionType,
+                keyword: nameLower,
+                script: expressionBody,
+                start: itemStart,
+                end: parser.index,
+                raw: parser.source.slice(itemStart, parser.index),
+              },
               keywords: keywordSnapshot,
               start: itemStart,
               end: parser.index,
@@ -2035,24 +2179,71 @@
     return !!ch && /[A-Za-z0-9_-]/.test(ch);
   }
 
-  function findStandaloneQScriptKeyword(source, fromIndex) {
+  function collectKeywordAliasesFromSource(source) {
     const input = String(source || "");
-    const token = "q-script";
-    let pos = Math.max(0, Number(fromIndex) || 0);
+    const aliases = new Map();
+    let pos = 0;
     while (pos < input.length) {
-      const idx = input.indexOf(token, pos);
-      if (idx === -1) {
-        return -1;
+      const token = findNextIdentifierTokenSkippingLiterals(input, pos);
+      if (!token) {
+        break;
       }
-      const before = idx > 0 ? input[idx - 1] : "";
-      const after = input[idx + token.length] || "";
-      if (isQScriptIdentifierChar(before) || isQScriptIdentifierChar(after)) {
-        pos = idx + token.length;
+      pos = token.end;
+      if (String(token.name || "").toLowerCase() !== "q-keyword") {
         continue;
       }
-      return idx;
+      const nested = parserFor(input);
+      nested.index = token.end;
+      try {
+        parseKeywordAliasDeclaration(nested, aliases, token.start);
+        pos = nested.index;
+      } catch (error) {
+        continue;
+      }
     }
-    return -1;
+    return aliases;
+  }
+
+  function collectAliasesTargeting(keywordAliases, targetKeyword) {
+    const target = String(targetKeyword || "").trim().toLowerCase();
+    const out = new Set([target]);
+    if (!(keywordAliases instanceof Map)) {
+      return out;
+    }
+    keywordAliases.forEach(function eachAlias(spec) {
+      const aliasName = String(spec && spec.nameLower ? spec.nameLower : "").trim().toLowerCase();
+      const mapped = String(spec && spec.replacementFirstLower ? spec.replacementFirstLower : "").trim().toLowerCase();
+      if (!aliasName || !mapped) {
+        return;
+      }
+      if (mapped === target) {
+        out.add(aliasName);
+      }
+    });
+    return out;
+  }
+
+  function findNextKeywordTokenSkippingLiterals(source, fromIndex, keywords) {
+    const wanted = keywords instanceof Set ? keywords : new Set();
+    const input = String(source || "");
+    let pos = Math.max(0, Number(fromIndex) || 0);
+    while (pos < input.length) {
+      const token = findNextIdentifierTokenSkippingLiterals(input, pos);
+      if (!token) {
+        return null;
+      }
+      pos = token.end;
+      const lower = String(token.name || "").trim().toLowerCase();
+      if (wanted.has(lower)) {
+        return {
+          start: token.start,
+          end: token.end,
+          name: token.name,
+          nameLower: lower,
+        };
+      }
+    }
+    return null;
   }
 
   function findMatchingBraceWithLiterals(source, openIndex) {
@@ -2478,23 +2669,24 @@
     };
   }
 
-  function findNextQRewriteDefinition(source, fromIndex) {
+  function findNextQRewriteDefinition(source, fromIndex, rewriteKeywords) {
     const input = String(source || "");
     let pos = Math.max(0, Number(fromIndex) || 0);
+    const keywordSet =
+      rewriteKeywords instanceof Set && rewriteKeywords.size > 0 ? rewriteKeywords : new Set(["q-rewrite"]);
 
     while (pos < input.length) {
-      const token = findNextIdentifierTokenSkippingLiterals(input, pos);
+      const token = findNextKeywordTokenSkippingLiterals(input, pos, keywordSet);
       if (!token) {
         return null;
       }
       pos = token.end;
-      if (String(token.name || "").toLowerCase() !== "q-rewrite") {
-        continue;
-      }
 
       let nameStart = skipWhitespaceInSource(input, token.end);
       if (!isQRewriteIdentifierStart(input[nameStart])) {
-        throw new Error("Expected q-rewrite identifier after 'q-rewrite'.");
+        // q-rewrite can appear as plain text or inside other blocks (for example q-keyword replacement bodies).
+        // Only treat it as a definition when a valid identifier follows.
+        continue;
       }
       let nameEnd = nameStart + 1;
       while (nameEnd < input.length && isQRewriteIdentifierChar(input[nameEnd])) {
@@ -2504,7 +2696,8 @@
 
       const open = skipWhitespaceInSource(input, nameEnd);
       if (input[open] !== "{") {
-        throw new Error("Expected '{' after q-rewrite id '" + name + "'.");
+        // Not a definition candidate; keep scanning.
+        continue;
       }
 
       const close = findMatchingBraceWithLiterals(input, open);
@@ -2582,19 +2775,25 @@
 
   function createQRewriteExecutionContext(slotValues) {
     const values = slotValues || {};
+    function readSlot(name) {
+      const key = normalizeQRewriteSlotName(name);
+      if (Object.prototype.hasOwnProperty.call(values, key)) {
+        return String(values[key] || "");
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "default")) {
+        return String(values.default || "");
+      }
+      return "";
+    }
     const qdomFacade = {
       slot: function slot(name) {
-        const key = normalizeQRewriteSlotName(name);
-        if (Object.prototype.hasOwnProperty.call(values, key)) {
-          return String(values[key] || "");
-        }
-        if (Object.prototype.hasOwnProperty.call(values, "default")) {
-          return String(values.default || "");
-        }
-        return "";
+        return readSlot(name);
       },
     };
     return {
+      slot: function slot(name) {
+        return readSlot(name);
+      },
       qdom: function qdom() {
         return qdomFacade;
       },
@@ -2613,6 +2812,7 @@
       const thisArg = createQRewriteExecutionContext(slotValues);
       return evaluateQScriptBlocks(definition.returnBody, {
         maxPasses: opts.maxQScriptPasses,
+        keywordAliases: opts.keywordAliases,
         executor: function runQRewriteQScript(body) {
           return executeQScriptReplacement(body, thisArg);
         },
@@ -2663,13 +2863,13 @@
     return null;
   }
 
-  function collectQRewriteDefinitions(source) {
+  function collectQRewriteDefinitions(source, rewriteKeywords) {
     let working = String(source || "");
     const definitions = Object.create(null);
     let pos = 0;
 
     while (true) {
-      const found = findNextQRewriteDefinition(working, pos);
+      const found = findNextQRewriteDefinition(working, pos, rewriteKeywords);
       if (!found) {
         break;
       }
@@ -2687,7 +2887,9 @@
   function applyQRewriteBlocks(source, options) {
     const opts = options || {};
     const maxPasses = Number(opts.maxPasses) > 0 ? Number(opts.maxPasses) : 200;
-    const collected = collectQRewriteDefinitions(source);
+    const sourceAliases = opts.keywordAliases instanceof Map ? opts.keywordAliases : collectKeywordAliasesFromSource(source);
+    const rewriteKeywords = collectAliasesTargeting(sourceAliases, "q-rewrite");
+    const collected = collectQRewriteDefinitions(source, rewriteKeywords);
     const definitions = collected.definitions;
     let out = collected.source;
 
@@ -2717,6 +2919,7 @@
         const body = out.slice(invocation.open + 1, invocation.close);
         const replacement = executeQRewriteDefinition(definition, body, {
           maxQScriptPasses: opts.maxQScriptPasses,
+          keywordAliases: sourceAliases,
         });
 
         out = out.slice(0, invocation.start) + replacement + out.slice(invocation.end);
@@ -2757,10 +2960,28 @@
     return input[cursor] === ":";
   }
 
+  function isQKeywordAliasDeclarationContext(source, tokenStart) {
+    const input = String(source || "");
+    let cursor = Math.max(0, Number(tokenStart) || 0) - 1;
+    while (cursor >= 0 && /\s/.test(input[cursor])) {
+      cursor -= 1;
+    }
+    if (cursor < 0) {
+      return false;
+    }
+    const end = cursor + 1;
+    while (cursor >= 0 && /[A-Za-z0-9_-]/.test(input[cursor])) {
+      cursor -= 1;
+    }
+    const prevToken = input.slice(cursor + 1, end).toLowerCase();
+    return prevToken === "q-keyword";
+  }
+
   function evaluateQScriptBlocks(source, options) {
     let out = String(source || "");
     const opts = options || {};
     const maxPasses = Number(opts.maxPasses) > 0 ? Number(opts.maxPasses) : 200;
+    const scriptKeywords = collectAliasesTargeting(opts.keywordAliases, "q-script");
     const shouldEvaluate = typeof opts.shouldEvaluate === "function" ? opts.shouldEvaluate : null;
     const executor =
       typeof opts.executor === "function"
@@ -2775,17 +2996,22 @@
       let pos = 0;
 
       while (true) {
-        const start = findStandaloneQScriptKeyword(out, pos);
-        if (start === -1) {
+        const token = findNextKeywordTokenSkippingLiterals(out, pos, scriptKeywords);
+        if (!token) {
           break;
         }
+        const start = token.start;
 
-        let open = start + 8;
+        let open = token.end;
         while (open < out.length && /\s/.test(out[open])) {
           open += 1;
         }
         if (out[open] !== "{") {
-          pos = start + 8;
+          pos = token.end;
+          continue;
+        }
+        if (isQKeywordAliasDeclarationContext(out, start)) {
+          pos = token.end;
           continue;
         }
 
@@ -2803,7 +3029,7 @@
           body: body,
         };
         if (shouldEvaluate && shouldEvaluate(context) === false) {
-          pos = start + 8;
+          pos = token.end;
           continue;
         }
         let replacement = executor(body, context);
@@ -3773,13 +3999,16 @@
             },
           })
         : rawSource;
+    const sourceKeywordAliases = collectKeywordAliasesFromSource(effectiveSource);
     const rewriteResult = applyQRewriteBlocks(effectiveSource, {
       maxPasses: opts.maxQRewritePasses,
       maxQScriptPasses: opts.maxQScriptPasses,
+      keywordAliases: sourceKeywordAliases,
     });
     const rewrittenSource = rewriteResult.source;
     const evaluatedSource = evaluateQScriptBlocks(rewrittenSource, {
       maxPasses: opts.maxQScriptPasses,
+      keywordAliases: sourceKeywordAliases,
       shouldEvaluate: function shouldEvaluateQScriptBlock(context) {
         return !isAssignmentQScriptContext(context && context.source, context && context.start);
       },

@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML Script Roller</title>
+  <link rel="stylesheet" href="w3.css">
+  <script src="qhtml.js"></script>
+  <script src="q-editor.js"></script>
+  <style>
+    :root {
+      --bg: #f4f8ff;
+      --paper: #ffffff;
+      --ink: #0f172a;
+      --line: #d6e1f3;
+      --accent: #0ea5e9;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: radial-gradient(circle at 15% -5%, #dbeafe 0 24%, transparent 42%), var(--bg);
+      color: var(--ink);
+      font-family: "Avenir Next", "Segoe UI", "Trebuchet MS", sans-serif;
+    }
+
+    .roller-shell {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 1rem;
+      display: grid;
+      gap: 0.9rem;
+    }
+
+    .roller-card {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+      padding: 0.9rem;
+    }
+
+    .roller-card h1,
+    .roller-card h2 {
+      margin: 0;
+    }
+
+    .roller-card p {
+      margin: 0.4rem 0 0;
+      color: #334155;
+    }
+
+    .roller-grid-column {
+      border: 1px solid #dbe5f5;
+      border-radius: 12px;
+      background: #f9fbff;
+      min-height: 380px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+    }
+
+    .roller-grid-head {
+      padding: 0.65rem;
+      font-size: 0.8rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #1e3a8a;
+      border-bottom: 1px solid #dbe5f5;
+      background: #eff6ff;
+    }
+
+    .roller-grid-body {
+      padding: 0.55rem;
+      display: grid;
+      gap: 0.5rem;
+      align-content: start;
+      overflow: auto;
+    }
+
+    .roller-input {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid #bfdbfe;
+      border-radius: 10px;
+      padding: 0.55rem 0.65rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.88rem;
+      background: #ffffff;
+      box-sizing: border-box;
+    }
+
+    .roller-check {
+      min-height: 44px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #bfdbfe;
+      border-radius: 10px;
+      background: #ffffff;
+    }
+
+    .roller-check input {
+      transform: scale(1.35);
+      cursor: pointer;
+    }
+
+    .roller-arrow {
+      min-height: 44px;
+      border: 1px solid #bfdbfe;
+      border-radius: 10px;
+      background: #ffffff;
+      display: grid;
+      place-items: center;
+    }
+
+    .roller-arrow svg {
+      width: 92%;
+      height: 26px;
+      display: block;
+    }
+
+    .roller-add-wrap {
+      display: flex;
+      justify-content: center;
+      padding-top: 0.2rem;
+    }
+
+    .roller-add-btn {
+      border: 0;
+      border-radius: 14px;
+      padding: 0.95rem 2.2rem;
+      min-width: 340px;
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: #ffffff;
+      background: linear-gradient(135deg, #0284c7, #0ea5e9);
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(2, 132, 199, 0.3);
+    }
+
+    .roller-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      align-items: center;
+    }
+
+    .roller-meta {
+      color: #334155;
+      font-size: 0.9rem;
+      margin-left: auto;
+    }
+
+    q-editor {
+      display: block;
+      width: 100%;
+      min-height: 420px;
+    }
+
+    @media (max-width: 1024px) {
+      .roller-add-btn {
+        width: 100%;
+        min-width: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="roller-shell">
+    <section class="roller-card">
+      <h1>QHTML Script Roller</h1>
+      <p>Build custom keyword transformations and export them as a <code>.qhtml</code> file.</p>
+      <p>Import file usage: <code>q-import { my-keyword-map.qhtml }</code></p>
+    </section>
+
+    <section class="roller-card">
+      <q-html>
+        q-import { q-components/q-grid.qhtml }
+
+        q-component script-roller-grid {
+          q-grid {
+            columns: 4;
+
+            div.roller-grid-column {
+              div.roller-grid-head { text { Enabled } }
+              div#roller-col-enabled.roller-grid-body { }
+            }
+
+            div.roller-grid-column {
+              div.roller-grid-head { text { QHTML Keyword } }
+              div#roller-col-source.roller-grid-body { }
+            }
+
+            div.roller-grid-column {
+              div.roller-grid-head { text { Transform } }
+              div#roller-col-arrow.roller-grid-body { }
+            }
+
+            div.roller-grid-column {
+              div.roller-grid-head { text { Alias Keyword } }
+              div#roller-col-target.roller-grid-body { }
+            }
+          }
+        }
+
+        script-roller-grid { id: "roller-grid-root" }
+      </q-html>
+
+      <div class="roller-add-wrap">
+        <button id="roller-add" class="roller-add-btn" type="button">Add Transformation</button>
+      </div>
+    </section>
+
+    <section class="roller-card">
+      <h2>Generated q-keyword Script</h2>
+      <p>Any change above updates this q-editor preview automatically.</p>
+      <div class="roller-actions">
+        <button id="roller-download" class="w3-button w3-blue w3-round-large" type="button">Download .qhtml</button>
+        <button id="roller-reset" class="w3-button w3-light-grey w3-round-large" type="button">Reset Defaults</button>
+        <span id="roller-row-count" class="roller-meta"></span>
+      </div>
+      <q-editor id="roller-editor"></q-editor>
+    </section>
+
+    <section class="roller-card">
+      <h2>Snippet Editor</h2>
+      <p>This editor includes your q-keyword mappings at the top, followed by the converted snippet.</p>
+      <q-editor id="roller-snippet-editor"></q-editor>
+      <q-html id="roller-snippet-probe" style="display:none;"></q-html>
+    </section>
+  </div>
+
+  <script>
+    (function initScriptRoller() {
+      const STORAGE_KEY = 'qhtml_script_roller_state_v1';
+      const DEFAULT_ROWS = [
+        { enabled: true, source: 'q-component', target: 'component' },
+        { enabled: true, source: 'q-template', target: 'template' },
+        { enabled: true, source: 'q-rewrite', target: 'rewrite' },
+        { enabled: true, source: 'q-script', target: 'script' },
+        { enabled: true, source: 'q-bind', target: 'bind' },
+        { enabled: true, source: 'q-property', target: 'property' },
+        { enabled: true, source: 'q-signal', target: 'signal' },
+        { enabled: true, source: 'slot', target: 'slot' },
+        { enabled: true, source: 'q-alias', target: 'alias' },
+        { enabled: true, source: 'style', target: 'css' }
+      ];
+      const REMOVED_DEFAULT_SOURCES = new Set(['q-import', 'q-keyword', 'onReady', 'text', 'html']);
+      const REQUIRED_SNIPPET_KEYWORDS = ['q-component', 'q-template', 'q-rewrite', 'q-script', 'q-bind', 'q-property', 'q-signal', 'slot', 'q-alias', 'style'];
+      const CANONICAL_SNIPPET = [
+        'q-component roller-snippet-card {',
+        '  q-property { title }',
+        '  title: q-bind { return "Script Roller Card" }',
+        '',
+        '  q-signal cardClicked(message)',
+        '',
+        '  q-alias heading { return this.title }',
+        '',
+        '  style {',
+        '    .roller-snippet-card {',
+        '      border: 2px solid #93c5fd;',
+        '      border-radius: 10px;',
+        '      padding: 8px;',
+        '    }',
+        '  }',
+        '',
+        '  q-template card-body {',
+        '    slot { body }',
+        '  }',
+        '',
+        '  q-rewrite upper {',
+        '    slot { input }',
+        '    return {',
+        '      q-script { return String(this.slot("input") || "").toUpperCase() }',
+        '    }',
+        '  }',
+        '',
+        '  div.roller-snippet-card {',
+        '    h4 { q-bind { return this.component.heading } }',
+        '    card-body {',
+        '      body {',
+        '        p { text { upper { keyword demo text } } }',
+        '        button.w3-button.w3-small.w3-blue {',
+        '          text { Emit Signal }',
+        '          onclick { this.component.cardClicked("clicked") }',
+        '        }',
+        '      }',
+        '    }',
+        '  }',
+        '}',
+        'roller-snippet-card { }'
+      ].join('\n');
+
+      const state = {
+        rows: [],
+        detectedKeywords: new Set(REQUIRED_SNIPPET_KEYWORDS)
+      };
+
+      function cloneDefaultRows() {
+        return DEFAULT_ROWS.map(function cloneRow(row) {
+          return {
+            enabled: !!row.enabled,
+            source: String(row.source || ''),
+            target: String(row.target || '')
+          };
+        });
+      }
+
+      function defaultRows() {
+        return cloneDefaultRows();
+      }
+
+      function normalizeRow(input) {
+        const row = input && typeof input === 'object' ? input : {};
+        let source = String(row.source || '').trim();
+        if (source === 'q-slot') {
+          source = 'slot';
+        }
+        return {
+          enabled: row.enabled !== false,
+          source: source,
+          target: String(row.target || '').trim()
+        };
+      }
+
+      function sanitizeRows(rows) {
+        const list = Array.isArray(rows) ? rows : [];
+        const out = [];
+        for (let i = 0; i < list.length; i += 1) {
+          const row = normalizeRow(list[i]);
+          if (!row.source) {
+            continue;
+          }
+          if (REMOVED_DEFAULT_SOURCES.has(row.source)) {
+            continue;
+          }
+          out.push(row);
+        }
+        return out.length > 0 ? out : defaultRows();
+      }
+
+      function loadState() {
+        let parsed = null;
+        try {
+          parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        } catch (error) {
+          parsed = null;
+        }
+        if (!parsed || !Array.isArray(parsed.rows)) {
+          state.rows = defaultRows();
+          return;
+        }
+        state.rows = sanitizeRows(parsed.rows);
+      }
+
+      function saveState() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: state.rows }));
+      }
+
+      function makeArrowCell() {
+        const cell = document.createElement('div');
+        cell.className = 'roller-arrow';
+        cell.innerHTML = '' +
+          '<svg viewBox="0 0 180 26" aria-hidden="true" focusable="false">' +
+            '<line x1="8" y1="13" x2="146" y2="13" stroke="#0369a1" stroke-width="8" stroke-linecap="round"></line>' +
+            '<polygon points="146,3 174,13 146,23" fill="#0369a1"></polygon>' +
+          '</svg>';
+        return cell;
+      }
+
+      function buildRow(index, row, containers) {
+        const checkWrap = document.createElement('label');
+        checkWrap.className = 'roller-check';
+        checkWrap.innerHTML = '<input type="checkbox" data-role="enabled" data-index="' + index + '" ' + (row.enabled ? 'checked' : '') + '>';
+
+        const sourceInput = document.createElement('input');
+        sourceInput.type = 'text';
+        sourceInput.className = 'roller-input';
+        sourceInput.value = row.source;
+        sourceInput.setAttribute('data-role', 'source');
+        sourceInput.setAttribute('data-index', String(index));
+
+        const targetInput = document.createElement('input');
+        targetInput.type = 'text';
+        targetInput.className = 'roller-input';
+        targetInput.value = row.target;
+        targetInput.setAttribute('data-role', 'target');
+        targetInput.setAttribute('data-index', String(index));
+
+        containers.enabled.appendChild(checkWrap);
+        containers.source.appendChild(sourceInput);
+        containers.arrow.appendChild(makeArrowCell());
+        containers.target.appendChild(targetInput);
+      }
+
+      function getContainers() {
+        return {
+          enabled: document.getElementById('roller-col-enabled'),
+          source: document.getElementById('roller-col-source'),
+          arrow: document.getElementById('roller-col-arrow'),
+          target: document.getElementById('roller-col-target')
+        };
+      }
+
+      function clearColumns(containers) {
+        containers.enabled.innerHTML = '';
+        containers.source.innerHTML = '';
+        containers.arrow.innerHTML = '';
+        containers.target.innerHTML = '';
+      }
+
+      function buildGeneratedScript() {
+        const lines = state.rows
+          .map(function trimRow(row) {
+            return {
+              enabled: !!row.enabled,
+              source: String(row.source || '').trim(),
+              target: String(row.target || '').trim()
+            };
+          })
+          .filter(function keep(row) {
+            if (!row.enabled || !row.source || !row.target) {
+              return false;
+            }
+            return String(row.source).trim().toLowerCase() !== String(row.target).trim().toLowerCase();
+          })
+          .map(function toLine(row) {
+            return 'q-keyword ' + row.target + ' { ' + row.source + ' }';
+          });
+
+        if (lines.length === 0) {
+          return '# No active transformations\n';
+        }
+        return lines.join('\n') + '\n';
+      }
+
+      function buildSnippetEditorSource() {
+        const transforms = buildGeneratedScript();
+        const converted = buildConvertedSnippet();
+        return transforms +
+          '\n/* converted snippet (uses mappings above in same scope) */\n\n' +
+          converted +
+          '\n';
+      }
+
+      function targetForKeyword(keyword) {
+        const needle = String(keyword || '').trim();
+        for (let i = 0; i < state.rows.length; i += 1) {
+          const row = state.rows[i];
+          if (!row || row.enabled === false) {
+            continue;
+          }
+          if (String(row.source || '').trim() !== needle) {
+            continue;
+          }
+          const target = String(row.target || '').trim();
+          if (target) {
+            return target;
+          }
+        }
+        return needle;
+      }
+
+      function buildConvertedSnippet() {
+        const has = function hasKeyword(name) {
+          return state.detectedKeywords.has(name);
+        };
+        const kw = function keyword(name) {
+          return has(name) ? targetForKeyword(name) : name;
+        };
+        const aliasBootstrapLines = state.rows
+          .map(function mapRow(row) {
+            const source = String(row && row.source || '').trim();
+            const target = String(row && row.target || '').trim();
+            if (!source || !target || row.enabled === false) {
+              return '';
+            }
+            if (source.toLowerCase() === target.toLowerCase()) {
+              return '';
+            }
+            return 'q-keyword ' + target + ' { ' + source + ' }';
+          })
+          .filter(Boolean);
+
+        return []
+          .concat(
+            aliasBootstrapLines.length > 0
+              ? [
+                  '/* preview bootstrap',
+                  '   converted keyword aliases remapped to core qhtml keywords',
+                  '*/'
+                ].concat(aliasBootstrapLines, [''])
+              : []
+          )
+          .concat([
+            '/* q-component -> ' + kw('q-component') + ' */',
+            kw('q-component') + ' demo-component {',
+            '  div { text { hello world } }',
+            '}',
+            'demo-component { }',
+            '',
+            '/* q-signal -> ' + kw('q-signal') + ' */',
+            kw('q-component') + ' demo-signal {',
+            '  ' + kw('q-signal') + ' ping(message)',
+            '  button.w3-button.w3-small.w3-green {',
+            '    text { Emit Signal }',
+            '    onclick { this.component.ping("hello world") }',
+            '  }',
+            '}',
+            'demo-signal { }',
+            '',
+            '/* q-property -> ' + kw('q-property') + ' ; q-bind -> ' + kw('q-bind') + ' */',
+            kw('q-component') + ' demo-bind {',
+            '  ' + kw('q-property') + ' myprop: ' + kw('q-bind') + ' { return "hello world" }',
+            '  p { ' + kw('q-bind') + ' { return this.component.myprop } }',
+            '}',
+            'demo-bind { }',
+            '',
+            '/* q-template -> ' + kw('q-template') + ' ; slot -> ' + kw('slot') + ' */',
+            kw('q-template') + ' demo-slot {',
+            '  ' + kw('slot') + ' { body }',
+            '}',
+            'demo-slot { body { div { text { slot body content } } } }',
+            '',
+            '/* q-rewrite -> ' + kw('q-rewrite') + ' ; q-script -> ' + kw('q-script') + ' */',
+            kw('q-rewrite') + ' upper {',
+            '  ' + kw('slot') + ' { input }',
+            '  return {',
+            '    ' + kw('q-script') + ' { return String(this.slot("input") || "").toUpperCase() }',
+            '  }',
+            '}',
+            'div { text { upper { rewrite me } } }',
+            '',
+            '/* q-alias -> ' + kw('q-alias') + ' */',
+            kw('q-component') + ' demo-alias {',
+            '  ' + kw('q-property') + ' { title }',
+            '  title: "hello world"',
+            '  ' + kw('q-alias') + ' heading { return this.title }',
+            '  h4 { ' + kw('q-bind') + ' { return this.component.heading } }',
+            '}',
+            'demo-alias { }',
+            '',
+            '/* style -> ' + kw('style') + ' */',
+            kw('style') + ' {',
+            '  .demo-style { border: 2px solid #93c5fd; padding: 6px; border-radius: 8px; }',
+            '}',
+            'div.demo-style { text { styled block } }'
+          ]).join('\n');
+      }
+
+      function detectKeywordsFromProjection(projection) {
+        const found = new Set();
+        function walk(value) {
+          if (value == null) {
+            return;
+          }
+          if (Array.isArray(value)) {
+            for (let i = 0; i < value.length; i += 1) {
+              walk(value[i]);
+            }
+            return;
+          }
+          if (typeof value === 'object') {
+            const kind = String(value.kind || '').trim().toLowerCase();
+            const definitionType = String(value.definitionType || '').trim().toLowerCase();
+            const expressionType = String(value.expressionType || '').trim().toLowerCase();
+            const tagName = String(value.tagName || '').trim().toLowerCase();
+
+            if (kind === 'component') {
+              if (definitionType === 'template') {
+                found.add('q-template');
+              } else if (definitionType === 'signal') {
+                found.add('q-signal');
+              } else {
+                found.add('q-component');
+              }
+            }
+            if (kind === 'slot') {
+              found.add('slot');
+            }
+            if (expressionType === 'q-bind' || expressionType === 'qbindexpression') {
+              found.add('q-bind');
+            }
+            if (expressionType === 'q-script' || expressionType === 'qscriptexpression') {
+              found.add('q-script');
+            }
+            if (Array.isArray(value.properties) && value.properties.length > 0) {
+              found.add('q-property');
+            }
+            if (Array.isArray(value.propertyDefinitions) && value.propertyDefinitions.length > 0) {
+              found.add('q-property');
+            }
+            if (Array.isArray(value.aliasDeclarations) && value.aliasDeclarations.length > 0) {
+              found.add('q-alias');
+            }
+            if (Array.isArray(value.qRewrites) && value.qRewrites.length > 0) {
+              found.add('q-rewrite');
+            }
+            if (tagName === 'style') {
+              found.add('style');
+            }
+
+            const keys = Object.keys(value);
+            for (let i = 0; i < keys.length; i += 1) {
+              walk(value[keys[i]]);
+            }
+            return;
+          }
+          if (typeof value === 'string') {
+            const token = value.trim().toLowerCase();
+            if (token === 'q-bind' || token === 'qbindexpression') {
+              found.add('q-bind');
+            }
+            if (token === 'q-script' || token === 'qscriptexpression') {
+              found.add('q-script');
+            }
+            if (token.indexOf('q-rewrite') !== -1 || token === 'qrewrite') {
+              found.add('q-rewrite');
+            }
+          }
+        }
+        walk(projection);
+
+        for (let i = 0; i < REQUIRED_SNIPPET_KEYWORDS.length; i += 1) {
+          if (CANONICAL_SNIPPET.indexOf(REQUIRED_SNIPPET_KEYWORDS[i]) !== -1) {
+            found.add(REQUIRED_SNIPPET_KEYWORDS[i]);
+          }
+        }
+        return found;
+      }
+
+      function scanSnippetWithQDom() {
+        const probe = document.getElementById('roller-snippet-probe');
+        if (!probe || !window.QHtml || typeof window.QHtml.mountQHtmlElement !== 'function') {
+          state.detectedKeywords = new Set(REQUIRED_SNIPPET_KEYWORDS);
+          renderEditorText();
+          return;
+        }
+
+        probe.textContent = CANONICAL_SNIPPET;
+        function handleMountedProjection() {
+          const projection = probe.qdom().map({
+            kind: 'kind',
+            definitionType: 'definitionType',
+            expressionType: 'expressionType',
+            tagName: 'tagName',
+            properties: 'properties',
+            propertyDefinitions: 'propertyDefinitions',
+            aliasDeclarations: 'aliasDeclarations',
+            qRewrites: 'qRewrites',
+            nodes: 'nodes',
+            children: 'children',
+            templateNodes: 'templateNodes',
+            slots: 'slots'
+          });
+          const root = Array.isArray(projection) && projection.length > 0 ? projection[0] : {};
+          state.detectedKeywords = detectKeywordsFromProjection(root);
+          renderEditorText();
+        }
+
+        function onMountError() {
+          state.detectedKeywords = new Set(REQUIRED_SNIPPET_KEYWORDS);
+          renderEditorText();
+        }
+
+        try {
+          const mountResult = window.QHtml.mountQHtmlElement(probe);
+          if (mountResult && typeof mountResult.then === 'function') {
+            mountResult.then(handleMountedProjection).catch(onMountError);
+            return;
+          }
+          if (mountResult && mountResult.ready && typeof mountResult.ready.then === 'function') {
+            mountResult.ready.then(handleMountedProjection).catch(onMountError);
+            return;
+          }
+          handleMountedProjection();
+        } catch (error) {
+          onMountError();
+        }
+      }
+
+      function renderEditorText() {
+        const topSource = buildGeneratedScript();
+        const snippetSource = buildSnippetEditorSource();
+        const editor = document.getElementById('roller-editor');
+        const snippetEditor = document.getElementById('roller-snippet-editor');
+        if (editor && typeof editor.setQhtmlSource === 'function') {
+          editor.setQhtmlSource(topSource);
+        }
+        if (snippetEditor && typeof snippetEditor.setQhtmlSource === 'function') {
+          snippetEditor.setQhtmlSource(snippetSource);
+        }
+
+        const count = state.rows.filter(function active(row) {
+          return row.enabled;
+        }).length;
+        document.getElementById('roller-row-count').textContent = count + ' active transformations';
+      }
+
+      function renderRows() {
+        const containers = getContainers();
+        clearColumns(containers);
+        state.rows.forEach(function eachRow(row, index) {
+          buildRow(index, row, containers);
+        });
+        renderEditorText();
+      }
+
+      function addRow() {
+        state.rows.push({
+          enabled: true,
+          source: 'q-new-keyword',
+          target: 'new-keyword'
+        });
+        saveState();
+        renderRows();
+      }
+
+      function onGridInput(event) {
+        const role = event.target.getAttribute('data-role');
+        const index = Number(event.target.getAttribute('data-index'));
+        const row = state.rows[index];
+        if (!row) {
+          return;
+        }
+
+        if (role === 'enabled') {
+          row.enabled = !!event.target.checked;
+        }
+        if (role === 'source') {
+          row.source = event.target.value;
+        }
+        if (role === 'target') {
+          row.target = event.target.value;
+        }
+
+        saveState();
+        renderEditorText();
+      }
+
+      function downloadScript() {
+        const generated = buildGeneratedScript();
+        const blob = new Blob([generated], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'my-keyword-map.qhtml';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      function resetDefaults() {
+        state.rows = defaultRows();
+        saveState();
+        renderRows();
+      }
+
+      function bindEvents() {
+        const containers = getContainers();
+        containers.enabled.addEventListener('change', onGridInput);
+        containers.source.addEventListener('input', onGridInput);
+        containers.target.addEventListener('input', onGridInput);
+
+        document.getElementById('roller-add').addEventListener('click', addRow);
+        document.getElementById('roller-download').addEventListener('click', downloadScript);
+        document.getElementById('roller-reset').addEventListener('click', resetDefaults);
+      }
+
+      function ensureReady() {
+        const containers = getContainers();
+        if (!containers.enabled || !containers.source || !containers.arrow || !containers.target) {
+          setTimeout(ensureReady, 16);
+          return;
+        }
+
+        loadState();
+        bindEvents();
+        renderRows();
+        scanSnippetWithQDom();
+      }
+
+      ensureReady();
+    })();
+  </script>
+</body>
+</html>
