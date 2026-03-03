@@ -1,3 +1,8 @@
+Don't like q-component keywords? Rather call them a-block or something else?  
+Now you can use our script builder to customize the keywords for your qhtml instance. [Click here to visit the script roller.](dist/script-roller.html)
+
+----------
+
 # QHTML.js v6.0.4
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.

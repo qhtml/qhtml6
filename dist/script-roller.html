@@ -470,31 +470,7 @@
         const kw = function keyword(name) {
           return has(name) ? targetForKeyword(name) : name;
         };
-        const aliasBootstrapLines = state.rows
-          .map(function mapRow(row) {
-            const source = String(row && row.source || '').trim();
-            const target = String(row && row.target || '').trim();
-            if (!source || !target || row.enabled === false) {
-              return '';
-            }
-            if (source.toLowerCase() === target.toLowerCase()) {
-              return '';
-            }
-            return 'q-keyword ' + target + ' { ' + source + ' }';
-          })
-          .filter(Boolean);
-
-        return []
-          .concat(
-            aliasBootstrapLines.length > 0
-              ? [
-                  '/* preview bootstrap',
-                  '   converted keyword aliases remapped to core qhtml keywords',
-                  '*/'
-                ].concat(aliasBootstrapLines, [''])
-              : []
-          )
-          .concat([
+        return [
             '/* q-component -> ' + kw('q-component') + ' */',
             kw('q-component') + ' demo-component {',
             '  div { text { hello world } }',
@@ -547,7 +523,7 @@
             '  .demo-style { border: 2px solid #93c5fd; padding: 6px; border-radius: 8px; }',
             '}',
             'div.demo-style { text { styled block } }'
-          ]).join('\n');
+          ].join('\n');
       }
 
       function detectKeywordsFromProjection(projection) {

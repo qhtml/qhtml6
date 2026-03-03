@@ -906,6 +906,112 @@
     return out;
   }
 
+  function collectCommentRanges(source) {
+    const text = String(source || '');
+    const out = [];
+    let inSingle = false;
+    let inDouble = false;
+    let inBacktick = false;
+    let inLineComment = false;
+    let inBlockComment = false;
+    let escaped = false;
+    let commentStart = -1;
+
+    for (let i = 0; i < text.length; i += 1) {
+      const ch = text[i];
+      const next = text[i + 1];
+
+      if (inLineComment) {
+        if (ch === '\n' || ch === '\r') {
+          out.push({ from: commentStart, to: i });
+          inLineComment = false;
+          commentStart = -1;
+        }
+        continue;
+      }
+      if (inBlockComment) {
+        if (ch === '*' && next === '/') {
+          out.push({ from: commentStart, to: i + 2 });
+          inBlockComment = false;
+          commentStart = -1;
+          i += 1;
+        }
+        continue;
+      }
+      if (inSingle) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === '\\') {
+          escaped = true;
+          continue;
+        }
+        if (ch === '\'') {
+          inSingle = false;
+        }
+        continue;
+      }
+      if (inDouble) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === '\\') {
+          escaped = true;
+          continue;
+        }
+        if (ch === '"') {
+          inDouble = false;
+        }
+        continue;
+      }
+      if (inBacktick) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === '\\') {
+          escaped = true;
+          continue;
+        }
+        if (ch === '`') {
+          inBacktick = false;
+        }
+        continue;
+      }
+
+      if (ch === '/' && next === '/') {
+        inLineComment = true;
+        commentStart = i;
+        i += 1;
+        continue;
+      }
+      if (ch === '/' && next === '*') {
+        inBlockComment = true;
+        commentStart = i;
+        i += 1;
+        continue;
+      }
+      if (ch === '\'') {
+        inSingle = true;
+        continue;
+      }
+      if (ch === '"') {
+        inDouble = true;
+        continue;
+      }
+      if (ch === '`') {
+        inBacktick = true;
+      }
+    }
+
+    if ((inLineComment || inBlockComment) && commentStart >= 0) {
+      out.push({ from: commentStart, to: text.length });
+    }
+    return out;
+  }
+
   function skipWhitespaceInText(text, index) {
     let i = Math.max(0, Number(index) || 0);
     while (i < text.length && /\s/.test(text[i])) i += 1;
@@ -1812,10 +1918,11 @@
           'q-editor .qe-cm-host .cm-content{color:#ffffff}' +
           'q-editor .qe-cm-host .cm-content .qe-sem-keyword{color:#9cdcfe !important;font-weight:600}' +
           'q-editor .qe-cm-host .cm-content .qe-sem-tag{color:#82aaff !important}' +
-          'q-editor .qe-cm-host .cm-content .qe-sem-name{color:#7ee787 !important}' +
+          'q-editor .qe-cm-host .cm-content .qe-sem-name{color:var(--qe-string) !important}' +
           'q-editor .qe-cm-host .cm-content .qe-sem-class{color:#569cd6 !important}' +
-          'q-editor .qe-cm-host .cm-content .qe-sem-id{color:#7ee787 !important}' +
+          'q-editor .qe-cm-host .cm-content .qe-sem-id{color:#569cd6 !important}' +
           'q-editor .qe-cm-host .cm-content .qe-sem-punc{color:#b8c0cc !important}' +
+          'q-editor .qe-cm-host .cm-content .qe-sem-comment{color:var(--qe-comment) !important;font-style:italic}' +
           'q-editor .qe-cm-host .cm-content .qe-sem-script{color:#ffffff !important}' +
         '</style>' +
         '<div class="qe">' +
@@ -1978,6 +2085,7 @@
       });
       const scriptRanges = collectScriptBodyRanges(text, codeMask, scriptKeywordNames);
       const punctuationRanges = collectPunctuationRanges(text, codeMask);
+      const commentRanges = collectCommentRanges(text);
 
       const keywordRanges = [];
       keywords.forEach(function eachKeywordName(name) {
@@ -2001,7 +2109,8 @@
         classRanges: classRanges,
         idRanges: idRanges,
         scriptRanges: scriptRanges,
-        punctuationRanges: punctuationRanges
+        punctuationRanges: punctuationRanges,
+        commentRanges: commentRanges
       };
       this._semanticCacheSource = text;
       this._semanticCacheModel = model;
@@ -2066,6 +2175,10 @@
 
       (Array.isArray(model.punctuationRanges) ? model.punctuationRanges : []).forEach(function eachPunctuationRange(range) {
         emitRange(range.from, range.to, 'qe-sem-punc');
+      });
+
+      (Array.isArray(model.commentRanges) ? model.commentRanges : []).forEach(function eachCommentRange(range) {
+        emitRange(range.from, range.to, 'qe-sem-comment');
       });
 
       pendingRanges.sort(function sortRanges(a, b) {
