@@ -10,7 +10,8 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
 
-### Customize the q-html language  [Click here to visit the script customizer.](dist/script-roller.html)
+### Now you can Customize the entire q-html language  
+### [Click here to visit the script customizer.](https://qhtml.github.io/qhtml6/dist/script-roller.html)
 
 ## Whats New in v6.0.4
 
