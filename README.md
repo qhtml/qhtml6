@@ -1,5 +1,3 @@
-Don't like q-component keywords? Rather call them a-block or something else?  
-Now you can use our script builder to customize the keywords for your qhtml instance. [Click here to visit the script roller.](dist/script-roller.html)
 
 ----------
 
@@ -10,6 +8,9 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Live demo: https://qhtml.github.io/qhtml6/dist/demo.html
 - Dev testbed: `dist/test.html`
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
+
+
+### Customize the q-html language  [Click here to visit the script customizer.](dist/script-roller.html)
 
 ## Whats New in v6.0.4
 
