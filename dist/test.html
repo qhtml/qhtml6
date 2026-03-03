@@ -51,6 +51,13 @@ q-template q-input-with-label {
   }
 }
 
+q-macro quick-note {
+  slot { message }
+  return {
+    p.w3-small.w3-text-blue { text { ${message} } }
+  }
+}
+
 q-component toggle-builder-button {
   q-signal toggleBuilder()
 
@@ -112,6 +119,7 @@ div.w3-black.w3-text-white.w3-bar, nav-bar {
 div.w3-container.w3-title.w3-header.w3-xlarge.w3-green {
   html { Hello world }
 }
+quick-note { message { q-macro is active in test.html } }
 div.w3-threequarter.w3-light-grey,q-tabs {
   id: "demo-tabs"
   q-tab.w3-light-grey {

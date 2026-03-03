@@ -1,7 +1,9 @@
+Don't like q-component keywords? Rather call them a-block or something else?  
+Now you can use our script builder to customize the keywords for your qhtml instance. [Click here to visit the script roller.](dist/script-roller.html)
 
 ----------
 
-# QHTML.js v6.0.4
+# QHTML.js v6.0.5
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -9,9 +11,15 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Dev testbed: `dist/test.html`
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
+## Whats New in v6.0.5
 
-### Now you can Customize the entire q-html language  
-### [Click here to visit the script customizer.](https://qhtml.github.io/qhtml6/dist/script-roller.html)
+- Added `q-macro` compile-time inline expansion:
+  - `q-macro name { slot { ... } return { ... } }`
+  - Invocations expand before parse (similar timing to `q-script` replacement, but macro output is plain source expansion).
+- Added scoped `${reference}` placeholders:
+  - `${slotName}` resolves from current macro slot scope.
+  - Works inline inside selectors, text, script strings, and other source fragments emitted by macros.
+- Parser metadata now includes macro expansion info in `qdom.meta.qMacros` and `qdom.meta.macroExpandedSource`.
 
 ## Whats New in v6.0.4
 
@@ -332,6 +340,47 @@ mycomp {
   }
 }
 ```
+
+### `q-macro` syntax (pre-parse inline expansion)
+
+`q-macro` is source expansion, not a rendered node.  
+It behaves like a reusable inline source generator.
+
+```qhtml
+q-macro mymacro {
+  slot { input1 }
+  slot { input2 }
+  return {
+    div.${input1} { text { ${input2} } }
+  }
+}
+
+mymacro {
+  input1 { status-pill }
+  input2 { hello world }
+}
+```
+
+### Scoped `${reference}` placeholders
+
+Inside macro output, `${name}` resolves using the current scoped references (macro slots).
+
+```qhtml
+q-macro action-macro {
+  slot { in1 }
+  return {
+    function enableComponent() { this.querySelector("${in1}").dowork(); }
+    div,span { text { target = ${in1} } }
+  }
+}
+
+q-component mything {
+  action-macro { in1 { #my-object } }
+}
+```
+
+Use `slot { name }` for raw slot insertion blocks, and `${name}` for inline placeholder insertion.
+
 ## 4. State with `q-bind`
 
 `q-bind` computes assignment values. After state changes, call `this.closest("q-html").update()`.

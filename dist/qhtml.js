@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-03-03T02:49:39Z */
+/* generated: 2026-03-03T10:20:14Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -916,6 +916,7 @@
   const CANONICAL_KEYWORD_TARGETS = new Set([
     "q-component",
     "q-template",
+    "q-macro",
     "q-rewrite",
     "q-script",
     "q-bind",
@@ -1167,7 +1168,13 @@
     if (LIFECYCLE_BLOCKS.has(nameLower)) {
       return next === "{";
     }
-    if (nameLower === "q-template" || nameLower === "q-component" || nameLower === "q-signal" || nameLower === "q-rewrite") {
+    if (
+      nameLower === "q-template" ||
+      nameLower === "q-component" ||
+      nameLower === "q-signal" ||
+      nameLower === "q-rewrite" ||
+      nameLower === "q-macro"
+    ) {
       return isIdentifierStartChar(next) || next === "{";
     }
     if (nameLower === "q-keyword") {
@@ -3503,6 +3510,33 @@
     return value || "default";
   }
 
+  function normalizeScopedReferenceKey(name) {
+    const value = String(name || "").trim();
+    if (!value) {
+      return "";
+    }
+    return value.toLowerCase();
+  }
+
+  function replaceScopedReferencesInText(source, references) {
+    const text = String(source || "");
+    const refs = references && typeof references === "object" ? references : null;
+    if (!refs) {
+      return text;
+    }
+    return text.replace(/\$\{\s*([^}]+?)\s*\}/g, function replaceReference(matchText, keyText) {
+      const key = normalizeScopedReferenceKey(keyText || "");
+      if (!key) {
+        return matchText;
+      }
+      if (!Object.prototype.hasOwnProperty.call(refs, key)) {
+        return matchText;
+      }
+      const value = refs[key];
+      return value == null ? "" : String(value);
+    });
+  }
+
   function extractQRewriteSlotPlaceholders(source) {
     const text = String(source || "");
     const slots = new Set();
@@ -3698,24 +3732,27 @@
       ? definition.slots.map(normalizeQRewriteSlotName).filter(Boolean)
       : [];
     const slotValues = resolveQRewriteInvocationSlots(definition, invocationBody);
+    const scopedReferences = createScopedReferenceMap(slotValues, null);
     const hasReturnBody = typeof definition.returnBody === "string" && definition.returnBody.trim().length > 0;
 
     if (hasReturnBody) {
       const thisArg = createQRewriteExecutionContext(slotValues);
-      return evaluateQScriptBlocks(definition.returnBody, {
+      const rewritten = evaluateQScriptBlocks(definition.returnBody, {
         maxPasses: opts.maxQScriptPasses,
         keywordAliases: opts.keywordAliases,
         executor: function runQRewriteQScript(body) {
           return executeQScriptReplacement(body, thisArg);
         },
       });
+      return replaceScopedReferencesInText(rewritten, scopedReferences);
     }
 
     const template = String(definition.templateBody || "");
     if (!template) {
       return slots.length === 1 ? String(slotValues[slots[0]] || "") : String(invocationBody || "");
     }
-    return applyQRewriteSlotsToTemplate(template, slotValues);
+    const replaced = applyQRewriteSlotsToTemplate(template, slotValues);
+    return replaceScopedReferencesInText(replaced, scopedReferences);
   }
 
   function findNextQRewriteInvocation(source, definitions, fromIndex) {
@@ -3829,6 +3866,261 @@
     }
 
     throw new Error("q-rewrite expansion exceeded max pass limit (" + maxPasses + ").");
+  }
+
+  function extractScopedReferencePlaceholders(source) {
+    const text = String(source || "");
+    const names = new Set();
+    const re = /\$\{\s*([^}]+?)\s*\}/g;
+    let match;
+    while ((match = re.exec(text))) {
+      const key = normalizeScopedReferenceKey(match[1] || "");
+      if (!key) {
+        continue;
+      }
+      if (!/^[a-z_][a-z0-9_.-]*$/.test(key)) {
+        continue;
+      }
+      names.add(key);
+    }
+    return Array.from(names);
+  }
+
+  function createQMacroDefinition(name, body) {
+    const definitionName = String(name || "").trim();
+    const rawBody = String(body || "");
+    const blocks = parseTopLevelNamedBlocks(rawBody);
+    const declaredSlots = new Set();
+    const removeRanges = [];
+    let returnBody = null;
+
+    for (let i = 0; i < blocks.length; i += 1) {
+      const block = blocks[i];
+      if (!block || typeof block !== "object") {
+        continue;
+      }
+      if (block.nameLower === "slot") {
+        const slotName = normalizeQRewriteSlotName(block.body || "");
+        if (slotName) {
+          declaredSlots.add(slotName);
+        }
+        removeRanges.push({ start: block.start, end: block.end });
+        continue;
+      }
+      if (block.nameLower === "return") {
+        returnBody = String(block.body || "");
+        removeRanges.push({ start: block.start, end: block.end });
+      }
+    }
+
+    const templateBody = removeRangesFromSource(rawBody, removeRanges).trim();
+    if (declaredSlots.size === 0) {
+      const inferred = extractScopedReferencePlaceholders((returnBody || "") + "\n" + templateBody);
+      for (let i = 0; i < inferred.length; i += 1) {
+        declaredSlots.add(inferred[i]);
+      }
+    }
+
+    return {
+      name: definitionName,
+      nameLower: definitionName.toLowerCase(),
+      slots: Array.from(declaredSlots),
+      templateBody: templateBody,
+      returnBody: typeof returnBody === "string" ? returnBody : "",
+    };
+  }
+
+  function findNextQMacroDefinition(source, fromIndex, macroKeywords) {
+    const input = String(source || "");
+    let pos = Math.max(0, Number(fromIndex) || 0);
+    const keywordSet =
+      macroKeywords instanceof Set && macroKeywords.size > 0 ? macroKeywords : new Set(["q-macro"]);
+
+    while (pos < input.length) {
+      const token = findNextKeywordTokenSkippingLiterals(input, pos, keywordSet);
+      if (!token) {
+        return null;
+      }
+      pos = token.end;
+
+      const nameStart = skipWhitespaceInSource(input, token.end);
+      if (!isQRewriteIdentifierStart(input[nameStart])) {
+        continue;
+      }
+      let nameEnd = nameStart + 1;
+      while (nameEnd < input.length && isQRewriteIdentifierChar(input[nameEnd])) {
+        nameEnd += 1;
+      }
+      const name = input.slice(nameStart, nameEnd);
+      const open = skipWhitespaceInSource(input, nameEnd);
+      if (input[open] !== "{") {
+        continue;
+      }
+      const close = findMatchingBraceWithLiterals(input, open);
+      if (close === -1) {
+        throw new Error("Unterminated q-macro block for '" + name + "'.");
+      }
+      return {
+        start: token.start,
+        end: close + 1,
+        name: name,
+        nameLower: String(name || "").toLowerCase(),
+        body: input.slice(open + 1, close),
+      };
+    }
+    return null;
+  }
+
+  function collectQMacroDefinitions(source, macroKeywords) {
+    let working = String(source || "");
+    const definitions = Object.create(null);
+    let pos = 0;
+    while (true) {
+      const found = findNextQMacroDefinition(working, pos, macroKeywords);
+      if (!found) {
+        break;
+      }
+      definitions[found.nameLower] = createQMacroDefinition(found.name, found.body);
+      working = working.slice(0, found.start) + working.slice(found.end);
+      pos = found.start;
+    }
+    return {
+      source: working,
+      definitions: definitions,
+    };
+  }
+
+  function findNextQMacroInvocation(source, definitions, fromIndex) {
+    const input = String(source || "");
+    const defs = definitions || {};
+    let pos = Math.max(0, Number(fromIndex) || 0);
+
+    while (pos < input.length) {
+      const token = findNextIdentifierTokenSkippingLiterals(input, pos);
+      if (!token) {
+        return null;
+      }
+      pos = token.end;
+      const nameLower = String(token.name || "").toLowerCase();
+      if (!Object.prototype.hasOwnProperty.call(defs, nameLower)) {
+        continue;
+      }
+      const open = skipWhitespaceInSource(input, token.end);
+      if (input[open] !== "{") {
+        continue;
+      }
+      const close = findMatchingBraceWithLiterals(input, open);
+      if (close === -1) {
+        throw new Error("Unterminated q-macro invocation block for '" + token.name + "'.");
+      }
+      return {
+        start: token.start,
+        end: close + 1,
+        open: open,
+        close: close,
+        name: token.name,
+        nameLower: nameLower,
+      };
+    }
+    return null;
+  }
+
+  function createScopedReferenceMap(slotValues, inheritedReferences) {
+    const out = Object.create(null);
+    const inherited = inheritedReferences && typeof inheritedReferences === "object" ? inheritedReferences : null;
+    if (inherited) {
+      const inheritedKeys = Object.keys(inherited);
+      for (let i = 0; i < inheritedKeys.length; i += 1) {
+        const key = normalizeScopedReferenceKey(inheritedKeys[i]);
+        if (!key) {
+          continue;
+        }
+        out[key] = String(inherited[inheritedKeys[i]] == null ? "" : inherited[inheritedKeys[i]]).trim();
+      }
+    }
+    const values = slotValues && typeof slotValues === "object" ? slotValues : null;
+    if (values) {
+      const slotKeys = Object.keys(values);
+      for (let i = 0; i < slotKeys.length; i += 1) {
+        const key = normalizeScopedReferenceKey(slotKeys[i]);
+        if (!key) {
+          continue;
+        }
+        out[key] = String(values[slotKeys[i]] || "").trim();
+      }
+    }
+    return out;
+  }
+
+  function executeQMacroDefinition(definition, invocationBody, options) {
+    const opts = options || {};
+    const slots = Array.isArray(definition && definition.slots)
+      ? definition.slots.map(normalizeQRewriteSlotName).filter(Boolean)
+      : [];
+    const slotValues = resolveQRewriteInvocationSlots(definition, invocationBody);
+    const scopeReferences = createScopedReferenceMap(slotValues, opts.references);
+    const hasReturnBody = typeof definition.returnBody === "string" && definition.returnBody.trim().length > 0;
+    const template = hasReturnBody ? String(definition.returnBody || "") : String(definition.templateBody || "");
+
+    if (!template) {
+      const fallback = slots.length === 1 ? String(slotValues[slots[0]] || "") : String(invocationBody || "");
+      return replaceScopedReferencesInText(fallback, scopeReferences);
+    }
+
+    const slotted = applyQRewriteSlotsToTemplate(template, slotValues);
+    return replaceScopedReferencesInText(slotted, scopeReferences);
+  }
+
+  function applyQMacroBlocks(source, options) {
+    const opts = options || {};
+    const maxPasses = Number(opts.maxPasses) > 0 ? Number(opts.maxPasses) : 200;
+    const sourceAliases = opts.keywordAliases instanceof Map ? opts.keywordAliases : collectKeywordAliasesFromSource(source);
+    const macroKeywords = collectAliasesTargeting(sourceAliases, "q-macro");
+    const collected = collectQMacroDefinitions(source, macroKeywords);
+    const definitions = collected.definitions;
+    let out = collected.source;
+
+    if (!definitions || Object.keys(definitions).length === 0) {
+      return {
+        source: out,
+        definitions: [],
+      };
+    }
+
+    let pass = 0;
+    while (pass < maxPasses) {
+      let changed = false;
+      let pos = 0;
+
+      while (true) {
+        const invocation = findNextQMacroInvocation(out, definitions, pos);
+        if (!invocation) {
+          break;
+        }
+        const definition = definitions[invocation.nameLower];
+        if (!definition) {
+          pos = invocation.end;
+          continue;
+        }
+        const body = out.slice(invocation.open + 1, invocation.close);
+        const replacement = executeQMacroDefinition(definition, body, {
+          references: opts.references,
+        });
+        out = out.slice(0, invocation.start) + replacement + out.slice(invocation.end);
+        pos = invocation.start + replacement.length;
+        changed = true;
+      }
+
+      if (!changed) {
+        return {
+          source: out,
+          definitions: Object.keys(definitions),
+        };
+      }
+      pass += 1;
+    }
+
+    throw new Error("q-macro expansion exceeded max pass limit (" + maxPasses + ").");
   }
 
   function executeQScriptReplacement(scriptBody, thisArg) {
@@ -4892,15 +5184,22 @@
           })
         : rawSource;
     const sourceKeywordAliases = collectKeywordAliasesFromSource(effectiveSource);
-    const rewriteResult = applyQRewriteBlocks(effectiveSource, {
+    const macroResult = applyQMacroBlocks(effectiveSource, {
+      maxPasses: opts.maxQMacroPasses,
+      keywordAliases: sourceKeywordAliases,
+      references: opts.references,
+    });
+    const macroExpandedSource = macroResult.source;
+    const postMacroKeywordAliases = collectKeywordAliasesFromSource(macroExpandedSource);
+    const rewriteResult = applyQRewriteBlocks(macroExpandedSource, {
       maxPasses: opts.maxQRewritePasses,
       maxQScriptPasses: opts.maxQScriptPasses,
-      keywordAliases: sourceKeywordAliases,
+      keywordAliases: postMacroKeywordAliases,
     });
     const rewrittenSource = rewriteResult.source;
     const evaluatedSource = evaluateQScriptBlocks(rewrittenSource, {
       maxPasses: opts.maxQScriptPasses,
-      keywordAliases: sourceKeywordAliases,
+      keywordAliases: postMacroKeywordAliases,
       shouldEvaluate: function shouldEvaluateQScriptBlock(context) {
         return !isAssignmentQScriptContext(context && context.source, context && context.start);
       },
@@ -4937,6 +5236,8 @@
     }
     doc.meta.imports = imports.length > 0 ? imports : importUrls;
     doc.meta.resolvedSource = effectiveSource;
+    doc.meta.macroExpandedSource = macroExpandedSource;
+    doc.meta.qMacros = macroResult.definitions;
     doc.meta.rewrittenSource = rewrittenSource;
     doc.meta.qRewrites = rewriteResult.definitions;
     doc.meta.evaluatedSource = evaluatedSource;
@@ -5480,6 +5781,7 @@
     KNOWN_HTML_TAGS: KNOWN_HTML_TAGS,
     parseQHtmlToAst: parseQHtmlToAst,
     parseQHtmlToQDom: parseQHtmlToQDom,
+    applyQMacroBlocks: applyQMacroBlocks,
     applyQRewriteBlocks: applyQRewriteBlocks,
     resolveQImportsSync: resolveQImportsSync,
     resolveQImportsAsync: resolveQImportsAsync,

@@ -10,6 +10,7 @@
   const QHTML_CANONICAL_KEYWORDS = [
     'q-component',
     'q-template',
+    'q-macro',
     'q-rewrite',
     'q-script',
     'q-bind',
@@ -27,6 +28,7 @@
   const QHTML_KEYWORD_COMPLETIONS = [
     'q-component',
     'q-template',
+    'q-macro',
     'q-rewrite',
     'q-script',
     'q-bind',
@@ -1125,7 +1127,7 @@
       // ignore parser errors for incomplete source while typing
     }
 
-    const fallbackRe = /\b(?:q-component|component|q-template|template|q-rewrite|rewrite|q-signal|signal)\s+([A-Za-z_][A-Za-z0-9_-]*)\b/gi;
+    const fallbackRe = /\b(?:q-component|component|q-template|template|q-macro|macro|q-rewrite|rewrite|q-signal|signal)\s+([A-Za-z_][A-Za-z0-9_-]*)\b/gi;
     let fallbackMatch;
     while ((fallbackMatch = fallbackRe.exec(String(source || '')))) {
       addSemanticIdentifier(names, fallbackMatch[1]);
