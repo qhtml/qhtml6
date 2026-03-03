@@ -1,15 +1,53 @@
+q-macro popup-root-method {
+  slot { method }
+  slot { attr }
+  return {
+    function ${method}() {
+      return this.querySelector("[${attr}='1']");
+    }
+  }
+}
+
+q-macro popup-disabled-methods {
+  slot { onDisable }
+  return {
+    function isDisabled() {
+      return this.hasAttribute("disabled") || String(this.getAttribute("q-popup-disabled") || "").trim() === "1";
+    }
+
+    function isEnabled() {
+      return !this.isDisabled();
+    }
+
+    function enable() {
+      this.removeAttribute("disabled");
+      this.setAttribute("q-popup-disabled", "0");
+      return this.applyState();
+    }
+
+    function disable() {
+      this.setAttribute("disabled", "true");
+      this.setAttribute("q-popup-disabled", "1");
+      ${onDisable}
+      return this.applyState();
+    }
+  }
+}
+
+q-macro popup-forward-this {
+  slot { method }
+  slot { params }
+  return {
+    function ${method}(${params}) {
+      this.delegate().${method}(${params});
+      return this;
+    }
+  }
+}
+
 q-component q-popup-item {
-  function rootNode() {
-    return this.querySelector("[q-popup-item-root='1']");
-  }
-
-  function isDisabled() {
-    return this.hasAttribute("disabled") || String(this.getAttribute("q-popup-disabled") || "").trim() === "1";
-  }
-
-  function isEnabled() {
-    return !this.isDisabled();
-  }
+  popup-root-method { method { rootNode } attr { q-popup-item-root } }
+  popup-disabled-methods { onDisable { } }
 
   function applyState() {
     var disabled = this.isDisabled();
@@ -19,18 +57,6 @@ q-component q-popup-item {
     root.style.cursor = disabled ? "default" : "pointer";
     root.setAttribute("aria-disabled", disabled ? "true" : "false");
     return this;
-  }
-
-  function enable() {
-    this.removeAttribute("disabled");
-    this.setAttribute("q-popup-disabled", "0");
-    return this.applyState();
-  }
-
-  function disable() {
-    this.setAttribute("disabled", "true");
-    this.setAttribute("q-popup-disabled", "1");
-    return this.applyState();
   }
 
   onReady {
@@ -55,21 +81,10 @@ q-component q-popup-item {
 }
 
 q-component q-popup-separator {
-  function isDisabled() {
-    return true;
-  }
-
-  function isEnabled() {
-    return false;
-  }
-
-  function enable() {
-    return this;
-  }
-
-  function disable() {
-    return this;
-  }
+  function isDisabled() { return true; }
+  function isEnabled() { return false; }
+  function enable() { return this; }
+  function disable() { return this; }
 
   div {
     style {
@@ -81,34 +96,12 @@ q-component q-popup-separator {
 }
 
 q-component q-popup-text {
-  function rootNode() {
-    return this.querySelector("[q-popup-text-root='1']");
-  }
-
-  function isDisabled() {
-    return this.hasAttribute("disabled") || String(this.getAttribute("q-popup-disabled") || "").trim() === "1";
-  }
-
-  function isEnabled() {
-    return !this.isDisabled();
-  }
+  popup-root-method { method { rootNode } attr { q-popup-text-root } }
+  popup-disabled-methods { onDisable { } }
 
   function applyState() {
-    var root = this.rootNode();
-    root.style.opacity = this.isDisabled() ? "0.45" : "1";
+    this.rootNode().style.opacity = this.isDisabled() ? "0.45" : "1";
     return this;
-  }
-
-  function enable() {
-    this.removeAttribute("disabled");
-    this.setAttribute("q-popup-disabled", "0");
-    return this.applyState();
-  }
-
-  function disable() {
-    this.setAttribute("disabled", "true");
-    this.setAttribute("q-popup-disabled", "1");
-    return this.applyState();
   }
 
   onReady {
@@ -129,21 +122,9 @@ q-component q-popup-text {
 }
 
 q-component q-popup-submenu {
-  function rowNode() {
-    return this.querySelector("[q-popup-submenu-row='1']");
-  }
-
-  function panelNode() {
-    return this.querySelector("[q-popup-submenu-panel='1']");
-  }
-
-  function isDisabled() {
-    return this.hasAttribute("disabled") || String(this.getAttribute("q-popup-disabled") || "").trim() === "1";
-  }
-
-  function isEnabled() {
-    return !this.isDisabled();
-  }
+  popup-root-method { method { rowNode } attr { q-popup-submenu-row } }
+  popup-root-method { method { panelNode } attr { q-popup-submenu-panel } }
+  popup-disabled-methods { onDisable { this.hideSubmenu(); } }
 
   function applyState() {
     var disabled = this.isDisabled();
@@ -169,21 +150,7 @@ q-component q-popup-submenu {
   }
 
   function toggleSubmenu() {
-    var panel = this.panelNode();
-    return panel.style.display === "block" ? this.hideSubmenu() : this.showSubmenu();
-  }
-
-  function enable() {
-    this.removeAttribute("disabled");
-    this.setAttribute("q-popup-disabled", "0");
-    return this.applyState();
-  }
-
-  function disable() {
-    this.setAttribute("disabled", "true");
-    this.setAttribute("q-popup-disabled", "1");
-    this.hideSubmenu();
-    return this.applyState();
+    return this.panelNode().style.display === "block" ? this.hideSubmenu() : this.showSubmenu();
   }
 
   onReady {
@@ -208,9 +175,7 @@ q-component q-popup-submenu {
   }
 
   div {
-    style {
-      position: relative;
-    }
+    style { position: relative; }
     div.w3-bar.w3-small {
       q-popup-submenu-row: "1"
       style {
@@ -252,9 +217,7 @@ q-component q-popup-menu {
   tracerCounter: 0
   lastTriggerEvent: null
 
-  function panelNode() {
-    return this.querySelector("[q-popup-menu-panel='1']");
-  }
+  popup-root-method { method { panelNode } attr { q-popup-menu-panel } }
 
   function isDisabled() {
     return !this.enabled || String(this.getAttribute("q-popup-disabled") || "").trim() === "1";
@@ -330,31 +293,28 @@ q-component q-popup-menu {
     this.__qPopupGlobalHandlersReady = true;
     var self = this;
     var doc = this.ownerDocument || document;
-    doc.addEventListener("mousedown", function(event) {
-      if (self.visible && !(event.target && self.contains(event.target))) {
-        self.hide();
-      }
-    }, true);
-    doc.addEventListener("contextmenu", function(event) {
-      if (self.visible && !(event.target && self.contains(event.target))) {
-        self.hide();
-      }
-    }, true);
+
+    ["mousedown", "contextmenu"].forEach(function(eventName) {
+      doc.addEventListener(eventName, function(event) {
+        if (self.visible && !(event.target && self.contains(event.target))) {
+          self.hide();
+        }
+      }, true);
+    });
+
     doc.addEventListener("keydown", function(event) {
       if (self.visible && String(event && event.key || "") === "Escape") {
         self.hide();
       }
     }, true);
-    globalThis.addEventListener("resize", function() {
-      if (self.visible) {
-        self.hide();
-      }
+
+    ["resize", "scroll"].forEach(function(eventName) {
+      globalThis.addEventListener(eventName, function() {
+        if (self.visible) {
+          self.hide();
+        }
+      }, eventName === "scroll");
     });
-    globalThis.addEventListener("scroll", function() {
-      if (self.visible) {
-        self.hide();
-      }
-    }, true);
     return this;
   }
 
@@ -492,25 +452,12 @@ q-component q-context-menu {
     return this.querySelector("q-popup-menu[q-context-menu-proxy='1']") || this.querySelector("q-popup-menu");
   }
 
-  function show(x, y, contextInfo) {
-    this.delegate().show(x, y, contextInfo);
-    return this;
-  }
-
-  function hide() {
-    this.delegate().hide();
-    return this;
-  }
-
-  function enable() {
-    this.delegate().enable();
-    return this;
-  }
-
-  function disable() {
-    this.delegate().disable();
-    return this;
-  }
+  popup-forward-this { method { show } params { x, y, contextInfo } }
+  popup-forward-this { method { hide } params { } }
+  popup-forward-this { method { enable } params { } }
+  popup-forward-this { method { disable } params { } }
+  popup-forward-this { method { setScopeTarget } params { target } }
+  popup-forward-this { method { bindScopeTarget } params { } }
 
   function isEnabled() {
     return this.delegate().isEnabled();
@@ -518,16 +465,6 @@ q-component q-context-menu {
 
   function isDisabled() {
     return !this.isEnabled();
-  }
-
-  function setScopeTarget(target) {
-    this.delegate().setScopeTarget(target);
-    return this;
-  }
-
-  function bindScopeTarget() {
-    this.delegate().bindScopeTarget();
-    return this;
   }
 
   onReady {

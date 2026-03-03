@@ -9,6 +9,8 @@
 
   const INVALID_METHOD_NAMES = new Set(["constructor", "prototype", "__proto__"]);
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
+  const INLINE_REFERENCE_PATTERN = /\$\{\s*([^}]+?)\s*\}/g;
+  const INLINE_REFERENCE_ESCAPE_TOKEN = "__QHTML_ESCAPED_INLINE_REF__";
   let qdomInstanceCounter = 0;
   const qdomInstanceIds = new WeakMap();
   const qdomSlotOwnerIds = new WeakMap();
@@ -178,6 +180,101 @@
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
+  }
+
+  function hasInlineReferenceExpressions(value) {
+    return typeof value === "string" && value.indexOf("${") !== -1;
+  }
+
+  function resolveInlineExpressionScope(thisArg, extraScope) {
+    const scope = Object.create(null);
+    if (extraScope && typeof extraScope === "object") {
+      const keys = Object.keys(extraScope);
+      for (let i = 0; i < keys.length; i += 1) {
+        scope[keys[i]] = extraScope[keys[i]];
+      }
+    }
+    if (!Object.prototype.hasOwnProperty.call(scope, "window")) {
+      scope.window = global;
+    }
+    if (!Object.prototype.hasOwnProperty.call(scope, "globalThis")) {
+      scope.globalThis = global;
+    }
+    if (
+      !Object.prototype.hasOwnProperty.call(scope, "document") &&
+      thisArg &&
+      typeof thisArg === "object" &&
+      thisArg.ownerDocument
+    ) {
+      scope.document = thisArg.ownerDocument;
+    }
+    if ((typeof thisArg === "object" || typeof thisArg === "function") && thisArg) {
+      scope.this = thisArg;
+      if (!Object.prototype.hasOwnProperty.call(scope, "component")) {
+        try {
+          if (typeof thisArg.component !== "undefined" && thisArg.component !== null) {
+            scope.component = thisArg.component;
+          }
+        } catch (ignoredReadComponent) {
+          // no-op
+        }
+      }
+    }
+    if (scope.component && (typeof thisArg === "object" || typeof thisArg === "function") && thisArg) {
+      try {
+        if (typeof thisArg.component === "undefined" || thisArg.component === null) {
+          thisArg.component = scope.component;
+        }
+      } catch (ignoredAssignComponent) {
+        // no-op
+      }
+    }
+    return scope;
+  }
+
+  function evaluateInlineReferenceExpression(expression, thisArg, scope, errorLabel) {
+    const source = String(expression || "").trim();
+    if (!source) {
+      return "";
+    }
+    try {
+      const evaluator = new Function("__qhtmlScope", "with(__qhtmlScope){ return (" + source + "); }");
+      return evaluator.call(thisArg || scope, scope);
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error(errorLabel || "qhtml inline expression evaluation failed:", error);
+      }
+      return "";
+    }
+  }
+
+  function interpolateInlineReferenceExpressions(source, thisArg, extraScope, errorLabel) {
+    const text = String(source == null ? "" : source);
+    if (!hasInlineReferenceExpressions(text)) {
+      return text;
+    }
+    const escaped = text.replace(/\\\$\{/g, INLINE_REFERENCE_ESCAPE_TOKEN);
+    const scope = resolveInlineExpressionScope(thisArg, extraScope);
+    const replaced = escaped.replace(INLINE_REFERENCE_PATTERN, function replaceInlineReference(matchText, expressionText) {
+      const value = evaluateInlineReferenceExpression(expressionText, thisArg, scope, errorLabel);
+      if (value == null) {
+        return "";
+      }
+      return String(value);
+    });
+    return replaced.split(INLINE_REFERENCE_ESCAPE_TOKEN).join("${");
+  }
+
+  function resolveComponentForInterpolation(context, fallbackNode) {
+    const stack = context && Array.isArray(context.componentHostStack) ? context.componentHostStack : [];
+    if (stack.length > 0) {
+      return stack[stack.length - 1];
+    }
+    const node = fallbackNode && fallbackNode.nodeType === 1 ? fallbackNode : null;
+    if (!node || typeof node.closest !== "function") {
+      return null;
+    }
+    return node.closest("[qhtml-component-instance='1']");
   }
 
   function createTextFillNode(text) {
@@ -528,10 +625,13 @@
     }
   }
 
-  function setElementAttributes(element, attrs) {
+  function setElementAttributes(element, attrs, options) {
     if (!attrs || typeof attrs !== "object") {
       return;
     }
+    const opts = options || {};
+    const interpolationScope = opts.scope && typeof opts.scope === "object" ? opts.scope : null;
+    const interpolationThisArg = opts.thisArg || element || null;
     const keys = Object.keys(attrs);
     for (let i = 0; i < keys.length; i += 1) {
       const key = keys[i];
@@ -539,7 +639,16 @@
       if (value === null || typeof value === "undefined") {
         continue;
       }
-      element.setAttribute(key, String(value));
+      let normalized = value;
+      if (typeof normalized === "string" && hasInlineReferenceExpressions(normalized)) {
+        normalized = interpolateInlineReferenceExpressions(
+          normalized,
+          interpolationThisArg,
+          interpolationScope,
+          "qhtml attribute interpolation failed:"
+        );
+      }
+      element.setAttribute(key, String(normalized));
     }
   }
 
@@ -599,7 +708,19 @@
           }
         }
       }
-      const fn = new Function("event", "document", hook.body);
+      const hookBody = interpolateInlineReferenceExpressions(
+        hook.body,
+        thisArg || {},
+        {
+          component:
+            thisArg && typeof thisArg === "object" && thisArg
+              ? thisArg.component || null
+              : null,
+          document: targetDocument || (thisArg && thisArg.ownerDocument) || global.document || null,
+        },
+        "qhtml lifecycle interpolation failed:"
+      );
+      const fn = new Function("event", "document", hookBody);
       fn.call(thisArg, null, targetDocument);
     } catch (error) {
       if (global.console && typeof global.console.error === "function") {
@@ -790,14 +911,24 @@
       let compiledBinding = null;
       const bindingMatch = typeof rawDefault === "string" ? rawDefault.match(/^\s*q-(bind|script)\s*\{([\s\S]*)\}\s*$/i) : null;
       if (bindingMatch) {
-        try {
-          compiledBinding = new Function(String(bindingMatch[2] || ""));
-        } catch (error) {
-          compiledBinding = null;
-          if (global.console && typeof global.console.error === "function") {
-            global.console.error("qhtml declared property binding compile failed:", propertyName, error);
+        const bindingBody = String(bindingMatch[2] || "");
+        compiledBinding = function declaredPropertyBindingProxy() {
+          const interpolatedBody = interpolateInlineReferenceExpressions(
+            bindingBody,
+            this,
+            { component: this },
+            "qhtml declared property binding interpolation failed:"
+          );
+          try {
+            const runtimeBinding = new Function(interpolatedBody);
+            return runtimeBinding.call(this);
+          } catch (error) {
+            if (global.console && typeof global.console.error === "function") {
+              global.console.error("qhtml declared property binding compile failed:", propertyName, error);
+            }
+            return null;
           }
-        }
+        };
         literalDefault = undefined;
       }
       try {
@@ -852,13 +983,33 @@
       const aliasBody = String(aliasDecl.body || "");
       const aliasOverrideKey = "__qhtmlAliasOverride__" + aliasName;
       let compiledAlias = null;
-      try {
-        compiledAlias = new Function(aliasBody);
-      } catch (error) {
-        if (global.console && typeof global.console.error === "function") {
-          global.console.error("qhtml q-alias compile failed:", aliasName, error);
+      if (hasInlineReferenceExpressions(aliasBody)) {
+        compiledAlias = function interpolatedAliasProxy() {
+          const interpolatedBody = interpolateInlineReferenceExpressions(
+            aliasBody,
+            this,
+            { component: this },
+            "qhtml q-alias interpolation failed:"
+          );
+          try {
+            const runtimeAlias = new Function(interpolatedBody);
+            return runtimeAlias.call(this);
+          } catch (error) {
+            if (global.console && typeof global.console.error === "function") {
+              global.console.error("qhtml q-alias compile failed:", aliasName, error);
+            }
+            return null;
+          }
+        };
+      } else {
+        try {
+          compiledAlias = new Function(aliasBody);
+        } catch (error) {
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml q-alias compile failed:", aliasName, error);
+          }
+          continue;
         }
-        continue;
       }
       try {
         Object.defineProperty(hostElement, aliasName, {
@@ -898,18 +1049,38 @@
       }
       const params = method && typeof method.parameters === "string" ? method.parameters : "";
       const body = method && typeof method.body === "string" ? method.body : "";
+      const hasInterpolatedBody = hasInlineReferenceExpressions(body);
 
       let compiled;
-      try {
-        compiled = new Function(params, body);
-      } catch (error) {
-        if (global.console && typeof global.console.error === "function") {
-          global.console.error("qhtml component method compile failed:", name, error);
+      if (!hasInterpolatedBody) {
+        try {
+          compiled = new Function(params, body);
+        } catch (error) {
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml component method compile failed:", name, error);
+          }
+          continue;
         }
-        continue;
       }
 
       hostElement[name] = function componentMethodProxy() {
+        if (hasInterpolatedBody) {
+          const interpolatedBody = interpolateInlineReferenceExpressions(
+            body,
+            hostElement,
+            { component: hostElement },
+            "qhtml component method interpolation failed:"
+          );
+          try {
+            const runtimeMethod = new Function(params, interpolatedBody);
+            return runtimeMethod.apply(hostElement, arguments);
+          } catch (error) {
+            if (global.console && typeof global.console.error === "function") {
+              global.console.error("qhtml component method compile failed:", name, error);
+            }
+            return undefined;
+          }
+        }
         return compiled.apply(hostElement, arguments);
       };
     }
@@ -1060,7 +1231,18 @@
       }
 
       if (core.NODE_TYPES.text && node.kind === core.NODE_TYPES.text) {
-        parent.appendChild(targetDocument.createTextNode(String(node.value || "")));
+        let textValue = String(node.value || "");
+        if (hasInlineReferenceExpressions(textValue)) {
+          textValue = interpolateInlineReferenceExpressions(
+            textValue,
+            parent && parent.nodeType === 1 ? parent : null,
+            {
+              component: resolveComponentForInterpolation(context, parent),
+            },
+            "qhtml text interpolation failed:"
+          );
+        }
+        parent.appendChild(targetDocument.createTextNode(textValue));
         return;
       }
 
@@ -1092,7 +1274,13 @@
       }
 
       const element = targetDocument.createElement(tagName);
-      setElementAttributes(element, node.attributes);
+      const interpolationComponent = resolveComponentForInterpolation(context, parent);
+      setElementAttributes(element, node.attributes, {
+        thisArg: element,
+        scope: {
+          component: interpolationComponent,
+        },
+      });
       parent.appendChild(element);
 
       if (context.capture) {
@@ -1108,7 +1296,18 @@
       }
 
       if (typeof node.textContent === "string" && node.textContent.length > 0) {
-        element.appendChild(targetDocument.createTextNode(node.textContent));
+        let textContent = node.textContent;
+        if (hasInlineReferenceExpressions(textContent)) {
+          textContent = interpolateInlineReferenceExpressions(
+            textContent,
+            element,
+            {
+              component: interpolationComponent,
+            },
+            "qhtml text interpolation failed:"
+          );
+        }
+        element.appendChild(targetDocument.createTextNode(textContent));
       }
 
       if (Array.isArray(node.children)) {

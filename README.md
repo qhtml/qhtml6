@@ -19,7 +19,8 @@ QHTML is a compact language and runtime for building web UIs with readable block
   - Invocations expand before parse (similar timing to `q-script` replacement, but macro output is plain qhtml expansion instead of javascript).
 - Added scoped `${reference}` placeholders:
   - `${slotName}` resolves from current macro slot scope.
-  - Works inline inside selectors, text, script strings, and other source fragments emitted by macros.
+  - Intended for macro/rewrite scoped slot references.
+- Added lazy `${expression}` inline runtime interpolation in rendered string contexts (text/attributes).
 - Parser metadata now includes macro expansion info in `qdom.meta.qMacros` and `qdom.meta.macroExpandedSource`.
 
 ## Whats New in v6.0.4
@@ -421,6 +422,57 @@ my-component { div { q-bind { return this.component.myprop } } }
 <q-html>
   h3 {  q-script { return "text { Computed at mount }"; } }
 </q-html>
+```
+
+## 6. `${expression}` inline expressions
+
+`${expression}` is inline expression syntax for string content.
+
+- It resolves when the final HTML string value is rendered.
+- It is not a `q-bind` watcher by itself.
+- If you need re-evaluation on state updates, use `q-bind`.
+
+### Works in rendered text/attribute strings
+
+```qhtml
+<q-html>
+  div {
+    title: "Current user: ${window.currentUser}"
+    text { Hello ${window.currentUser} }
+  }
+</q-html>
+```
+
+```qhtml
+q-component user-card {
+  q-property name: "Guest"
+  h3 { text { ${this.component.name} } }
+}
+```
+
+### Macro slot placeholders (scoped)
+
+```qhtml
+q-macro badge {
+  slot { label }
+  return { span { text { ${label} } } }
+}
+```
+
+### Cannot be used for keyword-level symbols
+
+```qhtml
+q-component ${dynamicName} { }     // invalid
+q-keyword ${alias} { q-component } // invalid
+${tagName} { text { hi } }         // invalid
+```
+
+### Use `q-bind` for reactive re-evaluation
+
+```qhtml
+div {
+  text: q-bind { return "Count: " + window.count; }
+}
 ```
 
 

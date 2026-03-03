@@ -48,6 +48,8 @@
   const DOM_MUTATION_DIRTY_ATTRIBUTE = "qhtml-unsynced";
   const DOM_MUTATION_SYNC_FLUSH_BATCH_SIZE = 25;
   const DOM_MUTATION_SYNC_FLUSH_DELAY_MS = 0;
+  const INLINE_REFERENCE_PATTERN = /\$\{\s*([^}]+?)\s*\}/g;
+  const INLINE_REFERENCE_ESCAPE_TOKEN = "__QHTML_ESCAPED_INLINE_REF__";
   const DOM_MUTATION_SYNC_OBSERVER_OPTIONS = {
     attributes: true,
     characterData: true,
@@ -94,6 +96,149 @@
       return node.__qhtmlSourceNode;
     }
     return node;
+  }
+
+  function hasInlineReferenceExpressions(value) {
+    return typeof value === "string" && value.indexOf("${") !== -1;
+  }
+
+  function buildInlineExpressionScope(thisArg, extraScope) {
+    const scope = Object.create(null);
+    if (extraScope && typeof extraScope === "object") {
+      const extraKeys = Object.keys(extraScope);
+      for (let i = 0; i < extraKeys.length; i += 1) {
+        scope[extraKeys[i]] = extraScope[extraKeys[i]];
+      }
+    }
+    if (!Object.prototype.hasOwnProperty.call(scope, "window")) {
+      scope.window = global;
+    }
+    if (!Object.prototype.hasOwnProperty.call(scope, "globalThis")) {
+      scope.globalThis = global;
+    }
+    if (
+      !Object.prototype.hasOwnProperty.call(scope, "document") &&
+      thisArg &&
+      typeof thisArg === "object" &&
+      thisArg.ownerDocument
+    ) {
+      scope.document = thisArg.ownerDocument;
+    }
+    if ((typeof thisArg === "object" || typeof thisArg === "function") && thisArg) {
+      scope.this = thisArg;
+      if (!Object.prototype.hasOwnProperty.call(scope, "component")) {
+        try {
+          if (typeof thisArg.component !== "undefined" && thisArg.component !== null) {
+            scope.component = thisArg.component;
+          }
+        } catch (ignoredReadComponent) {
+          // no-op
+        }
+      }
+    }
+    if (scope.component && (typeof thisArg === "object" || typeof thisArg === "function") && thisArg) {
+      try {
+        if (typeof thisArg.component === "undefined" || thisArg.component === null) {
+          thisArg.component = scope.component;
+        }
+      } catch (ignoredAssignComponent) {
+        // no-op
+      }
+    }
+    return scope;
+  }
+
+  function evaluateInlineReferenceExpression(expression, thisArg, scope, errorLabel) {
+    const source = String(expression || "").trim();
+    if (!source) {
+      return "";
+    }
+    const directPathResult = tryResolveInlineReferencePath(source, thisArg, scope);
+    if (directPathResult.matched) {
+      return directPathResult.value;
+    }
+    try {
+      const evaluator = new Function("__qhtmlScope", "with(__qhtmlScope){ return (" + source + "); }");
+      return evaluator.call(thisArg || scope, scope);
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error(errorLabel || "qhtml inline expression evaluation failed:", error);
+      }
+      return "";
+    }
+  }
+
+  function tryResolveInlineReferencePath(expression, thisArg, scope) {
+    const source = String(expression || "").trim();
+    if (!source) {
+      return { matched: false, value: undefined };
+    }
+
+    function readPath(base, tail) {
+      const parts = String(tail || "")
+        .split(".")
+        .map(function trimPathPart(part) {
+          return String(part || "").trim();
+        })
+        .filter(Boolean);
+      let cursor = base;
+      for (let i = 0; i < parts.length; i += 1) {
+        if (cursor == null) {
+          return undefined;
+        }
+        try {
+          cursor = cursor[parts[i]];
+        } catch (error) {
+          return undefined;
+        }
+      }
+      return cursor;
+    }
+
+    if (/^this\.component\.[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(source)) {
+      const componentSource =
+        (thisArg && (typeof thisArg === "object" || typeof thisArg === "function") && thisArg.component) ||
+        (scope && typeof scope === "object" ? scope.component : null) ||
+        null;
+      return {
+        matched: true,
+        value: readPath(componentSource, source.slice("this.component.".length)),
+      };
+    }
+
+    if (/^component\.[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(source)) {
+      const componentSource = scope && typeof scope === "object" ? scope.component : null;
+      return {
+        matched: true,
+        value: readPath(componentSource, source.slice("component.".length)),
+      };
+    }
+
+    if (/^this\.[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(source)) {
+      return {
+        matched: true,
+        value: readPath(thisArg, source.slice("this.".length)),
+      };
+    }
+
+    return { matched: false, value: undefined };
+  }
+
+  function interpolateInlineReferenceExpressions(source, thisArg, extraScope, errorLabel) {
+    const text = String(source == null ? "" : source);
+    if (!hasInlineReferenceExpressions(text)) {
+      return text;
+    }
+    const escaped = text.replace(/\\\$\{/g, INLINE_REFERENCE_ESCAPE_TOKEN);
+    const scope = buildInlineExpressionScope(thisArg, extraScope);
+    const replaced = escaped.replace(INLINE_REFERENCE_PATTERN, function replaceInlineReference(matchText, expressionText) {
+      const value = evaluateInlineReferenceExpression(expressionText, thisArg, scope, errorLabel);
+      if (value == null) {
+        return "";
+      }
+      return String(value);
+    });
+    return replaced.split(INLINE_REFERENCE_ESCAPE_TOKEN).join("${");
   }
 
   function resolvePathValue(rootNode, path, endIndexExclusive) {
@@ -727,7 +872,20 @@
       return;
     }
     try {
-      const fn = new Function("event", "document", source);
+      const componentContext =
+        target && (typeof target === "object" || typeof target === "function")
+          ? target.component || (typeof resolveNearestComponentHost === "function" ? resolveNearestComponentHost(target) : null)
+          : null;
+      const executableSource = interpolateInlineReferenceExpressions(
+        source,
+        target || {},
+        {
+          component: componentContext,
+          document: doc || (target && target.ownerDocument) || global.document || null,
+        },
+        "qhtml lifecycle interpolation failed:"
+      );
+      const fn = new Function("event", "document", executableSource);
       fn.call(target, null, doc);
     } catch (error) {
       if (global.console && typeof global.console.error === "function") {
@@ -1118,17 +1276,47 @@
       }
 
       const body = transformScriptBody(String(rule.body || ""));
+      const hasInterpolatedBody = hasInlineReferenceExpressions(body);
       let executor;
-      try {
-        executor = new Function("event", "document", body);
-      } catch (error) {
-        throw new Error("Failed to compile q-script rule for selector '" + selector + "': " + error.message);
+      if (!hasInterpolatedBody) {
+        try {
+          executor = new Function("event", "document", body);
+        } catch (error) {
+          throw new Error("Failed to compile q-script rule for selector '" + selector + "': " + error.message);
+        }
       }
 
       const targets = doc.querySelectorAll(selector);
       for (let j = 0; j < targets.length; j += 1) {
         const target = targets[j];
         const handler = function qScriptHandler(event) {
+          if (hasInterpolatedBody) {
+            const componentContext =
+              target && (typeof target === "object" || typeof target === "function")
+                ? target.component ||
+                  (typeof resolveNearestComponentHost === "function" ? resolveNearestComponentHost(target) : null)
+                : null;
+            const interpolatedBody = interpolateInlineReferenceExpressions(
+              body,
+              target,
+              {
+                component: componentContext,
+                event: event,
+                document: doc,
+                root: binding.host,
+              },
+              "qhtml q-script interpolation failed:"
+            );
+            try {
+              const dynamicExecutor = new Function("event", "document", interpolatedBody);
+              return dynamicExecutor.call(target, event, doc);
+            } catch (error) {
+              if (global.console && typeof global.console.error === "function") {
+                global.console.error("qhtml q-script rule compile failed:", error);
+              }
+              return undefined;
+            }
+          }
           return executor.call(target, event, doc);
         };
         target.addEventListener(eventName, handler);
@@ -2599,6 +2787,43 @@
     const host = binding && binding.host && binding.host.nodeType === 1 ? binding.host : null;
     const domElements = collectMappedDomElements(binding, sourceNode);
     const qdomRoot = sourceNodeOf(binding && (binding.rawQdom || binding.qdom));
+    const componentScopeNode = resolveBindingComponentScopeNode(binding, sourceNode);
+
+    function resolveBindingComponentHostElement(scopeNodeCandidate, fallbackElement) {
+      if (
+        sourceNode &&
+        typeof sourceNode === "object" &&
+        binding &&
+        binding.componentHostBySourceNode &&
+        typeof binding.componentHostBySourceNode.get === "function"
+      ) {
+        const mappedBySource = binding.componentHostBySourceNode.get(sourceNode);
+        if (mappedBySource && mappedBySource.nodeType === 1) {
+          return mappedBySource;
+        }
+      }
+      const normalizedScope = sourceNodeOf(scopeNodeCandidate) || scopeNodeCandidate;
+      if (normalizedScope && typeof normalizedScope === "object") {
+        const mappedHosts = collectMappedDomElements(binding, normalizedScope);
+        if (mappedHosts.length > 0) {
+          return mappedHosts[0];
+        }
+      }
+      const fallback = fallbackElement && fallbackElement.nodeType === 1 ? fallbackElement : null;
+      if (!fallback) {
+        return null;
+      }
+      if (
+        typeof fallback.getAttribute === "function" &&
+        fallback.getAttribute("qhtml-component-instance") === "1"
+      ) {
+        return fallback;
+      }
+      if (typeof fallback.closest === "function") {
+        return fallback.closest("[qhtml-component-instance='1']");
+      }
+      return null;
+    }
 
     function querySelectorInDetachedRawHtml(rawHtml, selector) {
       if (!rawHtml || !selector) {
@@ -2699,6 +2924,12 @@
       return new Proxy(element, {
         get: function getBindingElementProperty(target, prop, receiver) {
           if (prop === "component") {
+            if (typeof target.closest === "function") {
+              const closestHost = target.closest("[qhtml-component-instance='1']");
+              if (closestHost && closestHost.nodeType === 1) {
+                return closestHost;
+              }
+            }
             let existing = null;
             try {
               existing = Reflect.get(target, prop, receiver);
@@ -2708,8 +2939,11 @@
             if (existing) {
               return existing;
             }
-            const scopeNode = resolveBindingComponentScopeNode(binding, sourceNode);
-            return createBindingComponentScopeProxy(binding, scopeNode);
+            const componentHost = resolveBindingComponentHostElement(componentScopeNode, target);
+            if (componentHost) {
+              return componentHost;
+            }
+            return createBindingComponentScopeProxy(binding, componentScopeNode);
           }
           if (prop === "closest") {
             return function bindingClosest(selector) {
@@ -2764,9 +2998,10 @@
     }
     const attributes =
       sourceNode && sourceNode.attributes && typeof sourceNode.attributes === "object" ? sourceNode.attributes : null;
+    const componentHost = resolveBindingComponentHostElement(componentScopeNode, host);
     const context = {
       qhtmlRoot: host,
-      component: createBindingComponentScopeProxy(binding, resolveBindingComponentScopeNode(binding, sourceNode)),
+      component: componentHost || createBindingComponentScopeProxy(binding, componentScopeNode),
       root: function bindingRootAccessor() {
         return host;
       },
@@ -2852,11 +3087,11 @@
     if (!scriptBody) {
       return undefined;
     }
+    const fallbackContext = sourceNodeOf(node) || node || {};
+    const context = createBindingExecutionContext(binding, node);
     try {
       const wrappedBody = "try {\n" + scriptBody + "\n} catch (__qbindError) { return undefined; }";
       const fn = new Function(wrappedBody);
-      const context = createBindingExecutionContext(binding, node);
-      const fallbackContext = sourceNodeOf(node) || node || {};
       return fn.call(context || fallbackContext);
     } catch (error) {
       if (isRuntimeDebugLoggingEnabled() && global.console && typeof global.console.error === "function") {
@@ -3118,6 +3353,9 @@
     if (!binding.slotMap || typeof binding.slotMap.set !== "function") {
       binding.slotMap = new WeakMap();
     }
+    if (!binding.componentHostBySourceNode || typeof binding.componentHostBySourceNode.set !== "function") {
+      binding.componentHostBySourceNode = new WeakMap();
+    }
     if (!binding.domByQdomNode || typeof binding.domByQdomNode.get !== "function") {
       binding.domByQdomNode = new WeakMap();
     }
@@ -3137,6 +3375,11 @@
         }
         binding.nodeMap.set(domElement, normalizedSource);
         registerMappedDomElement(binding, normalizedSource, domElement);
+        const componentHost =
+          componentMap && typeof componentMap.get === "function" ? componentMap.get(domElement) : null;
+        if (componentHost && componentHost.nodeType === 1) {
+          binding.componentHostBySourceNode.set(normalizedSource, componentHost);
+        }
       });
     }
     if (componentMap) {
@@ -3268,6 +3511,7 @@
     binding.nodeMap = new WeakMap();
     binding.componentMap = new WeakMap();
     binding.slotMap = new WeakMap();
+    binding.componentHostBySourceNode = new WeakMap();
     binding.domByQdomNode = new WeakMap();
     logRuntimeEvent("qhtml render replace host tree", {
       host: describeElementForLog(binding.host),
@@ -5466,6 +5710,7 @@
       nodeMap: new WeakMap(),
       componentMap: new WeakMap(),
       slotMap: new WeakMap(),
+      componentHostBySourceNode: new WeakMap(),
       domByQdomNode: new WeakMap(),
       listeners: [],
       hostLifecycleRan: false,

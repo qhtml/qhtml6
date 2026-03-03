@@ -2626,23 +2626,32 @@
     return value.toLowerCase();
   }
 
+  const SCOPED_REFERENCE_ESCAPE_TOKEN = "__QHTML_ESCAPED_SCOPED_REF__";
+
   function replaceScopedReferencesInText(source, references) {
     const text = String(source || "");
     const refs = references && typeof references === "object" ? references : null;
-    if (!refs) {
+    if (!refs || !hasPotentialReferenceExpression(text)) {
       return text;
     }
-    return text.replace(/\$\{\s*([^}]+?)\s*\}/g, function replaceReference(matchText, keyText) {
-      const key = normalizeScopedReferenceKey(keyText || "");
-      if (!key) {
+    const escaped = text.replace(/\\\$\{/g, SCOPED_REFERENCE_ESCAPE_TOKEN);
+    const replaced = escaped.replace(/\$\{\s*([^}]+?)\s*\}/g, function replaceReference(matchText, keyText) {
+      const expression = String(keyText || "").trim();
+      if (!expression) {
         return matchText;
       }
-      if (!Object.prototype.hasOwnProperty.call(refs, key)) {
-        return matchText;
+      const key = normalizeScopedReferenceKey(expression);
+      if (refs && key && Object.prototype.hasOwnProperty.call(refs, key)) {
+        const referenceValue = refs[key];
+        return referenceValue == null ? "" : String(referenceValue);
       }
-      const value = refs[key];
-      return value == null ? "" : String(value);
+      return matchText;
     });
+    return replaced.split(SCOPED_REFERENCE_ESCAPE_TOKEN).join("${");
+  }
+
+  function hasPotentialReferenceExpression(source) {
+    return typeof source === "string" && source.indexOf("${") !== -1;
   }
 
   function extractQRewriteSlotPlaceholders(source) {

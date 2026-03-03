@@ -61,6 +61,13 @@ q-component q-tab {
 }
 
 q-component q-tabs {
+q-property navActiveButtonClass: "w3-theme-l5"
+q-property navInactiveButtonClass: "w3-theme-l4"
+q-property containerClass: "w3-theme-l5"
+q-alias containerclass { return this.component.containerClass }
+q-alias navinactivebuttonclass { return this.component.navInactiveButtonClass }
+q-alias navactivebuttonclass { return this.component.navActiveButtonClass }
+
   function createSignalEvent(payload) {
     if (typeof CustomEvent === "function") {
       return new CustomEvent("q-signal", {
@@ -139,6 +146,13 @@ q-component q-tabs {
     return "Tab " + (index + 1);
   }
 
+  function classTokens(value) {
+    return String(value || "")
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter(Boolean);
+  }
+
   function normalizeTabSelection(tabOrIndex, tabs) {
     const list = Array.isArray(tabs) ? tabs : [];
     if (!list.length) {
@@ -203,6 +217,8 @@ q-component q-tabs {
 
   function applyActiveState(tabs, activeIndex) {
     const list = Array.isArray(tabs) ? tabs : [];
+    const activeTokens = this.classTokens(this.component.navActiveButtonClass);
+    const inactiveTokens = this.classTokens(this.component.navInactiveButtonClass);
     for (let i = 0; i < list.length; i += 1) {
       const tab = list[i];
       const isActive = i === activeIndex;
@@ -211,18 +227,26 @@ q-component q-tabs {
 
       const button = tab.__qTabsButton;
       if (button && button.classList) {
+        for (let j = 0; j < activeTokens.length; j += 1) {
+          button.classList.remove(activeTokens[j]);
+        }
+        for (let j = 0; j < inactiveTokens.length; j += 1) {
+          button.classList.remove(inactiveTokens[j]);
+        }
         if (isActive) {
-        button.classList.remove("w3-theme-l4");
-          button.classList.add("w3-theme-l5");
+          for (let j = 0; j < activeTokens.length; j += 1) {
+            button.classList.add(activeTokens[j]);
+          }
           button.classList.add("w3-border-top");
           button.classList.add("w3-border-left");
           button.classList.add("w3-border-right");
-          button.classList.add("w3-theme-hover-l2");
+
           button.classList.add("w3-round");
           button.classList.remove("w3-border-bottom");
         } else {
-          button.classList.remove("w3-theme-l5");
-          button.classList.add("w3-theme-l4");
+          for (let j = 0; j < inactiveTokens.length; j += 1) {
+            button.classList.add(inactiveTokens[j]);
+          }
           button.classList.add("w3-border-bottom");
           button.classList.remove("w3-border-top");
           button.classList.remove("w3-border-left");
@@ -296,7 +320,8 @@ q-component q-tabs {
       q-tabs-nav: "1"
     }
 
-    div.q-tabs-content.w3-theme-l5.w3-animate-opacity {
+    div.q-tabs-content.w3-animate-opacity {
+       onReady { this.classList.add( this.component.containerClass) }
       q-tabs-content: "1"
       slot { content }
     }

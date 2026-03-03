@@ -1,4 +1,8 @@
 q-component q-sidebar {
+  q-property open: "1"
+  q-property sidebarWidth: "260"
+  q-property collapsedWidth: "2vw"
+
   function normalizeOpenValue(rawValue) {
     var value = String(rawValue == null ? "" : rawValue).toLowerCase().trim();
     if (value === "0" || value === "false" || value === "off" || value === "closed" || value === "hide" || value === "hidden") {
@@ -8,14 +12,11 @@ q-component q-sidebar {
   }
 
   function currentOpenValue() {
-    var fromSidebar = this.getAttribute("q-sidebar-open");
-    var fromOpen = this.getAttribute("open");
-    var fallback = fromSidebar == null ? fromOpen : fromSidebar;
-    return this.normalizeOpenValue(fallback == null ? "1" : fallback);
+    return this.normalizeOpenValue(this.open == null ? "1" : this.open);
   }
 
   function expandedWidthPx() {
-    var value = Number(this.getAttribute("sidebar-width"));
+    var value = Number(this.sidebarWidth);
     if (!Number.isFinite(value) || value < 120) {
       value = 260;
     }
@@ -23,7 +24,7 @@ q-component q-sidebar {
   }
 
   function collapsedWidthValue() {
-    var value = String(this.getAttribute("collapsed-width") || "2vw").trim();
+    var value = String(this.collapsedWidth || "2vw").trim();
     if (!value) {
       value = "2vw";
     }
@@ -39,8 +40,7 @@ q-component q-sidebar {
 
   function applyOpenMode(nextOpenValue) {
     var mode = this.normalizeOpenValue(nextOpenValue);
-    this.setAttribute("q-sidebar-open", mode);
-    this.setAttribute("open", mode);
+    this.open = mode;
 
     if (this.classList && typeof this.classList.add === "function") {
       this.classList.remove("q-sidebar-open");
