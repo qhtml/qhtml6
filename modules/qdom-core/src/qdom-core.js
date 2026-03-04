@@ -11,6 +11,7 @@
     templateInstance: "template-instance",
     slot: "slot",
     scriptRule: "script-rule",
+    color: "color",
   });
 
   const TEXT_ALIASES = new Set(["content", "contents", "text", "textcontents", "innertext"]);
@@ -18,6 +19,195 @@
   const QDOM_TEMPLATE_OWNER_ATTR = "data-qdom-for";
   const UPDATE_NONCE_KEY = "update-nonce";
   let qdomHostIdCounter = 0;
+
+  class QDomNode {
+    constructor(kind, meta) {
+      this.kind = String(kind || "").trim().toLowerCase();
+      this.meta = createNodeMeta(meta);
+    }
+  }
+
+  class QDocumentNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      super(NODE_TYPES.document, Object.assign({ source: typeof opts.source === "string" ? opts.source : "" }, opts.meta || {}));
+      this.version = Number.isFinite(opts.version) ? Number(opts.version) : 1;
+      this.nodes = Array.isArray(opts.nodes) ? opts.nodes : [];
+      this.scripts = Array.isArray(opts.scripts) ? opts.scripts : [];
+      if (!this.meta || typeof this.meta !== "object") {
+        this.meta = {};
+      }
+      if (typeof this.meta.source !== "string") {
+        this.meta.source = "";
+      }
+      if (typeof this.meta.dirty !== "boolean") {
+        this.meta.dirty = false;
+      }
+    }
+  }
+
+  class QElementNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      const tagName = String(opts.tagName || "div").toLowerCase();
+      super(NODE_TYPES.element, opts.meta);
+      this.tagName = tagName;
+      this.attributes = Object.assign({}, opts.attributes || {});
+      this.children = Array.isArray(opts.children) ? opts.children : [];
+      this.textContent = typeof opts.textContent === "string" ? opts.textContent : null;
+      this.selectorMode = opts.selectorMode || "single";
+      this.selectorChain = Array.isArray(opts.selectorChain) ? opts.selectorChain.slice() : [tagName];
+    }
+  }
+
+  class QTextNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      super(NODE_TYPES.text, opts.meta);
+      this.value = typeof opts.value === "string" ? opts.value : "";
+    }
+  }
+
+  class QRawHtmlNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      super(NODE_TYPES.rawHtml, opts.meta);
+      this.html = typeof opts.html === "string" ? opts.html : "";
+    }
+  }
+
+  class QComponentNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      super(NODE_TYPES.component, opts.meta);
+      this.componentId = String(opts.componentId || "").trim();
+      this.definitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
+      this.templateNodes = Array.isArray(opts.templateNodes) ? opts.templateNodes : [];
+      this.propertyDefinitions = Array.isArray(opts.propertyDefinitions) ? opts.propertyDefinitions : [];
+      this.methods = Array.isArray(opts.methods) ? opts.methods : [];
+      this.signalDeclarations = Array.isArray(opts.signalDeclarations) ? opts.signalDeclarations : [];
+      this.aliasDeclarations = Array.isArray(opts.aliasDeclarations) ? opts.aliasDeclarations : [];
+      this.lifecycleScripts = Array.isArray(opts.lifecycleScripts) ? opts.lifecycleScripts : [];
+      this.attributes = Object.assign({}, opts.attributes || {});
+      this.properties = Array.isArray(opts.properties) ? opts.properties.slice() : [];
+    }
+  }
+
+  class QSlotNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      super(NODE_TYPES.slot, opts.meta);
+      this.name = String(opts.name || "default").trim() || "default";
+      this.children = Array.isArray(opts.children) ? opts.children : [];
+    }
+  }
+
+  class QComponentInstanceNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      const tag = String(opts.tagName || opts.componentId || "div").trim().toLowerCase();
+      super(normalizeInstanceKind(opts.kind), opts.meta);
+      this.componentId = String(opts.componentId || tag).trim().toLowerCase();
+      this.tagName = tag;
+      this.attributes = Object.assign({}, opts.attributes || {});
+      this.props = Object.assign({}, opts.props || {});
+      this.slots = Array.isArray(opts.slots) ? opts.slots : [];
+      this.lifecycleScripts = Array.isArray(opts.lifecycleScripts) ? opts.lifecycleScripts : [];
+      this.children = Array.isArray(opts.children) ? opts.children : [];
+      this.textContent = typeof opts.textContent === "string" ? opts.textContent : null;
+      this.selectorMode = opts.selectorMode || "single";
+      this.selectorChain = Array.isArray(opts.selectorChain) ? opts.selectorChain.slice() : [tag];
+    }
+  }
+
+  class QTemplateInstanceNode extends QComponentInstanceNode {
+    constructor(options) {
+      super(Object.assign({}, options || {}, { kind: NODE_TYPES.templateInstance }));
+    }
+  }
+
+  class QScriptRuleNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      super(NODE_TYPES.scriptRule, opts.meta);
+      this.selector = String(opts.selector || "");
+      this.eventName = String(opts.eventName || "");
+      this.body = typeof opts.body === "string" ? opts.body : "";
+    }
+  }
+
+  class QColorNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      super(NODE_TYPES.color, opts.meta);
+      this.name = String(opts.name || "").trim();
+      this.value = typeof opts.value === "string" ? opts.value : "";
+      this.assignments =
+        opts.assignments && typeof opts.assignments === "object" && !Array.isArray(opts.assignments)
+          ? Object.assign({}, opts.assignments)
+          : null;
+      this.mode = String(opts.mode || (this.assignments ? "theme" : "schema")).trim().toLowerCase();
+    }
+
+    style(usage) {
+      const map = {
+        background: "background-color",
+        foreground: "color",
+        border: "border-color",
+        primary: "--q-color-primary",
+        secondary: "--q-color-secondary",
+        accent: "--q-color-accent",
+      };
+      if (this.assignments && typeof this.assignments === "object") {
+        const keys = Object.keys(this.assignments);
+        const declarations = [];
+        for (let i = 0; i < keys.length; i += 1) {
+          const key = String(keys[i] || "").trim();
+          if (!key) {
+            continue;
+          }
+          const value = String(this.assignments[key] == null ? "" : this.assignments[key]).trim();
+          if (!value) {
+            continue;
+          }
+          const cssProp = Object.prototype.hasOwnProperty.call(map, key)
+            ? map[key]
+            : "--q-color-" + key.replace(/[^A-Za-z0-9_-]/g, "-");
+          declarations.push(cssProp + ": " + value + ";");
+        }
+        return "style { " + declarations.join(" ") + " }";
+      }
+      const value = String(this.value || "").trim();
+      if (!value) {
+        return "style { }";
+      }
+      if (typeof usage === "string" && usage.trim()) {
+        const key = String(usage || "").trim();
+        const normalized = key.toLowerCase();
+        const cssProp = Object.prototype.hasOwnProperty.call(map, normalized)
+          ? map[normalized]
+          : key;
+        return "style { " + cssProp + ": " + value + "; }";
+      }
+      if (usage && typeof usage === "object" && !Array.isArray(usage)) {
+        const keys = Object.keys(usage);
+        const declarations = [];
+        for (let i = 0; i < keys.length; i += 1) {
+          const key = String(keys[i] || "").trim();
+          if (!key || !usage[key]) {
+            continue;
+          }
+          const normalized = key.toLowerCase();
+          const cssProp = Object.prototype.hasOwnProperty.call(map, normalized)
+            ? map[normalized]
+            : key;
+          declarations.push(cssProp + ": " + value + ";");
+        }
+        return "style { " + declarations.join(" ") + " }";
+      }
+      return "style { color: " + value + "; }";
+    }
+  }
 
   function createNodeMeta(overrides) {
     return Object.assign(
@@ -126,89 +316,42 @@
 
   function createDocument(options) {
     const opts = options || {};
-    const node = {
-      kind: NODE_TYPES.document,
-      version: 1,
-      nodes: Array.isArray(opts.nodes) ? opts.nodes : [],
-      scripts: Array.isArray(opts.scripts) ? opts.scripts : [],
-      meta: Object.assign(
-        {
-          source: typeof opts.source === "string" ? opts.source : "",
-          dirty: false,
-        },
-        opts.meta || {}
-      ),
-    };
+    const node = new QDocumentNode(opts);
     setUpdateNonce(node);
     return node;
   }
 
   function createElementNode(options) {
     const opts = options || {};
-    const node = {
-      kind: NODE_TYPES.element,
-      tagName: String(opts.tagName || "div").toLowerCase(),
-      attributes: Object.assign({}, opts.attributes || {}),
-      children: Array.isArray(opts.children) ? opts.children : [],
-      textContent: typeof opts.textContent === "string" ? opts.textContent : null,
-      selectorMode: opts.selectorMode || "single",
-      selectorChain: Array.isArray(opts.selectorChain) ? opts.selectorChain.slice() : [String(opts.tagName || "div").toLowerCase()],
-      meta: createNodeMeta(opts.meta),
-    };
+    const node = new QElementNode(opts);
     setUpdateNonce(node);
     return node;
   }
 
   function createTextNode(options) {
     const opts = options || {};
-    const node = {
-      kind: NODE_TYPES.text,
-      value: typeof opts.value === "string" ? opts.value : "",
-      meta: createNodeMeta(opts.meta),
-    };
+    const node = new QTextNode(opts);
     setUpdateNonce(node);
     return node;
   }
 
   function createRawHtmlNode(options) {
     const opts = options || {};
-    const node = {
-      kind: NODE_TYPES.rawHtml,
-      html: typeof opts.html === "string" ? opts.html : "",
-      meta: createNodeMeta(opts.meta),
-    };
+    const node = new QRawHtmlNode(opts);
     setUpdateNonce(node);
     return node;
   }
 
   function createComponentNode(options) {
     const opts = options || {};
-    const node = {
-      kind: NODE_TYPES.component,
-      componentId: String(opts.componentId || "").trim(),
-      definitionType: String(opts.definitionType || "component").trim().toLowerCase() || "component",
-      templateNodes: Array.isArray(opts.templateNodes) ? opts.templateNodes : [],
-      propertyDefinitions: Array.isArray(opts.propertyDefinitions) ? opts.propertyDefinitions : [],
-      methods: Array.isArray(opts.methods) ? opts.methods : [],
-      signalDeclarations: Array.isArray(opts.signalDeclarations) ? opts.signalDeclarations : [],
-      aliasDeclarations: Array.isArray(opts.aliasDeclarations) ? opts.aliasDeclarations : [],
-      lifecycleScripts: Array.isArray(opts.lifecycleScripts) ? opts.lifecycleScripts : [],
-      attributes: Object.assign({}, opts.attributes || {}),
-      properties: Array.isArray(opts.properties) ? opts.properties.slice() : [],
-      meta: createNodeMeta(opts.meta),
-    };
+    const node = new QComponentNode(opts);
     setUpdateNonce(node);
     return node;
   }
 
   function createSlotNode(options) {
     const opts = options || {};
-    const node = {
-      kind: NODE_TYPES.slot,
-      name: String(opts.name || "default").trim() || "default",
-      children: Array.isArray(opts.children) ? opts.children : [],
-      meta: createNodeMeta(opts.meta),
-    };
+    const node = new QSlotNode(opts);
     setUpdateNonce(node);
     return node;
   }
@@ -223,21 +366,11 @@
 
   function createComponentInstanceNode(options) {
     const opts = options || {};
-    const tag = String(opts.tagName || opts.componentId || "div").trim().toLowerCase();
-    const node = {
-      kind: normalizeInstanceKind(opts.kind),
-      componentId: String(opts.componentId || tag).trim().toLowerCase(),
-      tagName: tag,
-      attributes: Object.assign({}, opts.attributes || {}),
-      props: Object.assign({}, opts.props || {}),
-      slots: Array.isArray(opts.slots) ? opts.slots : [],
-      lifecycleScripts: Array.isArray(opts.lifecycleScripts) ? opts.lifecycleScripts : [],
-      children: Array.isArray(opts.children) ? opts.children : [],
-      textContent: typeof opts.textContent === "string" ? opts.textContent : null,
-      selectorMode: opts.selectorMode || "single",
-      selectorChain: Array.isArray(opts.selectorChain) ? opts.selectorChain.slice() : [tag],
-      meta: createNodeMeta(opts.meta),
-    };
+    const kind = normalizeInstanceKind(opts.kind);
+    const node =
+      kind === NODE_TYPES.templateInstance
+        ? new QTemplateInstanceNode(opts)
+        : new QComponentInstanceNode(opts);
     setUpdateNonce(node);
     return node;
   }
@@ -281,13 +414,13 @@
 
   function createScriptRule(options) {
     const opts = options || {};
-    const node = {
-      kind: NODE_TYPES.scriptRule,
-      selector: String(opts.selector || ""),
-      eventName: String(opts.eventName || ""),
-      body: typeof opts.body === "string" ? opts.body : "",
-      meta: createNodeMeta(opts.meta),
-    };
+    const node = new QScriptRuleNode(opts);
+    setUpdateNonce(node);
+    return node;
+  }
+
+  function createQColorNode(options) {
+    const node = new QColorNode(options || {});
     setUpdateNonce(node);
     return node;
   }
@@ -560,7 +693,122 @@
     const binary = lzwDecompressBinaryString(codes);
     const utf8 = bytesFromBinaryString(binary);
     const text = new TextDecoder().decode(utf8);
-    return JSON.parse(text);
+    const parsed = JSON.parse(text);
+    return reviveQDomTree(parsed);
+  }
+
+  function reviveQDomTree(value) {
+    if (Array.isArray(value)) {
+      return value.map(reviveQDomTree);
+    }
+    if (!value || typeof value !== "object") {
+      return value;
+    }
+    const kind = String(value.kind || "").trim().toLowerCase();
+    if (!kind) {
+      const out = {};
+      const keys = Object.keys(value);
+      for (let i = 0; i < keys.length; i += 1) {
+        const key = keys[i];
+        out[key] = reviveQDomTree(value[key]);
+      }
+      return out;
+    }
+
+    if (kind === NODE_TYPES.document) {
+      return createDocument({
+        version: Number.isFinite(value.version) ? Number(value.version) : 1,
+        nodes: reviveQDomTree(Array.isArray(value.nodes) ? value.nodes : []),
+        scripts: reviveQDomTree(Array.isArray(value.scripts) ? value.scripts : []),
+        source: value.meta && typeof value.meta.source === "string" ? value.meta.source : "",
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
+    if (kind === NODE_TYPES.element) {
+      return createElementNode({
+        tagName: value.tagName,
+        attributes: reviveQDomTree(value.attributes || {}),
+        children: reviveQDomTree(Array.isArray(value.children) ? value.children : []),
+        textContent: typeof value.textContent === "string" ? value.textContent : null,
+        selectorMode: value.selectorMode,
+        selectorChain: reviveQDomTree(Array.isArray(value.selectorChain) ? value.selectorChain : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
+    if (kind === NODE_TYPES.text) {
+      return createTextNode({
+        value: value.value,
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
+    if (kind === NODE_TYPES.rawHtml) {
+      return createRawHtmlNode({
+        html: value.html,
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
+    if (kind === NODE_TYPES.slot) {
+      return createSlotNode({
+        name: value.name,
+        children: reviveQDomTree(Array.isArray(value.children) ? value.children : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
+    if (kind === NODE_TYPES.component) {
+      return createComponentNode({
+        componentId: value.componentId,
+        definitionType: value.definitionType,
+        templateNodes: reviveQDomTree(Array.isArray(value.templateNodes) ? value.templateNodes : []),
+        propertyDefinitions: reviveQDomTree(Array.isArray(value.propertyDefinitions) ? value.propertyDefinitions : []),
+        methods: reviveQDomTree(Array.isArray(value.methods) ? value.methods : []),
+        signalDeclarations: reviveQDomTree(Array.isArray(value.signalDeclarations) ? value.signalDeclarations : []),
+        aliasDeclarations: reviveQDomTree(Array.isArray(value.aliasDeclarations) ? value.aliasDeclarations : []),
+        lifecycleScripts: reviveQDomTree(Array.isArray(value.lifecycleScripts) ? value.lifecycleScripts : []),
+        attributes: reviveQDomTree(value.attributes || {}),
+        properties: reviveQDomTree(Array.isArray(value.properties) ? value.properties : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
+    if (kind === NODE_TYPES.componentInstance || kind === NODE_TYPES.templateInstance) {
+      return createComponentInstanceNode({
+        kind: kind,
+        componentId: value.componentId,
+        tagName: value.tagName,
+        attributes: reviveQDomTree(value.attributes || {}),
+        props: reviveQDomTree(value.props || {}),
+        slots: reviveQDomTree(Array.isArray(value.slots) ? value.slots : []),
+        lifecycleScripts: reviveQDomTree(Array.isArray(value.lifecycleScripts) ? value.lifecycleScripts : []),
+        children: reviveQDomTree(Array.isArray(value.children) ? value.children : []),
+        textContent: typeof value.textContent === "string" ? value.textContent : null,
+        selectorMode: value.selectorMode,
+        selectorChain: reviveQDomTree(Array.isArray(value.selectorChain) ? value.selectorChain : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
+    if (kind === NODE_TYPES.scriptRule) {
+      return createScriptRule({
+        selector: value.selector,
+        eventName: value.eventName,
+        body: value.body,
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
+    if (kind === NODE_TYPES.color) {
+      return createQColorNode({
+        name: value.name,
+        value: value.value,
+        assignments: reviveQDomTree(value.assignments || null),
+        mode: value.mode,
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
+    const fallback = {};
+    const keys = Object.keys(value);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      fallback[key] = reviveQDomTree(value[key]);
+    }
+    return fallback;
   }
 
   function nextQDomHostId() {
@@ -854,6 +1102,17 @@
   }
 
   const api = {
+    QDomNode: QDomNode,
+    QDocumentNode: QDocumentNode,
+    QElementNode: QElementNode,
+    QTextNode: QTextNode,
+    QRawHtmlNode: QRawHtmlNode,
+    QComponentNode: QComponentNode,
+    QComponentInstanceNode: QComponentInstanceNode,
+    QTemplateInstanceNode: QTemplateInstanceNode,
+    QSlotNode: QSlotNode,
+    QScriptRuleNode: QScriptRuleNode,
+    QColorNode: QColorNode,
     NODE_TYPES: NODE_TYPES,
     TEXT_ALIASES: TEXT_ALIASES,
     createDocument: createDocument,
@@ -864,6 +1123,7 @@
     createComponentInstanceNode: createComponentInstanceNode,
     createSlotNode: createSlotNode,
     createScriptRule: createScriptRule,
+    createQColorNode: createQColorNode,
     isNode: isNode,
     walkQDom: walkQDom,
     cloneDocument: cloneDocument,

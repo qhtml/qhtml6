@@ -1,4 +1,15 @@
 q-component q-estore {
+  q-color-schema {
+    q-estore-card-bg { background-color }
+    q-estore-card-fg { color }
+    q-estore-card-border { border-color }
+    q-estore-muted-fg { color }
+    q-estore-status-bg { background-color }
+    q-estore-status-fg { color }
+    q-estore-status-border { border-color }
+    q-estore-status-left-border { border-left-color }
+  }
+
   q-property { state catalog checkout statusNode }
   q-signal statusChanged(text)
   q-signal storeReady()
@@ -277,19 +288,23 @@ q-component q-estore {
     this.component.storeReady();
   }
 
-  div.w3-card.w3-round-large.w3-border.w3-white.w3-padding {
+  div.w3-card.w3-round-large.w3-border.w3-padding {
+    q-color { q-estore-card-bg q-estore-card-fg q-estore-card-border }
     div.w3-row-padding.w3-margin-bottom {
       div.w3-col.s12 {
         h2.w3-margin-top.w3-margin-bottom {
           text { Q E-Store }
         }
-         p.w3-small.w3-text-grey {
+         p.w3-small {
+          q-color { q-estore-muted-fg }
           text { Catalog + checkout modal composed into one reusable component. }
         }
       }
     }
 
-    div.w3-panel.w3-pale-blue.w3-leftbar.w3-border-blue.w3-small {
+    div.w3-panel.w3-leftbar.w3-small {
+      q-color { q-estore-status-bg q-estore-status-fg q-estore-status-border q-estore-status-left-border }
+      style { border-left-color: transparent; }
       q-estore-status: "1"
       text { Initializing e-store component... }
     }

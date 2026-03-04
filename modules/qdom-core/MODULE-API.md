@@ -8,7 +8,7 @@ Exports via `globalThis.QHtmlModules.qdomCore`.
 
 ### Constants
 - `NODE_TYPES`
-  - `document`, `element`, `text`, `raw-html`, `component`, `component-instance`, `template-instance`, `slot`, `script-rule`.
+  - `document`, `element`, `text`, `raw-html`, `component`, `component-instance`, `template-instance`, `slot`, `script-rule`, `color`.
 - `TEXT_ALIASES`
   - `content`, `contents`, `text`, `textcontents`, `innertext`.
 
@@ -25,6 +25,9 @@ Exports via `globalThis.QHtmlModules.qdomCore`.
   - Normalizes `props` as an object for component-instance property values.
 - `createSlotNode(options?)`
 - `createScriptRule(options?)`
+- `createQColorNode(options?)`
+  - Creates `QColorNode` entries used by runtime color helpers.
+  - Supports schema mode (`{ name, value }`) and theme mode (`{ name, assignments }`).
 
 All constructors normalize missing fields, include `meta` objects, and produce runtime-safe defaults.
 

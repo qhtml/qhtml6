@@ -61,9 +61,14 @@ q-component q-tab {
 }
 
 q-component q-tabs {
-q-property navActiveButtonClass: "w3-theme-l5"
-q-property navInactiveButtonClass: "w3-theme-l4"
-q-property containerClass: "w3-theme-l5"
+q-color-schema {
+  q-tabs-content-bg { background-color }
+  q-tabs-content-fg { color }
+  q-tabs-content-border { border-color }
+}
+q-property navActiveButtonClass: ""
+q-property navInactiveButtonClass: ""
+q-property containerClass: ""
 q-alias containerclass { return this.component.containerClass }
 q-alias navinactivebuttonclass { return this.component.navInactiveButtonClass }
 q-alias navactivebuttonclass { return this.component.navActiveButtonClass }
@@ -320,8 +325,14 @@ q-alias navactivebuttonclass { return this.component.navActiveButtonClass }
       q-tabs-nav: "1"
     }
 
-    div.q-tabs-content.w3-animate-opacity {
-       onReady { this.classList.add( this.component.containerClass) }
+      div.q-tabs-content.w3-animate-opacity {
+       q-color { q-tabs-content-bg q-tabs-content-fg q-tabs-content-border }
+       onReady {
+         var tokens = this.component.classTokens(this.component.containerClass);
+         for (var i = 0; i < tokens.length; i += 1) {
+           this.classList.add(tokens[i]);
+         }
+       }
       q-tabs-content: "1"
       slot { content }
     }

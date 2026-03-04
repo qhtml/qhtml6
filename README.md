@@ -3,13 +3,24 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.0.5
+# QHTML.js v6.0.6
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
 - Live demo: https://qhtml.github.io/qhtml6/dist/demo.html
 - Dev testbed: `dist/test.html`
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
+
+## Whats New in v6.0.6
+
+- Added wildcard area matching in `q-color`:
+  - `q-color { sidebar-* }` applies every matching schema area in scope.
+- Added shared defaults file for examples/projects:
+  - `q-import { q-components/q-defaults.qhtml }`
+  - `default-color-schema { }`
+  - `default-color-theme { }`
+- Simplified `dist/demo.html` examples to use shared defaults instead of repeating large inline schema/theme blocks.
+- `q-builder` color-save flow now forces host update after save/customize so edited `q-color`/`q-color-theme` changes persist immediately.
 
 ## Whats New in v6.0.5
 
@@ -22,6 +33,10 @@ QHTML is a compact language and runtime for building web UIs with readable block
   - Intended for macro/rewrite scoped slot references.
 - Added lazy `${expression}` inline runtime interpolation in rendered string contexts (text/attributes).
 - Parser metadata now includes macro expansion info in `qdom.meta.qMacros` and `qdom.meta.macroExpandedSource`.
+- Reworked color system syntax:
+  - `q-color-schema { area-name { css-property } ... }` for cascaded area/property mappings.
+  - `q-color-theme { area: value, ... }` (or named theme + invocation override).
+  - `q-color { area1 area2 ... }` to apply themed areas.
 
 ## Whats New in v6.0.4
 
@@ -278,6 +293,100 @@ Resulting HTML:
   <div>hello } world</div>
 </q-html>
 ```
+
+## Colors / Theming
+
+`q-color` works on plain elements and components. The model is:
+
+- `q-color-schema`: area name -> CSS property mapping (cascades by scope).
+- `q-color-theme`: area name -> value mapping (cascades by scope).
+- `q-color`: applies one or more areas on the current node.
+
+### Basic schema + theme
+
+```qhtml
+<q-html>
+  q-color-schema {
+    panel-background { background-color }
+    panel-foreground { color }
+    panel-border { border-color }
+  }
+
+  q-color-theme {
+    panel-background: #eff6ff
+    panel-foreground: #1e293b
+    panel-border: #93c5fd
+  }
+
+  div.card {
+    q-color { panel-background panel-foreground panel-border }
+    text { Themed panel }
+  }
+</q-html>
+```
+
+### Reusable named schema/theme + override
+
+```qhtml
+<q-html>
+  q-color-schema app-schema {
+    panel-background { background-color }
+    panel-foreground { color }
+    panel-border { border-color }
+  }
+
+  q-color-theme app-theme {
+    panel-background: #eff6ff
+    panel-foreground: #1e293b
+    panel-border: #93c5fd
+  }
+
+  div.card {
+    app-schema { panel-shadow { box-shadow } }   /* schema merge/override in this scope */
+    app-theme  { panel-border: #2563eb }         /* theme merge/override in this scope */
+    q-color { panel-background panel-foreground panel-border }
+    text { Reused + overridden }
+  }
+</q-html>
+```
+
+### Wildcard area application
+
+```qhtml
+<q-html>
+  q-color-schema {
+    sidebar-content-bg { background-color }
+    sidebar-content-fg { color }
+    sidebar-content-border { border-color }
+  }
+  q-color-theme {
+    sidebar-content-bg: #e2e8f0
+    sidebar-content-fg: #0f172a
+    sidebar-content-border: #cbd5e1
+  }
+  div { q-color { sidebar-content-* } text { Wildcard color apply } }
+</q-html>
+```
+
+### Use shipped defaults (`q-defaults.qhtml`)
+
+```qhtml
+<q-html>
+  q-import { q-components/q-defaults.qhtml }
+  default-color-schema { }
+  default-color-theme { }
+
+  div.w3-card.w3-padding {
+    q-color { tiny-card-bg tiny-card-fg tiny-card-border }
+    text { Uses shared defaults }
+  }
+</q-html>
+```
+
+Notes:
+- If an area is missing exact schema mapping, the resolver can fuzzy-match to the closest schema area.
+- Wildcard patterns with no matches log `qhtml q-color wildcard-no-match`.
+- `q-color` applies only the requested areas; schema/theme values still cascade from parent scopes.
 
 ## 6. Components
 
@@ -653,6 +762,18 @@ host.update();
 
 host.qdom().deserialize(serialized, true);  // replace
 host.update();
+```
+
+### Read color schemas/themes from QDOM
+
+```js
+const root = document.querySelector("q-html").qdom();
+
+const panelBackground = root.qcolor("panel-background");
+console.log(panelBackground.value); // css property mapping (for example "background-color")
+
+const panel = root.qcolor("panel");
+console.log(panel.style()); // style declarations generated from theme values
 ```
 
 ### Scoped vs full updates

@@ -9,7 +9,7 @@
 
 ## What this module actually does
 
-- Defines every runtime node type used across the system (`document`, `element`, `text`, `raw-html`, `component`, `component-instance`, `template-instance`, `slot`, `script-rule`).
+- Defines every runtime node type used across the system (`document`, `element`, `text`, `raw-html`, `component`, `component-instance`, `template-instance`, `slot`, `script-rule`, `color`).
 - Provides factory constructors for all QDom node kinds with normalized defaults and metadata.
 - Implements deep tree walking (`walkQDom`) and deep cloning (`cloneDocument`) so other modules can inspect and transform QDom safely.
 - Implements mutation observation through deep `Proxy` wrapping (`observeQDom`) and reports precise mutation envelopes (`set`, `delete`, path, old/new values).
@@ -31,6 +31,7 @@
 - Component/template invocation shape: `{ kind: "component-instance" | "template-instance", componentId, tagName, attributes, props, slots, children, textContent, ... }`
 - Slot shape: `{ kind: "slot", name, children, ... }`
 - Script rule shape: `{ kind: "script-rule", selector, eventName, body, meta }`
+- Color shape: `{ kind: "color", name, value?, assignments?, mode }` with `QColorNode.style(...)` helper.
 
 ## Persistence behavior
 

@@ -1,4 +1,20 @@
 q-component q-store-catalog {
+  q-color-schema {
+    q-store-catalog-card-bg { background-color }
+    q-store-catalog-card-fg { color }
+    q-store-catalog-card-border { border-color }
+    q-store-catalog-muted-fg { color }
+    q-store-catalog-checkout-btn-bg { background-color }
+    q-store-catalog-checkout-btn-fg { color }
+    q-store-catalog-checkout-btn-border { border-color }
+    q-store-catalog-badge-bg { background-color }
+    q-store-catalog-badge-fg { color }
+    q-store-catalog-badge-border { border-color }
+    q-store-catalog-input-bg { background-color }
+    q-store-catalog-input-fg { color }
+    q-store-catalog-input-border { border-color }
+  }
+
   q-property { state itemsHost cartCountNode cartTotalNode cartJsonNode }
   q-signal cartChanged(lastItem, items, totalCount, subtotal, subtotalFormatted)
   q-signal checkoutRequested(items, subtotal)
@@ -287,7 +303,7 @@ q-component q-store-catalog {
       this.clearNodeChildren(itemsHost);
       if (!list.length) {
         const emptyPanel = document.createElement("div");
-        emptyPanel.className = "w3-col s12 w3-panel w3-pale-yellow w3-border w3-round-large";
+        emptyPanel.className = "w3-col s12 w3-panel w3-border w3-round-large";
         emptyPanel.textContent = query ? "No catalog items matched your filter." : "Catalog is empty.";
         itemsHost.appendChild(emptyPanel);
         return;
@@ -340,19 +356,22 @@ q-component q-store-catalog {
     this.updateCartSummary();
   }
 
-  div.w3-card.w3-white.w3-round-large.w3-border {
+  div.w3-card.w3-round-large.w3-border {
+    q-color { q-store-catalog-card-bg q-store-catalog-card-fg q-store-catalog-card-border }
     q-form {
       div.w3-row-padding.w3-padding.w3-border-bottom {
         div.w3-col.l8.m7.s12 {
           h3.w3-margin-top.w3-margin-bottom {
             text { Store Catalog }
           }
-          p.w3-small.w3-text-grey {
+          p.w3-small {
+            q-color { q-store-catalog-muted-fg }
             text { Browse products, add to cart, then open checkout from the top-right button. }
           }
         }
         div.w3-col.l4.m5.s12.w3-right-align {
-          button.w3-button.w3-indigo.w3-round.w3-margin-top {
+          button.w3-button.w3-round.w3-margin-top {
+            q-color { q-store-catalog-checkout-btn-bg q-store-catalog-checkout-btn-fg q-store-catalog-checkout-btn-border }
             type: "button";
             text { Checkout }
             onclick {
@@ -361,12 +380,14 @@ q-component q-store-catalog {
           }
           div.w3-small.w3-margin-top {
             text { Cart items: }
-            span.w3-tag.w3-blue.w3-round.w3-margin-left {
+            span.w3-tag.w3-round.w3-margin-left {
+              q-color { q-store-catalog-badge-bg q-store-catalog-badge-fg q-store-catalog-badge-border }
               q-store-cart-count: "1"
               text { 0 }
             }
           }
-          div.w3-small.w3-text-grey {
+          div.w3-small {
+            q-color { q-store-catalog-muted-fg }
             text { Subtotal: }
             span.w3-margin-left {
               q-store-cart-total: "1"
@@ -379,6 +400,7 @@ q-component q-store-catalog {
       div.w3-row-padding.w3-padding {
         div.w3-col.s12 {
           input.w3-input.w3-border.w3-round-large {
+            q-color { q-store-catalog-input-bg q-store-catalog-input-fg q-store-catalog-input-border }
             placeholder: "Filter catalog by name or description";
             oninput {
               this.component.setFilter(this.value);

@@ -1,6 +1,9 @@
+q-import { q-tabs.qhtml }
+
 q-template q-builder-icon-edit { svg { viewBox: "0 0 24 24"; width: "16"; height: "16"; fill: "none"; stroke: "currentColor"; path { d: "M4 20h4l10-10-4-4L4 16z" } path { d: "M13 7l4 4" } } }
 q-template q-builder-icon-save { svg { viewBox: "0 0 24 24"; width: "16"; height: "16"; fill: "none"; stroke: "currentColor"; path { d: "M5 3h12l2 2v16H5z" } path { d: "M9 3v6h6V3" } } }
 q-template q-builder-icon-close { svg { viewBox: "0 0 24 24"; width: "16"; height: "16"; fill: "none"; stroke: "currentColor"; path { d: "M6 6l12 12" } path { d: "M18 6L6 18" } } }
+q-template q-builder-icon-colors { svg { viewBox: "0 0 24 24"; width: "16"; height: "16"; fill: "none"; stroke: "currentColor"; stroke-width: "2"; stroke-linecap: "round"; stroke-linejoin: "round"; path { d: "M12 3a9 9 0 1 0 0 18h1.1a2.6 2.6 0 0 0 0-5.2h-.8a2.1 2.1 0 0 1 0-4.2h2.2A3.5 3.5 0 0 0 18.2 8 5.2 5.2 0 0 0 13 3z" } circle { cx: "7.4"; cy: "9"; r: "1.2"; fill: "currentColor"; stroke: "none" } circle { cx: "10.4"; cy: "6.8"; r: "1.2"; fill: "currentColor"; stroke: "none" } circle { cx: "14.3"; cy: "7.4"; r: "1.2"; fill: "currentColor"; stroke: "none" } circle { cx: "16.1"; cy: "11"; r: "1.2"; fill: "currentColor"; stroke: "none" } } }
 
 q-component q-builder-toolbar {
   div.w3-bar.w3-half.w3-theme-l2.w3-round-large.w3-padding-small { q-builder-toolbar: "1"
@@ -14,6 +17,7 @@ q-component q-builder-toolbar {
       margin-top: -8px;
     }
     button.w3-button.w3-small.w3-theme-l3.w3-round-large { type: "button" q-builder-action: "open" q-builder-icon-edit { } span.w3-margin-left { text { Edit } } }
+    button.w3-button.w3-small.w3-theme-l3.w3-round-large.w3-margin-left { type: "button" q-builder-action: "open-colors" q-builder-icon-colors { } span.w3-margin-left { text { Colors } } }
   }
 }
 
@@ -843,6 +847,65 @@ q-component q-builder-modal-shell {
   }
 }
 
+q-component q-builder-colors-modal-shell {
+  q-modal {
+    q-builder-colors-modal: "1"
+    title { text { QBuilder Colors } }
+    content {
+      div.w3-small.w3-margin-bottom.w3-text-blue-grey {
+        text { Edit local q-color blocks for the selected element. Computed values include inherited schema/theme entries. }
+      }
+      q-tabs {
+        q-builder-colors-tabs: "1"
+        q-tab {
+          name { text { q-colors } }
+          content {
+            div.w3-small.w3-margin-bottom.w3-text-blue-grey { text { Computed q-color values in use (inherited + local). } }
+            pre.w3-small.w3-padding-small.w3-border.w3-round { q-builder-colors-computed: "q-color" text { q-color { } } }
+            div.w3-row-padding.w3-margin-top {
+              div.w3-threequarter {
+                select.w3-select.w3-border.w3-round { q-builder-colors-area-select: "1" }
+              }
+              div.w3-quarter {
+                button.w3-button.w3-small.w3-theme-l3.w3-round-large.w3-block { type: "button" q-builder-action: "add-color-area" text { Add } }
+              }
+            }
+            div.w3-small.w3-margin-top.w3-margin-bottom.w3-text-blue-grey { q-builder-colors-status: "q-color" text { Local q-color block (editable only when defined on selected element). } }
+            q-editor { q-builder-colors-editor: "q-color" initial-qhtml: "q-color { }" }
+          }
+        }
+        q-tab {
+          name { text { q-color-schema } }
+          content {
+            div.w3-small.w3-margin-bottom.w3-text-blue-grey { text { Computed q-color-schema visible from this element. } }
+            pre.w3-small.w3-padding-small.w3-border.w3-round { q-builder-colors-computed: "q-color-schema" text { q-color-schema { } } }
+            div.w3-small.w3-margin-top.w3-margin-bottom.w3-text-blue-grey { q-builder-colors-status: "q-color-schema" text { Local q-color-schema block (editable only when defined on selected element). } }
+            q-editor { q-builder-colors-editor: "q-color-schema" initial-qhtml: "q-color-schema { }" }
+          }
+        }
+        q-tab {
+          name { text { q-color-theme } }
+          content {
+            div.w3-small.w3-margin-bottom.w3-text-blue-grey { text { Computed q-color-theme visible from this element. } }
+            pre.w3-small.w3-padding-small.w3-border.w3-round { q-builder-colors-computed: "q-color-theme" text { q-color-theme { } } }
+            div.w3-margin-top.w3-margin-bottom {
+              button.w3-button.w3-small.w3-theme-l3.w3-round-large { type: "button" q-builder-action: "customize-theme" q-builder-colors-theme-customize: "1" text { Customize Theme } }
+            }
+            div.w3-small.w3-margin-top.w3-margin-bottom.w3-text-blue-grey { q-builder-colors-status: "q-color-theme" text { Local q-color-theme block (editable only when defined on selected element). } }
+            q-editor { q-builder-colors-editor: "q-color-theme" initial-qhtml: "q-color-theme { }" }
+          }
+        }
+      }
+    }
+    footer {
+      div.w3-right-align {
+        button.w3-button.w3-small.w3-theme-l3.w3-round-large.w3-margin-right { type: "button" q-builder-action: "save-colors" q-builder-icon-save { } span.w3-margin-left { text { Save Colors } } }
+        button.w3-button.w3-small.w3-grey.w3-round-large { type: "button" q-builder-action: "close-colors" q-builder-icon-close { } span.w3-margin-left { text { Close } } }
+      }
+    }
+  }
+}
+
 q-template q-builder-shell {
   div { q-builder-ui: "1"
     div {
@@ -882,6 +945,7 @@ q-template q-builder-shell {
     q-builder-toolbar { }
     q-builder-palette { }
     q-builder-modal-shell { }
+    q-builder-colors-modal-shell { }
   }
 }
 
@@ -896,6 +960,8 @@ q-component q-builder {
         hoverEl: null,
         selectedEl: null,
         modalOpen: false,
+        colorsModalOpen: false,
+        colorsEditContext: null,
         dropTarget: null,
         paletteDragName: ""
       };
@@ -1329,6 +1395,683 @@ q-component q-builder {
     return candidate;
   }
 
+  function isIdentifierTokenChar(ch) {
+    return /[A-Za-z0-9_$-]/.test(String(ch || ""));
+  }
+
+  function findMatchingBrace(source, openIndex) {
+    var text = String(source || "");
+    var start = Number(openIndex || 0);
+    if (start < 0 || start >= text.length || text.charAt(start) !== "{") { return -1; }
+    var depth = 1;
+    var quote = "";
+    var escaped = false;
+    var i = start + 1;
+    while (i < text.length) {
+      var ch = text.charAt(i);
+      var next = i + 1 < text.length ? text.charAt(i + 1) : "";
+      if (quote) {
+        if (escaped) {
+          escaped = false;
+          i += 1;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          i += 1;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        i += 1;
+        continue;
+      }
+      if (ch === "'" || ch === "\"" || ch === "`") {
+        quote = ch;
+        i += 1;
+        continue;
+      }
+      if (ch === "/" && next === "/") {
+        i += 2;
+        while (i < text.length && text.charAt(i) !== "\n") { i += 1; }
+        continue;
+      }
+      if (ch === "/" && next === "*") {
+        i += 2;
+        while (i + 1 < text.length && !(text.charAt(i) === "*" && text.charAt(i + 1) === "/")) { i += 1; }
+        i += 2;
+        continue;
+      }
+      if (ch === "{") {
+        depth += 1;
+        i += 1;
+        continue;
+      }
+      if (ch === "}") {
+        depth -= 1;
+        if (depth === 0) { return i; }
+        i += 1;
+        continue;
+      }
+      i += 1;
+    }
+    return -1;
+  }
+
+  function extractOuterBracedBlock(source) {
+    var text = String(source || "");
+    var openIndex = text.indexOf("{");
+    if (openIndex < 0) {
+      return { source: text, prefix: text, body: "", suffix: "", openIndex: -1, closeIndex: -1 };
+    }
+    var closeIndex = this.findMatchingBrace(text, openIndex);
+    if (closeIndex < 0) {
+      return { source: text, prefix: text, body: "", suffix: "", openIndex: -1, closeIndex: -1 };
+    }
+    return {
+      source: text,
+      prefix: text.slice(0, openIndex + 1),
+      body: text.slice(openIndex + 1, closeIndex),
+      suffix: text.slice(closeIndex),
+      openIndex: openIndex,
+      closeIndex: closeIndex
+    };
+  }
+
+  function findTopLevelKeywordBlocksInBody(body, keyword) {
+    var text = String(body || "");
+    var kw = String(keyword || "").trim().toLowerCase();
+    if (!kw) { return []; }
+    var blocks = [];
+    var depth = 0;
+    var quote = "";
+    var escaped = false;
+    var i = 0;
+    while (i < text.length) {
+      var ch = text.charAt(i);
+      var next = i + 1 < text.length ? text.charAt(i + 1) : "";
+      if (quote) {
+        if (escaped) {
+          escaped = false;
+          i += 1;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          i += 1;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        i += 1;
+        continue;
+      }
+      if (ch === "'" || ch === "\"" || ch === "`") {
+        quote = ch;
+        i += 1;
+        continue;
+      }
+      if (ch === "/" && next === "/") {
+        i += 2;
+        while (i < text.length && text.charAt(i) !== "\n") { i += 1; }
+        continue;
+      }
+      if (ch === "/" && next === "*") {
+        i += 2;
+        while (i + 1 < text.length && !(text.charAt(i) === "*" && text.charAt(i + 1) === "/")) { i += 1; }
+        i += 2;
+        continue;
+      }
+      if (ch === "{") {
+        depth += 1;
+        i += 1;
+        continue;
+      }
+      if (ch === "}") {
+        depth = Math.max(0, depth - 1);
+        i += 1;
+        continue;
+      }
+      if (depth === 0) {
+        var maybe = text.slice(i, i + kw.length).toLowerCase();
+        var prev = i > 0 ? text.charAt(i - 1) : "";
+        var after = i + kw.length < text.length ? text.charAt(i + kw.length) : "";
+        if (maybe === kw && !this.isIdentifierTokenChar(prev) && !this.isIdentifierTokenChar(after)) {
+          var j = i + kw.length;
+          while (j < text.length && /\s/.test(text.charAt(j))) { j += 1; }
+          while (j < text.length && this.isIdentifierTokenChar(text.charAt(j))) { j += 1; }
+          while (j < text.length && /\s/.test(text.charAt(j))) { j += 1; }
+          if (text.charAt(j) === "{") {
+            var end = this.findMatchingBrace(text, j);
+            if (end > j) {
+              blocks.push({ start: i, end: end + 1, text: text.slice(i, end + 1) });
+              i = end + 1;
+              continue;
+            }
+          }
+        }
+      }
+      i += 1;
+    }
+    return blocks;
+  }
+
+  function extractTopLevelKeywordBlocks(source, keyword) {
+    var outer = this.extractOuterBracedBlock(source);
+    if (outer.openIndex < 0) { return []; }
+    return this.findTopLevelKeywordBlocksInBody(outer.body, keyword);
+  }
+
+  function replaceTopLevelKeywordBlocks(source, keyword, replacementSource) {
+    var outer = this.extractOuterBracedBlock(source);
+    if (outer.openIndex < 0) { return String(source || ""); }
+    var blocks = this.findTopLevelKeywordBlocksInBody(outer.body, keyword);
+    if (!blocks.length) { return String(source || ""); }
+    var body = outer.body;
+    for (var i = blocks.length - 1; i >= 0; i -= 1) {
+      body = body.slice(0, blocks[i].start) + body.slice(blocks[i].end);
+    }
+    var insertAt = blocks[0].start;
+    var insertText = String(replacementSource == null ? "" : replacementSource).trim();
+    if (insertText) {
+      var prefix = body.slice(0, insertAt);
+      var suffix = body.slice(insertAt);
+      var needsLeadingBreak = prefix && !/\n\s*$/.test(prefix);
+      var needsTrailingBreak = suffix && !/^\s*\n/.test(suffix);
+      body = prefix + (needsLeadingBreak ? "\n" : "") + insertText + (needsTrailingBreak ? "\n" : "") + suffix;
+    }
+    return outer.prefix + body + outer.suffix;
+  }
+
+  function insertTopLevelKeywordBlock(source, blockSource) {
+    var outer = this.extractOuterBracedBlock(source);
+    var insertText = String(blockSource == null ? "" : blockSource).trim();
+    if (!insertText) { return String(source || ""); }
+    if (outer.openIndex < 0) { return String(source || ""); }
+    var body = String(outer.body || "");
+    var prefixTrimmed = body.replace(/\s+$/, "");
+    var needsLeadingBreak = prefixTrimmed.length > 0;
+    var nextBody = body + (needsLeadingBreak ? "\n" : "") + insertText + "\n";
+    return outer.prefix + nextBody + outer.suffix;
+  }
+
+  function upsertTopLevelKeywordBlock(source, keyword, replacementSource) {
+    var current = String(source || "");
+    var blocks = this.extractTopLevelKeywordBlocks(current, keyword);
+    if (blocks.length > 0) {
+      return this.replaceTopLevelKeywordBlocks(current, keyword, replacementSource);
+    }
+    return this.insertTopLevelKeywordBlock(current, replacementSource);
+  }
+
+  function parseQColorAreasFromSource(source) {
+    var text = String(source || "").trim();
+    if (!text) { return []; }
+    var out = [];
+    var seen = {};
+    function pushArea(value) {
+      var area = String(value || "").trim();
+      if (!area) { return; }
+      if (seen[area]) { return; }
+      seen[area] = true;
+      out.push(area);
+    }
+    var openIndex = text.indexOf("{");
+    if (openIndex < 0) { return out; }
+    var closeIndex = this.findMatchingBrace(text, openIndex);
+    if (closeIndex < 0) { return out; }
+    var body = String(text.slice(openIndex + 1, closeIndex) || "");
+    var chunks = body.split(/[\n,;]/);
+    for (var i = 0; i < chunks.length; i += 1) {
+      var line = String(chunks[i] || "").trim();
+      if (!line) { continue; }
+      var idx = line.indexOf(":");
+      if (idx > 0) {
+        var key = String(line.slice(0, idx) || "").trim();
+        pushArea(key);
+        continue;
+      }
+      var tokens = line.split(/\s+/);
+      for (var ti = 0; ti < tokens.length; ti += 1) {
+        pushArea(tokens[ti]);
+      }
+    }
+    return out;
+  }
+
+  function formatQColorAreaList(areas) {
+    var list = Array.isArray(areas) ? areas : [];
+    var out = [];
+    var seen = {};
+    for (var i = 0; i < list.length; i += 1) {
+      var area = String(list[i] || "").trim();
+      if (!area || seen[area]) { continue; }
+      seen[area] = true;
+      out.push(area);
+    }
+    if (!out.length) { return "q-color { }"; }
+    return "q-color { " + out.join(" ") + " }";
+  }
+
+  function parseInlineStyleDeclarations(styleText) {
+    var out = {};
+    var raw = String(styleText || "");
+    var chunks = raw.split(";");
+    for (var i = 0; i < chunks.length; i += 1) {
+      var line = String(chunks[i] || "").trim();
+      if (!line) { continue; }
+      var idx = line.indexOf(":");
+      if (idx <= 0) { continue; }
+      var key = String(line.slice(0, idx) || "").trim().toLowerCase();
+      var value = String(line.slice(idx + 1) || "").trim();
+      if (!key || !value) { continue; }
+      out[key] = value;
+    }
+    return out;
+  }
+
+  function normalizeCssPropertyName(propertyName) {
+    var raw = String(propertyName || "").trim();
+    if (!raw) { return ""; }
+    if (raw.indexOf("--") === 0) { return raw; }
+    if (raw.indexOf("-") >= 0) { return raw.toLowerCase(); }
+    return raw.replace(/([A-Z])/g, "-$1").toLowerCase();
+  }
+
+  function inferCssPropertyForArea(areaName) {
+    var key = String(areaName || "").trim().toLowerCase();
+    if (!key) { return ""; }
+    if (key.indexOf("background") >= 0 || key.indexOf("-bg") >= 0 || /(^|[-_])bg($|[-_])/.test(key)) {
+      return "background-color";
+    }
+    if (key.indexOf("foreground") >= 0 || key.indexOf("-fg") >= 0 || /(^|[-_])fg($|[-_])/.test(key)) {
+      return "color";
+    }
+    if (key.indexOf("border") >= 0) {
+      return "border-color";
+    }
+    if (key.indexOf("shadow") >= 0) {
+      return "box-shadow";
+    }
+    if (key.indexOf("outline") >= 0) {
+      return "outline-color";
+    }
+    return "";
+  }
+
+  function collectRequestedColorAreas(sourceMeta, areaMap) {
+    var out = {};
+    var areaKeys = Object.keys(areaMap || {});
+    for (var i = 0; i < areaKeys.length; i += 1) {
+      var areaFromMap = String(areaKeys[i] || "").trim();
+      if (areaFromMap) { out[areaFromMap] = true; }
+    }
+    var groups = sourceMeta && Array.isArray(sourceMeta.qColorAreas) ? sourceMeta.qColorAreas : [];
+    for (var gi = 0; gi < groups.length; gi += 1) {
+      var group = groups[gi];
+      if (!Array.isArray(group)) { continue; }
+      for (var gj = 0; gj < group.length; gj += 1) {
+        var areaName = String(group[gj] || "").trim();
+        if (areaName) { out[areaName] = true; }
+      }
+    }
+    var assignments = sourceMeta && Array.isArray(sourceMeta.qColorAssignments) ? sourceMeta.qColorAssignments : [];
+    for (var ai = 0; ai < assignments.length; ai += 1) {
+      var assignment = assignments[ai];
+      if (!assignment || typeof assignment !== "object" || Array.isArray(assignment)) { continue; }
+      var keys = Object.keys(assignment);
+      for (var ki = 0; ki < keys.length; ki += 1) {
+        var key = String(keys[ki] || "").trim();
+        if (!key || key.toLowerCase() === "theme") { continue; }
+        out[key] = true;
+      }
+    }
+    return Object.keys(out);
+  }
+
+  function collectRootCssVariableAreas(doc) {
+    var documentRef = doc && doc.nodeType === 9 ? doc : (typeof document !== "undefined" ? document : null);
+    var out = {};
+    if (!documentRef) { return out; }
+    var declared = {};
+
+    function scanRules(rules) {
+      if (!rules || typeof rules.length !== "number") { return; }
+      for (var i = 0; i < rules.length; i += 1) {
+        var rule = rules[i];
+        if (!rule) { continue; }
+        var ruleType = Number(rule.type || 0);
+        if (ruleType === 1) {
+          var selectorText = String(rule.selectorText || "");
+          var selectors = selectorText.split(",");
+          var isRoot = false;
+          for (var si = 0; si < selectors.length; si += 1) {
+            if (String(selectors[si] || "").trim() === ":root") {
+              isRoot = true;
+              break;
+            }
+          }
+          if (!isRoot) { continue; }
+          var style = rule.style;
+          if (!style || typeof style.length !== "number") { continue; }
+          for (var pi = 0; pi < style.length; pi += 1) {
+            var propName = String(style[pi] || "").trim();
+            if (!propName || propName.indexOf("--") !== 0) { continue; }
+            declared[propName] = String(style.getPropertyValue(propName) || "").trim();
+          }
+          continue;
+        }
+        if (rule.cssRules) {
+          try { scanRules(rule.cssRules); } catch (scanNestedError) { }
+        }
+      }
+    }
+
+    var allSheets = [];
+    try {
+      if (documentRef.styleSheets && typeof documentRef.styleSheets.length === "number") {
+        for (var s = 0; s < documentRef.styleSheets.length; s += 1) {
+          allSheets.push(documentRef.styleSheets[s]);
+        }
+      }
+      if (Array.isArray(documentRef.adoptedStyleSheets)) {
+        for (var a = 0; a < documentRef.adoptedStyleSheets.length; a += 1) {
+          allSheets.push(documentRef.adoptedStyleSheets[a]);
+        }
+      }
+    } catch (sheetListError) {
+      this.logIssue("collectRootCssVariableAreas sheet list failed", sheetListError);
+    }
+
+    for (var i = 0; i < allSheets.length; i += 1) {
+      var sheet = allSheets[i];
+      if (!sheet) { continue; }
+      try {
+        if (sheet.cssRules) { scanRules(sheet.cssRules); }
+      } catch (sheetError) {
+        // Cross-origin sheets can throw; ignore and keep scanning.
+      }
+    }
+
+    var rootElement = documentRef.documentElement || null;
+    var rootComputed = null;
+    try {
+      if (rootElement && typeof getComputedStyle === "function") {
+        rootComputed = getComputedStyle(rootElement);
+      }
+    } catch (computedError) {
+      this.logIssue("collectRootCssVariableAreas computed failed", computedError);
+    }
+
+    var varNames = Object.keys(declared);
+    for (var vi = 0; vi < varNames.length; vi += 1) {
+      var varName = String(varNames[vi] || "").trim();
+      if (!varName || varName.indexOf("--") !== 0) { continue; }
+      var areaName = String(varName.slice(2) || "").trim();
+      if (!areaName) { continue; }
+      var value = String(declared[varName] || "").trim();
+      if (rootComputed && typeof rootComputed.getPropertyValue === "function") {
+        var resolvedValue = String(rootComputed.getPropertyValue(varName) || "").trim();
+        if (resolvedValue) { value = resolvedValue; }
+      }
+      out[areaName] = { variable: varName, value: value };
+    }
+    return out;
+  }
+
+  function resolveAreaCssProperty(areaName, areaMap, schemaMap) {
+    var area = String(areaName || "").trim();
+    if (!area) { return ""; }
+    var fromNode = areaMap && typeof areaMap === "object" ? String(areaMap[area] || "").trim() : "";
+    if (fromNode) { return this.normalizeCssPropertyName(fromNode); }
+    var fromSchema = schemaMap && typeof schemaMap === "object" ? String(schemaMap[area] || "").trim() : "";
+    if (fromSchema) { return this.normalizeCssPropertyName(fromSchema); }
+    return this.normalizeCssPropertyName(this.inferCssPropertyForArea(area));
+  }
+
+  function readComputedColorValue(element, cssProperty, inlineMap) {
+    var prop = this.normalizeCssPropertyName(cssProperty);
+    if (!prop) { return ""; }
+    try {
+      if (element && typeof getComputedStyle === "function") {
+        var computed = getComputedStyle(element);
+        if (computed && typeof computed.getPropertyValue === "function") {
+          var value = String(computed.getPropertyValue(prop) || "").trim();
+          if (value) { return value; }
+        }
+      }
+    } catch (error) {
+      this.logIssue("readComputedColorValue failed", error);
+    }
+    var inlineValue = inlineMap && typeof inlineMap === "object" ? String(inlineMap[prop] || "").trim() : "";
+    return inlineValue || "";
+  }
+
+  function formatComputedQColorApply(assignments) {
+    var map = assignments && typeof assignments === "object" ? assignments : {};
+    var keys = Object.keys(map);
+    if (!keys.length) { return "q-color { }"; }
+    keys.sort();
+    var lines = ["q-color {"];
+    for (var i = 0; i < keys.length; i += 1) {
+      lines.push("  " + keys[i] + ": " + map[keys[i]]);
+    }
+    lines.push("}");
+    return lines.join("\n");
+  }
+
+  function formatComputedQColorSchema(assignments) {
+    var map = assignments && typeof assignments === "object" ? assignments : {};
+    var keys = Object.keys(map);
+    if (!keys.length) { return "q-color-schema { }"; }
+    keys.sort();
+    var lines = ["q-color-schema {"];
+    for (var i = 0; i < keys.length; i += 1) {
+      lines.push("  " + keys[i] + " { " + map[keys[i]] + " }");
+    }
+    lines.push("}");
+    return lines.join("\n");
+  }
+
+  function formatComputedQColorTheme(assignments) {
+    var map = assignments && typeof assignments === "object" ? assignments : {};
+    var keys = Object.keys(map);
+    if (!keys.length) { return "q-color-theme { }"; }
+    keys.sort();
+    var lines = ["q-color-theme {"];
+    for (var i = 0; i < keys.length; i += 1) {
+      lines.push("  " + keys[i] + ": " + map[keys[i]]);
+    }
+    lines.push("}");
+    return lines.join("\n");
+  }
+
+  function normalizeThemeColorValue(value) {
+    var raw = String(value == null ? "" : value).trim();
+    if (!raw) { return ""; }
+    if (/^--[A-Za-z0-9_-]+$/.test(raw)) {
+      return "var(" + raw + ")";
+    }
+    return raw;
+  }
+
+  function buildColorsEditContext(source, targetNode, host, selectedElement) {
+    var src = String(source || "").trim();
+    var sourceNode = this.sourceNodeOf(targetNode);
+    var sourceMeta = sourceNode && sourceNode.meta && typeof sourceNode.meta === "object" ? sourceNode.meta : {};
+    var sourceAttrs = sourceNode && sourceNode.attributes && typeof sourceNode.attributes === "object" ? sourceNode.attributes : {};
+    var docRoot = host && typeof host.qdom === "function" ? host.qdom() : null;
+    if (docRoot && typeof docRoot.root === "function") { docRoot = docRoot.root({ qdom: true }); }
+    var docSource = this.sourceNodeOf(docRoot);
+    var docMeta = docSource && docSource.meta && typeof docSource.meta === "object" ? docSource.meta : {};
+
+    var localColorBlocks = this.extractTopLevelKeywordBlocks(src, "q-color");
+    var localSchemaBlocks = this.extractTopLevelKeywordBlocks(src, "q-color-schema");
+    var localThemeBlocks = this.extractTopLevelKeywordBlocks(src, "q-color-theme");
+
+    var styleMap = this.parseInlineStyleDeclarations(sourceAttrs.style || "");
+    var areaMap = sourceMeta.qColorAreaProperties && typeof sourceMeta.qColorAreaProperties === "object" && !Array.isArray(sourceMeta.qColorAreaProperties)
+      ? sourceMeta.qColorAreaProperties
+      : {};
+    var docSchemas = docMeta.qColorSchemas && typeof docMeta.qColorSchemas === "object" ? Object.assign({}, docMeta.qColorSchemas) : {};
+    var rootCssAreas = this.collectRootCssVariableAreas(host && host.ownerDocument ? host.ownerDocument : null);
+    var rootCssAreaKeys = Object.keys(rootCssAreas);
+    for (var rsi = 0; rsi < rootCssAreaKeys.length; rsi += 1) {
+      var schemaArea = String(rootCssAreaKeys[rsi] || "").trim();
+      if (!schemaArea) { continue; }
+      if (String(docSchemas[schemaArea] || "").trim()) { continue; }
+      var inferredProperty = this.normalizeCssPropertyName(this.inferCssPropertyForArea(schemaArea));
+      if (!inferredProperty) { inferredProperty = "color"; }
+      docSchemas[schemaArea] = inferredProperty;
+    }
+    var areaKeys = this.collectRequestedColorAreas(sourceMeta, areaMap);
+    var computedColorAssignments = {};
+    for (var ai = 0; ai < areaKeys.length; ai += 1) {
+      var areaName = String(areaKeys[ai] || "").trim();
+      if (!areaName) { continue; }
+      var resolvedCssProperty = this.resolveAreaCssProperty(areaName, areaMap, docSchemas);
+      var resolvedCssValue = this.readComputedColorValue(selectedElement, resolvedCssProperty, styleMap);
+      if (resolvedCssValue) { computedColorAssignments[areaName] = resolvedCssValue; }
+    }
+    var assignmentGroups = Array.isArray(sourceMeta.qColorAssignments) ? sourceMeta.qColorAssignments : [];
+    for (var gi = 0; gi < assignmentGroups.length; gi += 1) {
+      var group = assignmentGroups[gi];
+      if (!group || typeof group !== "object" || Array.isArray(group)) { continue; }
+      var groupKeys = Object.keys(group);
+      for (var gk = 0; gk < groupKeys.length; gk += 1) {
+        var key = String(groupKeys[gk] || "").trim();
+        if (!key || key.toLowerCase() === "theme") { continue; }
+        var value = group[key];
+        if (value === true) {
+          var mapProp = this.resolveAreaCssProperty(key, areaMap, docSchemas);
+          var resolved = this.readComputedColorValue(selectedElement, mapProp, styleMap);
+          if (resolved) { computedColorAssignments[key] = resolved; }
+        } else {
+          var explicit = String(value == null ? "" : value).trim();
+          if (explicit) { computedColorAssignments[key] = explicit; }
+        }
+      }
+    }
+
+    var computedSchemaAssignments = {};
+    var docSchemaKeys = Object.keys(docSchemas);
+    for (var si = 0; si < docSchemaKeys.length; si += 1) {
+      var schemaKey = String(docSchemaKeys[si] || "").trim();
+      if (!schemaKey) { continue; }
+      computedSchemaAssignments[schemaKey] = String(docSchemas[schemaKey] || "").trim();
+    }
+    for (var smi = 0; smi < areaKeys.length; smi += 1) {
+      var nodeArea = String(areaKeys[smi] || "").trim();
+      if (!nodeArea) { continue; }
+      var nodeProp = String(areaMap[nodeArea] || "").trim();
+      if (!nodeProp) { continue; }
+      computedSchemaAssignments[nodeArea] = nodeProp;
+    }
+
+    var computedThemeAssignments = {};
+    var allThemes = docMeta.qColorThemes && typeof docMeta.qColorThemes === "object" ? docMeta.qColorThemes : {};
+    var defaultThemeName = String(docMeta.qColorDefaultTheme || "").trim();
+    var targetTheme = allThemes[defaultThemeName];
+    if (!targetTheme || typeof targetTheme !== "object") {
+      var themeKeys = Object.keys(allThemes);
+      if (themeKeys.length > 0) {
+        targetTheme = allThemes[themeKeys[0]];
+      }
+    }
+    if (targetTheme && typeof targetTheme === "object") {
+      var targetThemeKeys = Object.keys(targetTheme);
+      for (var ti = 0; ti < targetThemeKeys.length; ti += 1) {
+        var themeKey = String(targetThemeKeys[ti] || "").trim();
+        if (!themeKey) { continue; }
+        computedThemeAssignments[themeKey] = this.normalizeThemeColorValue(targetTheme[themeKey]);
+      }
+    }
+    for (var rti = 0; rti < rootCssAreaKeys.length; rti += 1) {
+      var rootArea = String(rootCssAreaKeys[rti] || "").trim();
+      if (!rootArea) { continue; }
+      if (String(computedThemeAssignments[rootArea] || "").trim()) { continue; }
+      var rootVarName = rootCssAreas[rootArea] && typeof rootCssAreas[rootArea] === "object"
+        ? String(rootCssAreas[rootArea].variable || "").trim()
+        : "";
+      if (rootVarName) {
+        computedThemeAssignments[rootArea] = this.normalizeThemeColorValue(rootVarName);
+        continue;
+      }
+      var rootValue = rootCssAreas[rootArea] && typeof rootCssAreas[rootArea] === "object"
+        ? String(rootCssAreas[rootArea].value || "").trim()
+        : "";
+      if (rootValue) { computedThemeAssignments[rootArea] = this.normalizeThemeColorValue(rootValue); }
+    }
+    for (var ci = 0; ci < areaKeys.length; ci += 1) {
+      var areaForTheme = String(areaKeys[ci] || "").trim();
+      if (!areaForTheme) { continue; }
+      if (String(computedThemeAssignments[areaForTheme] || "").trim()) { continue; }
+      var propForTheme = this.resolveAreaCssProperty(areaForTheme, areaMap, docSchemas);
+      var fallbackValue = this.readComputedColorValue(selectedElement, propForTheme, styleMap);
+      if (fallbackValue) {
+        computedThemeAssignments[areaForTheme] = this.normalizeThemeColorValue(fallbackValue);
+      }
+    }
+
+    var computedColorsText = this.formatComputedQColorApply(computedColorAssignments);
+    var computedSchemaText = this.formatComputedQColorSchema(computedSchemaAssignments);
+    var computedThemeText = this.formatComputedQColorTheme(computedThemeAssignments);
+    var availableAreasMap = {};
+    var computedColorKeys = Object.keys(computedColorAssignments);
+    var computedSchemaKeys = Object.keys(computedSchemaAssignments);
+    var computedThemeKeys = Object.keys(computedThemeAssignments);
+    for (var cki = 0; cki < computedColorKeys.length; cki += 1) {
+      var ck = String(computedColorKeys[cki] || "").trim();
+      if (ck) { availableAreasMap[ck] = true; }
+    }
+    for (var csi = 0; csi < computedSchemaKeys.length; csi += 1) {
+      var sk = String(computedSchemaKeys[csi] || "").trim();
+      if (sk) { availableAreasMap[sk] = true; }
+    }
+    for (var cti = 0; cti < computedThemeKeys.length; cti += 1) {
+      var tk = String(computedThemeKeys[cti] || "").trim();
+      if (tk) { availableAreasMap[tk] = true; }
+    }
+    var availableAreas = Object.keys(availableAreasMap);
+    availableAreas.sort();
+    var areaDefaults = {};
+    for (var adi = 0; adi < availableAreas.length; adi += 1) {
+      var area = String(availableAreas[adi] || "").trim();
+      if (!area) { continue; }
+      var themeDefault = String(computedThemeAssignments[area] || "").trim();
+      var colorDefault = String(computedColorAssignments[area] || "").trim();
+      areaDefaults[area] = themeDefault || colorDefault || "inherit";
+    }
+
+    return {
+      source: src,
+      hasLocal: {
+        "q-color": localColorBlocks.length > 0,
+        "q-color-schema": localSchemaBlocks.length > 0,
+        "q-color-theme": localThemeBlocks.length > 0
+      },
+      local: {
+        "q-color": localColorBlocks.map(function each(block) { return block.text; }).join("\n\n").trim(),
+        "q-color-schema": localSchemaBlocks.map(function each(block) { return block.text; }).join("\n\n").trim(),
+        "q-color-theme": localThemeBlocks.map(function each(block) { return block.text; }).join("\n\n").trim()
+      },
+      editable: {
+        "q-color": localColorBlocks.length > 0,
+        "q-color-schema": localSchemaBlocks.length > 0,
+        "q-color-theme": localThemeBlocks.length > 0
+      },
+      computed: {
+        "q-color": computedColorsText,
+        "q-color-schema": computedSchemaText,
+        "q-color-theme": computedThemeText
+      },
+      availableAreas: availableAreas,
+      areaDefaults: areaDefaults
+    };
+  }
+
   function getCoreApi() {
     try {
       var globalRef = this.getGlobalRef();
@@ -1644,7 +2387,7 @@ q-component q-builder {
     try {
       var s = this.state();
       var toolbar = this.querySelector("[q-builder-toolbar='1']");
-      if (!toolbar || !s.selectedEl || this.isModalVisible()) {
+      if (!toolbar || !s.selectedEl || this.isAnyModalVisible()) {
         this.hideToolbar();
         return;
       }
@@ -1672,6 +2415,220 @@ q-component q-builder {
     } catch (error) {
       this.logIssue("isModalVisible failed", error);
       return false;
+    }
+  }
+
+  function isColorsModalVisible() {
+    try {
+      var modal = this.querySelector("q-modal[q-builder-colors-modal='1']");
+      var root = modal ? modal.querySelector("[q-modal-root='1'], .w3-modal") : null;
+      if (!root) { return false; }
+      var inlineDisplay = String((root.style && root.style.display) || "").toLowerCase();
+      if (inlineDisplay) { return inlineDisplay !== "none"; }
+      var css = typeof getComputedStyle === "function" ? getComputedStyle(root) : null;
+      return !!css && String(css.display || "").toLowerCase() !== "none";
+    } catch (error) {
+      this.logIssue("isColorsModalVisible failed", error);
+      return false;
+    }
+  }
+
+  function isAnyModalVisible() {
+    return this.isModalVisible() || this.isColorsModalVisible();
+  }
+
+  function hideQEditorNonColorTabs(editor) {
+    try {
+      if (!editor || !editor.querySelectorAll) { return; }
+      var hiddenTabs = editor.querySelectorAll(".qe-tab[data-tab='html'], .qe-tab[data-tab='preview']");
+      this.applyStylesToCollection(hiddenTabs, { display: "none" }, "hideQEditorNonColorTabs tabs failed");
+      var hiddenPanels = editor.querySelectorAll(".qe-panel[data-tab='html'], .qe-panel[data-tab='preview']");
+      this.applyStylesToCollection(hiddenPanels, { display: "none" }, "hideQEditorNonColorTabs panels failed");
+      var htmlCopyButtons = editor.querySelectorAll("[data-copy='html']");
+      this.applyStylesToCollection(htmlCopyButtons, { display: "none" }, "hideQEditorNonColorTabs copy failed");
+      var qhtmlTab = editor.querySelector(".qe-tab[data-tab='qhtml']");
+      if (qhtmlTab && typeof qhtmlTab.click === "function") {
+        qhtmlTab.click();
+      }
+    } catch (error) {
+      this.logIssue("hideQEditorNonColorTabs failed", error);
+    }
+  }
+
+  function setColorEditorReadOnly(editor, readOnly) {
+    try {
+      if (!editor || !editor.querySelector) { return; }
+      var enabled = !readOnly;
+      editor.setAttribute("q-builder-colors-readonly", readOnly ? "1" : "0");
+      var input = editor.querySelector(".qe-input");
+      if (input) {
+        input.readOnly = !enabled;
+        input.disabled = !enabled;
+        this.applyStyles(input, { pointerEvents: enabled ? "auto" : "none" }, "setColorEditorReadOnly input failed");
+      }
+      var cmContent = editor.querySelector(".cm-content");
+      if (cmContent) {
+        cmContent.setAttribute("contenteditable", enabled ? "true" : "false");
+        this.applyStyles(cmContent, { pointerEvents: enabled ? "auto" : "none" }, "setColorEditorReadOnly cm failed");
+      }
+      var wraps = editor.querySelectorAll(".qe-editor-wrap, .qe-cm-host");
+      this.applyStylesToCollection(wraps, {
+        opacity: enabled ? "1" : "0.82",
+        filter: enabled ? "none" : "saturate(0.7)"
+      }, "setColorEditorReadOnly wraps failed");
+    } catch (error) {
+      this.logIssue("setColorEditorReadOnly failed", error);
+    }
+  }
+
+  function configureColorEditor(editor, source, readOnly) {
+    try {
+      if (!editor) { return; }
+      if (typeof editor.setQhtmlSource === "function") {
+        editor.setQhtmlSource(String(source || "").trim() || "div { }");
+      }
+      this.hideQEditorNonColorTabs(editor);
+      this.setColorEditorReadOnly(editor, !!readOnly);
+    } catch (error) {
+      this.logIssue("configureColorEditor failed", error);
+    }
+  }
+
+  function setColorsTabContent(editContext) {
+    try {
+      var ctx = editContext && typeof editContext === "object" ? editContext : null;
+      if (!ctx) { return; }
+      var keywords = ["q-color", "q-color-schema", "q-color-theme"];
+      for (var i = 0; i < keywords.length; i += 1) {
+        var keyword = keywords[i];
+        var computedNode = this.querySelector("[q-builder-colors-computed='" + keyword + "']");
+        if (computedNode) {
+          computedNode.textContent = String(ctx.computed && ctx.computed[keyword] || "").trim();
+        }
+        var statusNode = this.querySelector("[q-builder-colors-status='" + keyword + "']");
+        if (statusNode) {
+          statusNode.textContent = ctx.editable && ctx.editable[keyword]
+            ? "Local " + keyword + " block detected. This editor is writable."
+            : "Local " + keyword + " block not defined on selected element. Showing computed read-only source.";
+        }
+        var editorNode = this.querySelector("q-editor[q-builder-colors-editor='" + keyword + "']");
+        var localSource = String(ctx.local && ctx.local[keyword] || "").trim();
+        var computedSource = String(ctx.computed && ctx.computed[keyword] || "").trim();
+        var sourceText = localSource || computedSource || (keyword + " { }");
+        var readOnly = !(ctx.editable && ctx.editable[keyword]);
+        this.configureColorEditor(editorNode, sourceText, readOnly);
+      }
+      var customizeButton = this.querySelector("[q-builder-colors-theme-customize='1']");
+      if (customizeButton) {
+        customizeButton.textContent = ctx.editable && ctx.editable["q-color-theme"] ? "Theme Editable" : "Customize Theme";
+      }
+      this.updateColorAreaPicker(ctx);
+    } catch (error) {
+      this.logIssue("setColorsTabContent failed", error);
+    }
+  }
+
+  function updateColorAreaPicker(editContext) {
+    try {
+      var ctx = editContext && typeof editContext === "object" ? editContext : null;
+      var selectNode = this.querySelector("[q-builder-colors-area-select='1']");
+      if (!ctx || !selectNode) { return; }
+      var list = Array.isArray(ctx.availableAreas) ? ctx.availableAreas.slice() : [];
+      list.sort();
+      while (selectNode.firstChild) { selectNode.removeChild(selectNode.firstChild); }
+      var placeholder = (this.ownerDocument || document).createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Select color area...";
+      selectNode.appendChild(placeholder);
+      for (var i = 0; i < list.length; i += 1) {
+        var areaName = String(list[i] || "").trim();
+        if (!areaName) { continue; }
+        var opt = (this.ownerDocument || document).createElement("option");
+        opt.value = areaName;
+        opt.textContent = areaName;
+        selectNode.appendChild(opt);
+      }
+      selectNode.value = "";
+    } catch (error) {
+      this.logIssue("updateColorAreaPicker failed", error);
+    }
+  }
+
+  function addColorAreaToEditor() {
+    try {
+      var s = this.state();
+      var ctx = s.colorsEditContext && typeof s.colorsEditContext === "object" ? s.colorsEditContext : null;
+      if (!ctx) { return; }
+      var selectNode = this.querySelector("[q-builder-colors-area-select='1']");
+      var selectedArea = selectNode ? String(selectNode.value || "").trim() : "";
+      if (!selectedArea) { return; }
+      var editorNode = this.querySelector("q-editor[q-builder-colors-editor='q-color']");
+      if (!editorNode || typeof editorNode.getQhtmlSource !== "function" || typeof editorNode.setQhtmlSource !== "function") { return; }
+      var areas = [];
+      if (ctx.hasLocal && ctx.hasLocal["q-color"]) {
+        var currentSource = String(editorNode.getQhtmlSource() || "").trim();
+        areas = this.parseQColorAreasFromSource(currentSource);
+        if (!areas.length) {
+          areas = this.parseQColorAreasFromSource(String(ctx.local && ctx.local["q-color"] || "").trim());
+        }
+      }
+      for (var ai = 0; ai < areas.length; ai += 1) {
+        if (String(areas[ai] || "").trim() === selectedArea) { return; }
+      }
+      areas.push(selectedArea);
+      var nextColorSource = this.formatQColorAreaList(areas);
+      editorNode.setQhtmlSource(nextColorSource);
+      this.hideQEditorNonColorTabs(editorNode);
+      this.setColorEditorReadOnly(editorNode, false);
+      ctx.local["q-color"] = nextColorSource;
+      ctx.editable["q-color"] = true;
+      ctx.hasLocal["q-color"] = true;
+      if (!ctx.availableAreas || !Array.isArray(ctx.availableAreas)) { ctx.availableAreas = []; }
+      if (ctx.availableAreas.indexOf(selectedArea) === -1) { ctx.availableAreas.push(selectedArea); }
+      s.colorsEditContext = ctx;
+      this.setColorsTabContent(ctx);
+    } catch (error) {
+      this.logIssue("addColorAreaToEditor failed", error);
+    }
+  }
+
+  function customizeThemeForSelected() {
+    try {
+      var s = this.state();
+      var ctx = s.colorsEditContext && typeof s.colorsEditContext === "object" ? s.colorsEditContext : null;
+      if (!ctx || !s.target) { return; }
+      if (ctx.editable && ctx.editable["q-color-theme"]) {
+        this.setColorsTabContent(ctx);
+        return;
+      }
+      var themeSource = String(ctx.computed && ctx.computed["q-color-theme"] || "").trim();
+      if (!themeSource) { themeSource = "q-color-theme { }"; }
+      var nextSource = this.upsertTopLevelKeywordBlock(ctx.source, "q-color-theme", themeSource);
+      var root = this.qroot();
+      var host = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
+      if (!s.target || typeof s.target.replaceWithQHTML !== "function" || !root) { return; }
+      var replacement = s.target.replaceWithQHTML(nextSource, root);
+      if (replacement) {
+        if (replacement && typeof replacement === "object") {
+          s.target = replacement;
+        }
+        s.source = nextSource;
+        this.touchMutationNonce(host, replacement && typeof replacement === "object" ? replacement : s.target);
+        this.requestHostUpdate(host, null);
+        this.refreshPalette(host);
+      } else {
+        return;
+      }
+      var nextCtx = this.buildColorsEditContext(nextSource, s.target, host, s.selectedEl);
+      nextCtx.local["q-color-theme"] = themeSource;
+      nextCtx.editable["q-color-theme"] = true;
+      nextCtx.hasLocal["q-color-theme"] = true;
+      s.colorsEditContext = nextCtx;
+      this.setColorsTabContent(nextCtx);
+      var themeEditor = this.querySelector("q-editor[q-builder-colors-editor='q-color-theme']");
+      this.setColorEditorReadOnly(themeEditor, false);
+    } catch (error) {
+      this.logIssue("customizeThemeForSelected failed", error);
     }
   }
 
@@ -1738,6 +2695,173 @@ q-component q-builder {
     }
   }
 
+  function ensureColorsModalLayout() {
+    try {
+      var modal = this.querySelector("q-modal[q-builder-colors-modal='1']");
+      if (!modal) { return; }
+      var root = modal.querySelector("[q-modal-root='1'], .w3-modal");
+      var content = modal.querySelector(".w3-modal-content");
+      var body = modal.querySelector(".w3-container.w3-section");
+      var footer = modal.querySelector(".w3-container.w3-border-top");
+      this.applyStyles(root, { zIndex: "6100", overflow: "auto", paddingTop: "3vh" }, "colors modal root layout failed");
+      this.applyStyles(content, {
+        display: "flex",
+        flexDirection: "column",
+        width: "auto",
+        height: "auto",
+        minWidth: "420px",
+        minHeight: "280px",
+        resize: "both",
+        overflow: "hidden",
+        margin: "0 auto"
+      }, "colors modal content layout failed");
+      this.applyStyles(body, { flex: "1 1 auto", overflow: "auto", padding: "12px" }, "colors modal body layout failed");
+      this.applyStyles(footer, { flex: "0 0 auto" }, "colors modal footer layout failed");
+      var tabs = modal.querySelector("[q-builder-colors-tabs='1']");
+      this.applyStyles(tabs, { display: "block", width: "100%" }, "colors modal tabs layout failed");
+      var editors = modal.querySelectorAll("q-editor[q-builder-colors-editor]");
+      this.applyStylesToCollection(editors, {
+        display: "block",
+        width: "100%",
+        height: "100%",
+        minHeight: "16rem"
+      }, "colors modal editors failed");
+      for (var i = 0; i < editors.length; i += 1) {
+        this.hideQEditorNonColorTabs(editors[i]);
+      }
+    } catch (error) {
+      this.logIssue("ensureColorsModalLayout failed", error);
+    }
+  }
+
+  function fitColorsModalToContent() {
+    try {
+      var modal = this.querySelector("q-modal[q-builder-colors-modal='1']");
+      var content = modal ? modal.querySelector(".w3-modal-content") : null;
+      if (!content) { return; }
+      var viewportW = typeof window !== "undefined" && window && window.innerWidth ? window.innerWidth : 1200;
+      var viewportH = typeof window !== "undefined" && window && window.innerHeight ? window.innerHeight : 800;
+      var maxW = Math.max(560, Math.floor(viewportW * 0.9));
+      var maxH = Math.max(320, Math.floor(viewportH * 0.85));
+      this.applyStyles(content, { width: "auto", height: "auto" }, "fitColorsModalToContent pre-measure failed");
+      var naturalW = Math.ceil(content.scrollWidth || 0);
+      var naturalH = Math.ceil(content.scrollHeight || 0);
+      var nextW = Math.max(560, Math.min(maxW, naturalW || maxW));
+      var nextH = Math.max(320, Math.min(maxH, naturalH || maxH));
+      this.applyStyles(content, { width: nextW + "px", height: nextH + "px" }, "fitColorsModalToContent sizing failed");
+    } catch (error) {
+      this.logIssue("fitColorsModalToContent failed", error);
+    }
+  }
+
+  function setColorsOpen(openFlag) {
+    try {
+      var s = this.state();
+      s.colorsModalOpen = !!openFlag;
+      if (!openFlag) { s.colorsEditContext = null; }
+      if (openFlag) { this.hideToolbar(); }
+      var modal = this.querySelector("q-modal[q-builder-colors-modal='1']");
+      if (!modal) {
+        if (!openFlag) { this.positionToolbar(); }
+        return;
+      }
+      if (openFlag && typeof modal.show === "function") {
+        modal.show();
+        this.ensureColorsModalLayout();
+        this.fitColorsModalToContent();
+        var self = this;
+        setTimeout(function() { self.ensureColorsModalLayout(); self.fitColorsModalToContent(); }, 0);
+        return;
+      }
+      if (!openFlag && typeof modal.hide === "function") {
+        modal.hide();
+        this.positionToolbar();
+        return;
+      }
+      var root = modal.querySelector ? modal.querySelector("[q-modal-root='1'], .w3-modal") : null;
+      this.applyStyles(root, { display: openFlag ? "block" : "none" }, "setColorsOpen root fallback failed");
+      if (openFlag) {
+        this.ensureColorsModalLayout();
+        this.fitColorsModalToContent();
+      } else {
+        this.positionToolbar();
+      }
+    } catch (error) {
+      this.logIssue("setColorsOpen failed", error);
+    }
+  }
+
+  function openColors() {
+    try {
+      var s = this.state();
+      if (s.selectedEl) { this.setTarget(s.selectedEl); }
+      if (!s.target) { return; }
+      var host = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
+      var editContext = this.buildColorsEditContext(s.source, s.target, host, s.selectedEl);
+      s.colorsEditContext = editContext;
+      this.setColorsTabContent(editContext);
+      this.setOpen(false);
+      this.setColorsOpen(true);
+    } catch (error) {
+      this.logIssue("openColors failed", error);
+    }
+  }
+
+  function saveColors() {
+    try {
+      var s = this.state();
+      var editContext = s.colorsEditContext && typeof s.colorsEditContext === "object" ? s.colorsEditContext : null;
+      if (!editContext || !s.target) {
+        s.colorsEditContext = null;
+        this.setColorsOpen(false);
+        return;
+      }
+      var nextSource = String(editContext.source || "").trim();
+      var keywords = ["q-color", "q-color-schema", "q-color-theme"];
+      for (var i = 0; i < keywords.length; i += 1) {
+        var keyword = keywords[i];
+        if (!(editContext.editable && editContext.editable[keyword])) { continue; }
+        var editorNode = this.querySelector("q-editor[q-builder-colors-editor='" + keyword + "']");
+        var editorSource = editorNode && typeof editorNode.getQhtmlSource === "function"
+          ? String(editorNode.getQhtmlSource() || "").trim()
+          : "";
+        var blockSource = editorSource || (keyword + " { }");
+        nextSource = this.upsertTopLevelKeywordBlock(nextSource, keyword, blockSource);
+      }
+      if (!nextSource) {
+        s.colorsEditContext = null;
+        this.setColorsOpen(false);
+        return;
+      }
+      if (String(nextSource).trim() === String(editContext.source || "").trim()) {
+        s.colorsEditContext = null;
+        this.setColorsOpen(false);
+        return;
+      }
+      var root = this.qroot();
+      var host = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
+      if (!s.target || typeof s.target.replaceWithQHTML !== "function" || !root) {
+        s.colorsEditContext = null;
+        this.setColorsOpen(false);
+        return;
+      }
+      var replaced = s.target.replaceWithQHTML(nextSource, root);
+      if (replaced) {
+        if (replaced && typeof replaced === "object") {
+          s.target = replaced;
+        }
+        s.source = nextSource;
+        this.touchMutationNonce(host, replaced && typeof replaced === "object" ? replaced : s.target);
+        this.requestHostUpdate(host, null);
+        this.refreshPalette(host);
+      }
+      s.colorsEditContext = null;
+      this.setColorsOpen(false);
+    } catch (error) {
+      this.logIssue("saveColors failed", error);
+    }
+  }
+
   function setHoverElement(element) {
     var s = this.state();
     var next = element || null;
@@ -1767,7 +2891,10 @@ q-component q-builder {
       s.modalOpen = !!openFlag;
       var ui = this.ensureUi();
       if (ui) { ui.setAttribute("q-builder-open", openFlag ? "1" : "0"); }
-      if (openFlag) { this.hideToolbar(); }
+      if (openFlag) {
+        this.hideToolbar();
+        this.setColorsOpen(false);
+      }
       var modal = this.querySelector("q-modal[q-builder-modal='1']");
       if (!modal) {
         if (!openFlag) { this.positionToolbar(); }
@@ -1806,6 +2933,8 @@ q-component q-builder {
       s.host = host && host.nodeType === 1 ? host : null;
       this.refreshPalette(s.host);
       if (!s.inspect) {
+        this.setOpen(false);
+        this.setColorsOpen(false);
         this.setHoverElement(null);
         this.setSelectedElement(null);
         this.clearPaletteDropTarget();
@@ -1833,6 +2962,7 @@ q-component q-builder {
     if (s.selectedEl) { this.setTarget(s.selectedEl); }
     var editor = this.querySelector("[q-builder-editor='1']");
     if (editor && typeof editor.setQhtmlSource === "function") { editor.setQhtmlSource(s.source); }
+    this.setColorsOpen(false);
     this.setOpen(true);
   }
 
@@ -1958,17 +3088,23 @@ q-component q-builder {
     this.__qBuilderReady = true;
     this.ensureUi();
     this.ensureModalLayout();
+    this.ensureColorsModalLayout();
     this.refreshPalette();
     var self = this;
 
     this.addEventListener("click", function(event) {
       var closeTrigger = event.target && event.target.closest ? event.target.closest("[q-modal-close-trigger='1']") : null;
-      if (closeTrigger) { self.setOpen(false); }
+      if (closeTrigger) { self.setOpen(false); self.setColorsOpen(false); }
       var node = event.target && event.target.closest ? event.target.closest("[q-builder-action]") : null;
       var action = node ? String(node.getAttribute("q-builder-action") || "") : "";
       if (action === "open") { self.openSelected(); }
+      if (action === "open-colors") { self.openColors(); }
       if (action === "save") { self.save(); }
       if (action === "close") { self.setOpen(false); }
+      if (action === "save-colors") { self.saveColors(); }
+      if (action === "close-colors") { self.setColorsOpen(false); }
+      if (action === "customize-theme") { self.customizeThemeForSelected(); }
+      if (action === "add-color-area") { self.addColorAreaToEditor(); }
     });
 
     var globalRef = this.getGlobalRef();

@@ -1,4 +1,17 @@
 q-component q-modal {
+  q-color-schema {
+    q-modal-container-bg { background-color }
+    q-modal-titlebar-bg { background-color }
+    q-modal-closebutton-bg { background-color }
+    q-modal-container-fg { color }
+    q-modal-footer-bg { background-color }
+    q-modal-content-bg { background-color }
+    q-modal-content-fg { color }
+    q-modal-titlebar-fg { color }
+    q-modal-title-bg { background-color }
+    q-modal-title-fg { color }
+  }
+
   q-property { isOpen }
   isOpen: false
 
@@ -33,17 +46,21 @@ q-component q-modal {
     style { display: none; }
 
     div.w3-modal-content.w3-card-4.w3-animate-zoom {
+      q-color { q-modal-container-bg q-modal-container-fg }
       style { max-width: 600px; }
 
       div.w3-center {
+        q-color { q-modal-titlebar-bg q-modal-titlebar-fg }
         br { }
-        span.w3-button.w3-xlarge.w3-hover-red.w3-display-topright {
+        span.w3-button.w3-xlarge.w3-display-topright {
           q-modal-close-trigger: "1"
           title: "Close Modal"
+          q-color { q-modal-closebutton-bg q-modal-titlebar-fg }
           onclick { this.closest("q-modal").hide(); }
           html { &times; }
         }
-        div.w3-margin-top.w3-large.w3-text-theme {
+        div.w3-margin-top.w3-large {
+          q-color { q-modal-title-bg q-modal-title-fg }
           slot { title }
           slot { heading }
           slot { header }
@@ -51,12 +68,14 @@ q-component q-modal {
       }
 
       div.w3-container.w3-section {
+        q-color { q-modal-content-bg q-modal-content-fg }
         slot { body }
         slot { main }
         slot { content }
       }
 
-      div.w3-container.w3-border-top.w3-padding-16.w3-light-grey {
+      div.w3-container.w3-border-top.w3-padding-16 {
+        q-color { q-modal-footer-bg q-modal-container-fg }
         slot { bottom }
         slot { footer }
         slot { foot }

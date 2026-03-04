@@ -58,6 +58,19 @@ q-macro quick-note {
   }
 }
 
+q-color-schema {
+  area { panel-background panel-foreground panel-border }
+  panel-background { background-color }
+  panel-foreground { color }
+  panel-border { border-color }
+}
+
+q-color-theme panel {
+  panel-background: #182A21,
+  panel-foreground: #F5FFF9,
+  panel-border: #2A5A49
+}
+
 q-component toggle-builder-button {
   q-signal toggleBuilder()
 
@@ -120,6 +133,14 @@ div.w3-container.w3-title.w3-header.w3-xlarge.w3-green {
   html { Hello world }
 }
 quick-note { message { q-macro is active in test.html } }
+div.w3-container.w3-margin-top {
+  panel { panel-border: #9A7EF7 }
+  div#qcolor-demo.w3-padding.w3-round-large.w3-border {
+    q-color { panel-background panel-foreground panel-border }
+    h4 { text { q-color demo } }
+    p { text { q-color-schema + q-color-theme + q-color are active. } }
+  }
+}
 div.w3-threequarter.w3-light-grey,q-tabs {
   id: "demo-tabs"
   q-tab.w3-light-grey {
@@ -202,16 +223,16 @@ div.w3-quarter.w3-nav.w3-col.w3-right.w3-padding {
         toggle-builder-button {
           onReady {
             try {
-              var host = this.component && this.component.closest ? this.component.closest("q-html") : null;
+              var host = this.closest ? this.closest("q-html") : null;
               var builder = host && host.querySelector ? host.querySelector("q-builder[q-builder-runtime='1']") : null;
               if (!builder && typeof document !== "undefined" && document && document.querySelector) {
                 builder = document.querySelector("q-builder[q-builder-runtime='1']");
               }
-              if (builder && typeof builder.toggle === "function" && this.component && this.component.toggleBuilder && typeof this.component.toggleBuilder.connect === "function") {
-                this.component.toggleBuilder.connect(builder.toggle);
-                this.component.setAttribute("data-toggle-connected", "1");
+              if (builder && typeof builder.toggle === "function" && this.toggleBuilder && typeof this.toggleBuilder.connect === "function") {
+                this.toggleBuilder.connect(builder.toggle);
+                this.setAttribute("data-toggle-connected", "1");
               } else {
-                this.component.setAttribute("data-toggle-connected", "0");
+                this.setAttribute("data-toggle-connected", "0");
               }
             } catch (evt) {
               try { console.log("Cannot connect toggle-builder-button", evt); } catch (ignoredLog) { }

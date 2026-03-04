@@ -11,7 +11,7 @@
   <style>
     :root {
       --bg: #eef3fb;
-      --paper: #ffffff;
+      --paper: rgb(238, 243, 251);
       --ink: #0f172a;
       --muted: #51617d;
       --line: #d7dfeb;
@@ -188,10 +188,15 @@
         </div>
         <div class="example-body">
           <q-editor>
+q-import { q-components/q-defaults.qhtml }
+default-color-schema { }
+default-color-theme { }
+
 q-keyword component { q-component }
 
 component tiny-card {
   div.w3-card.w3-padding {
+    q-color { tiny-card-bg tiny-card-fg tiny-card-border }
     text { Tiny Card }
   }
 }
@@ -208,6 +213,10 @@ tiny-card { }
         </div>
         <div class="example-body">
           <q-editor>
+q-import { q-components/q-defaults.qhtml }
+default-color-schema { }
+default-color-theme { }
+
 q-import { q-components/q-modal.qhtml }
 q-import { q-components/q-builder.qhtml }
 
@@ -226,11 +235,16 @@ q-builder {
 
 div.w3-container.w3-border.w3-round-large.w3-padding.w3-margin-top {
   h4 { text { Builder Demo } }
-  div.w3-panel.w3-pale-blue.w3-border.w3-round-large.w3-margin-top {
+  div.w3-panel.w3-border.w3-round-large.w3-margin-top {
+    q-color { demo-builder-preview-bg demo-builder-preview-fg demo-builder-preview-border }
     id: "builder-preview-root"
     h4 { text { Preview Scope } }
     p { text { q-builder is always enabled in this example. Click here to inspect/edit. } }
-    button.w3-button.w3-small.w3-indigo { type: "button" text { Inner Action } }
+    button.w3-button.w3-small {
+      q-color { demo-builder-action-bg demo-builder-action-fg demo-builder-action-border }
+      type: "button"
+      text { Inner Action }
+    }
   }
 }
           </q-editor>
@@ -244,12 +258,17 @@ div.w3-container.w3-border.w3-round-large.w3-padding.w3-margin-top {
         </div>
         <div class="example-body">
           <q-editor>
+q-import { q-components/q-defaults.qhtml }
+default-color-schema { }
+default-color-theme { }
+
 q-import { q-components/q-modal.qhtml }
 q-import { q-components/q-form.qhtml }
 q-import { q-components/q-grid.qhtml }
 q-import { q-components/q-checkout-modal.qhtml?v=cart-fix-3 }
 
-button.w3-button.w3-indigo {
+button.w3-button {
+  q-color { checkout-open-btn-bg checkout-open-btn-fg checkout-open-btn-border }
   text { Open Checkout Modal }
   onclick {
     var modal = document.querySelector("#checkout-usage");
@@ -272,6 +291,10 @@ q-checkout-modal { id: "checkout-usage" }
         </div>
         <div class="example-body">
           <q-editor>
+q-import { q-components/q-defaults.qhtml }
+default-color-schema { }
+default-color-theme { }
+
 q-import { q-components/q-form.qhtml }
 q-import { q-components/q-grid.qhtml }
 q-import { q-components/q-modal.qhtml }
@@ -295,6 +318,10 @@ q-estore {
         </div>
         <div class="example-body">
           <q-editor>
+q-import { q-components/q-defaults.qhtml }
+default-color-schema { }
+default-color-theme { }
+
 q-import { q-components/q-form.qhtml }
 
 q-form {
@@ -315,13 +342,17 @@ q-form {
         </div>
         <div class="example-body">
           <q-editor>
+q-import { q-components/q-defaults.qhtml }
+default-color-schema { }
+default-color-theme { }
+
 q-import { q-components/q-grid.qhtml }
 
 q-grid {
   columns: 3;
-  div.w3-panel.w3-pale-blue { text { Cell A } }
-  div.w3-panel.w3-pale-green { text { Cell B } }
-  div.w3-panel.w3-pale-yellow { text { Cell C } }
+  div.w3-panel.w3-border { q-color { grid-cell-a-bg grid-cell-fg grid-cell-border } text { Cell A } }
+  div.w3-panel.w3-border { q-color { grid-cell-b-bg grid-cell-fg grid-cell-border } text { Cell B } }
+  div.w3-panel.w3-border { q-color { grid-cell-c-bg grid-cell-fg grid-cell-border } text { Cell C } }
 }
           </q-editor>
         </div>
@@ -334,9 +365,14 @@ q-grid {
         </div>
         <div class="example-body">
           <q-editor>
+q-import { q-components/q-defaults.qhtml }
+default-color-schema { }
+default-color-theme { }
+
 q-import { q-components/q-modal.qhtml }
 
-button.w3-button.w3-blue {
+button.w3-button {
+  q-color { modal-open-btn-bg modal-open-btn-fg modal-open-btn-border }
   text { Open Modal }
   onclick { document.querySelector("#modal-usage").show(); }
 }
@@ -344,7 +380,13 @@ q-modal {
   id: "modal-usage"
   title { h3 { text { q-modal Usage } } }
   body { p { text { Modal body content from slots. } } }
-  footer { button.w3-button.w3-red { text { Close } onclick { this.component.hide(); } } }
+  footer {
+    button.w3-button {
+      q-color { modal-close-btn-bg modal-close-btn-fg modal-close-btn-border }
+      text { Close }
+      onclick { this.component.hide(); }
+    }
+  }
 }
           </q-editor>
         </div>
@@ -357,11 +399,16 @@ q-modal {
         </div>
         <div class="example-body">
           <q-editor>
+q-import { q-components/q-defaults.qhtml }
+default-color-schema { }
+default-color-theme { }
+
 q-import { q-components/q-sidebar.qhtml?v=drawer-width }
 
 div.w3-container.w3-border.w3-round-large {
   style { position: relative; height: 240px; overflow: hidden; padding: 8px; }
-  button.w3-button.w3-black.w3-margin-bottom {
+  button.w3-button.w3-margin-bottom {
+    q-color { sidebar-toggle-btn-bg sidebar-toggle-btn-fg sidebar-toggle-btn-border }
     text { Toggle Sidebar }
     onclick { this.closest("div").querySelector("q-sidebar").toggle(); }
   }
@@ -370,7 +417,8 @@ div.w3-container.w3-border.w3-round-large {
     collapsedWidth: "2vw"
     open: "1"
     content {
-      div.w3-bar-block.w3-light-grey.w3-padding {
+      div.w3-bar-block.w3-padding.w3-border {
+        q-color { sidebar-content-bg sidebar-content-fg sidebar-content-border }
         h4 { text { Sidebar } }
         a.w3-bar-item.w3-button { text { Nav Item 1 } }
         a.w3-bar-item.w3-button { text { Nav Item 2 } }
@@ -395,12 +443,17 @@ div.w3-container.w3-border.w3-round-large {
         </div>
         <div class="example-body">
           <q-editor>
+q-import { q-components/q-defaults.qhtml }
+default-color-schema { }
+default-color-theme { }
+
 q-import { q-components/q-form.qhtml }
 q-import { q-components/q-grid.qhtml }
 q-import { q-components/q-store-catalog-item.qhtml?v=cart-fix-2 }
 q-import { q-components/q-store-catalog.qhtml?v=cart-fix-2 }
 
-button.w3-button.w3-green.w3-margin-bottom {
+button.w3-button.w3-margin-bottom {
+  q-color { catalog-add-btn-bg catalog-add-btn-fg catalog-add-btn-border }
   text { Add Sample Item }
   onclick { document.querySelector("#catalog-usage").addCatalogItem({ name: "Demo Item", description: "Added via method", price: 11.25 }); }
 }
@@ -416,6 +469,10 @@ q-store-catalog { id: "catalog-usage" }
         </div>
         <div class="example-body">
           <q-editor>
+q-import { q-components/q-defaults.qhtml }
+default-color-schema { }
+default-color-theme { }
+
 q-import { q-components/q-store-catalog-item.qhtml?v=cart-fix-2 }
 
 q-store-catalog-item {
@@ -435,11 +492,16 @@ q-store-catalog-item {
         </div>
         <div class="example-body">
           <q-editor>
+q-import { q-components/q-defaults.qhtml }
+default-color-schema { }
+default-color-theme { }
+
 q-import { q-components/q-popup-menu.qhtml }
 
 div.w3-container.w3-border.w3-round-large.w3-padding {
   h4 { text { Right-click inside the dashed area } }
-  div.w3-panel.w3-pale-blue.w3-border-dashed.w3-round-large {
+  div.w3-panel.w3-border-dashed.w3-round-large {
+    q-color { popup-zone-bg popup-zone-fg popup-zone-border }
     id: "ctx-zone"
     style { min-height: 140px; }
     p { text { This context menu is scoped to this panel only. } }
@@ -455,7 +517,7 @@ div.w3-container.w3-border.w3-round-large.w3-padding {
       }
     }
   }
-  p.w3-small.w3-text-grey { id: "ctx-log" text { Last click: none } }
+  p.w3-small { q-color { popup-log-fg } id: "ctx-log" text { Last click: none } }
 }
 onReady {
   var menu = this.querySelector("#ctx-usage");
@@ -475,9 +537,14 @@ onReady {
         </div>
         <div class="example-body">
           <q-editor>
+q-import { q-components/q-defaults.qhtml }
+default-color-schema { }
+default-color-theme { }
+
 q-import { q-components/q-tabs.qhtml }
 
-button.w3-button.w3-teal.w3-margin-bottom {
+button.w3-button.w3-margin-bottom {
+  q-color { tabs-show-btn-bg tabs-show-btn-fg tabs-show-btn-border }
   text { Show Tab 3 }
   onclick { document.querySelector("#tabs-usage").showTab(2); }
 }
@@ -498,10 +565,14 @@ q-tabs {
         </div>
         <div class="example-body">
           <q-editor>
+q-import { q-components/q-defaults.qhtml }
+default-color-schema { }
+default-color-theme { }
+
 q-import { q-components/q-tech-tag.qhtml }
 
 q-tech-tag { text { Extend this tag by adding definitions inside q-tech-tag.qhtml. } }
-div.w3-panel.w3-pale-yellow.w3-small { text { q-tech-tag.qhtml currently has no built-in definitions. } }
+div.w3-panel.w3-small.w3-border { q-color { tech-note-bg tech-note-fg tech-note-border } text { q-tech-tag.qhtml currently has no built-in definitions. } }
           </q-editor>
         </div>
       </section>

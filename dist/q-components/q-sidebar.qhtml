@@ -1,4 +1,13 @@
 q-component q-sidebar {
+  q-color-schema {
+    q-sidebar-panel-bg { background-color }
+    q-sidebar-panel-fg { color }
+    q-sidebar-panel-border { border-color }
+    q-sidebar-toggle-bg { background-color }
+    q-sidebar-toggle-fg { color }
+    q-sidebar-toggle-border { border-color }
+  }
+
   q-property open: "1"
   q-property sidebarWidth: "260"
   q-property collapsedWidth: "2vw"
@@ -101,12 +110,13 @@ q-component q-sidebar {
         min-height: 1px;
         transition: grid-template-columns 220ms ease;
       }
-      aside.w3-light-grey {
+      aside {
         q-sidebar-panel: "1"
+        q-color { q-sidebar-panel-bg q-sidebar-panel-fg q-sidebar-panel-border }
         style {
           min-width: 0;
           overflow: hidden;
-          border-right: 1px solid #d7dfeb;
+          border-right: 1px solid transparent;
           transition: opacity 140ms ease;
         }
         slot { content }
@@ -118,9 +128,10 @@ q-component q-sidebar {
       }
     }
 
-    button.w3-button.w3-black {
+    button.w3-button {
       q-sidebar-toggle: "1"
       type: "button"
+      q-color { q-sidebar-toggle-bg q-sidebar-toggle-fg q-sidebar-toggle-border }
       style {
         position: absolute;
         top: 8px;

@@ -1,0 +1,241 @@
+q-color-schema default-color-schema {
+  catalog-add-btn-bg { background-color }
+  catalog-add-btn-border { border-color }
+  catalog-add-btn-fg { color }
+  checkout-open-btn-bg { background-color }
+  checkout-open-btn-border { border-color }
+  checkout-open-btn-fg { color }
+  demo-builder-action-bg { background-color }
+  demo-builder-action-border { border-color }
+  demo-builder-action-fg { color }
+  demo-builder-preview-bg { background-color }
+  demo-builder-preview-border { border-color }
+  demo-builder-preview-fg { color }
+  grid-cell-a-bg { background-color }
+  grid-cell-b-bg { background-color }
+  grid-cell-border { border-color }
+  grid-cell-c-bg { background-color }
+  grid-cell-fg { color }
+  modal-close-btn-bg { background-color }
+  modal-close-btn-border { border-color }
+  modal-close-btn-fg { color }
+  modal-open-btn-bg { background-color }
+  modal-open-btn-border { border-color }
+  modal-open-btn-fg { color }
+  popup-log-fg { color }
+  popup-zone-bg { background-color }
+  popup-zone-border { border-color }
+  popup-zone-fg { color }
+  q-checkout-badge-bg { background-color }
+  q-checkout-badge-border { border-color }
+  q-checkout-badge-fg { color }
+  q-checkout-card-bg { background-color }
+  q-checkout-card-border { border-color }
+  q-checkout-card-fg { color }
+  q-checkout-clear-btn-bg { background-color }
+  q-checkout-clear-btn-border { border-color }
+  q-checkout-clear-btn-fg { color }
+  q-checkout-muted-fg { color }
+  q-checkout-subtotal-fg { color }
+  q-checkout-summary-bg { background-color }
+  q-checkout-summary-border { border-color }
+  q-checkout-summary-fg { color }
+  q-estore-card-bg { background-color }
+  q-estore-card-border { border-color }
+  q-estore-card-fg { color }
+  q-estore-muted-fg { color }
+  q-estore-status-bg { background-color }
+  q-estore-status-border { border-color }
+  q-estore-status-fg { color }
+  q-estore-status-left-border { border-left-color }
+  q-modal-closebutton-bg { background-color }
+  q-modal-container-bg { background-color }
+  q-modal-container-fg { color }
+  q-modal-content-bg { background-color }
+  q-modal-content-fg { color }
+  q-modal-footer-bg { background-color }
+  q-modal-title-bg { background-color }
+  q-modal-title-fg { color }
+  q-modal-titlebar-bg { background-color }
+  q-modal-titlebar-fg { color }
+  q-popup-item-bg { background-color }
+  q-popup-item-fg { color }
+  q-popup-menu-panel-bg { background-color }
+  q-popup-menu-panel-border { border-color }
+  q-popup-menu-panel-fg { color }
+  q-popup-menu-panel-shadow { box-shadow }
+  q-popup-separator-bg { background-color }
+  q-popup-submenu-panel-bg { background-color }
+  q-popup-submenu-panel-border { border-color }
+  q-popup-submenu-panel-fg { color }
+  q-popup-submenu-panel-shadow { box-shadow }
+  q-popup-submenu-row-bg { background-color }
+  q-popup-submenu-row-fg { color }
+  q-popup-text-fg { color }
+  q-sidebar-panel-bg { background-color }
+  q-sidebar-panel-border { border-color }
+  q-sidebar-panel-fg { color }
+  q-sidebar-toggle-bg { background-color }
+  q-sidebar-toggle-border { border-color }
+  q-sidebar-toggle-fg { color }
+  q-store-catalog-badge-bg { background-color }
+  q-store-catalog-badge-border { border-color }
+  q-store-catalog-badge-fg { color }
+  q-store-catalog-card-bg { background-color }
+  q-store-catalog-card-border { border-color }
+  q-store-catalog-card-fg { color }
+  q-store-catalog-checkout-btn-bg { background-color }
+  q-store-catalog-checkout-btn-border { border-color }
+  q-store-catalog-checkout-btn-fg { color }
+  q-store-catalog-input-bg { background-color }
+  q-store-catalog-input-border { border-color }
+  q-store-catalog-input-fg { color }
+  q-store-catalog-muted-fg { color }
+  q-store-item-add-btn-bg { background-color }
+  q-store-item-add-btn-border { border-color }
+  q-store-item-add-btn-fg { color }
+  q-store-item-card-bg { background-color }
+  q-store-item-card-border { border-color }
+  q-store-item-card-fg { color }
+  q-store-item-muted-fg { color }
+  q-store-item-price-fg { color }
+  q-tabs-content-bg { background-color }
+  q-tabs-content-border { border-color }
+  q-tabs-content-fg { color }
+  sidebar-content-bg { background-color }
+  sidebar-content-border { border-color }
+  sidebar-content-fg { color }
+  sidebar-toggle-btn-bg { background-color }
+  sidebar-toggle-btn-border { border-color }
+  sidebar-toggle-btn-fg { color }
+  tabs-show-btn-bg { background-color }
+  tabs-show-btn-border { border-color }
+  tabs-show-btn-fg { color }
+  tech-note-bg { background-color }
+  tech-note-border { border-color }
+  tech-note-fg { color }
+  tiny-card-bg { background-color }
+  tiny-card-border { border-color }
+  tiny-card-fg { color }
+}
+
+q-color-theme default-color-theme {
+  catalog-add-btn-bg: #16a34a
+  catalog-add-btn-border: #15803d
+  catalog-add-btn-fg: rgb(238, 243, 251)
+  checkout-open-btn-bg: #1d4ed8
+  checkout-open-btn-border: #1e40af
+  checkout-open-btn-fg: rgb(238, 243, 251)
+  demo-builder-action-bg: #1e3a8a
+  demo-builder-action-border: #1e40af
+  demo-builder-action-fg: #f8fafc
+  demo-builder-preview-bg: #dbeafe
+  demo-builder-preview-border: #93c5fd
+  demo-builder-preview-fg: #0f172a
+  grid-cell-a-bg: #dbeafe
+  grid-cell-b-bg: #dcfce7
+  grid-cell-border: #cbd5e1
+  grid-cell-c-bg: #fef9c3
+  grid-cell-fg: #0f172a
+  modal-close-btn-bg: #dc2626
+  modal-close-btn-border: #b91c1c
+  modal-close-btn-fg: rgb(238, 243, 251)
+  modal-open-btn-bg: #0284c7
+  modal-open-btn-border: #0369a1
+  modal-open-btn-fg: rgb(238, 243, 251)
+  popup-log-fg: #64748b
+  popup-zone-bg: #dbeafe
+  popup-zone-border: #93c5fd
+  popup-zone-fg: #0f172a
+  q-checkout-badge-bg: #2563eb
+  q-checkout-badge-border: #1d4ed8
+  q-checkout-badge-fg: rgb(238, 243, 251)
+  q-checkout-card-bg: rgb(238, 243, 251)
+  q-checkout-card-border: #cbd5e1
+  q-checkout-card-fg: #0f172a
+  q-checkout-clear-btn-bg: #dc2626
+  q-checkout-clear-btn-border: #b91c1c
+  q-checkout-clear-btn-fg: rgb(238, 243, 251)
+  q-checkout-muted-fg: #64748b
+  q-checkout-subtotal-fg: #1d4ed8
+  q-checkout-summary-bg: #f8fafc
+  q-checkout-summary-border: #cbd5e1
+  q-checkout-summary-fg: #0f172a
+  q-estore-card-bg: rgb(238, 243, 251)
+  q-estore-card-border: #cbd5e1
+  q-estore-card-fg: #0f172a
+  q-estore-muted-fg: #64748b
+  q-estore-status-bg: #e0f2fe
+  q-estore-status-border: #7dd3fc
+  q-estore-status-fg: #0c4a6e
+  q-estore-status-left-border: #0284c7
+  q-modal-closebutton-bg: #ef4444
+  q-modal-container-bg: rgb(238, 243, 251)
+  q-modal-container-fg: #0f172a
+  q-modal-content-bg: #f8fafc
+  q-modal-content-fg: #111827
+  q-modal-footer-bg: #e2e8f0
+  q-modal-title-bg: transparent
+  q-modal-title-fg: #f8fafc
+  q-modal-titlebar-bg: #1e293b
+  q-modal-titlebar-fg: #f8fafc
+  q-popup-item-bg: #0f172a
+  q-popup-item-fg: #e2e8f0
+  q-popup-menu-panel-bg: #0f172a
+  q-popup-menu-panel-border: #334155
+  q-popup-menu-panel-fg: #e2e8f0
+  q-popup-menu-panel-shadow: 0 14px 42px rgba(15, 23, 42, 0.5)
+  q-popup-separator-bg: #64748b
+  q-popup-submenu-panel-bg: #111827
+  q-popup-submenu-panel-border: #334155
+  q-popup-submenu-panel-fg: #e2e8f0
+  q-popup-submenu-panel-shadow: 0 10px 30px rgba(15, 23, 42, 0.4)
+  q-popup-submenu-row-bg: #0f172a
+  q-popup-submenu-row-fg: #e2e8f0
+  q-popup-text-fg: #cbd5e1
+  q-sidebar-panel-bg: #f8fafc
+  q-sidebar-panel-border: #cbd5e1
+  q-sidebar-panel-fg: #0f172a
+  q-sidebar-toggle-bg: #1e293b
+  q-sidebar-toggle-border: #0f172a
+  q-sidebar-toggle-fg: #f8fafc
+  q-store-catalog-badge-bg: #0284c7
+  q-store-catalog-badge-border: #0369a1
+  q-store-catalog-badge-fg: rgb(238, 243, 251)
+  q-store-catalog-card-bg: rgb(238, 243, 251)
+  q-store-catalog-card-border: #cbd5e1
+  q-store-catalog-card-fg: #0f172a
+  q-store-catalog-checkout-btn-bg: #1d4ed8
+  q-store-catalog-checkout-btn-border: #1e40af
+  q-store-catalog-checkout-btn-fg: rgb(238, 243, 251)
+  q-store-catalog-input-bg: rgb(238, 243, 251)
+  q-store-catalog-input-border: #cbd5e1
+  q-store-catalog-input-fg: #0f172a
+  q-store-catalog-muted-fg: #64748b
+  q-store-item-add-btn-bg: #16a34a
+  q-store-item-add-btn-border: #15803d
+  q-store-item-add-btn-fg: rgb(238, 243, 251)
+  q-store-item-card-bg: rgb(238, 243, 251)
+  q-store-item-card-border: #cbd5e1
+  q-store-item-card-fg: #0f172a
+  q-store-item-muted-fg: #64748b
+  q-store-item-price-fg: #1d4ed8
+  q-tabs-content-bg: rgb(238, 243, 251)
+  q-tabs-content-border: #cbd5e1
+  q-tabs-content-fg: #0f172a
+  sidebar-content-bg: #e2e8f0
+  sidebar-content-border: #cbd5e1
+  sidebar-content-fg: #0f172a
+  sidebar-toggle-btn-bg: #111827
+  sidebar-toggle-btn-border: #0f172a
+  sidebar-toggle-btn-fg: #f8fafc
+  tabs-show-btn-bg: #0f766e
+  tabs-show-btn-border: #115e59
+  tabs-show-btn-fg: rgb(238, 243, 251)
+  tech-note-bg: #fef9c3
+  tech-note-border: #fde047
+  tech-note-fg: #0f172a
+  tiny-card-bg: rgb(238, 243, 251)
+  tiny-card-border: #cbd5e1
+  tiny-card-fg: #0f172a
+}

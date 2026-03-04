@@ -26196,7 +26196,7 @@
       ".cm-completionInfo.cm-completionInfo-left-narrow": { right: `${30 /* Info.Margin */}px` },
       ".cm-completionInfo.cm-completionInfo-right-narrow": { left: `${30 /* Info.Margin */}px` },
       "&light .cm-snippetField": { backgroundColor: "#00000022" },
-      "&dark .cm-snippetField": { backgroundColor: "#ffffff22" },
+      "&dark .cm-snippetField": { backgroundColor: "rgba(238, 243, 251, 0.133)" },
       ".cm-snippetFieldPosition": {
           verticalAlign: "text-top",
           width: 0,

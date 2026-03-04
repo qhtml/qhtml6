@@ -1,4 +1,21 @@
 q-component q-checkout-modal {
+  q-color-schema {
+    q-checkout-muted-fg { color }
+    q-checkout-card-bg { background-color }
+    q-checkout-card-fg { color }
+    q-checkout-card-border { border-color }
+    q-checkout-summary-bg { background-color }
+    q-checkout-summary-fg { color }
+    q-checkout-summary-border { border-color }
+    q-checkout-badge-bg { background-color }
+    q-checkout-badge-fg { color }
+    q-checkout-badge-border { border-color }
+    q-checkout-subtotal-fg { color }
+    q-checkout-clear-btn-bg { background-color }
+    q-checkout-clear-btn-fg { color }
+    q-checkout-clear-btn-border { border-color }
+  }
+
   q-property { items modalHost linesNode subtotalNode countNode payloadNode }
   q-signal itemsChanged(items, totalCount, subtotal)
 
@@ -142,7 +159,7 @@ q-component q-checkout-modal {
 
     if (!items.length) {
       const empty = document.createElement("div");
-      empty.className = "w3-panel w3-pale-yellow w3-border w3-round-large";
+      empty.className = "w3-panel w3-border w3-round-large";
       empty.textContent = "Your cart is currently empty.";
       listNode.appendChild(empty);
     } else {
@@ -197,7 +214,8 @@ q-component q-checkout-modal {
       h3.w3-margin-top.w3-margin-bottom {
         text { Checkout }
       }
-      div.w3-small.w3-text-grey {
+      div.w3-small {
+        q-color { q-checkout-muted-fg }
         text { Review cart subtotal before taxes. }
       }
     }
@@ -206,7 +224,8 @@ q-component q-checkout-modal {
       q-form {
         q-grid {
           q-grid-cell {
-            div.w3-card.w3-white.w3-round-large.w3-border.w3-padding {
+            div.w3-card.w3-round-large.w3-border.w3-padding {
+              q-color { q-checkout-card-bg q-checkout-card-fg q-checkout-card-border }
               h4 { text { Cart Items } }
               div {
                 q-checkout-lines: "1"
@@ -214,11 +233,13 @@ q-component q-checkout-modal {
             }
           }
           q-grid-cell {
-            div.w3-card.w3-light-grey.w3-round-large.w3-border.w3-padding {
+            div.w3-card.w3-round-large.w3-border.w3-padding {
+              q-color { q-checkout-summary-bg q-checkout-summary-fg q-checkout-summary-border }
               h4 { text { Summary } }
               div.w3-small {
                 text { Items in cart: }
-                span.w3-tag.w3-blue.w3-round.w3-margin-left {
+                span.w3-tag.w3-round.w3-margin-left {
+                  q-color { q-checkout-badge-bg q-checkout-badge-fg q-checkout-badge-border }
                   q-checkout-count: "1"
                   text { 0 }
                 }
@@ -226,7 +247,8 @@ q-component q-checkout-modal {
               p.w3-large.w3-margin-top {
                 text { Subtotal (before tax): }
               }
-              div.w3-xxlarge.w3-text-indigo {
+              div.w3-xxlarge {
+                q-color { q-checkout-subtotal-fg }
                 q-checkout-subtotal: "1"
                 text { $0.00 }
               }
@@ -243,13 +265,15 @@ q-component q-checkout-modal {
 
     footer {
       div.w3-right-align {
-        button.w3-button.w3-red.w3-round.w3-margin-right {
+        button.w3-button.w3-round.w3-margin-right {
+          q-color { q-checkout-clear-btn-bg q-checkout-clear-btn-fg q-checkout-clear-btn-border }
           text { Clear Cart }
           onclick {
             this.closest("q-checkout-modal").clearItems();
           }
         }
-        span.w3-small.w3-text-grey {
+        span.w3-small {
+          q-color { q-checkout-muted-fg }
           text { The close button is provided by q-modal. }
         }
       }

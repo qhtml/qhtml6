@@ -1,4 +1,4 @@
-q-keyword q-form { form.w3-container.w3-margin-top.w3-margin-bottom,div.w3-card.w3-white.w3-round-large.w3-padding }
+q-keyword q-form { form.w3-container.w3-margin-top.w3-margin-bottom,div.w3-card.w3-round-large.w3-padding }
 q-keyword q-input { input.w3-input.w3-border.w3-round-large.w3-margin-bottom }
 q-keyword q-textarea { textarea.w3-input.w3-border.w3-round-large.w3-margin-bottom }
-q-keyword q-submit { button.w3-button.w3-green.w3-round-large.w3-margin-top }
+q-keyword q-submit { button.w3-button.w3-round-large.w3-margin-top }

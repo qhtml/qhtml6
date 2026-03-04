@@ -1,4 +1,15 @@
 q-component q-store-catalog-item {
+  q-color-schema {
+    q-store-item-card-bg { background-color }
+    q-store-item-card-fg { color }
+    q-store-item-card-border { border-color }
+    q-store-item-muted-fg { color }
+    q-store-item-price-fg { color }
+    q-store-item-add-btn-bg { background-color }
+    q-store-item-add-btn-fg { color }
+    q-store-item-add-btn-border { border-color }
+  }
+
   q-property { item }
   q-signal addRequested(item)
 
@@ -93,24 +104,28 @@ q-component q-store-catalog-item {
     });
   }
 
-  div.w3-card.w3-white.w3-round-large.w3-border.w3-padding.w3-hover-shadow {
+  div.w3-card.w3-round-large.w3-border.w3-padding.w3-hover-shadow {
+    q-color { q-store-item-card-bg q-store-item-card-fg q-store-item-card-border }
     div.w3-row-padding {
       div.w3-col.s8 {
         h4.w3-margin-top.w3-margin-bottom {
           q-store-item-name: "1"
           slot { item-name }
         }
-        div.w3-small.w3-text-grey {
+        div.w3-small {
+          q-color { q-store-item-muted-fg }
           q-store-item-description: "1"
           slot { item-description }
         }
       }
       div.w3-col.s4.w3-right-align {
-        div.w3-large.w3-text-indigo.w3-margin-top {
+        div.w3-large.w3-margin-top {
+          q-color { q-store-item-price-fg }
           q-store-item-price: "1"
           slot { item-price }
         }
-        button.w3-button.w3-green.w3-round.w3-small.w3-margin-top {
+        button.w3-button.w3-round.w3-small.w3-margin-top {
+          q-color { q-store-item-add-btn-bg q-store-item-add-btn-fg q-store-item-add-btn-border }
           type: "button";
           text { Add to cart }
           onclick {

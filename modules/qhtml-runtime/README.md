@@ -55,6 +55,9 @@ The installed node facade includes:
   - `root(options?)` returns owning `<q-html>` host; pass `{ qdom: true }` (or `"qdom"`) to return document QDom root facade.
   - `findSlotFor(target)`
   - `slots()`
+- `qcolor(name)` returns a `QColorNode` from parsed cascading schema/theme metadata
+  - schema entries are area->CSS-property mappings from `q-color-schema`
+  - `qcolors()` returns all available color nodes
 - Child access:
   - `children()` returns `QDomNodeList`
   - proxy-style child operations via `children.push/unshift/splice`, index access, `length`

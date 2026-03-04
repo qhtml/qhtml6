@@ -1917,7 +1917,7 @@
           'q-editor .qe-tok-jskw{color:var(--qe-jskw)}' +
           'q-editor .qe-tok-brace,q-editor .qe-tok-angle,q-editor .qe-tok-punc{color:#9aa4b2}' +
           'q-editor .qe-cm-host .cm-content *{color:inherit}' +
-          'q-editor .qe-cm-host .cm-content{color:#ffffff}' +
+          'q-editor .qe-cm-host .cm-content{color:rgb(238, 243, 251)}' +
           'q-editor .qe-cm-host .cm-content .qe-sem-keyword{color:#9cdcfe !important;font-weight:600}' +
           'q-editor .qe-cm-host .cm-content .qe-sem-tag{color:#82aaff !important}' +
           'q-editor .qe-cm-host .cm-content .qe-sem-name{color:var(--qe-string) !important}' +
@@ -1925,7 +1925,7 @@
           'q-editor .qe-cm-host .cm-content .qe-sem-id{color:#569cd6 !important}' +
           'q-editor .qe-cm-host .cm-content .qe-sem-punc{color:#b8c0cc !important}' +
           'q-editor .qe-cm-host .cm-content .qe-sem-comment{color:var(--qe-comment) !important;font-style:italic}' +
-          'q-editor .qe-cm-host .cm-content .qe-sem-script{color:#ffffff !important}' +
+          'q-editor .qe-cm-host .cm-content .qe-sem-script{color:rgb(238, 243, 251) !important}' +
         '</style>' +
         '<div class="qe">' +
           '<div class="qe-tabs" role="tablist" aria-label="Q Editor tabs">' +

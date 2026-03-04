@@ -37,6 +37,12 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - component alias declarations:
       - `q-alias aliasName { return ... }` inside `q-component`
       - emitted in QDom as `component.aliasDeclarations`
+    - color declarations and application:
+      - `q-color-schema { areaName { css-property } ... }` (cascading scope)
+      - `q-color-theme { areaName: value, ... }` (cascading scope)
+      - named schema/theme declarations plus invocation overrides
+      - `q-color { area1 area2 ... }` generates inline style declarations
+      - emitted metadata: `doc.meta.qColorSchemas`, `doc.meta.qColorSchemaDefs`, `doc.meta.qColorThemes`
 
 ### Preprocessing/import APIs
 - `applyQRewriteBlocks(source, options?)`

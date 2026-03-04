@@ -46,6 +46,11 @@ q-macro popup-forward-this {
 }
 
 q-component q-popup-item {
+  q-color-schema {
+    q-popup-item-bg { background-color }
+    q-popup-item-fg { color }
+  }
+
   popup-root-method { method { rootNode } attr { q-popup-item-root } }
   popup-disabled-methods { onDisable { } }
 
@@ -67,11 +72,11 @@ q-component q-popup-item {
   div.w3-bar.w3-small {
     q-popup-item-root: "1"
     tabindex: "0"
+    q-color { q-popup-item-bg q-popup-item-fg }
     style {
       padding: 0.45rem 0.6rem;
       border-radius: 0.3rem;
       transition: background 120ms ease, color 120ms ease;
-      color: #e2e8f0;
       white-space: nowrap;
       user-select: none;
       cursor: pointer;
@@ -81,21 +86,30 @@ q-component q-popup-item {
 }
 
 q-component q-popup-separator {
+  q-color-schema {
+    q-popup-separator-bg { background-color }
+  }
+
   function isDisabled() { return true; }
   function isEnabled() { return false; }
   function enable() { return this; }
   function disable() { return this; }
 
   div {
+    q-color { q-popup-separator-bg }
     style {
       height: 1px;
       margin: 0.32rem 0.2rem;
-      background: rgba(148, 163, 184, 0.35);
+      opacity: 0.35;
     }
   }
 }
 
 q-component q-popup-text {
+  q-color-schema {
+    q-popup-text-fg { color }
+  }
+
   popup-root-method { method { rootNode } attr { q-popup-text-root } }
   popup-disabled-methods { onDisable { } }
 
@@ -111,9 +125,9 @@ q-component q-popup-text {
 
   div.w3-small {
     q-popup-text-root: "1"
+    q-color { q-popup-text-fg }
     style {
       padding: 0.38rem 0.6rem;
-      color: #cbd5e1;
       user-select: none;
       white-space: nowrap;
     }
@@ -122,6 +136,15 @@ q-component q-popup-text {
 }
 
 q-component q-popup-submenu {
+  q-color-schema {
+    q-popup-submenu-row-bg { background-color }
+    q-popup-submenu-row-fg { color }
+    q-popup-submenu-panel-bg { background-color }
+    q-popup-submenu-panel-fg { color }
+    q-popup-submenu-panel-border { border-color }
+    q-popup-submenu-panel-shadow { box-shadow }
+  }
+
   popup-root-method { method { rowNode } attr { q-popup-submenu-row } }
   popup-root-method { method { panelNode } attr { q-popup-submenu-panel } }
   popup-disabled-methods { onDisable { this.hideSubmenu(); } }
@@ -178,10 +201,10 @@ q-component q-popup-submenu {
     style { position: relative; }
     div.w3-bar.w3-small {
       q-popup-submenu-row: "1"
+      q-color { q-popup-submenu-row-bg q-popup-submenu-row-fg }
       style {
         padding: 0.45rem 0.6rem;
         border-radius: 0.3rem;
-        color: #e2e8f0;
         white-space: nowrap;
         user-select: none;
         cursor: pointer;
@@ -191,15 +214,14 @@ q-component q-popup-submenu {
     }
     div.w3-card.w3-round {
       q-popup-submenu-panel: "1"
+      q-color { q-popup-submenu-panel-bg q-popup-submenu-panel-fg q-popup-submenu-panel-border q-popup-submenu-panel-shadow }
       style {
         position: absolute;
         left: calc(100% + 4px);
         top: 0;
         min-width: 11rem;
         padding: 0.25rem;
-        background: #0f172a;
-        border: 1px solid #334155;
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.4);
+        border: 1px solid transparent;
         display: none;
         z-index: 7201;
       }
@@ -209,6 +231,13 @@ q-component q-popup-submenu {
 }
 
 q-component q-popup-menu {
+  q-color-schema {
+    q-popup-menu-panel-bg { background-color }
+    q-popup-menu-panel-fg { color }
+    q-popup-menu-panel-border { border-color }
+    q-popup-menu-panel-shadow { box-shadow }
+  }
+
   q-signal menuItemClicked(payload)
   q-property { enabled visible scopeTarget tracerCounter lastTriggerEvent }
   enabled: true
@@ -431,17 +460,15 @@ q-component q-popup-menu {
 
   div.w3-card.w3-round {
     q-popup-menu-panel: "1"
+    q-color { q-popup-menu-panel-bg q-popup-menu-panel-fg q-popup-menu-panel-border q-popup-menu-panel-shadow }
     style {
       position: fixed;
       min-width: 12rem;
       max-width: min(92vw, 26rem);
       padding: 0.25rem;
-      background: #0f172a;
-      border: 1px solid #334155;
-      box-shadow: 0 14px 42px rgba(15, 23, 42, 0.5);
+      border: 1px solid transparent;
       z-index: 7200;
       display: none;
-      color: #e2e8f0;
     }
     slot { content }
   }

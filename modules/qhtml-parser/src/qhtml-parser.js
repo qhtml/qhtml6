@@ -31,6 +31,9 @@
     "q-property",
     "q-signal",
     "q-alias",
+    "q-color",
+    "q-color-schema",
+    "q-color-theme",
     "q-import",
     "slot",
     "style",
@@ -640,6 +643,356 @@
     return names;
   }
 
+  function parseQColorIdentifier(parser, keyword) {
+    skipWhitespace(parser);
+    const start = parser.index;
+    while (!eof(parser)) {
+      const ch = peek(parser);
+      if (!ch || ch === "{" || ch === "}" || ch === ":" || ch === "," || ch === ";" || /\s/.test(ch)) {
+        break;
+      }
+      parser.index += 1;
+    }
+    const value = parser.source.slice(start, parser.index).trim();
+    if (!value) {
+      throw ParseError("Expected identifier after " + String(keyword || "q-color"), parser.index);
+    }
+    return value;
+  }
+
+  function isLikelyCssColorValue(value) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return false;
+    }
+    if (/^#[0-9a-f]{3,8}$/i.test(text)) {
+      return true;
+    }
+    if (/^(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\s*\(/i.test(text)) {
+      return true;
+    }
+    if (/^var\s*\(/i.test(text)) {
+      return true;
+    }
+    if (/gradient\s*\(/i.test(text)) {
+      return true;
+    }
+    if (/^(?:transparent|currentcolor|inherit|initial|unset|revert|revert-layer)$/i.test(text)) {
+      return true;
+    }
+    if (/^[A-Za-z][A-Za-z0-9_-]*$/.test(text)) {
+      return true;
+    }
+    return false;
+  }
+
+  function normalizeColorLookupKey(name) {
+    return String(name || "")
+      .trim()
+      .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  }
+
+  function normalizeColorLookupPattern(name) {
+    return String(name || "")
+      .trim()
+      .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+      .toLowerCase()
+      .replace(/[^a-z0-9*]/g, "");
+  }
+
+  function hasQColorWildcardPattern(name) {
+    return normalizeColorLookupPattern(name).indexOf("*") >= 0;
+  }
+
+  function doesQColorRequestMatchAreaName(requestPattern, areaName) {
+    const pattern = normalizeColorLookupPattern(requestPattern);
+    const candidate = normalizeColorLookupKey(areaName);
+    if (!pattern || !candidate) {
+      return false;
+    }
+    if (pattern.indexOf("*") < 0) {
+      return pattern === candidate;
+    }
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp("^" + escaped.replace(/\*/g, ".*") + "$");
+    return regex.test(candidate);
+  }
+
+  function doesQColorRequestMatchAnyArea(requestPatterns, areaName) {
+    const patterns = Array.isArray(requestPatterns) ? requestPatterns : [];
+    for (let i = 0; i < patterns.length; i += 1) {
+      if (doesQColorRequestMatchAreaName(patterns[i], areaName)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function normalizeQColorResolvedValue(value) {
+    const raw = String(value == null ? "" : value).trim();
+    if (!raw) {
+      return "";
+    }
+    if (/^--[A-Za-z0-9_-]+$/.test(raw)) {
+      return "var(" + raw + ")";
+    }
+    return raw;
+  }
+
+  function levenshtein(a, b) {
+    const m = a.length;
+    const n = b.length;
+    const dp = Array.from({ length: m + 1 }, function makeRow() {
+      return Array(n + 1).fill(0);
+    });
+
+    for (let i = 0; i <= m; i += 1) {
+      dp[i][0] = i;
+    }
+    for (let j = 0; j <= n; j += 1) {
+      dp[0][j] = j;
+    }
+
+    for (let i = 1; i <= m; i += 1) {
+      for (let j = 1; j <= n; j += 1) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        dp[i][j] = Math.min(
+          dp[i - 1][j] + 1,
+          dp[i][j - 1] + 1,
+          dp[i - 1][j - 1] + cost
+        );
+      }
+    }
+    return dp[m][n];
+  }
+
+  function bigrams(s) {
+    const g = [];
+    for (let i = 0; i < s.length - 1; i += 1) {
+      g.push(s.slice(i, i + 2));
+    }
+    return g;
+  }
+
+  function bigramScore(a, b) {
+    const A = bigrams(a);
+    const B = bigrams(b);
+    let match = 0;
+    for (let i = 0; i < A.length; i += 1) {
+      if (B.includes(A[i])) {
+        match += 1;
+      }
+    }
+    return match / Math.max(A.length, B.length);
+  }
+
+  function splitTokens(s) {
+    return String(s || "")
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .toLowerCase()
+      .split(/[\s\-_]+/);
+  }
+
+  function buildTokenIndex(choices) {
+    const vocab = new Set();
+    for (let i = 0; i < choices.length; i += 1) {
+      const tokens = splitTokens(choices[i]);
+      for (let j = 0; j < tokens.length; j += 1) {
+        vocab.add(tokens[j]);
+      }
+    }
+    return Array.from(vocab);
+  }
+
+  function tokenScore(query, vocab) {
+    const q = String(query || "").toLowerCase();
+    let score = 0;
+    for (let i = 0; i < vocab.length; i += 1) {
+      if (q.includes(vocab[i])) {
+        score += 1;
+      }
+    }
+    return score;
+  }
+
+  function fuzzyResolve(query, choices, topK) {
+    const limit = Number.isFinite(topK) ? Math.max(1, Math.floor(topK)) : 5;
+    const vocab = buildTokenIndex(choices);
+    const ranked = choices.map(function mapCandidate(candidate) {
+      const tokScore = tokenScore(query, vocab);
+      const bigScore = bigramScore(query, candidate);
+      const lev = levenshtein(query, candidate);
+      const score = tokScore * 5 + bigScore * 4 - lev * 0.5;
+      return { candidate: candidate, score: score };
+    });
+    ranked.sort(function sortByScore(a, b) {
+      return b.score - a.score;
+    });
+    return ranked.slice(0, limit);
+  }
+
+  function parseQColorValueToken(parser, keywordAliases) {
+    skipWhitespace(parser);
+    const expression = parseExpressionValue(parser, keywordAliases);
+    if (expression) {
+      return String(expression.raw || "").trim();
+    }
+    const start = parser.index;
+    let quote = "";
+    let escaped = false;
+    let parenDepth = 0;
+    let bracketDepth = 0;
+    while (!eof(parser)) {
+      const ch = peek(parser);
+      if (quote) {
+        parser.index += 1;
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === "`") {
+        quote = ch;
+        parser.index += 1;
+        continue;
+      }
+      if (ch === "(") {
+        parenDepth += 1;
+        parser.index += 1;
+        continue;
+      }
+      if (ch === ")" && parenDepth > 0) {
+        parenDepth -= 1;
+        parser.index += 1;
+        continue;
+      }
+      if (ch === "[") {
+        bracketDepth += 1;
+        parser.index += 1;
+        continue;
+      }
+      if (ch === "]" && bracketDepth > 0) {
+        bracketDepth -= 1;
+        parser.index += 1;
+        continue;
+      }
+      if (parenDepth === 0 && bracketDepth === 0) {
+        if (ch === "," || ch === ";" || ch === "\n" || ch === "\r" || ch === "}") {
+          break;
+        }
+      }
+      parser.index += 1;
+    }
+    return parser.source.slice(start, parser.index).trim();
+  }
+
+  function parseQColorAssignments(rawBody, keywordAliases) {
+    const parser = parserFor(String(rawBody || ""));
+    const out = {};
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+      const key = parseQColorIdentifier(parser, "q-color-theme");
+      skipWhitespace(parser);
+      if (peek(parser) !== ":") {
+        throw ParseError("Expected ':' inside q-color-theme", parser.index);
+      }
+      consume(parser);
+      const value = parseQColorValueToken(parser, keywordAliases);
+      if (value) {
+        out[key] = value;
+      }
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+      }
+    }
+    return out;
+  }
+
+  function parseQColorSchemaEntries(rawBody) {
+    const parser = parserFor(String(rawBody || ""));
+    const out = {};
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+      const areaName = parseQColorIdentifier(parser, "q-color-schema");
+      skipWhitespace(parser);
+      if (peek(parser) !== "{") {
+        throw ParseError("Expected '{' inside q-color-schema", parser.index);
+      }
+      consume(parser);
+      const body = String(readBalancedBlockContent(parser) || "").trim();
+      if (normalizeColorLookupKey(areaName) === "area") {
+        const names = body.match(/[A-Za-z_][A-Za-z0-9_-]*/g) || [];
+        for (let i = 0; i < names.length; i += 1) {
+          const area = String(names[i] || "").trim();
+          if (!area) {
+            continue;
+          }
+          out[area] = inferQColorCssProperty(area);
+        }
+      } else {
+        out[areaName] = body || inferQColorCssProperty(areaName);
+      }
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+      }
+    }
+    return out;
+  }
+
+  function parseQColorApplyBlock(rawBody, keywordAliases) {
+    const parser = parserFor(String(rawBody || ""));
+    const out = {
+      areas: [],
+      assignments: {},
+    };
+    const seen = new Set();
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+      const areaName = parseQColorIdentifier(parser, "q-color");
+      const normalized = normalizeColorLookupPattern(areaName);
+      skipWhitespace(parser);
+      if (peek(parser) === ":") {
+        consume(parser);
+        const value = parseQColorValueToken(parser, keywordAliases);
+        if (value) {
+          out.assignments[areaName] = value;
+        }
+      } else {
+        if (normalized && !seen.has(normalized)) {
+          seen.add(normalized);
+          out.areas.push(areaName);
+          out.assignments[areaName] = true;
+        }
+      }
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+      }
+    }
+    return out;
+  }
+
   function readBalancedParenthesizedContent(parser) {
     let depth = 1;
     let quote = "";
@@ -1090,6 +1443,44 @@
           }
           continue;
         }
+        if (nameLower === "q-color-schema" && nextChar !== "{") {
+          const schemaName = parseQColorIdentifier(parser, "q-color-schema");
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-color-schema name", parser.index);
+          }
+          consume(parser);
+          const schemaBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "QColorSchemaDefinition",
+            name: schemaName,
+            entries: parseQColorSchemaEntries(schemaBody),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-color-theme" && nextChar !== "{") {
+          const themeName = parseQColorIdentifier(parser, "q-color-theme");
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-color-theme name", parser.index);
+          }
+          consume(parser);
+          const themeBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "QColorThemeDefinition",
+            name: themeName,
+            assignments: parseQColorAssignments(themeBody, scopedKeywordAliases),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (nameLower === "q-template" && nextChar !== "{" && nextChar !== ",") {
           const templateId = parseIdentifier(parser);
           skipWhitespace(parser);
@@ -1295,6 +1686,52 @@
             items.push({
               type: "QPropertyBlock",
               properties: parseQPropertyNames(propertyBody),
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
+          if (nameLower === "q-color-schema") {
+            consume(parser);
+            const schemaBody = readBalancedBlockContent(parser);
+            items.push({
+              type: "QColorSchemaDefinition",
+              name: "",
+              entries: parseQColorSchemaEntries(schemaBody),
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
+          if (nameLower === "q-color-theme") {
+            consume(parser);
+            const themeBody = readBalancedBlockContent(parser);
+            items.push({
+              type: "QColorThemeDefinition",
+              name: "",
+              assignments: parseQColorAssignments(themeBody, scopedKeywordAliases),
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
+          if (nameLower === "q-color") {
+            consume(parser);
+            const colorBody = readBalancedBlockContent(parser);
+            const parsed = parseQColorApplyBlock(colorBody, scopedKeywordAliases);
+            items.push({
+              type: "QColorApplyBlock",
+              assignments: parsed.assignments,
+              areas: parsed.areas,
               keywords: keywordSnapshot,
               start: itemStart,
               end: parser.index,
@@ -1557,6 +1994,76 @@
             type: "SignalDefinition",
             signalId: signalId,
             items: items,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-color-schema" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const schemaName = parseQColorIdentifier(parser, "q-color-schema");
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-color-schema name", parser.index);
+          }
+          consume(parser);
+          const schemaBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QColorSchemaDefinition",
+            name: schemaName,
+            entries: parseQColorSchemaEntries(schemaBody),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-color-schema" && peek(parser) === "{") {
+          consume(parser);
+          const schemaBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QColorSchemaDefinition",
+            name: "",
+            entries: parseQColorSchemaEntries(schemaBody),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-color-theme" && peek(parser) === "{") {
+          consume(parser);
+          const themeBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QColorThemeDefinition",
+            name: "",
+            assignments: parseQColorAssignments(themeBody, scopedKeywordAliases),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-color-theme" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const themeName = parseQColorIdentifier(parser, "q-color-theme");
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-color-theme name", parser.index);
+          }
+          consume(parser);
+          const themeBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QColorThemeDefinition",
+            name: themeName,
+            assignments: parseQColorAssignments(themeBody, scopedKeywordAliases),
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -2010,6 +2517,1139 @@
 
   function normalizePropertyName(name) {
     return String(name || "").toLowerCase().trim();
+  }
+
+  const DEFAULT_QCOLOR_THEME_NAME = "default";
+  const DEFAULT_QCOLOR_AREA_PROPERTIES = Object.freeze({
+    background: "background-color",
+    surface: "background-color",
+    surfaceAlt: "background-color",
+    foreground: "color",
+    foregroundMuted: "color",
+    muted: "color",
+    border: "border-color",
+    borderStrong: "border-color",
+    primary: "color",
+    primaryContrast: "color",
+    secondary: "color",
+    secondaryContrast: "color",
+    accent: "color",
+    accentContrast: "color",
+    success: "color",
+    successContrast: "color",
+    danger: "color",
+    dangerContrast: "color",
+    warning: "color",
+    warningContrast: "color",
+    info: "color",
+    infoContrast: "color",
+    overlay: "background-color",
+    shadow: "box-shadow",
+    link: "color",
+    linkHover: "color",
+    focusRing: "outline-color",
+    titleBackground: "background-color",
+    titleForeground: "color",
+    panelBackground: "background-color",
+    panelForeground: "color",
+    cardBackground: "background-color",
+    cardForeground: "color",
+    modalBackground: "background-color",
+    modalForeground: "color",
+    navBackground: "background-color",
+    navForeground: "color",
+    toolbarBackground: "background-color",
+    toolbarForeground: "color",
+    buttonBackground: "background-color",
+    buttonForeground: "color",
+    buttonBorder: "border-color",
+    buttonHoverBackground: "background-color",
+    buttonHoverForeground: "color",
+    inputBackground: "background-color",
+    inputForeground: "color",
+    inputBorder: "border-color",
+    badgeBackground: "background-color",
+    badgeForeground: "color",
+    selectionBackground: "background-color",
+    selectionForeground: "color",
+  });
+  const DEFAULT_QCOLOR_THEME_ASSIGNMENTS = Object.freeze({
+    background: "#f8fafc",
+    surface: "rgb(238, 243, 251)",
+    surfaceAlt: "#f1f5f9",
+    foreground: "#0f172a",
+    foregroundMuted: "#475569",
+    muted: "#64748b",
+    border: "#cbd5e1",
+    borderStrong: "#94a3b8",
+    primary: "#1d4ed8",
+    primaryContrast: "rgb(238, 243, 251)",
+    secondary: "#334155",
+    secondaryContrast: "rgb(238, 243, 251)",
+    accent: "#0ea5e9",
+    accentContrast: "#082f49",
+    success: "#16a34a",
+    successContrast: "rgb(238, 243, 251)",
+    danger: "#dc2626",
+    dangerContrast: "rgb(238, 243, 251)",
+    warning: "#f59e0b",
+    warningContrast: "#111827",
+    info: "#0284c7",
+    infoContrast: "rgb(238, 243, 251)",
+    overlay: "rgba(15, 23, 42, 0.72)",
+    shadow: "rgba(15, 23, 42, 0.18)",
+    link: "#1d4ed8",
+    linkHover: "#1e40af",
+    focusRing: "#f59e0b",
+    titleBackground: "#e2e8f0",
+    titleForeground: "#0f172a",
+    panelBackground: "rgb(238, 243, 251)",
+    panelForeground: "#0f172a",
+    cardBackground: "rgb(238, 243, 251)",
+    cardForeground: "#0f172a",
+    modalBackground: "rgb(238, 243, 251)",
+    modalForeground: "#0f172a",
+    navBackground: "#334155",
+    navForeground: "rgb(238, 243, 251)",
+    toolbarBackground: "#0f172a",
+    toolbarForeground: "#f8fafc",
+    buttonBackground: "#1d4ed8",
+    buttonForeground: "rgb(238, 243, 251)",
+    buttonBorder: "#1e40af",
+    buttonHoverBackground: "#1e40af",
+    buttonHoverForeground: "rgb(238, 243, 251)",
+    inputBackground: "rgb(238, 243, 251)",
+    inputForeground: "#0f172a",
+    inputBorder: "#cbd5e1",
+    badgeBackground: "#1d4ed8",
+    badgeForeground: "rgb(238, 243, 251)",
+    selectionBackground: "#bfdbfe",
+    selectionForeground: "#0f172a",
+  });
+
+  const Q_COLOR_STYLE_PROPERTY_MAP = Object.freeze({
+    background: "background-color",
+    foreground: "color",
+    border: "border-color",
+    outline: "outline-color",
+    caret: "caret-color",
+    fill: "fill",
+    stroke: "stroke",
+    shadow: "box-shadow",
+    primary: "--q-color-primary",
+    secondary: "--q-color-secondary",
+    accent: "--q-color-accent",
+    surface: "--q-color-surface",
+    surfacealt: "--q-color-surface-alt",
+    muted: "--q-color-muted",
+    foregroundmuted: "--q-color-foreground-muted",
+    borderstrong: "--q-color-border-strong",
+    success: "--q-color-success",
+    warning: "--q-color-warning",
+    danger: "--q-color-danger",
+    info: "--q-color-info",
+    link: "--q-color-link",
+    linkhover: "--q-color-link-hover",
+    focusring: "--q-color-focus-ring",
+    overlay: "--q-color-overlay",
+    primarycontrast: "--q-color-primary-contrast",
+    secondarycontrast: "--q-color-secondary-contrast",
+    accentcontrast: "--q-color-accent-contrast",
+    successcontrast: "--q-color-success-contrast",
+    warningcontrast: "--q-color-warning-contrast",
+    dangercontrast: "--q-color-danger-contrast",
+    infocontrast: "--q-color-info-contrast",
+    titlebackground: "--q-color-title-background",
+    titleforeground: "--q-color-title-foreground",
+    panelbackground: "--q-color-panel-background",
+    panelforeground: "--q-color-panel-foreground",
+    cardbackground: "--q-color-card-background",
+    cardforeground: "--q-color-card-foreground",
+    modalbackground: "--q-color-modal-background",
+    modalforeground: "--q-color-modal-foreground",
+    navbackground: "--q-color-nav-background",
+    navforeground: "--q-color-nav-foreground",
+    toolbarbackground: "--q-color-toolbar-background",
+    toolbarforeground: "--q-color-toolbar-foreground",
+    buttonbackground: "--q-color-button-background",
+    buttonforeground: "--q-color-button-foreground",
+    buttonborder: "--q-color-button-border",
+    buttonhoverbackground: "--q-color-button-hover-background",
+    buttonhoverforeground: "--q-color-button-hover-foreground",
+    inputbackground: "--q-color-input-background",
+    inputforeground: "--q-color-input-foreground",
+    inputborder: "--q-color-input-border",
+    badgebackground: "--q-color-badge-background",
+    badgeforeground: "--q-color-badge-foreground",
+    selectionbackground: "--q-color-selection-background",
+    selectionforeground: "--q-color-selection-foreground",
+  });
+
+  function qColorStylePropertyForKey(key) {
+    const normalized = normalizeColorLookupKey(key);
+    if (!normalized) {
+      return "";
+    }
+    if (Object.prototype.hasOwnProperty.call(Q_COLOR_STYLE_PROPERTY_MAP, normalized)) {
+      return Q_COLOR_STYLE_PROPERTY_MAP[normalized];
+    }
+    return "--q-color-" + normalized.replace(/[^A-Za-z0-9_-]/g, "-");
+  }
+
+  function cloneQColorAssignments(assignments) {
+    return assignments && typeof assignments === "object" && !Array.isArray(assignments)
+      ? Object.assign({}, assignments)
+      : {};
+  }
+
+  function registerQColorSchema(colorContext, areaName, cssProperty) {
+    if (!colorContext || !(colorContext.schemas instanceof Map)) {
+      return;
+    }
+    const normalized = normalizeColorLookupKey(areaName);
+    const property = String(cssProperty || "").trim();
+    if (!normalized || !property) {
+      return;
+    }
+    colorContext.schemas.set(normalized, {
+      name: String(areaName || "").trim() || normalized,
+      property: property,
+    });
+  }
+
+  function registerQColorTheme(colorContext, themeName, assignments, options) {
+    if (!colorContext || !(colorContext.themes instanceof Map)) {
+      return;
+    }
+    const normalized = normalizeColorLookupKey(themeName);
+    if (!normalized) {
+      return;
+    }
+    colorContext.themes.set(normalized, {
+      name: String(themeName || "").trim() || normalized,
+      assignments: cloneQColorAssignments(assignments),
+    });
+    const opts = options || {};
+    if (opts.setAsDefault === true || !String(colorContext.defaultThemeName || "").trim()) {
+      colorContext.defaultThemeName = normalized;
+    }
+  }
+
+  function createQColorContext(parentContext) {
+    const context = {
+      schemas: new Map(),
+      schemaDefs: new Map(),
+      themes: new Map(),
+      defaultThemeName: DEFAULT_QCOLOR_THEME_NAME,
+    };
+    if (parentContext && parentContext.schemas instanceof Map) {
+      parentContext.schemas.forEach(function copySchema(entry, key) {
+        if (!entry || typeof entry !== "object") {
+          return;
+        }
+        context.schemas.set(String(key || ""), {
+          name: String(entry.name || key || "").trim() || String(key || ""),
+          property: String(entry.property || "").trim(),
+        });
+      });
+    }
+    if (parentContext && parentContext.schemaDefs instanceof Map) {
+      parentContext.schemaDefs.forEach(function copySchemaDef(entry, key) {
+        if (!entry || typeof entry !== "object") {
+          return;
+        }
+        context.schemaDefs.set(String(key || ""), {
+          name: String(entry.name || key || "").trim() || String(key || ""),
+          entries: cloneQColorAssignments(entry.entries),
+        });
+      });
+    }
+    if (parentContext && parentContext.themes instanceof Map) {
+      parentContext.themes.forEach(function copyTheme(entry, key) {
+        if (!entry || typeof entry !== "object") {
+          return;
+        }
+        context.themes.set(String(key || ""), {
+          name: String(entry.name || key || "").trim() || String(key || ""),
+          assignments: cloneQColorAssignments(entry.assignments),
+        });
+      });
+    }
+    if (parentContext && typeof parentContext.defaultThemeName === "string" && parentContext.defaultThemeName.trim()) {
+      context.defaultThemeName = parentContext.defaultThemeName.trim();
+    }
+    if (context.schemas.size === 0 && context.themes.size === 0 && !parentContext) {
+      const schemaKeys = Object.keys(DEFAULT_QCOLOR_AREA_PROPERTIES);
+      for (let i = 0; i < schemaKeys.length; i += 1) {
+        const key = schemaKeys[i];
+        registerQColorSchema(context, key, DEFAULT_QCOLOR_AREA_PROPERTIES[key]);
+      }
+      registerQColorTheme(context, DEFAULT_QCOLOR_THEME_NAME, DEFAULT_QCOLOR_THEME_ASSIGNMENTS, {
+        setAsDefault: true,
+      });
+    }
+    return context;
+  }
+
+  function createScopedConversionContext(parentContext) {
+    const parentColors =
+      parentContext && parentContext.qColors && typeof parentContext.qColors === "object"
+        ? parentContext.qColors
+        : null;
+    return {
+      qColors: createQColorContext(parentColors),
+    };
+  }
+
+  function lookupQColorPropertyByArea(colorContext, areaName) {
+    const normalized = normalizeColorLookupKey(areaName);
+    if (!normalized || !colorContext || !(colorContext.schemas instanceof Map)) {
+      return "";
+    }
+    const entry = colorContext.schemas.get(normalized);
+    if (!entry || typeof entry !== "object") {
+      const choices = Array.from(colorContext.schemas.keys());
+      if (choices.length === 0) {
+        return "";
+      }
+      const ranked = fuzzyResolve(normalized, choices, 1);
+      if (!Array.isArray(ranked) || ranked.length === 0 || !ranked[0]) {
+        return "";
+      }
+      const fallbackEntry = colorContext.schemas.get(String(ranked[0].candidate || ""));
+      if (!fallbackEntry || typeof fallbackEntry !== "object") {
+        return "";
+      }
+      return String(fallbackEntry.property || "").trim();
+    }
+    return String(entry.property || "").trim();
+  }
+
+  function lookupQColorThemeAssignments(colorContext, themeName) {
+    const normalized = normalizeColorLookupKey(themeName);
+    if (!normalized || !colorContext || !(colorContext.themes instanceof Map)) {
+      return null;
+    }
+    const entry = colorContext.themes.get(normalized);
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+    return cloneQColorAssignments(entry.assignments);
+  }
+
+  function lookupAreaValueInObject(mapObject, areaName) {
+    if (!mapObject || typeof mapObject !== "object" || Array.isArray(mapObject)) {
+      return "";
+    }
+    const target = normalizeColorLookupKey(areaName);
+    if (!target) {
+      return "";
+    }
+    const keys = Object.keys(mapObject);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim();
+      if (!key) {
+        continue;
+      }
+      if (normalizeColorLookupKey(key) !== target) {
+        continue;
+      }
+      return normalizeQColorResolvedValue(mapObject[key]);
+    }
+    return "";
+  }
+
+  function resolveQColorAssignmentValue(rawValue, colorContext) {
+    const value = normalizeQColorResolvedValue(rawValue);
+    if (!value) {
+      return "";
+    }
+    const themeName = String(colorContext && colorContext.defaultThemeName || "").trim();
+    const theme = lookupQColorThemeAssignments(colorContext, themeName);
+    const fromTheme = normalizeQColorResolvedValue(lookupAreaValueInObject(theme, value));
+    if (fromTheme) {
+      return fromTheme || value;
+    }
+    return value;
+  }
+
+  function buildQColorAreaValueMap(assignments, colorContext) {
+    const source = assignments && typeof assignments === "object" ? assignments : {};
+    const merged = {};
+    const sourceKeys = Object.keys(source);
+    const requestedKeys = [];
+    for (let i = 0; i < sourceKeys.length; i += 1) {
+      const key = String(sourceKeys[i] || "").trim();
+      if (!key || normalizeColorLookupKey(key) === "theme") {
+        continue;
+      }
+      requestedKeys.push(key);
+    }
+    const requestedPatterns = requestedKeys.map(function mapRequestedPattern(key) {
+      return String(key || "").trim();
+    }).filter(Boolean);
+    const hasRequestedKeys = requestedPatterns.length > 0;
+
+    const themeName = String(source.theme || colorContext && colorContext.defaultThemeName || "").trim();
+    if (themeName) {
+      const theme = lookupQColorThemeAssignments(colorContext, themeName);
+      if (theme && typeof theme === "object") {
+        const themeKeys = Object.keys(theme);
+        for (let i = 0; i < themeKeys.length; i += 1) {
+          const key = String(themeKeys[i] || "").trim();
+          if (!key) {
+            continue;
+          }
+          if (hasRequestedKeys && !doesQColorRequestMatchAnyArea(requestedPatterns, key)) {
+            continue;
+          }
+          merged[key] = theme[key];
+        }
+      }
+    }
+
+    for (let i = 0; i < sourceKeys.length; i += 1) {
+      const key = String(sourceKeys[i] || "").trim();
+      if (!key || normalizeColorLookupKey(key) === "theme") {
+        continue;
+      }
+      if (source[key] === true) {
+        continue;
+      }
+      merged[key] = source[key];
+    }
+
+    const out = {};
+    const keys = Object.keys(merged);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim();
+      if (!key) {
+        continue;
+      }
+      const resolvedValue = resolveQColorAssignmentValue(merged[key], colorContext);
+      if (!resolvedValue) {
+        continue;
+      }
+      out[key] = resolvedValue;
+    }
+    return out;
+  }
+
+  function buildQColorStyleDeclarationsFromAreaMap(areaMap, colorContext) {
+    const source = areaMap && typeof areaMap === "object" ? areaMap : {};
+    const declarations = [];
+    const keys = Object.keys(source);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim();
+      const value = String(source[key] || "").trim();
+      if (!key || !value) {
+        continue;
+      }
+      const cssProperty = lookupQColorPropertyByArea(colorContext, key) || inferQColorCssProperty(key);
+      if (!cssProperty) {
+        continue;
+      }
+      declarations.push(cssProperty + ": " + value);
+    }
+    return declarations;
+  }
+
+  function buildQColorStyleDeclarations(assignments, colorContext) {
+    return buildQColorStyleDeclarationsFromAreaMap(
+      buildQColorAreaValueMap(assignments, colorContext),
+      colorContext
+    );
+  }
+
+  function buildQColorAreaValueMapFromList(assignmentsList, colorContext) {
+    const list = Array.isArray(assignmentsList) ? assignmentsList : [];
+    const merged = {};
+    for (let i = 0; i < list.length; i += 1) {
+      const assignments = list[i];
+      const values = buildQColorAreaValueMap(assignments, colorContext);
+      const keys = Object.keys(values);
+      for (let j = 0; j < keys.length; j += 1) {
+        const key = String(keys[j] || "").trim();
+        const value = String(values[key] || "").trim();
+        if (!key || !value) {
+          continue;
+        }
+        merged[key] = value;
+      }
+    }
+    return merged;
+  }
+
+  function buildQColorStyleDeclarationsFromList(assignmentsList, colorContext) {
+    return buildQColorStyleDeclarationsFromAreaMap(
+      buildQColorAreaValueMapFromList(assignmentsList, colorContext),
+      colorContext
+    );
+  }
+
+  function composeStyleFromBaseAndDeclarations(baseStyle, declarations) {
+    const base = String(baseStyle || "").trim();
+    const list = Array.isArray(declarations) ? declarations.filter(Boolean) : [];
+    const colorStyle = list.join("; ").trim();
+    if (!base && !colorStyle) {
+      return "";
+    }
+    if (!base) {
+      return colorStyle;
+    }
+    if (!colorStyle) {
+      return base;
+    }
+    const needsSemicolon = !base.endsWith(";");
+    return (base + (needsSemicolon ? ";" : "") + " " + colorStyle).trim();
+  }
+
+  function splitInlineStyleDeclarations(styleText) {
+    const source = String(styleText || "");
+    const out = [];
+    let token = "";
+    let quote = "";
+    let escaped = false;
+    let parenDepth = 0;
+    for (let i = 0; i < source.length; i += 1) {
+      const ch = source[i];
+      if (escaped) {
+        token += ch;
+        escaped = false;
+        continue;
+      }
+      if (quote) {
+        token += ch;
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+      if (ch === "'" || ch === "\"") {
+        quote = ch;
+        token += ch;
+        continue;
+      }
+      if (ch === "(") {
+        parenDepth += 1;
+        token += ch;
+        continue;
+      }
+      if (ch === ")" && parenDepth > 0) {
+        parenDepth -= 1;
+        token += ch;
+        continue;
+      }
+      if (ch === ";" && parenDepth === 0) {
+        const chunk = String(token || "").trim();
+        if (chunk) {
+          out.push(chunk);
+        }
+        token = "";
+        continue;
+      }
+      token += ch;
+    }
+    const trailing = String(token || "").trim();
+    if (trailing) {
+      out.push(trailing);
+    }
+    return out;
+  }
+
+  function parseInlineStyleDeclarations(styleText) {
+    const entries = splitInlineStyleDeclarations(styleText);
+    const out = [];
+    for (let i = 0; i < entries.length; i += 1) {
+      const raw = String(entries[i] || "").trim();
+      if (!raw) {
+        continue;
+      }
+      const colonIndex = raw.indexOf(":");
+      if (colonIndex <= 0) {
+        continue;
+      }
+      const property = String(raw.slice(0, colonIndex) || "").trim();
+      const value = String(raw.slice(colonIndex + 1) || "").trim();
+      if (!property || !value) {
+        continue;
+      }
+      out.push({
+        property: property,
+        normalizedProperty: normalizeCssPropertyName(property),
+        value: value,
+      });
+    }
+    return out;
+  }
+
+  function joinInlineStyleDeclarations(declarations) {
+    const list = Array.isArray(declarations) ? declarations : [];
+    const out = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const item = list[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      const property = String(item.property || "").trim();
+      const value = String(item.value || "").trim();
+      if (!property || !value) {
+        continue;
+      }
+      out.push(property + ": " + value);
+    }
+    return out.join("; ").trim();
+  }
+
+  function composeQColorStyleWithExisting(options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const currentStyle = String(opts.currentStyle || "").trim();
+    const baseStyle = String(opts.baseStyle || "").trim();
+    const colorDeclarations = Array.isArray(opts.colorDeclarations) ? opts.colorDeclarations : [];
+    const previousManaged = Array.isArray(opts.previousManagedProperties) ? opts.previousManagedProperties : [];
+    const parsedBase = parseInlineStyleDeclarations(baseStyle);
+    const parsedCurrent = parseInlineStyleDeclarations(currentStyle);
+    const mergedSourceMap = Object.create(null);
+    const mergedSourceOrder = [];
+    function mergeSourceDeclarations(list) {
+      const entries = Array.isArray(list) ? list : [];
+      for (let i = 0; i < entries.length; i += 1) {
+        const item = entries[i];
+        if (!item || !item.normalizedProperty) {
+          continue;
+        }
+        if (!Object.prototype.hasOwnProperty.call(mergedSourceMap, item.normalizedProperty)) {
+          mergedSourceOrder.push(item.normalizedProperty);
+        }
+        mergedSourceMap[item.normalizedProperty] = item;
+      }
+    }
+    mergeSourceDeclarations(parsedBase);
+    mergeSourceDeclarations(parsedCurrent);
+    const parsedSource = [];
+    for (let i = 0; i < mergedSourceOrder.length; i += 1) {
+      const key = mergedSourceOrder[i];
+      const item = mergedSourceMap[key];
+      if (!item) {
+        continue;
+      }
+      parsedSource.push(item);
+    }
+
+    const parsedColor = [];
+    const nextManagedSet = new Set();
+    for (let i = 0; i < colorDeclarations.length; i += 1) {
+      const entry = parseInlineStyleDeclarations(String(colorDeclarations[i] || ""));
+      for (let j = 0; j < entry.length; j += 1) {
+        const item = entry[j];
+        parsedColor.push(item);
+        if (item.normalizedProperty) {
+          nextManagedSet.add(item.normalizedProperty);
+        }
+      }
+    }
+
+    const removeSet = new Set();
+    for (let i = 0; i < previousManaged.length; i += 1) {
+      const prop = normalizeCssPropertyName(previousManaged[i]);
+      if (prop) {
+        removeSet.add(prop);
+      }
+    }
+    nextManagedSet.forEach(function eachManaged(prop) {
+      if (prop) {
+        removeSet.add(prop);
+      }
+    });
+
+    const retained = [];
+    for (let i = 0; i < parsedSource.length; i += 1) {
+      const item = parsedSource[i];
+      if (!item || !item.normalizedProperty || removeSet.has(item.normalizedProperty)) {
+        continue;
+      }
+      retained.push(item);
+    }
+
+    const merged = retained.concat(parsedColor);
+    return {
+      style: joinInlineStyleDeclarations(merged),
+      managedProperties: Array.from(nextManagedSet),
+    };
+  }
+
+  function inferQColorCssProperty(areaName) {
+    const normalized = normalizeColorLookupKey(areaName);
+    if (!normalized) {
+      return "";
+    }
+    if (
+      normalized === "background-color" ||
+      normalized === "background" ||
+      normalized === "bg" ||
+      normalized.endsWith("-bg") ||
+      normalized.indexOf("background") !== -1
+    ) {
+      return "background-color";
+    }
+    if (
+      normalized === "foreground-color" ||
+      normalized === "foreground" ||
+      normalized === "fg" ||
+      normalized.endsWith("-fg") ||
+      normalized.endsWith("-foreground")
+    ) {
+      return "color";
+    }
+    if (normalized === "color" || normalized.endsWith("-color")) {
+      return "color";
+    }
+    if (normalized.indexOf("border") !== -1) {
+      return "border-color";
+    }
+    if (normalized.indexOf("outline") !== -1) {
+      return "outline-color";
+    }
+    if (normalized.indexOf("shadow") !== -1) {
+      return "box-shadow";
+    }
+    if (normalized.indexOf("fill") !== -1) {
+      return "fill";
+    }
+    if (normalized.indexOf("stroke") !== -1) {
+      return "stroke";
+    }
+    if (normalized.indexOf("caret") !== -1) {
+      return "caret-color";
+    }
+    return qColorStylePropertyForKey(areaName);
+  }
+
+  function warnQColor(message, detail) {
+    if (typeof console === "undefined" || !console || typeof console.warn !== "function") {
+      return;
+    }
+    if (typeof detail === "undefined") {
+      console.warn("qhtml q-color warning:", message);
+      return;
+    }
+    console.warn("qhtml q-color warning:", message, detail);
+  }
+
+  function normalizeCssPropertyName(name) {
+    return String(name || "").trim().toLowerCase();
+  }
+
+  function isLikelyColorValue(value) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return false;
+    }
+    if (/^#[0-9a-f]{3,8}$/i.test(text)) {
+      return true;
+    }
+    if (/^(rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\(/i.test(text)) {
+      return true;
+    }
+    if (/gradient\(/i.test(text)) {
+      return true;
+    }
+    if (/^(var|calc|min|max|clamp)\(/i.test(text)) {
+      return true;
+    }
+    if (/^(transparent|currentcolor|inherit|initial|unset|revert|revert-layer|[a-z-]+)$/i.test(text)) {
+      return true;
+    }
+    return false;
+  }
+
+  function isLikelyBorderValue(value) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return false;
+    }
+    if (/^(var|calc|min|max|clamp)\(/i.test(text)) {
+      return true;
+    }
+    if (/^(none|initial|inherit|unset|revert|revert-layer)$/i.test(text)) {
+      return true;
+    }
+    if (/^([0-9.]+(px|em|rem|%)\s+)?(none|solid|dashed|dotted|double|groove|ridge|inset|outset)\s+.+$/i.test(text)) {
+      return true;
+    }
+    return isLikelyColorValue(text);
+  }
+
+  function isLikelyBoxShadowValue(value) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return false;
+    }
+    if (/^(none|inherit|initial|unset|revert|revert-layer)$/i.test(text)) {
+      return true;
+    }
+    if (/^(var|calc|min|max|clamp)\(/i.test(text)) {
+      return true;
+    }
+    if (/(\d+(\.\d+)?(px|em|rem|%))/.test(text) || /^inset\b/i.test(text)) {
+      return true;
+    }
+    return false;
+  }
+
+  function isValidQColorPropertyValue(propertyName, value) {
+    const property = normalizeCssPropertyName(propertyName);
+    const text = String(value || "").trim();
+    if (!property || !text) {
+      return false;
+    }
+    if (/[{}]/.test(text)) {
+      return false;
+    }
+    if (property.indexOf("--") === 0) {
+      return true;
+    }
+    if (property === "background" || property === "background-color") {
+      return isLikelyColorValue(text);
+    }
+    if (
+      property === "color" ||
+      property === "border-color" ||
+      property === "outline-color" ||
+      property === "caret-color" ||
+      property === "fill" ||
+      property === "stroke"
+    ) {
+      return isLikelyColorValue(text);
+    }
+    if (property === "border") {
+      return isLikelyBorderValue(text);
+    }
+    if (property === "box-shadow") {
+      return isLikelyBoxShadowValue(text);
+    }
+    return true;
+  }
+
+  function applyQColorAssignmentsToElementNode(elementNode, colorContext) {
+    if (!elementNode || typeof elementNode !== "object") {
+      return;
+    }
+    if (!elementNode.meta || typeof elementNode.meta !== "object") {
+      elementNode.meta = {};
+    }
+    const assignments = Array.isArray(elementNode.meta.qColorAssignments)
+      ? elementNode.meta.qColorAssignments
+      : [];
+    const areaGroups = Array.isArray(elementNode.meta.qColorAreas)
+      ? elementNode.meta.qColorAreas
+      : [];
+    const areaValues = buildQColorAreaValueMapFromList(assignments, colorContext);
+    const requestedAreas = expandQColorRequestedAreas(
+      areaGroups,
+      colorContext,
+      areaValues,
+      elementNode.meta.qColorAreaProperties
+    );
+    const propertyOrder = [];
+    const declarationMap = Object.create(null);
+    const sourceAreaMap = Object.create(null);
+    for (let i = 0; i < requestedAreas.length; i += 1) {
+      const areaName = requestedAreas[i];
+      const explicitProperty = lookupQColorPropertyByArea(colorContext, areaName);
+      if (explicitProperty) {
+        if (!elementNode.meta || typeof elementNode.meta !== "object") {
+          elementNode.meta = {};
+        }
+        if (
+          !elementNode.meta.qColorAreaProperties ||
+          typeof elementNode.meta.qColorAreaProperties !== "object" ||
+          Array.isArray(elementNode.meta.qColorAreaProperties)
+        ) {
+          elementNode.meta.qColorAreaProperties = {};
+        }
+        elementNode.meta.qColorAreaProperties[areaName] = explicitProperty;
+      }
+      const value = lookupAreaValueInObject(areaValues, areaName);
+      if (!value) {
+        continue;
+      }
+      const cssProperty = explicitProperty || inferQColorCssProperty(areaName);
+      if (!cssProperty) {
+        continue;
+      }
+      if (explicitProperty) {
+        if (!elementNode.meta || typeof elementNode.meta !== "object") {
+          elementNode.meta = {};
+        }
+        if (
+          !elementNode.meta.qColorAreaProperties ||
+          typeof elementNode.meta.qColorAreaProperties !== "object" ||
+          Array.isArray(elementNode.meta.qColorAreaProperties)
+        ) {
+          elementNode.meta.qColorAreaProperties = {};
+        }
+        elementNode.meta.qColorAreaProperties[areaName] = explicitProperty;
+      }
+      if (!explicitProperty) {
+        warnQColor("qhtml q-color fallback-map", {
+          area: areaName,
+          property: cssProperty,
+        });
+      }
+      if (!isValidQColorPropertyValue(cssProperty, value)) {
+        warnQColor("qhtml q-color invalid-value", {
+          area: areaName,
+          property: cssProperty,
+          value: value,
+        });
+      }
+      const normalizedProperty = normalizeCssPropertyName(cssProperty);
+      if (normalizedProperty && Object.prototype.hasOwnProperty.call(declarationMap, normalizedProperty)) {
+        warnQColor("qhtml q-color override", {
+          area: areaName,
+          overriddenArea: sourceAreaMap[normalizedProperty] || "",
+          property: cssProperty,
+        });
+      }
+      if (normalizedProperty && !Object.prototype.hasOwnProperty.call(declarationMap, normalizedProperty)) {
+        propertyOrder.push(normalizedProperty);
+      }
+      if (normalizedProperty) {
+        declarationMap[normalizedProperty] = cssProperty + ": " + value;
+        sourceAreaMap[normalizedProperty] = areaName;
+      }
+    }
+    const inlineDeclarations = [];
+    for (let i = 0; i < propertyOrder.length; i += 1) {
+      const normalizedProperty = propertyOrder[i];
+      const declaration = String(declarationMap[normalizedProperty] || "").trim();
+      if (!declaration) {
+        continue;
+      }
+      inlineDeclarations.push(declaration);
+    }
+    const baseStyle = String(elementNode.meta.qColorBaseStyle || "").trim();
+    const fallbackDeclarations = requestedAreas.length > 0
+      ? inlineDeclarations
+      : buildQColorStyleDeclarationsFromList(assignments, colorContext);
+    const previousManaged = Array.isArray(elementNode.meta.qColorManagedProperties)
+      ? elementNode.meta.qColorManagedProperties.slice()
+      : [];
+    const currentStyle = String(elementNode.attributes && elementNode.attributes.style || "").trim();
+    const styleCompose = composeQColorStyleWithExisting({
+      currentStyle: currentStyle,
+      baseStyle: baseStyle,
+      colorDeclarations: fallbackDeclarations,
+      previousManagedProperties: previousManaged,
+    });
+    const mergedStyle = String(styleCompose.style || "").trim();
+    elementNode.meta.qColorManagedProperties = Array.isArray(styleCompose.managedProperties)
+      ? styleCompose.managedProperties.slice()
+      : [];
+    if (!elementNode.attributes || typeof elementNode.attributes !== "object") {
+      elementNode.attributes = {};
+    }
+    if (mergedStyle) {
+      elementNode.attributes.style = mergedStyle;
+    } else {
+      delete elementNode.attributes.style;
+    }
+
+    if (Array.isArray(elementNode.children)) {
+      const nextChildren = [];
+      for (let i = 0; i < elementNode.children.length; i += 1) {
+        const child = elementNode.children[i];
+        if (
+          child &&
+          child.kind === core.NODE_TYPES.rawHtml &&
+          child.meta &&
+          child.meta.qColorGeneratedStyle === true
+        ) {
+          continue;
+        }
+        nextChildren.push(child);
+      }
+      elementNode.children = nextChildren;
+    }
+  }
+
+  function collectQColorCandidateAreas(colorContext, areaValues, areaPropertyMap) {
+    const out = [];
+    const seen = new Set();
+    function pushArea(name) {
+      const areaName = String(name || "").trim();
+      const normalized = normalizeColorLookupKey(areaName);
+      if (!areaName || !normalized || seen.has(normalized)) {
+        return;
+      }
+      seen.add(normalized);
+      out.push(areaName);
+    }
+    if (colorContext && colorContext.schemas instanceof Map) {
+      colorContext.schemas.forEach(function collectSchema(entry, key) {
+        if (entry && typeof entry === "object" && String(entry.name || "").trim()) {
+          pushArea(entry.name);
+          return;
+        }
+        pushArea(key);
+      });
+    }
+    const valueKeys = Object.keys(areaValues && typeof areaValues === "object" ? areaValues : {});
+    for (let i = 0; i < valueKeys.length; i += 1) {
+      pushArea(valueKeys[i]);
+    }
+    const propertyKeys = Object.keys(
+      areaPropertyMap && typeof areaPropertyMap === "object" && !Array.isArray(areaPropertyMap)
+        ? areaPropertyMap
+        : {}
+    );
+    for (let i = 0; i < propertyKeys.length; i += 1) {
+      pushArea(propertyKeys[i]);
+    }
+    return out;
+  }
+
+  function expandQColorRequestedAreas(areaGroups, colorContext, areaValues, areaPropertyMap) {
+    const groups = Array.isArray(areaGroups) ? areaGroups : [];
+    const requested = [];
+    const seen = new Set();
+    const candidates = collectQColorCandidateAreas(colorContext, areaValues, areaPropertyMap);
+    function pushArea(name) {
+      const areaName = String(name || "").trim();
+      const normalized = normalizeColorLookupKey(areaName);
+      if (!areaName || !normalized || seen.has(normalized)) {
+        return;
+      }
+      seen.add(normalized);
+      requested.push(areaName);
+    }
+    for (let i = 0; i < groups.length; i += 1) {
+      const group = Array.isArray(groups[i]) ? groups[i] : [];
+      for (let j = 0; j < group.length; j += 1) {
+        const areaName = String(group[j] || "").trim();
+        if (!areaName) {
+          continue;
+        }
+        if (hasQColorWildcardPattern(areaName)) {
+          let matched = false;
+          for (let k = 0; k < candidates.length; k += 1) {
+            const candidate = candidates[k];
+            if (!doesQColorRequestMatchAreaName(areaName, candidate)) {
+              continue;
+            }
+            pushArea(candidate);
+            matched = true;
+          }
+          if (!matched) {
+            warnQColor("qhtml q-color wildcard-no-match", { area: areaName });
+          }
+          continue;
+        }
+        pushArea(areaName);
+      }
+    }
+    return requested;
+  }
+
+  function registerQColorSchemaItem(colorContext, item) {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+    const entries = item.entries && typeof item.entries === "object" ? item.entries : {};
+    const entryKeys = Object.keys(entries);
+    const schemaName = String(item.name || "").trim();
+    if (schemaName) {
+      const normalizedSchemaName = normalizeColorLookupKey(schemaName);
+      if (normalizedSchemaName && colorContext && colorContext.schemaDefs instanceof Map) {
+        colorContext.schemaDefs.set(normalizedSchemaName, {
+          name: schemaName,
+          entries: cloneQColorAssignments(entries),
+        });
+      }
+      return;
+    }
+    for (let i = 0; i < entryKeys.length; i += 1) {
+      const key = String(entryKeys[i] || "").trim();
+      if (!key) {
+        continue;
+      }
+      registerQColorSchema(colorContext, key, entries[key]);
+    }
+  }
+
+  function registerQColorThemeItem(colorContext, item) {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+    const themeName = String(item.name || "").trim();
+    const normalizedThemeName = normalizeColorLookupKey(themeName);
+    if (!themeName) {
+      registerQColorTheme(colorContext, DEFAULT_QCOLOR_THEME_NAME, item.assignments, { setAsDefault: true });
+      return;
+    }
+    registerQColorTheme(colorContext, themeName, item.assignments, {
+      setAsDefault: normalizedThemeName === DEFAULT_QCOLOR_THEME_NAME,
+    });
+  }
+
+  function serializeQColorSchemas(colorContext) {
+    const out = {};
+    if (!colorContext || !(colorContext.schemas instanceof Map)) {
+      return out;
+    }
+    colorContext.schemas.forEach(function eachSchema(entry) {
+      if (!entry || typeof entry !== "object") {
+        return;
+      }
+      const name = String(entry.name || "").trim();
+      const value = String(entry.property || "").trim();
+      if (!name || !value) {
+        return;
+      }
+      out[name] = value;
+    });
+    return out;
+  }
+
+  function serializeQColorThemes(colorContext) {
+    const out = {};
+    if (!colorContext || !(colorContext.themes instanceof Map)) {
+      return out;
+    }
+    colorContext.themes.forEach(function eachTheme(entry) {
+      if (!entry || typeof entry !== "object") {
+        return;
+      }
+      const name = String(entry.name || "").trim();
+      if (!name) {
+        return;
+      }
+      out[name] = cloneQColorAssignments(entry.assignments);
+    });
+    return out;
+  }
+
+  function serializeQColorSchemaDefinitions(colorContext) {
+    const out = {};
+    if (!colorContext || !(colorContext.schemaDefs instanceof Map)) {
+      return out;
+    }
+    colorContext.schemaDefs.forEach(function eachSchemaDef(entry) {
+      if (!entry || typeof entry !== "object") {
+        return;
+      }
+      const name = String(entry.name || "").trim();
+      if (!name) {
+        return;
+      }
+      out[name] = cloneQColorAssignments(entry.entries);
+    });
+    return out;
   }
 
   function parseTagToken(token) {
@@ -3860,14 +5500,167 @@
     return out;
   }
 
-  function processElementItems(targetElement, astItems, source) {
+  function extractQColorTextFromAstItems(items) {
+    const list = Array.isArray(items) ? items : [];
+    const chunks = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const item = list[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type === "TextBlock" || item.type === "RawTextLine") {
+        chunks.push(String(item.text || "").trim());
+        continue;
+      }
+      if (item.type === "BareWord") {
+        chunks.push(String(item.word || item.name || "").trim());
+      }
+    }
+    return chunks.join(" ").trim();
+  }
+
+  function parseQColorSchemaEntriesFromAstItems(items) {
+    const out = {};
+    const list = Array.isArray(items) ? items : [];
+    for (let i = 0; i < list.length; i += 1) {
+      const item = list[i];
+      if (!item || typeof item !== "object" || item.type !== "Element") {
+        continue;
+      }
+      const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+      if (selectors.length !== 1) {
+        continue;
+      }
+      const areaName = String(selectors[0] || "").trim();
+      if (!areaName) {
+        continue;
+      }
+      const propertyText = extractQColorTextFromAstItems(item.items);
+      out[areaName] = propertyText || inferQColorCssProperty(areaName);
+    }
+    return out;
+  }
+
+  function parseQColorThemeAssignmentsFromAstItems(items) {
+    const out = {};
+    const list = Array.isArray(items) ? items : [];
+    for (let i = 0; i < list.length; i += 1) {
+      const item = list[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type !== "Property") {
+        continue;
+      }
+      const key = String(item.name || "").trim();
+      if (!key) {
+        continue;
+      }
+      const valueText =
+        typeof item.value === "string"
+          ? item.value
+          : item.value && typeof item.value === "object"
+            ? typeof item.value.value === "string"
+              ? item.value.value
+              : typeof item.value.raw === "string"
+                ? item.value.raw
+                : ""
+            : "";
+      const value = String(valueText || "").trim();
+      if (!value) {
+        continue;
+      }
+      out[key] = value;
+    }
+    return out;
+  }
+
+  function tryApplyNamedQColorInvocation(item, colorContext) {
+    if (!item || typeof item !== "object" || item.type !== "Element") {
+      return false;
+    }
+    if (!colorContext || typeof colorContext !== "object") {
+      return false;
+    }
+    const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+    if (selectors.length !== 1) {
+      return false;
+    }
+    const invocationName = String(selectors[0] || "").trim();
+    const invocationKey = normalizeColorLookupKey(invocationName);
+    if (!invocationKey) {
+      return false;
+    }
+
+    if (colorContext.schemaDefs instanceof Map && colorContext.schemaDefs.has(invocationKey)) {
+      const schemaDef = colorContext.schemaDefs.get(invocationKey) || {};
+      const merged = Object.assign({}, cloneQColorAssignments(schemaDef.entries), parseQColorSchemaEntriesFromAstItems(item.items));
+      const keys = Object.keys(merged);
+      for (let i = 0; i < keys.length; i += 1) {
+        const areaName = keys[i];
+        registerQColorSchema(colorContext, areaName, merged[areaName]);
+      }
+      return true;
+    }
+
+    if (colorContext.themes instanceof Map && colorContext.themes.has(invocationKey)) {
+      const themeDef = colorContext.themes.get(invocationKey) || {};
+      const merged = Object.assign({}, cloneQColorAssignments(themeDef.assignments), parseQColorThemeAssignmentsFromAstItems(item.items));
+      registerQColorTheme(colorContext, DEFAULT_QCOLOR_THEME_NAME, merged, { setAsDefault: true });
+      return true;
+    }
+
+    return false;
+  }
+
+  function processElementItems(targetElement, astItems, source, context) {
+    const colorContext =
+      context && context.qColors && typeof context.qColors === "object"
+        ? context.qColors
+        : createQColorContext();
+
+    function tryAssignSlotNameFromText(textValue) {
+      if (!targetElement || String(targetElement.tagName || "").toLowerCase() !== "slot") {
+        return false;
+      }
+      if (targetElement.attributes && targetElement.attributes.name) {
+        return false;
+      }
+      const candidate = String(textValue || "").trim();
+      if (!candidate) {
+        return false;
+      }
+      if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(candidate)) {
+        return false;
+      }
+      if (!targetElement.attributes || typeof targetElement.attributes !== "object") {
+        targetElement.attributes = {};
+      }
+      targetElement.attributes.name = candidate;
+      return true;
+    }
+
     for (let i = 0; i < astItems.length; i += 1) {
       const item = astItems[i];
+      if (tryApplyNamedQColorInvocation(item, colorContext)) {
+        continue;
+      }
+      if (item.type === "QColorSchemaDefinition") {
+        registerQColorSchemaItem(colorContext, item);
+        continue;
+      }
+      if (item.type === "QColorThemeDefinition") {
+        registerQColorThemeItem(colorContext, item);
+        continue;
+      }
       if (item.type === "Property") {
         applyPropertyToElement(targetElement, item);
       } else if (item.type === "HtmlBlock") {
         targetElement.children.push(core.createRawHtmlNode({ html: item.html, meta: { originalSource: item.raw } }));
       } else if (item.type === "TextBlock") {
+        if (tryAssignSlotNameFromText(item.text)) {
+          continue;
+        }
         appendTextChildNode(targetElement, item.text, {
           originalSource: item.raw || null,
           sourceRange:
@@ -3876,8 +5669,40 @@
               : null,
         });
       } else if (item.type === "StyleBlock") {
-        mergeStyleAttribute(targetElement, item.css);
+        if (
+          targetElement.meta &&
+          Array.isArray(targetElement.meta.qColorAssignments) &&
+          targetElement.meta.qColorAssignments.length > 0
+        ) {
+          const existingBase = String(targetElement.meta.qColorBaseStyle || "").trim();
+          const incomingBase = String(item.css || "").trim();
+          targetElement.meta.qColorBaseStyle = composeStyleFromBaseAndDeclarations(existingBase, [incomingBase]);
+          applyQColorAssignmentsToElementNode(targetElement, colorContext);
+        } else {
+          mergeStyleAttribute(targetElement, item.css);
+        }
+      } else if (item.type === "QColorApplyBlock") {
+        if (!targetElement.meta || typeof targetElement.meta !== "object") {
+          targetElement.meta = {};
+        }
+        if (!Array.isArray(targetElement.meta.qColorAssignments)) {
+          targetElement.meta.qColorAssignments = [];
+        }
+        if (!Array.isArray(targetElement.meta.qColorAreas)) {
+          targetElement.meta.qColorAreas = [];
+        }
+        if (typeof targetElement.meta.qColorBaseStyle !== "string") {
+          targetElement.meta.qColorBaseStyle = String(targetElement.attributes && targetElement.attributes.style || "").trim();
+        }
+        targetElement.meta.qColorAssignments.push(cloneQColorAssignments(item.assignments));
+        if (Array.isArray(item.areas)) {
+          targetElement.meta.qColorAreas.push(item.areas.slice());
+        }
+        applyQColorAssignmentsToElementNode(targetElement, colorContext);
       } else if (item.type === "RawTextLine") {
+        if (tryAssignSlotNameFromText(item.text)) {
+          continue;
+        }
         appendTextChildNode(targetElement, item.text, {
           originalSource: item.raw || null,
           sourceRange:
@@ -3927,7 +5752,11 @@
         if (looksLikeQHtmlSnippet(resolved)) {
           const nestedAst = parseQHtmlToAst(resolved);
           for (let j = 0; j < nestedAst.body.length; j += 1) {
-            const nested = convertAstItemToNode(nestedAst.body[j], resolved);
+            const nested = convertAstItemToNode(
+              nestedAst.body[j],
+              resolved,
+              createScopedConversionContext({ qColors: colorContext })
+            );
             if (nested) {
               targetElement.children.push(nested);
             }
@@ -3942,7 +5771,7 @@
           });
         }
       } else {
-        const childNode = convertAstItemToNode(item, source);
+        const childNode = convertAstItemToNode(item, source, createScopedConversionContext({ qColors: colorContext }));
         if (childNode) {
           targetElement.children.push(childNode);
         }
@@ -3999,8 +5828,10 @@
     }
   }
 
-  function buildComponentNodeFromAst(astNode, source, options) {
+  function buildComponentNodeFromAst(astNode, source, options, context) {
     const opts = options || {};
+    const scopedContext = createScopedConversionContext(context);
+    const colorContext = scopedContext.qColors;
     const componentAttributes = {};
     const componentProperties = [];
     const componentPropertiesSeen = new Set();
@@ -4016,6 +5847,17 @@
     const items = Array.isArray(astNode.items) ? astNode.items : [];
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i];
+      if (tryApplyNamedQColorInvocation(item, colorContext)) {
+        continue;
+      }
+      if (item.type === "QColorSchemaDefinition") {
+        registerQColorSchemaItem(colorContext, item);
+        continue;
+      }
+      if (item.type === "QColorThemeDefinition") {
+        registerQColorThemeItem(colorContext, item);
+        continue;
+      }
       if (item.type === "QPropertyBlock") {
         const names = Array.isArray(item.properties) ? item.properties : [];
         for (let j = 0; j < names.length; j += 1) {
@@ -4051,7 +5893,7 @@
           const propertyNodes = [];
           const nestedItems = Array.isArray(item.items) ? item.items : [];
           for (let j = 0; j < nestedItems.length; j += 1) {
-            const propertyNode = convertAstItemToNode(nestedItems[j], source);
+            const propertyNode = convertAstItemToNode(nestedItems[j], source, scopedContext);
             if (!propertyNode) {
               continue;
             }
@@ -4119,7 +5961,7 @@
         }
         continue;
       }
-      const node = convertAstItemToNode(item, source);
+      const node = convertAstItemToNode(item, source, scopedContext);
       if (node) {
         templateNodes.push(node);
       }
@@ -4145,7 +5987,8 @@
     return componentNode;
   }
 
-  function buildElementFromAst(astElement, source) {
+  function buildElementFromAst(astElement, source, context) {
+    const scopedContext = createScopedConversionContext(context);
     const selectors = astElement.selectors.map((entry) => String(entry).trim()).filter(Boolean);
     const prefixDirectives = Array.isArray(astElement.prefixDirectives) ? astElement.prefixDirectives.slice() : [];
     if (selectors.length === 0) {
@@ -4155,7 +5998,7 @@
     if (selectors.length === 1 && selectors[0].toLowerCase() === "q-component") {
       return buildComponentNodeFromAst(astElement, source, {
         definitionType: "component",
-      });
+      }, scopedContext);
     }
 
     const selectorTokens = selectors.map(parseTagToken);
@@ -4177,7 +6020,7 @@
       if (prefixDirectives.length > 0) {
         leaf.slotDirectives = prefixDirectives;
       }
-      processElementItems(leaf, astElement.items, source);
+      processElementItems(leaf, astElement.items, source, scopedContext);
       applyKeywordAliasesToNode(leaf, astElement.keywords);
       return leaf;
     }
@@ -4203,32 +6046,32 @@
     if (prefixDirectives.length > 0) {
       leaf.slotDirectives = prefixDirectives;
     }
-    processElementItems(leaf, astElement.items, source);
+    processElementItems(leaf, astElement.items, source, scopedContext);
 
     return chain[0];
   }
 
-  function convertAstItemToNode(item, source) {
+  function convertAstItemToNode(item, source, context) {
     if (!item || typeof item !== "object") {
       return null;
     }
 
     if (item.type === "Element") {
-      return buildElementFromAst(item, source);
+      return buildElementFromAst(item, source, context);
     }
 
     if (item.type === "TemplateDefinition") {
       return buildComponentNodeFromAst(item, source, {
         componentId: item.templateId,
         definitionType: "template",
-      });
+      }, context);
     }
 
     if (item.type === "SignalDefinition") {
       return buildComponentNodeFromAst(item, source, {
         componentId: item.signalId,
         definitionType: "signal",
-      });
+      }, context);
     }
 
     if (item.type === "ComponentDefinition") {
@@ -4236,7 +6079,7 @@
       return buildComponentNodeFromAst(item, source, {
         componentId: componentId,
         definitionType: "component",
-      });
+      }, context);
     }
 
     if (item.type === "HtmlBlock") {
@@ -4323,6 +6166,7 @@
     });
     const ast = parseQHtmlToAst(evaluatedSource);
     const doc = core.createDocument({ source: rawSource });
+    const conversionContext = createScopedConversionContext();
 
     const imports = [];
     const lifecycleScripts = [];
@@ -4339,7 +6183,18 @@
         });
         continue;
       }
-      const node = convertAstItemToNode(item, evaluatedSource);
+      if (item.type === "QColorSchemaDefinition") {
+        registerQColorSchemaItem(conversionContext.qColors, item);
+        continue;
+      }
+      if (item.type === "QColorThemeDefinition") {
+        registerQColorThemeItem(conversionContext.qColors, item);
+        continue;
+      }
+      if (tryApplyNamedQColorInvocation(item, conversionContext.qColors)) {
+        continue;
+      }
+      const node = convertAstItemToNode(item, evaluatedSource, createScopedConversionContext(conversionContext));
       if (node) {
         doc.nodes.push(node);
       }
@@ -4359,6 +6214,14 @@
     doc.meta.qRewrites = rewriteResult.definitions;
     doc.meta.evaluatedSource = evaluatedSource;
     doc.meta.lifecycleScripts = lifecycleScripts;
+    doc.meta.qColorSchemas = serializeQColorSchemas(conversionContext.qColors);
+    doc.meta.qColorSchemaDefs = serializeQColorSchemaDefinitions(conversionContext.qColors);
+    doc.meta.qColorThemes = serializeQColorThemes(conversionContext.qColors);
+    doc.meta.qColorDefaultTheme = String(
+      conversionContext.qColors && conversionContext.qColors.defaultThemeName
+        ? conversionContext.qColors.defaultThemeName
+        : DEFAULT_QCOLOR_THEME_NAME
+    ).trim() || DEFAULT_QCOLOR_THEME_NAME;
     if (Array.isArray(opts.scriptRules)) {
       doc.scripts = opts.scriptRules.slice();
     }
