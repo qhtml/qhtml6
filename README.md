@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.0.6
+# QHTML.js v6.0.7
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -11,21 +11,20 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Dev testbed: `dist/test.html`
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
+## Whats New in v6.0.7
+
+- Added `q-style`, `q-style-class`, and `q-theme` support for merging and building complex stylesheets with advanced theming capabilities (see section on Styles and Themes).
+- `q-style`, `q-style-class`, and `q-theme` are actively evolving and may change in future releases.
+
 ## Whats New in v6.0.6
 
-- Added/expanded color-system features:
-  - `q-color-schema` for area -> CSS property mappings.
-  - `q-color-theme` for area -> value assignments.
-  - `q-color` for applying scoped themed areas to nodes.
-- Added wildcard area matching in `q-color`:
-  - `q-color { sidebar-* }` applies every matching schema area in scope.
-- Added shared defaults file for examples/projects:
-  - `q-import { q-components/q-defaults.qhtml }`
-  - `default-color-schema { }`
-  - `default-color-theme { }`
-- Simplified `dist/demo.html` examples to use shared defaults instead of repeating large inline schema/theme blocks.
-- `q-builder` color-save flow now forces host update after save/customize so edited `q-color`/`q-color-theme` changes persist immediately.
-- `q-color`, `q-color-theme`, and `q-color-schema` are still in active development; API/syntax may change and may later be merged into a more powerful unified system.
+- Added `q-style-class` inside `q-style` for class + inline style composition.
+- Added richer `q-theme` workflows:
+  - selector-based style mapping
+  - theme composition (`q-theme my-theme { base-theme { } ... }`)
+  - scoped theme invocation on element trees
+- Refactored component examples and q-components to favor `q-style` / `q-theme`.
+- Updated `q-builder` style editing flow to focus on `q-style` and `q-theme` blocks.
 
 ## Whats New in v6.0.5
 
@@ -38,10 +37,10 @@ QHTML is a compact language and runtime for building web UIs with readable block
   - Intended for macro/rewrite scoped slot references.
 - Added lazy `${expression}` inline runtime interpolation in rendered string contexts (text/attributes).
 - Parser metadata now includes macro expansion info in `qdom.meta.qMacros` and `qdom.meta.macroExpandedSource`.
-- Reworked color system syntax:
-  - `q-color-schema { area-name { css-property } ... }` for cascaded area/property mappings.
-  - `q-color-theme { area: value, ... }` (or named theme + invocation override).
-  - `q-color { area1 area2 ... }` to apply themed areas.
+- Expanded styling syntax:
+  - reusable `q-style` definitions
+  - selector-driven `q-theme` style assignment
+  - scoped theme application to subtrees
 
 ## Whats New in v6.0.4
 
@@ -321,99 +320,116 @@ Resulting HTML:
 </q-html>
 ```
 
-## Colors / Theming
+## Styles and Themes
 
-`q-color` works on plain elements and components. The model is:
+`q-style` + `q-theme` are the preferred styling model for new code.
 
-- `q-color-schema`: area name -> CSS property mapping (cascades by scope).
-- `q-color-theme`: area name -> value mapping (cascades by scope).
-- `q-color`: applies one or more areas on the current node.
+### `q-style` with class import (`q-style-class`)
 
-### Basic schema + theme
+`q-style-class` lets a style definition add CSS classes and inline properties together.
 
 ```qhtml
-<q-html>
-  q-color-schema {
-    panel-background { background-color }
-    panel-foreground { color }
-    panel-border { border-color }
-  }
-
-  q-color-theme {
-    panel-background: #eff6ff
-    panel-foreground: #1e293b
-    panel-border: #93c5fd
-  }
-
-  div.card {
-    q-color { panel-background panel-foreground panel-border }
-    text { Themed panel }
-  }
-</q-html>
+q-style panel-style {
+  q-style-class { w3-container w3-round-large }
+  backgroundColor: #e0f2fe
+  color: #0c4a6e
+}
 ```
 
-### Reusable named schema/theme + override
+Apply it directly:
 
 ```qhtml
-<q-html>
-  q-color-schema app-schema {
-    panel-background { background-color }
-    panel-foreground { color }
-    panel-border { border-color }
-  }
-
-  q-color-theme app-theme {
-    panel-background: #eff6ff
-    panel-foreground: #1e293b
-    panel-border: #93c5fd
-  }
-
-  div.card {
-    app-schema { panel-shadow { box-shadow } }   /* schema merge/override in this scope */
-    app-theme  { panel-border: #2563eb }         /* theme merge/override in this scope */
-    q-color { panel-background panel-foreground panel-border }
-    text { Reused + overridden }
-  }
-</q-html>
+panel-style,div { text { Styled panel } }
 ```
 
-### Wildcard area application
+Or through a theme rule:
 
 ```qhtml
-<q-html>
-  q-color-schema {
-    sidebar-content-bg { background-color }
-    sidebar-content-fg { color }
-    sidebar-content-border { border-color }
-  }
-  q-color-theme {
-    sidebar-content-bg: #e2e8f0
-    sidebar-content-fg: #0f172a
-    sidebar-content-border: #cbd5e1
-  }
-  div { q-color { sidebar-content-* } text { Wildcard color apply } }
-</q-html>
-```
-
-### Use shipped defaults (`q-defaults.qhtml`)
-
-```qhtml
-<q-html>
-  q-import { q-components/q-defaults.qhtml }
-  default-color-schema { }
-  default-color-theme { }
-
-  div.w3-card.w3-padding {
-    q-color { tiny-card-bg tiny-card-fg tiny-card-border }
-    text { Uses shared defaults }
-  }
-</q-html>
+q-theme app-theme {
+  .panel { panel-style }
+}
 ```
 
 Notes:
-- If an area is missing exact schema mapping, the resolver can fuzzy-match to the closest schema area.
-- Wildcard patterns with no matches log `qhtml q-color wildcard-no-match`.
-- `q-color` applies only the requested areas; schema/theme values still cascade from parent scopes.
+- `q-style-class` merges class names into the element `class` attribute.
+- Inline `q-style` declarations are still applied via `style=""`.
+- If both class CSS and inline declarations target the same property, inline wins.
+
+### Basic reusable style
+
+```qhtml
+q-style panel {
+  backgroundColor: #eff6ff
+  color: #1e293b
+  border: 1px solid #93c5fd
+}
+```
+
+### Apply style directly in selector chain
+
+```qhtml
+panel,div { text { Styled panel } }
+```
+
+### Use `q-style-class` for utility-class composition
+
+```qhtml
+q-style card-shell {
+  q-style-class { w3-card w3-round-large w3-padding }
+  borderColor: #cbd5e1
+}
+```
+
+### Theme maps selectors to styles
+
+```qhtml
+q-style title-accent { color: #1d4ed8 }
+q-style body-muted   { color: #64748b }
+
+q-theme article-theme {
+  h3 { title-accent }
+  p  { body-muted }
+}
+```
+
+### Scoped theme application
+
+```qhtml
+article-theme {
+  div {
+    h3 { text { Title } }
+    p  { text { Description } }
+  }
+}
+```
+
+### Compose themes
+
+```qhtml
+q-theme base-theme {
+  button { button-base }
+}
+
+q-theme admin-theme {
+  base-theme { }
+  .danger { button-danger }
+}
+```
+
+### Override class CSS with inline style declaration
+
+```qhtml
+q-style button-base {
+  q-style-class { w3-button w3-round }
+  backgroundColor: #0f766e
+  color: #ffffff
+}
+```
+
+Notes:
+- `q-style-class` merges into the element `class` attribute.
+- Inline declarations from `q-style` are written to `style=""` and win on property conflicts.
+- Themes can be declared once and reused as lightweight styling scopes.
 
 ## 6. Components
 
