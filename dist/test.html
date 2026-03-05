@@ -58,17 +58,22 @@ q-macro quick-note {
   }
 }
 
-q-color-schema {
-  area { panel-background panel-foreground panel-border }
-  panel-background { background-color }
-  panel-foreground { color }
-  panel-border { border-color }
+q-style panel-demo-base {
+  backgroundColor: #182A21
+  color: #F5FFF9
+  borderColor: #2A5A49
 }
 
-q-color-theme panel {
-  panel-background: #182A21,
-  panel-foreground: #F5FFF9,
-  panel-border: #2A5A49
+q-style panel-demo-border-override {
+  borderColor: #9A7EF7
+}
+
+q-theme panel-demo-theme {
+  #qstyle-demo { panel-demo-base }
+}
+
+q-theme panel-demo-override-theme {
+  #qstyle-demo { panel-demo-border-override }
 }
 
 q-component toggle-builder-button {
@@ -134,11 +139,13 @@ div.w3-container.w3-title.w3-header.w3-xlarge.w3-green {
 }
 quick-note { message { q-macro is active in test.html } }
 div.w3-container.w3-margin-top {
-  panel { panel-border: #9A7EF7 }
-  div#qcolor-demo.w3-padding.w3-round-large.w3-border {
-    q-color { panel-background panel-foreground panel-border }
-    h4 { text { q-color demo } }
-    p { text { q-color-schema + q-color-theme + q-color are active. } }
+  panel-demo-theme {
+    panel-demo-override-theme {
+      div#qstyle-demo.w3-padding.w3-round-large.w3-border {
+        h4 { text { q-style demo } }
+        p { text { q-style + q-theme are active. } }
+      }
+    }
   }
 }
 div.w3-threequarter.w3-light-grey,q-tabs {
