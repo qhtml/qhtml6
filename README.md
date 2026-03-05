@@ -16,52 +16,7 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Added `q-style`, `q-style-class`, and `q-theme` support for merging and building complex stylesheets with advanced theming capabilities (see section on Styles and Themes).
 - `q-style`, `q-style-class`, and `q-theme` are actively evolving and may change in future releases.
 
-## Whats New in v6.0.6
 
-- Added `q-style-class` inside `q-style` for class + inline style composition.
-- Added richer `q-theme` workflows:
-  - selector-based style mapping
-  - theme composition (`q-theme my-theme { base-theme { } ... }`)
-  - scoped theme invocation on element trees
-- Refactored component examples and q-components to favor `q-style` / `q-theme`.
-- Updated `q-builder` style editing flow to focus on `q-style` and `q-theme` blocks.
-
-## Whats New in v6.0.5
-
-- Added `q-macro` compile-time inline expansion:
-  - `q-macro my-macro { slot { in1 } return { div,span,${in1} { hello world } } }`
-  - `my-macro { in1 { h3 } }` creates `<div><span><h3>hello world </h3></span></div>`
-  - Invocations expand before parse (similar timing to `q-script` replacement, but macro output is plain qhtml expansion instead of javascript).
-- Added scoped `${reference}` placeholders:
-  - `${slotName}` resolves from current macro slot scope.
-  - Intended for macro/rewrite scoped slot references.
-- Added lazy `${expression}` inline runtime interpolation in rendered string contexts (text/attributes).
-- Parser metadata now includes macro expansion info in `qdom.meta.qMacros` and `qdom.meta.macroExpandedSource`.
-- Expanded styling syntax:
-  - reusable `q-style` definitions
-  - selector-driven `q-theme` style assignment
-  - scoped theme application to subtrees
-
-## Whats New in v6.0.4
-
-- `q-keyword` scoped keyword aliasing: `q-keyword component { q-component }`.
-- Alias scope is lexical (parent block + descendants), with child-scope override support.
-- Alias mappings are stored on parsed QDOM nodes as `node.keywords`.
-- Direct-only alias rules: aliases cannot point to other aliases.
-- `tag#id.class` selector shorthand support finalized for elements and component instances.
-
-## Whats New in v6.0.3
-
-- `q-bind` evaluates with a DOM-capable runtime `this` (`closest`, `querySelector`, etc).
-- `q-bind` evaluation is wrapped in runtime `try/catch` (binding failures log, page continues).
-- Host `onReady` dispatch runs through the runtime callback queue (more reliable “ready” timing).
-- Inline source ingestion preserves literal HTML children in `<q-html>` and `<q-editor>` source.
-- Runtime logs are gated behind `window.QHTML_RUNTIME_DEBUG` (or `window.QHTML_DEBUG`).
-- `q-property` for explicit component properties.
-- Function-style component signals: `q-signal mySignal(a, b)` plus `.connect/.disconnect/.emit`.
-- Component aliases: `q-alias name { return ... }` for computed host properties.
-- `.qdom().deserialize(serialized, shouldReplaceQDom)` append-or-replace import flow.
-- Scoped updates: `this.component.update()` and full host updates: `this.component.root().update()`.
 
 ## 1. Quick Start
 
@@ -913,6 +868,55 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
   }
 </q-html>
 ```
+
+# Past Changes
+
+## Whats New in v6.0.6
+
+- Added `q-style-class` inside `q-style` for class + inline style composition.
+- Added richer `q-theme` workflows:
+  - selector-based style mapping
+  - theme composition (`q-theme my-theme { base-theme { } ... }`)
+  - scoped theme invocation on element trees
+- Refactored component examples and q-components to favor `q-style` / `q-theme`.
+- Updated `q-builder` style editing flow to focus on `q-style` and `q-theme` blocks.
+
+## Whats New in v6.0.5
+
+- Added `q-macro` compile-time inline expansion:
+  - `q-macro my-macro { slot { in1 } return { div,span,${in1} { hello world } } }`
+  - `my-macro { in1 { h3 } }` creates `<div><span><h3>hello world </h3></span></div>`
+  - Invocations expand before parse (similar timing to `q-script` replacement, but macro output is plain qhtml expansion instead of javascript).
+- Added scoped `${reference}` placeholders:
+  - `${slotName}` resolves from current macro slot scope.
+  - Intended for macro/rewrite scoped slot references.
+- Added lazy `${expression}` inline runtime interpolation in rendered string contexts (text/attributes).
+- Parser metadata now includes macro expansion info in `qdom.meta.qMacros` and `qdom.meta.macroExpandedSource`.
+- Expanded styling syntax:
+  - reusable `q-style` definitions
+  - selector-driven `q-theme` style assignment
+  - scoped theme application to subtrees
+
+## Whats New in v6.0.4
+
+- `q-keyword` scoped keyword aliasing: `q-keyword component { q-component }`.
+- Alias scope is lexical (parent block + descendants), with child-scope override support.
+- Alias mappings are stored on parsed QDOM nodes as `node.keywords`.
+- Direct-only alias rules: aliases cannot point to other aliases.
+- `tag#id.class` selector shorthand support finalized for elements and component instances.
+
+## Whats New in v6.0.3
+
+- `q-bind` evaluates with a DOM-capable runtime `this` (`closest`, `querySelector`, etc).
+- `q-bind` evaluation is wrapped in runtime `try/catch` (binding failures log, page continues).
+- Host `onReady` dispatch runs through the runtime callback queue (more reliable “ready” timing).
+- Inline source ingestion preserves literal HTML children in `<q-html>` and `<q-editor>` source.
+- Runtime logs are gated behind `window.QHTML_RUNTIME_DEBUG` (or `window.QHTML_DEBUG`).
+- `q-property` for explicit component properties.
+- Function-style component signals: `q-signal mySignal(a, b)` plus `.connect/.disconnect/.emit`.
+- Component aliases: `q-alias name { return ... }` for computed host properties.
+- `.qdom().deserialize(serialized, shouldReplaceQDom)` append-or-replace import flow.
+- Scoped updates: `this.component.update()` and full host updates: `this.component.root().update()`.
 
 ## 13. Module READMEs
 
