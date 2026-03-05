@@ -343,7 +343,7 @@ q-style title-accent { color: #1d4ed8 }
 q-style body-muted   { backgroundColor: #64748b }
 
 q-theme article-theme {
-  h3 { title-accent body muted }
+  h3 { title-accent body-muted }
   p  { body-muted }
 }
 ```
