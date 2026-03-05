@@ -13,6 +13,10 @@ QHTML is a compact language and runtime for building web UIs with readable block
 
 ## Whats New in v6.0.6
 
+- Added/expanded color-system features:
+  - `q-color-schema` for area -> CSS property mappings.
+  - `q-color-theme` for area -> value assignments.
+  - `q-color` for applying scoped themed areas to nodes.
 - Added wildcard area matching in `q-color`:
   - `q-color { sidebar-* }` applies every matching schema area in scope.
 - Added shared defaults file for examples/projects:
@@ -21,6 +25,7 @@ QHTML is a compact language and runtime for building web UIs with readable block
   - `default-color-theme { }`
 - Simplified `dist/demo.html` examples to use shared defaults instead of repeating large inline schema/theme blocks.
 - `q-builder` color-save flow now forces host update after save/customize so edited `q-color`/`q-color-theme` changes persist immediately.
+- `q-color`, `q-color-theme`, and `q-color-schema` are still in active development; API/syntax may change and may later be merged into a more powerful unified system.
 
 ## Whats New in v6.0.5
 
