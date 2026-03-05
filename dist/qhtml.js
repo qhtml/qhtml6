@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-03-05T12:26:07Z */
+/* generated: 2026-03-05T12:37:06Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -8769,15 +8769,6 @@
     doc.meta.qRewrites = rewriteResult.definitions;
     doc.meta.evaluatedSource = evaluatedSource;
     doc.meta.lifecycleScripts = lifecycleScripts;
-    doc.meta.qColorSchemas = serializeQColorSchemas(conversionContext.qColors);
-    doc.meta.qColorSchemaDefs = serializeQColorSchemaDefinitions(conversionContext.qColors);
-    doc.meta.qColorDefs = serializeQColorDefinitions(conversionContext.qColors);
-    doc.meta.qColorThemes = serializeQColorThemes(conversionContext.qColors);
-    doc.meta.qColorDefaultTheme = String(
-      conversionContext.qColors && conversionContext.qColors.defaultThemeName
-        ? conversionContext.qColors.defaultThemeName
-        : DEFAULT_QCOLOR_THEME_NAME
-    ).trim() || DEFAULT_QCOLOR_THEME_NAME;
     if (Array.isArray(opts.scriptRules)) {
       doc.scripts = opts.scriptRules.slice();
     }
@@ -11735,8 +11726,20 @@
   }
 
   function readDocumentQColorContext(binding) {
+    if (
+      binding &&
+      binding.__qColorContext &&
+      typeof binding.__qColorContext === "object" &&
+      binding.__qColorContext.schemas instanceof Map &&
+      binding.__qColorContext.themes instanceof Map
+    ) {
+      return binding.__qColorContext;
+    }
     const out = createQColorContext();
     if (!binding || !binding.qdom || !binding.qdom.meta || typeof binding.qdom.meta !== "object") {
+      if (binding) {
+        binding.__qColorContext = out;
+      }
       return out;
     }
     const meta = binding.qdom.meta;
@@ -11778,58 +11781,29 @@
     if (defaultTheme) {
       out.defaultThemeName = normalizeQColorKey(defaultTheme) || out.defaultThemeName;
     }
+    binding.__qColorContext = out;
+    delete meta.qColorSchemas;
+    delete meta.qColorSchemaDefs;
+    delete meta.qColorDefs;
+    delete meta.qColorThemes;
+    delete meta.qColorDefaultTheme;
     return out;
   }
 
   function persistDocumentQColorContext(binding, context) {
-    if (!binding || !binding.qdom || !binding.qdom.meta || typeof binding.qdom.meta !== "object") {
+    if (!binding) {
       return;
     }
-    const schemas = {};
-    if (context && context.schemas instanceof Map) {
-      context.schemas.forEach(function eachSchema(entry) {
-        if (!entry || typeof entry !== "object") {
-          return;
-        }
-        const name = String(entry.name || "").trim();
-        const value = String(entry.property || "").trim();
-        if (!name || !value) {
-          return;
-        }
-        schemas[name] = value;
-      });
+    if (context && typeof context === "object") {
+      binding.__qColorContext = context;
     }
-    const schemaDefs = {};
-    if (context && context.schemaDefs instanceof Map) {
-      context.schemaDefs.forEach(function eachSchemaDef(entry) {
-        if (!entry || typeof entry !== "object") {
-          return;
-        }
-        const name = String(entry.name || "").trim();
-        if (!name) {
-          return;
-        }
-        schemaDefs[name] = cloneQColorAssignments(entry.entries);
-      });
+    if (binding.qdom && binding.qdom.meta && typeof binding.qdom.meta === "object") {
+      delete binding.qdom.meta.qColorSchemas;
+      delete binding.qdom.meta.qColorSchemaDefs;
+      delete binding.qdom.meta.qColorDefs;
+      delete binding.qdom.meta.qColorThemes;
+      delete binding.qdom.meta.qColorDefaultTheme;
     }
-    const themes = {};
-    if (context && context.themes instanceof Map) {
-      context.themes.forEach(function eachTheme(entry) {
-        if (!entry || typeof entry !== "object") {
-          return;
-        }
-        const name = String(entry.name || "").trim();
-        if (!name) {
-          return;
-        }
-        themes[name] = cloneQColorAssignments(entry.assignments);
-      });
-    }
-    binding.qdom.meta.qColorSchemas = schemas;
-    binding.qdom.meta.qColorSchemaDefs = schemaDefs;
-    binding.qdom.meta.qColorThemes = themes;
-    binding.qdom.meta.qColorDefaultTheme =
-      String(context && context.defaultThemeName || DEFAULT_QCOLOR_THEME_NAME).trim() || DEFAULT_QCOLOR_THEME_NAME;
   }
 
   function lookupQColorPropertyByArea(colorContext, areaName, options) {

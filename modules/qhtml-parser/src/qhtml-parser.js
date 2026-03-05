@@ -7617,15 +7617,6 @@
     doc.meta.qRewrites = rewriteResult.definitions;
     doc.meta.evaluatedSource = evaluatedSource;
     doc.meta.lifecycleScripts = lifecycleScripts;
-    doc.meta.qColorSchemas = serializeQColorSchemas(conversionContext.qColors);
-    doc.meta.qColorSchemaDefs = serializeQColorSchemaDefinitions(conversionContext.qColors);
-    doc.meta.qColorDefs = serializeQColorDefinitions(conversionContext.qColors);
-    doc.meta.qColorThemes = serializeQColorThemes(conversionContext.qColors);
-    doc.meta.qColorDefaultTheme = String(
-      conversionContext.qColors && conversionContext.qColors.defaultThemeName
-        ? conversionContext.qColors.defaultThemeName
-        : DEFAULT_QCOLOR_THEME_NAME
-    ).trim() || DEFAULT_QCOLOR_THEME_NAME;
     if (Array.isArray(opts.scriptRules)) {
       doc.scripts = opts.scriptRules.slice();
     }
