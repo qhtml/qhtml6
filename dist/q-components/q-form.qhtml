@@ -31,7 +31,7 @@ q-style q-form-submit-style {
   border: 1px solid #1e293b
 }
 
-q-theme q-form-theme {
+q-default-theme q-form-theme {
   .q-form-root { q-form-root-style }
   .q-form-shell { q-form-shell-style }
   .q-form-input { q-form-input-style }

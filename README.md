@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.0.7
+# QHTML.js v6.0.7.4
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -11,9 +11,10 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Dev testbed: `dist/test.html`
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.0.7
+## Whats New in v6.0.7.4
 
 - Added `q-style`, `q-style-class`, and `q-theme` support for merging and building complex stylesheets with advanced theming capabilities (see section on Styles and Themes).
+- Added `q-default-theme` for fallback theme layers. `q-default-theme` rules apply first, and conflicting `q-theme` rules override them.
 - `q-style`, `q-style-class`, and `q-theme` are actively evolving and may change in future releases.
 
 
@@ -344,6 +345,24 @@ q-style body-muted   { backgroundColor: #64748b }
 q-theme article-theme {
   h3 { title-accent body muted }
   p  { body-muted }
+}
+```
+
+### `q-default-theme` fallback layer
+
+`q-default-theme` is a fallback theme. It applies first, and any conflicting `q-theme` rules in scope replace it.
+
+```qhtml
+q-style panel-base { backgroundColor: #eef3fb color: #0f172a }
+q-style panel-override { backgroundColor: #ffedd5 color: #7c2d12 }
+
+q-default-theme card-theme {
+  .card { panel-base }
+}
+
+q-theme card-demo-theme {
+  card-theme { }
+  .card { panel-override }
 }
 ```
 

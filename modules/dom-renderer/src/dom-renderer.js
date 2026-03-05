@@ -45,6 +45,108 @@
     return out;
   }
 
+  function normalizeCssPropertyName(rawProperty) {
+    const value = String(rawProperty || "").trim();
+    if (!value) {
+      return "";
+    }
+    if (value.indexOf("-") !== -1) {
+      return value.toLowerCase();
+    }
+    return value.replace(/[A-Z]/g, function toDash(letter) {
+      return "-" + letter.toLowerCase();
+    });
+  }
+
+  function getRuntimeThemeRules(instanceNode) {
+    const meta = instanceNode && instanceNode.meta && typeof instanceNode.meta === "object" ? instanceNode.meta : null;
+    if (!meta || !meta.qRuntimeThemeRules || typeof meta.qRuntimeThemeRules !== "object") {
+      return null;
+    }
+    return meta.qRuntimeThemeRules;
+  }
+
+  function collectSelectorTargets(rootElement, selector) {
+    const out = [];
+    if (!rootElement || !selector) {
+      return out;
+    }
+    try {
+      if (typeof rootElement.matches === "function" && rootElement.matches(selector)) {
+        out.push(rootElement);
+      }
+    } catch (error) {
+      return out;
+    }
+    if (typeof rootElement.querySelectorAll !== "function") {
+      return out;
+    }
+    try {
+      const list = rootElement.querySelectorAll(selector);
+      for (let i = 0; i < list.length; i += 1) {
+        out.push(list[i]);
+      }
+    } catch (error) {
+      return out;
+    }
+    return out;
+  }
+
+  function applyRuntimeThemeRuleToElement(element, rule) {
+    if (!element || !rule || typeof rule !== "object") {
+      return;
+    }
+    const classes = Array.isArray(rule.classes) ? rule.classes : [];
+    for (let i = 0; i < classes.length; i += 1) {
+      const className = String(classes[i] || "").trim();
+      if (!className || !element.classList || typeof element.classList.add !== "function") {
+        continue;
+      }
+      element.classList.add(className);
+    }
+    const declarations =
+      rule.declarations && typeof rule.declarations === "object" && !Array.isArray(rule.declarations)
+        ? rule.declarations
+        : {};
+    const keys = Object.keys(declarations);
+    for (let i = 0; i < keys.length; i += 1) {
+      const rawProperty = String(keys[i] || "").trim();
+      if (!rawProperty || !element.style || typeof element.style.setProperty !== "function") {
+        continue;
+      }
+      const cssProperty = normalizeCssPropertyName(rawProperty);
+      if (!cssProperty) {
+        continue;
+      }
+      const cssValue = String(declarations[rawProperty] || "").trim();
+      if (!cssValue) {
+        continue;
+      }
+      element.style.setProperty(cssProperty, cssValue);
+    }
+  }
+
+  function applyRuntimeThemeRulesToHost(hostElement, instanceNode) {
+    const runtimeRules = getRuntimeThemeRules(instanceNode);
+    if (!runtimeRules || !hostElement) {
+      return;
+    }
+    const defaultRules = Array.isArray(runtimeRules.defaultRules) ? runtimeRules.defaultRules : [];
+    const rules = Array.isArray(runtimeRules.rules) ? runtimeRules.rules : [];
+    const ordered = defaultRules.concat(rules);
+    for (let i = 0; i < ordered.length; i += 1) {
+      const rule = ordered[i];
+      const selector = String(rule && rule.selector || "").trim();
+      if (!selector) {
+        continue;
+      }
+      const targets = collectSelectorTargets(hostElement, selector);
+      for (let ti = 0; ti < targets.length; ti += 1) {
+        applyRuntimeThemeRuleToElement(targets[ti], rule);
+      }
+    }
+  }
+
   function sourceNodeOf(node) {
     if (!node || typeof node !== "object") {
       return null;
@@ -1515,6 +1617,7 @@
       stack.pop();
     }
     stripRenderedSlotElements(hostElement);
+    applyRuntimeThemeRulesToHost(hostElement, instanceNode);
     bindDeclaredComponentPropertyNodes(componentNode, hostElement, context);
 
     if (!context.disableLifecycleHooks) {

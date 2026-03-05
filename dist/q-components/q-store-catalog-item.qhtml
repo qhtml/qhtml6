@@ -1,9 +1,9 @@
 q-component q-store-catalog-item {
   q-style q-store-item-card-style {
     q-style-class { w3-card w3-round-large w3-border w3-padding w3-hover-shadow }
-    backgroundColor: var(--q-store-item-card-bg, #eef4fb)
-    color: var(--q-store-item-card-fg, #102a43)
-    borderColor: var(--q-store-item-card-border, #c7d8ef)
+    backgroundColor: #eef4fb
+    color: #102a43
+    borderColor: #c7d8ef
   }
   q-style q-store-item-row-style {
     q-style-class { w3-row-padding }
@@ -19,19 +19,19 @@ q-component q-store-catalog-item {
   }
   q-style q-store-item-muted-style {
     q-style-class { w3-small }
-    color: var(--q-store-item-muted-fg, #5b708a)
+    color: #5b708a
   }
   q-style q-store-item-price-style {
     q-style-class { w3-large w3-margin-top }
-    color: var(--q-store-item-price-fg, #1d4ed8)
+    color: #1d4ed8
   }
   q-style q-store-item-add-btn-style {
     q-style-class { w3-button w3-round w3-small w3-margin-top }
-    backgroundColor: var(--q-store-item-add-btn-bg, #2563eb)
-    color: var(--q-store-item-add-btn-fg, #f8fbff)
-    borderColor: var(--q-store-item-add-btn-border, #1e40af)
+    backgroundColor: #2563eb
+    color: #f8fbff
+    borderColor: #1e40af
   }
-  q-theme q-store-item-theme {
+  q-default-theme q-store-item-theme {
     .q-store-item-card { q-store-item-card-style }
     .q-store-item-row { q-store-item-row-style }
     .q-store-item-main-col { q-store-item-main-col-style }

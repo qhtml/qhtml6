@@ -1,49 +1,49 @@
 q-component q-checkout-modal {
   q-style q-checkout-muted-style {
     q-style-class { w3-small }
-    color: var(--q-checkout-muted-fg, #5b708a)
+    color: #5b708a
   }
   q-style q-checkout-title-style {
     q-style-class { w3-margin-top w3-margin-bottom }
   }
   q-style q-checkout-card-style {
     q-style-class { w3-card w3-round-large w3-border w3-padding }
-    backgroundColor: var(--q-checkout-card-bg, #eef4fb)
-    color: var(--q-checkout-card-fg, #102a43)
-    borderColor: var(--q-checkout-card-border, #c7d8ef)
+    backgroundColor: #eef4fb
+    color: #102a43
+    borderColor: #c7d8ef
   }
   q-style q-checkout-summary-style {
     q-style-class { w3-card w3-round-large w3-border w3-padding }
-    backgroundColor: var(--q-checkout-summary-bg, #f7faff)
-    color: var(--q-checkout-summary-fg, #102a43)
-    borderColor: var(--q-checkout-summary-border, #c7d8ef)
+    backgroundColor: #f7faff
+    color: #102a43
+    borderColor: #c7d8ef
   }
   q-style q-checkout-summary-row-style {
     q-style-class { w3-small }
   }
   q-style q-checkout-badge-style {
     q-style-class { w3-tag w3-round w3-margin-left }
-    backgroundColor: var(--q-checkout-badge-bg, #2563eb)
-    color: var(--q-checkout-badge-fg, #f8fbff)
-    borderColor: var(--q-checkout-badge-border, #1e40af)
+    backgroundColor: #2563eb
+    color: #f8fbff
+    borderColor: #1e40af
   }
   q-style q-checkout-subtotal-label-style {
     q-style-class { w3-large w3-margin-top }
   }
   q-style q-checkout-subtotal-style {
     q-style-class { w3-xxlarge }
-    color: var(--q-checkout-subtotal-fg, #1d4ed8)
+    color: #1d4ed8
   }
   q-style q-checkout-footer-actions-style {
     q-style-class { w3-right-align }
   }
   q-style q-checkout-clear-btn-style {
     q-style-class { w3-button w3-round w3-margin-right }
-    backgroundColor: var(--q-checkout-clear-btn-bg, #475569)
-    color: var(--q-checkout-clear-btn-fg, #f8fbff)
-    borderColor: var(--q-checkout-clear-btn-border, #334155)
+    backgroundColor: #475569
+    color: #f8fbff
+    borderColor: #334155
   }
-  q-theme q-checkout-theme {
+  q-default-theme q-checkout-theme {
     .q-checkout-muted { q-checkout-muted-style }
     .q-checkout-title { q-checkout-title-style }
     .q-checkout-card { q-checkout-card-style }

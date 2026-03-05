@@ -3,35 +3,35 @@ q-style q-modal-root-style {
 }
 q-style q-modal-container-style {
   q-style-class { w3-modal-content w3-card-4 w3-animate-zoom }
-  backgroundColor: var(--q-modal-container-bg, rgb(230, 238, 249))
-  color: var(--q-modal-container-fg, #0f172a)
+  backgroundColor: rgb(230, 238, 249)
+  color: #0f172a
 }
 q-style q-modal-titlebar-style {
   q-style-class { w3-center }
-  backgroundColor: var(--q-modal-titlebar-bg, rgb(222, 232, 246))
-  color: var(--q-modal-titlebar-fg, #0f172a)
+  backgroundColor: rgb(222, 232, 246)
+  color: #0f172a
 }
 q-style q-modal-closebutton-style {
   q-style-class { w3-button w3-xlarge w3-display-topright }
-  backgroundColor: var(--q-modal-closebutton-bg, rgb(203, 213, 225))
-  color: var(--q-modal-titlebar-fg, #0f172a)
+  backgroundColor: rgb(203, 213, 225)
+  color: #0f172a
 }
 q-style q-modal-title-style {
   q-style-class { w3-margin-top w3-large }
-  backgroundColor: var(--q-modal-title-bg, rgb(230, 238, 249))
-  color: var(--q-modal-title-fg, #0f172a)
+  backgroundColor: rgb(230, 238, 249)
+  color: #0f172a
 }
 q-style q-modal-content-style {
   q-style-class { w3-container w3-section }
-  backgroundColor: var(--q-modal-content-bg, rgb(238, 243, 251))
-  color: var(--q-modal-content-fg, #0f172a)
+  backgroundColor: rgb(238, 243, 251)
+  color: #0f172a
 }
 q-style q-modal-footer-style {
   q-style-class { w3-container w3-border-top w3-padding-16 }
-  backgroundColor: var(--q-modal-footer-bg, rgb(222, 232, 246))
-  color: var(--q-modal-container-fg, #0f172a)
+  backgroundColor: rgb(222, 232, 246)
+  color: #0f172a
 }
-q-theme q-modal-theme {
+q-default-theme q-modal-theme {
   .q-modal-root { q-modal-root-style }
   .q-modal-container { q-modal-container-style }
   .q-modal-titlebar { q-modal-titlebar-style }

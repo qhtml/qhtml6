@@ -437,23 +437,40 @@ q-style modal-open-button-style {
   color: #ffffff
   border: 1px solid #15803d
 }
-q-style modal-default-overrides {
-  --q-modal-container-bg: #ffedd5
-  --q-modal-container-fg: #7c2d12
-  --q-modal-titlebar-bg: #ef4444
-  --q-modal-titlebar-fg: #ffffff
-  --q-modal-closebutton-bg: #7f1d1d
-  --q-modal-title-bg: #fb923c
-  --q-modal-title-fg: #111827
-  --q-modal-content-bg: #dbeafe
-  --q-modal-content-fg: #1e3a8a
-  --q-modal-footer-bg: #fde047
+q-style modal-container-override-style {
+  backgroundColor: #ffedd5
+  color: #7c2d12
+}
+q-style modal-titlebar-override-style {
+  backgroundColor: #ef4444
+  color: #ffffff
+}
+q-style modal-close-override-style {
+  backgroundColor: #7f1d1d
+  color: #ffffff
+}
+q-style modal-title-override-style {
+  backgroundColor: #fb923c
+  color: #111827
+}
+q-style modal-content-override-style {
+  backgroundColor: #dbeafe
+  color: #1e3a8a
+}
+q-style modal-footer-override-style {
+  backgroundColor: #fde047
+  color: #713f12
 }
 
 q-theme modal-demo-theme {
   q-modal-theme { }
   .modal-open-btn { modal-open-button-style }
-  q-modal { modal-default-overrides }
+  .q-modal-container { modal-container-override-style }
+  .q-modal-titlebar { modal-titlebar-override-style }
+  .q-modal-closebutton { modal-close-override-style }
+  .q-modal-title { modal-title-override-style }
+  .q-modal-content { modal-content-override-style }
+  .q-modal-footer { modal-footer-override-style }
   button { modal-open-button-style }
 }
 
@@ -495,13 +512,15 @@ q-style sidebar-toggle-override-style {
   color: #ffffff
   border: 1px solid #15803d
 }
-q-style sidebar-shell-override-style {
-  --q-sidebar-panel-bg: #ffedd5
-  --q-sidebar-panel-fg: #7c2d12
-  --q-sidebar-panel-border: #fb923c
-  --q-sidebar-toggle-bg: #ef4444
-  --q-sidebar-toggle-fg: #ffffff
-  --q-sidebar-toggle-border: #7f1d1d
+q-style sidebar-panel-override-style {
+  backgroundColor: #ffedd5
+  color: #7c2d12
+  borderColor: #fb923c
+}
+q-style sidebar-toggle-strong-style {
+  backgroundColor: #ef4444
+  color: #ffffff
+  border: 1px solid #7f1d1d
 }
 q-style sidebar-content-card-style {
   backgroundColor: #dbeafe
@@ -516,8 +535,8 @@ q-style sidebar-nav-link-style {
 
 q-theme sidebar-demo-theme {
   q-sidebar-theme { }
-  q-sidebar { sidebar-shell-override-style }
-  .q-sidebar-toggle { sidebar-toggle-override-style }
+  .q-sidebar-panel { sidebar-panel-override-style }
+  .q-sidebar-toggle { sidebar-toggle-override-style sidebar-toggle-strong-style }
   .sidebar-content-pane { sidebar-content-card-style }
   .sidebar-nav-btn { sidebar-nav-link-style }
 }
@@ -619,16 +638,22 @@ q-style popup-zone-style {
 q-style popup-log-style {
   color: #334155
 }
-q-style popup-menu-override-style {
-  --q-popup-menu-panel-bg: #fff7ed
-  --q-popup-item-bg: #ffedd5
-  --q-popup-submenu-panel-bg: #fff1f2
+q-style popup-menu-panel-override-style {
+  backgroundColor: #fff7ed
+}
+q-style popup-item-override-style {
+  backgroundColor: #ffedd5
+}
+q-style popup-submenu-panel-override-style {
+  backgroundColor: #fff1f2
 }
 
 q-theme popup-demo-theme {
   .popup-zone { popup-zone-style }
   .popup-log { popup-log-style }
-  #ctx-zone { popup-menu-override-style }
+  .q-popup-menu-panel { popup-menu-panel-override-style }
+  .q-popup-item-row { popup-item-override-style }
+  .q-popup-submenu-panel { popup-submenu-panel-override-style }
 }
 
 popup-demo-theme {
@@ -677,15 +702,16 @@ q-style tabs-show-btn-style {
   color: #ffffff
   border: 1px solid #1e293b
 }
-q-style tabs-instance-override-style {
-  --q-tabs-nav-bg: #ffedd5
-  --q-tabs-nav-active-bg: #ea580c
-  --q-tabs-nav-active-fg: #ffffff
-  --q-tabs-content-bg: #fffaf0
+q-style tabs-nav-override-style {
+  backgroundColor: #ffedd5
+}
+q-style tabs-content-override-style {
+  backgroundColor: #fffaf0
 }
 q-theme tabs-demo-theme {
   .tabs-show-btn { tabs-show-btn-style }
-  #tabs-usage { tabs-instance-override-style }
+  .q-tabs-nav { tabs-nav-override-style }
+  .q-tabs-content-themed { tabs-content-override-style }
 }
 
 tabs-demo-theme {

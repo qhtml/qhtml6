@@ -63,38 +63,38 @@ q-component q-tab {
 q-component q-tabs {
 q-style q-tab-panel-style {
   q-style-class { w3-container }
-  backgroundColor: var(--q-tabs-panel-bg, rgba(255, 255, 255, 0.55))
-  color: var(--q-tabs-panel-fg, inherit)
-  border: 1px solid var(--q-tabs-panel-border, #d7e2f1)
+  backgroundColor: rgba(255, 255, 255, 0.55)
+  color: inherit
+  border: 1px solid #d7e2f1
   borderRadius: 8px
   marginTop: 0.35rem
   padding: 0.6rem 0.7rem
 }
 q-style q-tabs-container-style {
   q-style-class { w3-container w3-round-large w3-border }
-  backgroundColor: var(--q-tabs-container-bg, #eef3fb)
-  color: var(--q-tabs-container-fg, #0f172a)
-  borderColor: var(--q-tabs-container-border, #c7d8ef)
+  backgroundColor: #eef3fb
+  color: #0f172a
+  borderColor: #c7d8ef
   padding: 0
   overflow: hidden
 }
 q-style q-tabs-nav-style {
   q-style-class { w3-bar }
-  backgroundColor: var(--q-tabs-nav-bg, #dde8f7)
-  borderBottom: 1px solid var(--q-tabs-nav-border, #c7d8ef)
+  backgroundColor: #dde8f7
+  borderBottom: 1px solid #c7d8ef
   display: flex
   gap: 0.25rem
   padding: 0.25rem
 }
 q-style q-tabs-content-style {
   q-style-class { w3-animate-opacity }
-  backgroundColor: var(--q-tabs-content-bg, #f6f9fe)
-  color: var(--q-tabs-content-fg, #0f172a)
-  borderColor: var(--q-tabs-content-border, #d7e2f1)
+  backgroundColor: #f6f9fe
+  color: #0f172a
+  borderColor: #d7e2f1
   minHeight: 5rem
   padding: 0.65rem
 }
-q-theme q-tabs-theme {
+q-default-theme q-tabs-theme {
   .q-tab-panel { q-tab-panel-style }
   .q-tabs-container { q-tabs-container-style }
   .q-tabs-nav { q-tabs-nav-style }
@@ -107,37 +107,14 @@ q-alias containerclass { return this.component.containerClass }
 q-alias navinactivebuttonclass { return this.component.navInactiveButtonClass }
 q-alias navactivebuttonclass { return this.component.navActiveButtonClass }
 
-  function readCssVar(name, fallbackValue) {
-    try {
-      if (typeof getComputedStyle !== "function") {
-        return String(fallbackValue || "");
-      }
-      var styles = getComputedStyle(this);
-      var value = styles && typeof styles.getPropertyValue === "function"
-        ? String(styles.getPropertyValue(String(name || "")) || "").trim()
-        : "";
-      return value || String(fallbackValue || "");
-    } catch (error) {
-      return String(fallbackValue || "");
-    }
-  }
-
   function applyNavButtonStyle(button, isActive) {
     if (!button || !button.style) {
       return;
     }
     var active = !!isActive;
-    button.style.backgroundColor = active
-      ? this.readCssVar("--q-tabs-nav-active-bg", "#1d4ed8")
-      : this.readCssVar("--q-tabs-nav-inactive-bg", "#e2e8f0");
-    button.style.color = active
-      ? this.readCssVar("--q-tabs-nav-active-fg", "#ffffff")
-      : this.readCssVar("--q-tabs-nav-inactive-fg", "#0f172a");
-    button.style.border = "1px solid " + (
-      active
-        ? this.readCssVar("--q-tabs-nav-active-border", "#1e40af")
-        : this.readCssVar("--q-tabs-nav-inactive-border", "#c7d8ef")
-    );
+    button.style.backgroundColor = active ? "#1d4ed8" : "#e2e8f0";
+    button.style.color = active ? "#ffffff" : "#0f172a";
+    button.style.border = "1px solid " + (active ? "#1e40af" : "#c7d8ef");
     button.style.borderRadius = "6px";
     button.style.padding = "0.42rem 0.72rem";
     button.style.lineHeight = "1.1";
@@ -322,7 +299,18 @@ q-alias navactivebuttonclass { return this.component.navActiveButtonClass }
             button.classList.add(inactiveTokens[j]);
           }
         }
-        this.applyNavButtonStyle(button, isActive);
+        if (activeTokens.length > 0 || inactiveTokens.length > 0) {
+          button.style.backgroundColor = "";
+          button.style.color = "";
+          button.style.border = "";
+          button.style.boxShadow = "";
+          button.style.borderRadius = "6px";
+          button.style.padding = "0.42rem 0.72rem";
+          button.style.lineHeight = "1.1";
+          button.style.transition = "background-color 140ms ease, color 140ms ease, border-color 140ms ease";
+        } else {
+          this.applyNavButtonStyle(button, isActive);
+        }
       }
     }
   }

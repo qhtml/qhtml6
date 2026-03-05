@@ -1,15 +1,15 @@
 q-style q-sidebar-panel-style {
-  backgroundColor: var(--q-sidebar-panel-bg, rgb(230, 238, 249))
-  color: var(--q-sidebar-panel-fg, #0f172a)
-  borderColor: var(--q-sidebar-panel-border, #c7d8ef)
+  backgroundColor: rgb(230, 238, 249)
+  color: #0f172a
+  borderColor: #c7d8ef
 }
 q-style q-sidebar-toggle-style {
   q-style-class { w3-button }
-  backgroundColor: var(--q-sidebar-toggle-bg, rgb(203, 213, 225))
-  color: var(--q-sidebar-toggle-fg, #0f172a)
-  borderColor: var(--q-sidebar-toggle-border, #94a3b8)
+  backgroundColor: rgb(203, 213, 225)
+  color: #0f172a
+  borderColor: #94a3b8
 }
-q-theme q-sidebar-theme {
+q-default-theme q-sidebar-theme {
   .q-sidebar-panel { q-sidebar-panel-style }
   .q-sidebar-toggle { q-sidebar-toggle-style }
 }

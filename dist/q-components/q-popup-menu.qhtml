@@ -48,11 +48,11 @@ q-macro popup-forward-this {
 q-component q-popup-item {
   q-style q-popup-item-style {
     q-style-class { w3-bar w3-small }
-    backgroundColor: var(--q-popup-item-bg, #f1f6fd)
-    color: var(--q-popup-item-fg, #102a43)
-    border: 1px solid var(--q-popup-item-border, #d9e5f4)
+    backgroundColor: #f1f6fd
+    color: #102a43
+    border: 1px solid #d9e5f4
   }
-  q-theme q-popup-item-theme {
+  q-default-theme q-popup-item-theme {
     .q-popup-item-row { q-popup-item-style }
   }
 
@@ -93,9 +93,9 @@ q-component q-popup-item {
 
 q-component q-popup-separator {
   q-style q-popup-separator-style {
-    backgroundColor: var(--q-popup-separator-bg, #9bb0c9)
+    backgroundColor: #9bb0c9
   }
-  q-theme q-popup-separator-theme {
+  q-default-theme q-popup-separator-theme {
     .q-popup-separator-line { q-popup-separator-style }
   }
 
@@ -118,9 +118,9 @@ q-component q-popup-separator {
 q-component q-popup-text {
   q-style q-popup-text-style {
     q-style-class { w3-small }
-    color: var(--q-popup-text-fg, #486581)
+    color: #486581
   }
-  q-theme q-popup-text-theme {
+  q-default-theme q-popup-text-theme {
     .q-popup-text-row { q-popup-text-style }
   }
 
@@ -153,21 +153,21 @@ q-component q-popup-text {
 q-component q-popup-submenu {
   q-style q-popup-submenu-row-style {
     q-style-class { w3-bar w3-small }
-    backgroundColor: var(--q-popup-submenu-row-bg, #eef4fc)
-    color: var(--q-popup-submenu-row-fg, #102a43)
-    border: 1px solid var(--q-popup-submenu-row-border, #d9e5f4)
+    backgroundColor: #eef4fc
+    color: #102a43
+    border: 1px solid #d9e5f4
   }
   q-style q-popup-submenu-panel-style {
     q-style-class { w3-card w3-round }
-    backgroundColor: var(--q-popup-submenu-panel-bg, #e9f1fb)
-    color: var(--q-popup-submenu-panel-fg, #102a43)
-    borderColor: var(--q-popup-submenu-panel-border, #bfd2ea)
-    boxShadow: var(--q-popup-submenu-panel-shadow, 0 10px 24px rgba(15, 23, 42, 0.14))
+    backgroundColor: #e9f1fb
+    color: #102a43
+    borderColor: #bfd2ea
+    boxShadow: 0 10px 24px rgba(15, 23, 42, 0.14)
   }
   q-style q-popup-submenu-caret-style {
     q-style-class { w3-right }
   }
-  q-theme q-popup-submenu-theme {
+  q-default-theme q-popup-submenu-theme {
     .q-popup-submenu-row { q-popup-submenu-row-style }
     .q-popup-submenu-panel { q-popup-submenu-panel-style }
     .q-popup-submenu-caret { q-popup-submenu-caret-style }
@@ -261,12 +261,12 @@ q-component q-popup-submenu {
 q-component q-popup-menu {
   q-style q-popup-menu-panel-style {
     q-style-class { w3-card w3-round }
-    backgroundColor: var(--q-popup-menu-panel-bg, #eaf2fc)
-    color: var(--q-popup-menu-panel-fg, #102a43)
-    borderColor: var(--q-popup-menu-panel-border, #bfd2ea)
-    boxShadow: var(--q-popup-menu-panel-shadow, 0 14px 30px rgba(15, 23, 42, 0.16))
+    backgroundColor: #eaf2fc
+    color: #102a43
+    borderColor: #bfd2ea
+    boxShadow: 0 14px 30px rgba(15, 23, 42, 0.16)
   }
-  q-theme q-popup-menu-theme {
+  q-default-theme q-popup-menu-theme {
     .q-popup-menu-panel { q-popup-menu-panel-style }
   }
 
