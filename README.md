@@ -66,21 +66,51 @@ QHTML is a compact language and runtime for building web UIs with readable block
 
 ## 1. Quick Start
 
-### 1. Include `qhtml.js`
+### Project setup
 
+1. Clone qhtml6 github repository
+
+```
+git clone https://github.com/qhtml/qhtml6.git`
+```
+2. Create new project directory and copy required files (linux)
+  (Copies javascript files, css files, q-component files and codemirror for q-editor / q-builder)
+```
+mkdir my-project
+cp qhtml6/dist/*.js /path/to/my-project/
+cp qhtml6/dist/q-components* /path/to/my-project/ -R
+cp qhtml6/dist/*.css /path/to/my-project/
+cp qhtml6/dist/codemirror* /path/to/my-project/ -R
+```
+3. Create index.html in your project folder and spin up a HTTP Server
+```
+cp qhtml6/dist/demo.html /path/to/my-project/
+cd /path/to/my-project
+python -m http.server
+```
+4. Navigate to `http://127.0.0.1:8000/demo.html` in your web browser.
+
+   
+### 1. Include `qhtml.js`
+In any .html file in your project directory just include qhtml.js to get started.
 ```html
 <script src="qhtml.js"></script>
 ```
 
 Optional: component library and UI tools (modal, form, grid, tabs, builder, editor):
+Assuming your `q-components.qhtml` is located in `the project folder /path/to/my-project/`
 
 ```html
-<script src="q-editor.js"></script>
+<q-html>
+   q-import { q-components.qhtml }
+</q-html>
 ```
 
 Files:
-- Required: `dist/qhtml.js`
-- Optional: `dist/q-editor.js`, `dist/q-components/`, `dist/w3.css` + `dist/w3-tags.js`, `dist/bs.css` + `dist/bs-tags.js`
+- Required: `qhtml.js`
+- Recommended: `q-components.qhtml`, `w3.css`
+- Optional: `q-components.qhtml`, `w3-tags.js`, `bs.css` + `bs-tags.js`
+- 
 
 ### 2. Write QHTML in a `<q-html>` tag
 
@@ -99,14 +129,6 @@ Resulting HTML:
   <p>Your first QHTML render is running.</p>
 </q-html>
 ```
-
-### 3. Run from a local HTTP server (not `file:///`)
-
-```bash
-python -m http.server
-```
-
-Visit: `http://localhost:8000/`
 
 ## 2. Core Syntax
 
