@@ -1,5 +1,5 @@
 Don't like q-component keywords? Rather call them a-block or something else?  
-Now you can use our script builder to customize the keywords for your qhtml instance. [Click here to visit the script roller.](https://qhtml.github.io/qhtml6/dist/)
+Now you can use our script builder to customize the keywords for your qhtml instance. [Click here to visit the script roller.](https://qhtml.github.io/qhtml6/dist/script-roller.html)
 
 ----------
 
