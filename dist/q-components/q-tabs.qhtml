@@ -6,7 +6,7 @@ q-rewrite q-tab-panel-rewriter {
       if (!body) {
         body = "html { &nbsp; }";
       }
-      return "div.w3-container.w3-border.q-tab-panel { q-tab-panel: \"1\" " + body + " }";
+      return "div.q-tab-panel { q-tab-panel: \"1\" " + body + " }";
     }
   }
 }
@@ -61,10 +61,44 @@ q-component q-tab {
 }
 
 q-component q-tabs {
-q-color-schema {
-  q-tabs-content-bg { background-color }
-  q-tabs-content-fg { color }
-  q-tabs-content-border { border-color }
+q-style q-tab-panel-style {
+  q-style-class { w3-container }
+  backgroundColor: var(--q-tabs-panel-bg, rgba(255, 255, 255, 0.55))
+  color: var(--q-tabs-panel-fg, inherit)
+  border: 1px solid var(--q-tabs-panel-border, #d7e2f1)
+  borderRadius: 8px
+  marginTop: 0.35rem
+  padding: 0.6rem 0.7rem
+}
+q-style q-tabs-container-style {
+  q-style-class { w3-container w3-round-large w3-border }
+  backgroundColor: var(--q-tabs-container-bg, #eef3fb)
+  color: var(--q-tabs-container-fg, #0f172a)
+  borderColor: var(--q-tabs-container-border, #c7d8ef)
+  padding: 0
+  overflow: hidden
+}
+q-style q-tabs-nav-style {
+  q-style-class { w3-bar }
+  backgroundColor: var(--q-tabs-nav-bg, #dde8f7)
+  borderBottom: 1px solid var(--q-tabs-nav-border, #c7d8ef)
+  display: flex
+  gap: 0.25rem
+  padding: 0.25rem
+}
+q-style q-tabs-content-style {
+  q-style-class { w3-animate-opacity }
+  backgroundColor: var(--q-tabs-content-bg, #f6f9fe)
+  color: var(--q-tabs-content-fg, #0f172a)
+  borderColor: var(--q-tabs-content-border, #d7e2f1)
+  minHeight: 5rem
+  padding: 0.65rem
+}
+q-theme q-tabs-theme {
+  .q-tab-panel { q-tab-panel-style }
+  .q-tabs-container { q-tabs-container-style }
+  .q-tabs-nav { q-tabs-nav-style }
+  .q-tabs-content-themed { q-tabs-content-style }
 }
 q-property navActiveButtonClass: ""
 q-property navInactiveButtonClass: ""
@@ -72,6 +106,46 @@ q-property containerClass: ""
 q-alias containerclass { return this.component.containerClass }
 q-alias navinactivebuttonclass { return this.component.navInactiveButtonClass }
 q-alias navactivebuttonclass { return this.component.navActiveButtonClass }
+
+  function readCssVar(name, fallbackValue) {
+    try {
+      if (typeof getComputedStyle !== "function") {
+        return String(fallbackValue || "");
+      }
+      var styles = getComputedStyle(this);
+      var value = styles && typeof styles.getPropertyValue === "function"
+        ? String(styles.getPropertyValue(String(name || "")) || "").trim()
+        : "";
+      return value || String(fallbackValue || "");
+    } catch (error) {
+      return String(fallbackValue || "");
+    }
+  }
+
+  function applyNavButtonStyle(button, isActive) {
+    if (!button || !button.style) {
+      return;
+    }
+    var active = !!isActive;
+    button.style.backgroundColor = active
+      ? this.readCssVar("--q-tabs-nav-active-bg", "#1d4ed8")
+      : this.readCssVar("--q-tabs-nav-inactive-bg", "#e2e8f0");
+    button.style.color = active
+      ? this.readCssVar("--q-tabs-nav-active-fg", "#ffffff")
+      : this.readCssVar("--q-tabs-nav-inactive-fg", "#0f172a");
+    button.style.border = "1px solid " + (
+      active
+        ? this.readCssVar("--q-tabs-nav-active-border", "#1e40af")
+        : this.readCssVar("--q-tabs-nav-inactive-border", "#c7d8ef")
+    );
+    button.style.borderRadius = "6px";
+    button.style.padding = "0.42rem 0.72rem";
+    button.style.lineHeight = "1.1";
+    button.style.transition = "background-color 140ms ease, color 140ms ease, border-color 140ms ease";
+    button.style.boxShadow = active
+      ? "0 1px 0 rgba(15, 23, 42, 0.12)"
+      : "none";
+  }
 
   function createSignalEvent(payload) {
     if (typeof CustomEvent === "function") {
@@ -215,6 +289,7 @@ q-alias navactivebuttonclass { return this.component.navActiveButtonClass }
       button.setAttribute("q-tab-link-index", String(i));
       button.textContent = this.getTabLabel(tab, i);
       button.onclick = () => this.showTab(tab);
+      this.applyNavButtonStyle(button, false);
       nav.appendChild(button);
       tab.__qTabsButton = button;
     }
@@ -242,21 +317,12 @@ q-alias navactivebuttonclass { return this.component.navActiveButtonClass }
           for (let j = 0; j < activeTokens.length; j += 1) {
             button.classList.add(activeTokens[j]);
           }
-          button.classList.add("w3-border-top");
-          button.classList.add("w3-border-left");
-          button.classList.add("w3-border-right");
-
-          button.classList.add("w3-round");
-          button.classList.remove("w3-border-bottom");
         } else {
           for (let j = 0; j < inactiveTokens.length; j += 1) {
             button.classList.add(inactiveTokens[j]);
           }
-          button.classList.add("w3-border-bottom");
-          button.classList.remove("w3-border-top");
-          button.classList.remove("w3-border-left");
-          button.classList.remove("w3-border-right");
         }
+        this.applyNavButtonStyle(button, isActive);
       }
     }
   }
@@ -320,21 +386,22 @@ q-alias navactivebuttonclass { return this.component.navActiveButtonClass }
     }, 0);
   }
 
-  div.w3-container.q-tabs-container {
-    div.w3-bar{
-      q-tabs-nav: "1"
-    }
+  q-tabs-theme {
+    div.q-tabs-container {
+      div.q-tabs-nav{
+        q-tabs-nav: "1"
+      }
 
-      div.q-tabs-content.w3-animate-opacity {
-       q-color { q-tabs-content-bg q-tabs-content-fg q-tabs-content-border }
-       onReady {
-         var tokens = this.component.classTokens(this.component.containerClass);
-         for (var i = 0; i < tokens.length; i += 1) {
-           this.classList.add(tokens[i]);
-         }
-       }
-      q-tabs-content: "1"
-      slot { content }
+      div.q-tabs-content-themed.q-tabs-content {
+        onReady {
+          var tokens = this.component.classTokens(this.component.containerClass);
+          for (var i = 0; i < tokens.length; i += 1) {
+            this.classList.add(tokens[i]);
+          }
+        }
+        q-tabs-content: "1"
+        slot { content }
+      }
     }
   }
 }

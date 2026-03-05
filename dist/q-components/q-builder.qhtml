@@ -850,49 +850,43 @@ q-component q-builder-modal-shell {
 q-component q-builder-colors-modal-shell {
   q-modal {
     q-builder-colors-modal: "1"
-    title { text { QBuilder Colors } }
+    title { text { QBuilder Styles } }
     content {
       div.w3-small.w3-margin-bottom.w3-text-blue-grey {
-        text { Edit local q-color blocks for the selected element. Computed values include inherited schema/theme entries. }
+        text { Edit local q-style and q-theme blocks for the selected element. Computed snapshots are shown when local blocks are not defined. }
       }
       q-tabs {
         q-builder-colors-tabs: "1"
         q-tab {
-          name { text { q-colors } }
+          name { text { q-style } }
           content {
-            div.w3-small.w3-margin-bottom.w3-text-blue-grey { text { Computed q-color values in use (inherited + local). } }
-            pre.w3-small.w3-padding-small.w3-border.w3-round { q-builder-colors-computed: "q-color" text { q-color { } } }
+            div.w3-small.w3-margin-bottom.w3-text-blue-grey { text { Computed q-style snapshot for the selected element. } }
+            pre.w3-small.w3-padding-small.w3-border.w3-round { q-builder-colors-computed: "q-style" text { q-style selected-style { } } }
+            div.w3-margin-top.w3-margin-bottom {
+              button.w3-button.w3-small.w3-theme-l3.w3-round-large { type: "button" q-builder-action: "customize-style" text { Capture Local Style } }
+            }
+            div.w3-small.w3-margin-top.w3-margin-bottom.w3-text-blue-grey { q-builder-colors-status: "q-style" text { Local q-style block (editable only when defined on selected element). } }
+            q-editor { q-builder-colors-editor: "q-style" initial-qhtml: "q-style selected-style { }" }
+          }
+        }
+        q-tab {
+          name { text { q-theme } }
+          content {
+            div.w3-small.w3-margin-bottom.w3-text-blue-grey { text { Computed q-theme snapshot visible for this scope. } }
+            pre.w3-small.w3-padding-small.w3-border.w3-round { q-builder-colors-computed: "q-theme" text { q-theme selected-theme { * { selected-style } } } }
             div.w3-row-padding.w3-margin-top {
               div.w3-threequarter {
-                select.w3-select.w3-border.w3-round { q-builder-colors-area-select: "1" }
+                select.w3-select.w3-border.w3-round { q-builder-colors-style-select: "1" }
               }
               div.w3-quarter {
-                button.w3-button.w3-small.w3-theme-l3.w3-round-large.w3-block { type: "button" q-builder-action: "add-color-area" text { Add } }
+                button.w3-button.w3-small.w3-theme-l3.w3-round-large.w3-block { type: "button" q-builder-action: "add-theme-style" text { Add Style } }
               }
             }
-            div.w3-small.w3-margin-top.w3-margin-bottom.w3-text-blue-grey { q-builder-colors-status: "q-color" text { Local q-color block (editable only when defined on selected element). } }
-            q-editor { q-builder-colors-editor: "q-color" initial-qhtml: "q-color { }" }
-          }
-        }
-        q-tab {
-          name { text { q-color-schema } }
-          content {
-            div.w3-small.w3-margin-bottom.w3-text-blue-grey { text { Computed q-color-schema visible from this element. } }
-            pre.w3-small.w3-padding-small.w3-border.w3-round { q-builder-colors-computed: "q-color-schema" text { q-color-schema { } } }
-            div.w3-small.w3-margin-top.w3-margin-bottom.w3-text-blue-grey { q-builder-colors-status: "q-color-schema" text { Local q-color-schema block (editable only when defined on selected element). } }
-            q-editor { q-builder-colors-editor: "q-color-schema" initial-qhtml: "q-color-schema { }" }
-          }
-        }
-        q-tab {
-          name { text { q-color-theme } }
-          content {
-            div.w3-small.w3-margin-bottom.w3-text-blue-grey { text { Computed q-color-theme visible from this element. } }
-            pre.w3-small.w3-padding-small.w3-border.w3-round { q-builder-colors-computed: "q-color-theme" text { q-color-theme { } } }
             div.w3-margin-top.w3-margin-bottom {
               button.w3-button.w3-small.w3-theme-l3.w3-round-large { type: "button" q-builder-action: "customize-theme" q-builder-colors-theme-customize: "1" text { Customize Theme } }
             }
-            div.w3-small.w3-margin-top.w3-margin-bottom.w3-text-blue-grey { q-builder-colors-status: "q-color-theme" text { Local q-color-theme block (editable only when defined on selected element). } }
-            q-editor { q-builder-colors-editor: "q-color-theme" initial-qhtml: "q-color-theme { }" }
+            div.w3-small.w3-margin-top.w3-margin-bottom.w3-text-blue-grey { q-builder-colors-status: "q-theme" text { Local q-theme block (editable only when defined on selected element). } }
+            q-editor { q-builder-colors-editor: "q-theme" initial-qhtml: "q-theme selected-theme { }" }
           }
         }
       }
@@ -1606,55 +1600,6 @@ q-component q-builder {
     return this.insertTopLevelKeywordBlock(current, replacementSource);
   }
 
-  function parseQColorAreasFromSource(source) {
-    var text = String(source || "").trim();
-    if (!text) { return []; }
-    var out = [];
-    var seen = {};
-    function pushArea(value) {
-      var area = String(value || "").trim();
-      if (!area) { return; }
-      if (seen[area]) { return; }
-      seen[area] = true;
-      out.push(area);
-    }
-    var openIndex = text.indexOf("{");
-    if (openIndex < 0) { return out; }
-    var closeIndex = this.findMatchingBrace(text, openIndex);
-    if (closeIndex < 0) { return out; }
-    var body = String(text.slice(openIndex + 1, closeIndex) || "");
-    var chunks = body.split(/[\n,;]/);
-    for (var i = 0; i < chunks.length; i += 1) {
-      var line = String(chunks[i] || "").trim();
-      if (!line) { continue; }
-      var idx = line.indexOf(":");
-      if (idx > 0) {
-        var key = String(line.slice(0, idx) || "").trim();
-        pushArea(key);
-        continue;
-      }
-      var tokens = line.split(/\s+/);
-      for (var ti = 0; ti < tokens.length; ti += 1) {
-        pushArea(tokens[ti]);
-      }
-    }
-    return out;
-  }
-
-  function formatQColorAreaList(areas) {
-    var list = Array.isArray(areas) ? areas : [];
-    var out = [];
-    var seen = {};
-    for (var i = 0; i < list.length; i += 1) {
-      var area = String(list[i] || "").trim();
-      if (!area || seen[area]) { continue; }
-      seen[area] = true;
-      out.push(area);
-    }
-    if (!out.length) { return "q-color { }"; }
-    return "q-color { " + out.join(" ") + " }";
-  }
-
   function parseInlineStyleDeclarations(styleText) {
     var out = {};
     var raw = String(styleText || "");
@@ -1680,395 +1625,188 @@ q-component q-builder {
     return raw.replace(/([A-Z])/g, "-$1").toLowerCase();
   }
 
-  function inferCssPropertyForArea(areaName) {
-    var key = String(areaName || "").trim().toLowerCase();
-    if (!key) { return ""; }
-    if (key.indexOf("background") >= 0 || key.indexOf("-bg") >= 0 || /(^|[-_])bg($|[-_])/.test(key)) {
-      return "background-color";
-    }
-    if (key.indexOf("foreground") >= 0 || key.indexOf("-fg") >= 0 || /(^|[-_])fg($|[-_])/.test(key)) {
-      return "color";
-    }
-    if (key.indexOf("border") >= 0) {
-      return "border-color";
-    }
-    if (key.indexOf("shadow") >= 0) {
-      return "box-shadow";
-    }
-    if (key.indexOf("outline") >= 0) {
-      return "outline-color";
-    }
-    return "";
-  }
-
-  function collectRequestedColorAreas(sourceMeta, areaMap) {
-    var out = {};
-    var areaKeys = Object.keys(areaMap || {});
-    for (var i = 0; i < areaKeys.length; i += 1) {
-      var areaFromMap = String(areaKeys[i] || "").trim();
-      if (areaFromMap) { out[areaFromMap] = true; }
-    }
-    var groups = sourceMeta && Array.isArray(sourceMeta.qColorAreas) ? sourceMeta.qColorAreas : [];
-    for (var gi = 0; gi < groups.length; gi += 1) {
-      var group = groups[gi];
-      if (!Array.isArray(group)) { continue; }
-      for (var gj = 0; gj < group.length; gj += 1) {
-        var areaName = String(group[gj] || "").trim();
-        if (areaName) { out[areaName] = true; }
-      }
-    }
-    var assignments = sourceMeta && Array.isArray(sourceMeta.qColorAssignments) ? sourceMeta.qColorAssignments : [];
-    for (var ai = 0; ai < assignments.length; ai += 1) {
-      var assignment = assignments[ai];
-      if (!assignment || typeof assignment !== "object" || Array.isArray(assignment)) { continue; }
-      var keys = Object.keys(assignment);
-      for (var ki = 0; ki < keys.length; ki += 1) {
-        var key = String(keys[ki] || "").trim();
-        if (!key || key.toLowerCase() === "theme") { continue; }
-        out[key] = true;
-      }
-    }
-    return Object.keys(out);
-  }
-
-  function collectRootCssVariableAreas(doc) {
-    var documentRef = doc && doc.nodeType === 9 ? doc : (typeof document !== "undefined" ? document : null);
-    var out = {};
-    if (!documentRef) { return out; }
-    var declared = {};
-
-    function scanRules(rules) {
-      if (!rules || typeof rules.length !== "number") { return; }
-      for (var i = 0; i < rules.length; i += 1) {
-        var rule = rules[i];
-        if (!rule) { continue; }
-        var ruleType = Number(rule.type || 0);
-        if (ruleType === 1) {
-          var selectorText = String(rule.selectorText || "");
-          var selectors = selectorText.split(",");
-          var isRoot = false;
-          for (var si = 0; si < selectors.length; si += 1) {
-            if (String(selectors[si] || "").trim() === ":root") {
-              isRoot = true;
-              break;
-            }
-          }
-          if (!isRoot) { continue; }
-          var style = rule.style;
-          if (!style || typeof style.length !== "number") { continue; }
-          for (var pi = 0; pi < style.length; pi += 1) {
-            var propName = String(style[pi] || "").trim();
-            if (!propName || propName.indexOf("--") !== 0) { continue; }
-            declared[propName] = String(style.getPropertyValue(propName) || "").trim();
-          }
-          continue;
-        }
-        if (rule.cssRules) {
-          try { scanRules(rule.cssRules); } catch (scanNestedError) { }
-        }
-      }
-    }
-
-    var allSheets = [];
-    try {
-      if (documentRef.styleSheets && typeof documentRef.styleSheets.length === "number") {
-        for (var s = 0; s < documentRef.styleSheets.length; s += 1) {
-          allSheets.push(documentRef.styleSheets[s]);
-        }
-      }
-      if (Array.isArray(documentRef.adoptedStyleSheets)) {
-        for (var a = 0; a < documentRef.adoptedStyleSheets.length; a += 1) {
-          allSheets.push(documentRef.adoptedStyleSheets[a]);
-        }
-      }
-    } catch (sheetListError) {
-      this.logIssue("collectRootCssVariableAreas sheet list failed", sheetListError);
-    }
-
-    for (var i = 0; i < allSheets.length; i += 1) {
-      var sheet = allSheets[i];
-      if (!sheet) { continue; }
-      try {
-        if (sheet.cssRules) { scanRules(sheet.cssRules); }
-      } catch (sheetError) {
-        // Cross-origin sheets can throw; ignore and keep scanning.
-      }
-    }
-
-    var rootElement = documentRef.documentElement || null;
-    var rootComputed = null;
-    try {
-      if (rootElement && typeof getComputedStyle === "function") {
-        rootComputed = getComputedStyle(rootElement);
-      }
-    } catch (computedError) {
-      this.logIssue("collectRootCssVariableAreas computed failed", computedError);
-    }
-
-    var varNames = Object.keys(declared);
-    for (var vi = 0; vi < varNames.length; vi += 1) {
-      var varName = String(varNames[vi] || "").trim();
-      if (!varName || varName.indexOf("--") !== 0) { continue; }
-      var areaName = String(varName.slice(2) || "").trim();
-      if (!areaName) { continue; }
-      var value = String(declared[varName] || "").trim();
-      if (rootComputed && typeof rootComputed.getPropertyValue === "function") {
-        var resolvedValue = String(rootComputed.getPropertyValue(varName) || "").trim();
-        if (resolvedValue) { value = resolvedValue; }
-      }
-      out[areaName] = { variable: varName, value: value };
+  function parseQStyleNamesFromSource(sourceText) {
+    var text = String(sourceText || "");
+    if (!text) { return []; }
+    var out = [];
+    var seen = {};
+    var re = /\bq-style\s+([A-Za-z_][A-Za-z0-9_-]*)\s*\{/g;
+    var match;
+    while ((match = re.exec(text))) {
+      var name = String(match[1] || "").trim();
+      var key = name.toLowerCase();
+      if (!name || seen[key]) { continue; }
+      seen[key] = true;
+      out.push(name);
     }
     return out;
   }
 
-  function resolveAreaCssProperty(areaName, areaMap, schemaMap) {
-    var area = String(areaName || "").trim();
-    if (!area) { return ""; }
-    var fromNode = areaMap && typeof areaMap === "object" ? String(areaMap[area] || "").trim() : "";
-    if (fromNode) { return this.normalizeCssPropertyName(fromNode); }
-    var fromSchema = schemaMap && typeof schemaMap === "object" ? String(schemaMap[area] || "").trim() : "";
-    if (fromSchema) { return this.normalizeCssPropertyName(fromSchema); }
-    return this.normalizeCssPropertyName(this.inferCssPropertyForArea(area));
+  function escapeRegExp(value) {
+    return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
-  function readComputedColorValue(element, cssProperty, inlineMap) {
-    var prop = this.normalizeCssPropertyName(cssProperty);
-    if (!prop) { return ""; }
-    try {
-      if (element && typeof getComputedStyle === "function") {
-        var computed = getComputedStyle(element);
-        if (computed && typeof computed.getPropertyValue === "function") {
-          var value = String(computed.getPropertyValue(prop) || "").trim();
-          if (value) { return value; }
-        }
+  function suggestStyleName(selectedElement) {
+    var classText = selectedElement && selectedElement.className != null
+      ? String(selectedElement.className || "").trim()
+      : "";
+    if (classText) {
+      var firstClass = classText.split(/\s+/).filter(Boolean)[0];
+      if (firstClass) {
+        return String(firstClass)
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]/g, "-")
+          .replace(/--+/g, "-")
+          .replace(/^-+|-+$/g, "") + "-style";
       }
-    } catch (error) {
-      this.logIssue("readComputedColorValue failed", error);
     }
-    var inlineValue = inlineMap && typeof inlineMap === "object" ? String(inlineMap[prop] || "").trim() : "";
-    return inlineValue || "";
+    var tag = selectedElement && selectedElement.tagName ? String(selectedElement.tagName || "").toLowerCase() : "";
+    if (!tag) { tag = "selected"; }
+    return tag + "-style";
   }
 
-  function formatComputedQColorApply(assignments) {
-    var map = assignments && typeof assignments === "object" ? assignments : {};
-    var keys = Object.keys(map);
-    if (!keys.length) { return "q-color { }"; }
-    keys.sort();
-    var lines = ["q-color {"];
-    for (var i = 0; i < keys.length; i += 1) {
-      lines.push("  " + keys[i] + ": " + map[keys[i]]);
+  function suggestThemeName(selectedElement) {
+    var tag = selectedElement && selectedElement.tagName ? String(selectedElement.tagName || "").toLowerCase() : "";
+    if (!tag) { tag = "selected"; }
+    return tag + "-theme";
+  }
+
+  function inferThemeSelector(selectedElement) {
+    if (!selectedElement || selectedElement.nodeType !== 1) { return "*"; }
+    var idText = selectedElement.id ? String(selectedElement.id || "").trim() : "";
+    if (idText) { return "#" + idText; }
+    var classText = selectedElement.className != null ? String(selectedElement.className || "").trim() : "";
+    if (classText) {
+      var firstClass = classText.split(/\s+/).filter(Boolean)[0];
+      if (firstClass) { return "." + firstClass; }
+    }
+    return String(selectedElement.tagName || "div").toLowerCase();
+  }
+
+  function formatQStyleSnapshot(styleName, selectedElement) {
+    var name = String(styleName || "").trim() || "selected-style";
+    var classText = selectedElement && selectedElement.className != null
+      ? String(selectedElement.className || "").trim()
+      : "";
+    var classTokens = classText.split(/\s+/).filter(Boolean);
+    var classOut = [];
+    var classSeen = {};
+    for (var ci = 0; ci < classTokens.length; ci += 1) {
+      var token = String(classTokens[ci] || "").trim();
+      var key = token.toLowerCase();
+      if (!token || classSeen[key]) { continue; }
+      classSeen[key] = true;
+      classOut.push(token);
+    }
+    var styleMap = this.parseInlineStyleDeclarations(
+      selectedElement && selectedElement.getAttribute ? selectedElement.getAttribute("style") : ""
+    );
+    var styleKeys = Object.keys(styleMap).sort();
+    var lines = ["q-style " + name + " {"];
+    if (classOut.length > 0) {
+      lines.push("  q-style-class { " + classOut.join(" ") + " }");
+    }
+    for (var si = 0; si < styleKeys.length; si += 1) {
+      var prop = String(styleKeys[si] || "").trim();
+      if (!prop) { continue; }
+      lines.push("  " + prop + ": " + styleMap[prop]);
     }
     lines.push("}");
     return lines.join("\n");
   }
 
-  function formatComputedQColorSchema(assignments) {
-    var map = assignments && typeof assignments === "object" ? assignments : {};
-    var keys = Object.keys(map);
-    if (!keys.length) { return "q-color-schema { }"; }
-    keys.sort();
-    var lines = ["q-color-schema {"];
-    for (var i = 0; i < keys.length; i += 1) {
-      lines.push("  " + keys[i] + " { " + map[keys[i]] + " }");
-    }
-    lines.push("}");
-    return lines.join("\n");
+  function formatQThemeSnapshot(themeName, selectedElement, preferredStyleName) {
+    var name = String(themeName || "").trim() || "selected-theme";
+    var selector = this.inferThemeSelector(selectedElement);
+    var styleName = String(preferredStyleName || "").trim() || "selected-style";
+    return [
+      "q-theme " + name + " {",
+      "  " + selector + " { " + styleName + " }",
+      "}"
+    ].join("\n");
   }
 
-  function formatComputedQColorTheme(assignments) {
-    var map = assignments && typeof assignments === "object" ? assignments : {};
-    var keys = Object.keys(map);
-    if (!keys.length) { return "q-color-theme { }"; }
-    keys.sort();
-    var lines = ["q-color-theme {"];
-    for (var i = 0; i < keys.length; i += 1) {
-      lines.push("  " + keys[i] + ": " + map[keys[i]]);
+  function appendStyleNameToThemeSource(themeSource, styleName) {
+    var source = String(themeSource || "").trim();
+    var style = String(styleName || "").trim();
+    if (!style) { return source; }
+    if (!source) {
+      return "q-theme selected-theme {\n  * { " + style + " }\n}";
     }
-    lines.push("}");
-    return lines.join("\n");
-  }
-
-  function normalizeThemeColorValue(value) {
-    var raw = String(value == null ? "" : value).trim();
-    if (!raw) { return ""; }
-    if (/^--[A-Za-z0-9_-]+$/.test(raw)) {
-      return "var(" + raw + ")";
-    }
-    return raw;
+    var styleRe = new RegExp("(^|\\s)" + this.escapeRegExp(style) + "(\\s|$)");
+    if (styleRe.test(source)) { return source; }
+    var openIndex = source.indexOf("{");
+    if (openIndex < 0) { return source; }
+    var closeIndex = this.findMatchingBrace(source, openIndex);
+    if (closeIndex < 0) { return source; }
+    var prefix = source.slice(0, openIndex + 1);
+    var body = String(source.slice(openIndex + 1, closeIndex) || "");
+    var suffix = source.slice(closeIndex);
+    var bodyTrimmed = body.replace(/\s+$/, "");
+    var rule = "  * { " + style + " }";
+    var nextBody = bodyTrimmed + (bodyTrimmed ? "\n" : "\n") + rule + "\n";
+    return prefix + nextBody + suffix;
   }
 
   function buildColorsEditContext(source, targetNode, host, selectedElement) {
     var src = String(source || "").trim();
-    var sourceNode = this.sourceNodeOf(targetNode);
-    var sourceMeta = sourceNode && sourceNode.meta && typeof sourceNode.meta === "object" ? sourceNode.meta : {};
-    var sourceAttrs = sourceNode && sourceNode.attributes && typeof sourceNode.attributes === "object" ? sourceNode.attributes : {};
-    var docRoot = host && typeof host.qdom === "function" ? host.qdom() : null;
-    if (docRoot && typeof docRoot.root === "function") { docRoot = docRoot.root({ qdom: true }); }
-    var docSource = this.sourceNodeOf(docRoot);
-    var docMeta = docSource && docSource.meta && typeof docSource.meta === "object" ? docSource.meta : {};
+    var localStyleBlocks = this.extractTopLevelKeywordBlocks(src, "q-style");
+    var localThemeBlocks = this.extractTopLevelKeywordBlocks(src, "q-theme");
 
-    var localColorBlocks = this.extractTopLevelKeywordBlocks(src, "q-color");
-    var localSchemaBlocks = this.extractTopLevelKeywordBlocks(src, "q-color-schema");
-    var localThemeBlocks = this.extractTopLevelKeywordBlocks(src, "q-color-theme");
+    var localStyleSource = localStyleBlocks.map(function each(block) { return block.text; }).join("\n\n").trim();
+    var localThemeSource = localThemeBlocks.map(function each(block) { return block.text; }).join("\n\n").trim();
 
-    var styleMap = this.parseInlineStyleDeclarations(sourceAttrs.style || "");
-    var areaMap = sourceMeta.qColorAreaProperties && typeof sourceMeta.qColorAreaProperties === "object" && !Array.isArray(sourceMeta.qColorAreaProperties)
-      ? sourceMeta.qColorAreaProperties
-      : {};
-    var docSchemas = docMeta.qColorSchemas && typeof docMeta.qColorSchemas === "object" ? Object.assign({}, docMeta.qColorSchemas) : {};
-    var rootCssAreas = this.collectRootCssVariableAreas(host && host.ownerDocument ? host.ownerDocument : null);
-    var rootCssAreaKeys = Object.keys(rootCssAreas);
-    for (var rsi = 0; rsi < rootCssAreaKeys.length; rsi += 1) {
-      var schemaArea = String(rootCssAreaKeys[rsi] || "").trim();
-      if (!schemaArea) { continue; }
-      if (String(docSchemas[schemaArea] || "").trim()) { continue; }
-      var inferredProperty = this.normalizeCssPropertyName(this.inferCssPropertyForArea(schemaArea));
-      if (!inferredProperty) { inferredProperty = "color"; }
-      docSchemas[schemaArea] = inferredProperty;
-    }
-    var areaKeys = this.collectRequestedColorAreas(sourceMeta, areaMap);
-    var computedColorAssignments = {};
-    for (var ai = 0; ai < areaKeys.length; ai += 1) {
-      var areaName = String(areaKeys[ai] || "").trim();
-      if (!areaName) { continue; }
-      var resolvedCssProperty = this.resolveAreaCssProperty(areaName, areaMap, docSchemas);
-      var resolvedCssValue = this.readComputedColorValue(selectedElement, resolvedCssProperty, styleMap);
-      if (resolvedCssValue) { computedColorAssignments[areaName] = resolvedCssValue; }
-    }
-    var assignmentGroups = Array.isArray(sourceMeta.qColorAssignments) ? sourceMeta.qColorAssignments : [];
-    for (var gi = 0; gi < assignmentGroups.length; gi += 1) {
-      var group = assignmentGroups[gi];
-      if (!group || typeof group !== "object" || Array.isArray(group)) { continue; }
-      var groupKeys = Object.keys(group);
-      for (var gk = 0; gk < groupKeys.length; gk += 1) {
-        var key = String(groupKeys[gk] || "").trim();
-        if (!key || key.toLowerCase() === "theme") { continue; }
-        var value = group[key];
-        if (value === true) {
-          var mapProp = this.resolveAreaCssProperty(key, areaMap, docSchemas);
-          var resolved = this.readComputedColorValue(selectedElement, mapProp, styleMap);
-          if (resolved) { computedColorAssignments[key] = resolved; }
-        } else {
-          var explicit = String(value == null ? "" : value).trim();
-          if (explicit) { computedColorAssignments[key] = explicit; }
-        }
-      }
+    var suggestedStyle = this.suggestStyleName(selectedElement);
+    var suggestedTheme = this.suggestThemeName(selectedElement);
+    var computedStyleSource = this.formatQStyleSnapshot(suggestedStyle, selectedElement);
+    var computedThemeSource = this.formatQThemeSnapshot(suggestedTheme, selectedElement, suggestedStyle);
+
+    var docSourceText = "";
+    try {
+      var docRoot = host && typeof host.qdom === "function" ? host.qdom() : null;
+      if (docRoot && typeof docRoot.root === "function") { docRoot = docRoot.root({ qdom: true }); }
+      var docSourceNode = this.sourceNodeOf(docRoot);
+      var docMeta = docSourceNode && docSourceNode.meta && typeof docSourceNode.meta === "object" ? docSourceNode.meta : {};
+      docSourceText = String(docMeta.source || docMeta.resolvedSource || "").trim();
+    } catch (error) {
+      this.logIssue("buildColorsEditContext doc source failed", error);
     }
 
-    var computedSchemaAssignments = {};
-    var docSchemaKeys = Object.keys(docSchemas);
-    for (var si = 0; si < docSchemaKeys.length; si += 1) {
-      var schemaKey = String(docSchemaKeys[si] || "").trim();
-      if (!schemaKey) { continue; }
-      computedSchemaAssignments[schemaKey] = String(docSchemas[schemaKey] || "").trim();
+    var availableStyleMap = {};
+    var localStyleNames = this.parseQStyleNamesFromSource(src);
+    var docStyleNames = this.parseQStyleNamesFromSource(docSourceText);
+    for (var li = 0; li < localStyleNames.length; li += 1) {
+      var localName = String(localStyleNames[li] || "").trim();
+      if (localName) { availableStyleMap[localName] = true; }
     }
-    for (var smi = 0; smi < areaKeys.length; smi += 1) {
-      var nodeArea = String(areaKeys[smi] || "").trim();
-      if (!nodeArea) { continue; }
-      var nodeProp = String(areaMap[nodeArea] || "").trim();
-      if (!nodeProp) { continue; }
-      computedSchemaAssignments[nodeArea] = nodeProp;
+    for (var di = 0; di < docStyleNames.length; di += 1) {
+      var docName = String(docStyleNames[di] || "").trim();
+      if (docName) { availableStyleMap[docName] = true; }
     }
-
-    var computedThemeAssignments = {};
-    var allThemes = docMeta.qColorThemes && typeof docMeta.qColorThemes === "object" ? docMeta.qColorThemes : {};
-    var defaultThemeName = String(docMeta.qColorDefaultTheme || "").trim();
-    var targetTheme = allThemes[defaultThemeName];
-    if (!targetTheme || typeof targetTheme !== "object") {
-      var themeKeys = Object.keys(allThemes);
-      if (themeKeys.length > 0) {
-        targetTheme = allThemes[themeKeys[0]];
-      }
-    }
-    if (targetTheme && typeof targetTheme === "object") {
-      var targetThemeKeys = Object.keys(targetTheme);
-      for (var ti = 0; ti < targetThemeKeys.length; ti += 1) {
-        var themeKey = String(targetThemeKeys[ti] || "").trim();
-        if (!themeKey) { continue; }
-        computedThemeAssignments[themeKey] = this.normalizeThemeColorValue(targetTheme[themeKey]);
-      }
-    }
-    for (var rti = 0; rti < rootCssAreaKeys.length; rti += 1) {
-      var rootArea = String(rootCssAreaKeys[rti] || "").trim();
-      if (!rootArea) { continue; }
-      if (String(computedThemeAssignments[rootArea] || "").trim()) { continue; }
-      var rootVarName = rootCssAreas[rootArea] && typeof rootCssAreas[rootArea] === "object"
-        ? String(rootCssAreas[rootArea].variable || "").trim()
-        : "";
-      if (rootVarName) {
-        computedThemeAssignments[rootArea] = this.normalizeThemeColorValue(rootVarName);
-        continue;
-      }
-      var rootValue = rootCssAreas[rootArea] && typeof rootCssAreas[rootArea] === "object"
-        ? String(rootCssAreas[rootArea].value || "").trim()
-        : "";
-      if (rootValue) { computedThemeAssignments[rootArea] = this.normalizeThemeColorValue(rootValue); }
-    }
-    for (var ci = 0; ci < areaKeys.length; ci += 1) {
-      var areaForTheme = String(areaKeys[ci] || "").trim();
-      if (!areaForTheme) { continue; }
-      if (String(computedThemeAssignments[areaForTheme] || "").trim()) { continue; }
-      var propForTheme = this.resolveAreaCssProperty(areaForTheme, areaMap, docSchemas);
-      var fallbackValue = this.readComputedColorValue(selectedElement, propForTheme, styleMap);
-      if (fallbackValue) {
-        computedThemeAssignments[areaForTheme] = this.normalizeThemeColorValue(fallbackValue);
-      }
-    }
-
-    var computedColorsText = this.formatComputedQColorApply(computedColorAssignments);
-    var computedSchemaText = this.formatComputedQColorSchema(computedSchemaAssignments);
-    var computedThemeText = this.formatComputedQColorTheme(computedThemeAssignments);
-    var availableAreasMap = {};
-    var computedColorKeys = Object.keys(computedColorAssignments);
-    var computedSchemaKeys = Object.keys(computedSchemaAssignments);
-    var computedThemeKeys = Object.keys(computedThemeAssignments);
-    for (var cki = 0; cki < computedColorKeys.length; cki += 1) {
-      var ck = String(computedColorKeys[cki] || "").trim();
-      if (ck) { availableAreasMap[ck] = true; }
-    }
-    for (var csi = 0; csi < computedSchemaKeys.length; csi += 1) {
-      var sk = String(computedSchemaKeys[csi] || "").trim();
-      if (sk) { availableAreasMap[sk] = true; }
-    }
-    for (var cti = 0; cti < computedThemeKeys.length; cti += 1) {
-      var tk = String(computedThemeKeys[cti] || "").trim();
-      if (tk) { availableAreasMap[tk] = true; }
-    }
-    var availableAreas = Object.keys(availableAreasMap);
-    availableAreas.sort();
-    var areaDefaults = {};
-    for (var adi = 0; adi < availableAreas.length; adi += 1) {
-      var area = String(availableAreas[adi] || "").trim();
-      if (!area) { continue; }
-      var themeDefault = String(computedThemeAssignments[area] || "").trim();
-      var colorDefault = String(computedColorAssignments[area] || "").trim();
-      areaDefaults[area] = themeDefault || colorDefault || "inherit";
-    }
+    availableStyleMap[suggestedStyle] = true;
+    var availableStyles = Object.keys(availableStyleMap).sort();
 
     return {
       source: src,
       hasLocal: {
-        "q-color": localColorBlocks.length > 0,
-        "q-color-schema": localSchemaBlocks.length > 0,
-        "q-color-theme": localThemeBlocks.length > 0
+        "q-style": localStyleBlocks.length > 0,
+        "q-theme": localThemeBlocks.length > 0
       },
       local: {
-        "q-color": localColorBlocks.map(function each(block) { return block.text; }).join("\n\n").trim(),
-        "q-color-schema": localSchemaBlocks.map(function each(block) { return block.text; }).join("\n\n").trim(),
-        "q-color-theme": localThemeBlocks.map(function each(block) { return block.text; }).join("\n\n").trim()
+        "q-style": localStyleSource,
+        "q-theme": localThemeSource
       },
       editable: {
-        "q-color": localColorBlocks.length > 0,
-        "q-color-schema": localSchemaBlocks.length > 0,
-        "q-color-theme": localThemeBlocks.length > 0
+        "q-style": localStyleBlocks.length > 0,
+        "q-theme": localThemeBlocks.length > 0
       },
       computed: {
-        "q-color": computedColorsText,
-        "q-color-schema": computedSchemaText,
-        "q-color-theme": computedThemeText
+        "q-style": computedStyleSource,
+        "q-theme": computedThemeSource
       },
-      availableAreas: availableAreas,
-      areaDefaults: areaDefaults
+      availableStyles: availableStyles,
+      suggestedStyleName: suggestedStyle,
+      suggestedThemeName: suggestedTheme
     };
   }
 
@@ -2498,7 +2236,7 @@ q-component q-builder {
     try {
       var ctx = editContext && typeof editContext === "object" ? editContext : null;
       if (!ctx) { return; }
-      var keywords = ["q-color", "q-color-schema", "q-color-theme"];
+      var keywords = ["q-style", "q-theme"];
       for (var i = 0; i < keywords.length; i += 1) {
         var keyword = keywords[i];
         var computedNode = this.querySelector("[q-builder-colors-computed='" + keyword + "']");
@@ -2514,96 +2252,94 @@ q-component q-builder {
         var editorNode = this.querySelector("q-editor[q-builder-colors-editor='" + keyword + "']");
         var localSource = String(ctx.local && ctx.local[keyword] || "").trim();
         var computedSource = String(ctx.computed && ctx.computed[keyword] || "").trim();
-        var sourceText = localSource || computedSource || (keyword + " { }");
+        var sourceText = localSource || computedSource;
+        if (!sourceText) {
+          sourceText = keyword === "q-style" ? "q-style selected-style { }" : "q-theme selected-theme { }";
+        }
         var readOnly = !(ctx.editable && ctx.editable[keyword]);
         this.configureColorEditor(editorNode, sourceText, readOnly);
       }
       var customizeButton = this.querySelector("[q-builder-colors-theme-customize='1']");
       if (customizeButton) {
-        customizeButton.textContent = ctx.editable && ctx.editable["q-color-theme"] ? "Theme Editable" : "Customize Theme";
+        customizeButton.textContent = ctx.editable && ctx.editable["q-theme"] ? "Theme Editable" : "Customize Theme";
       }
-      this.updateColorAreaPicker(ctx);
+      this.updateStylePicker(ctx);
     } catch (error) {
       this.logIssue("setColorsTabContent failed", error);
     }
   }
 
-  function updateColorAreaPicker(editContext) {
+  function updateStylePicker(editContext) {
     try {
       var ctx = editContext && typeof editContext === "object" ? editContext : null;
-      var selectNode = this.querySelector("[q-builder-colors-area-select='1']");
+      var selectNode = this.querySelector("[q-builder-colors-style-select='1']");
       if (!ctx || !selectNode) { return; }
-      var list = Array.isArray(ctx.availableAreas) ? ctx.availableAreas.slice() : [];
+      var list = Array.isArray(ctx.availableStyles) ? ctx.availableStyles.slice() : [];
       list.sort();
       while (selectNode.firstChild) { selectNode.removeChild(selectNode.firstChild); }
       var placeholder = (this.ownerDocument || document).createElement("option");
       placeholder.value = "";
-      placeholder.textContent = "Select color area...";
+      placeholder.textContent = "Select q-style name...";
       selectNode.appendChild(placeholder);
       for (var i = 0; i < list.length; i += 1) {
-        var areaName = String(list[i] || "").trim();
-        if (!areaName) { continue; }
+        var styleName = String(list[i] || "").trim();
+        if (!styleName) { continue; }
         var opt = (this.ownerDocument || document).createElement("option");
-        opt.value = areaName;
-        opt.textContent = areaName;
+        opt.value = styleName;
+        opt.textContent = styleName;
         selectNode.appendChild(opt);
       }
       selectNode.value = "";
     } catch (error) {
-      this.logIssue("updateColorAreaPicker failed", error);
+      this.logIssue("updateStylePicker failed", error);
     }
   }
 
-  function addColorAreaToEditor() {
+  function addThemeStyleToEditor() {
     try {
       var s = this.state();
       var ctx = s.colorsEditContext && typeof s.colorsEditContext === "object" ? s.colorsEditContext : null;
       if (!ctx) { return; }
-      var selectNode = this.querySelector("[q-builder-colors-area-select='1']");
-      var selectedArea = selectNode ? String(selectNode.value || "").trim() : "";
-      if (!selectedArea) { return; }
-      var editorNode = this.querySelector("q-editor[q-builder-colors-editor='q-color']");
+      var selectNode = this.querySelector("[q-builder-colors-style-select='1']");
+      var selectedStyle = selectNode ? String(selectNode.value || "").trim() : "";
+      if (!selectedStyle) { return; }
+      var editorNode = this.querySelector("q-editor[q-builder-colors-editor='q-theme']");
       if (!editorNode || typeof editorNode.getQhtmlSource !== "function" || typeof editorNode.setQhtmlSource !== "function") { return; }
-      var areas = [];
-      if (ctx.hasLocal && ctx.hasLocal["q-color"]) {
-        var currentSource = String(editorNode.getQhtmlSource() || "").trim();
-        areas = this.parseQColorAreasFromSource(currentSource);
-        if (!areas.length) {
-          areas = this.parseQColorAreasFromSource(String(ctx.local && ctx.local["q-color"] || "").trim());
-        }
+      var currentSource = String(editorNode.getQhtmlSource() || "").trim();
+      if (!currentSource) {
+        currentSource = String(ctx.local && ctx.local["q-theme"] || ctx.computed && ctx.computed["q-theme"] || "").trim();
       }
-      for (var ai = 0; ai < areas.length; ai += 1) {
-        if (String(areas[ai] || "").trim() === selectedArea) { return; }
-      }
-      areas.push(selectedArea);
-      var nextColorSource = this.formatQColorAreaList(areas);
-      editorNode.setQhtmlSource(nextColorSource);
+      var nextThemeSource = this.appendStyleNameToThemeSource(currentSource, selectedStyle);
+      editorNode.setQhtmlSource(nextThemeSource);
       this.hideQEditorNonColorTabs(editorNode);
       this.setColorEditorReadOnly(editorNode, false);
-      ctx.local["q-color"] = nextColorSource;
-      ctx.editable["q-color"] = true;
-      ctx.hasLocal["q-color"] = true;
-      if (!ctx.availableAreas || !Array.isArray(ctx.availableAreas)) { ctx.availableAreas = []; }
-      if (ctx.availableAreas.indexOf(selectedArea) === -1) { ctx.availableAreas.push(selectedArea); }
+      ctx.local["q-theme"] = nextThemeSource;
+      ctx.editable["q-theme"] = true;
+      ctx.hasLocal["q-theme"] = true;
+      if (!ctx.availableStyles || !Array.isArray(ctx.availableStyles)) { ctx.availableStyles = []; }
+      if (ctx.availableStyles.indexOf(selectedStyle) === -1) { ctx.availableStyles.push(selectedStyle); }
       s.colorsEditContext = ctx;
       this.setColorsTabContent(ctx);
     } catch (error) {
-      this.logIssue("addColorAreaToEditor failed", error);
+      this.logIssue("addThemeStyleToEditor failed", error);
     }
   }
 
-  function customizeThemeForSelected() {
+  function customizeStyleForSelected() {
     try {
       var s = this.state();
       var ctx = s.colorsEditContext && typeof s.colorsEditContext === "object" ? s.colorsEditContext : null;
       if (!ctx || !s.target) { return; }
-      if (ctx.editable && ctx.editable["q-color-theme"]) {
+      if (ctx.editable && ctx.editable["q-style"]) {
         this.setColorsTabContent(ctx);
         return;
       }
-      var themeSource = String(ctx.computed && ctx.computed["q-color-theme"] || "").trim();
-      if (!themeSource) { themeSource = "q-color-theme { }"; }
-      var nextSource = this.upsertTopLevelKeywordBlock(ctx.source, "q-color-theme", themeSource);
+      var styleSource = String(ctx.computed && ctx.computed["q-style"] || "").trim();
+      if (!styleSource) {
+        var fallbackName = String(ctx.suggestedStyleName || "selected-style").trim() || "selected-style";
+        styleSource = "q-style " + fallbackName + " {\n}";
+      }
+      var nextSource = this.upsertTopLevelKeywordBlock(ctx.source, "q-style", styleSource);
       var root = this.qroot();
       var host = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
       if (!s.target || typeof s.target.replaceWithQHTML !== "function" || !root) { return; }
@@ -2620,12 +2356,54 @@ q-component q-builder {
         return;
       }
       var nextCtx = this.buildColorsEditContext(nextSource, s.target, host, s.selectedEl);
-      nextCtx.local["q-color-theme"] = themeSource;
-      nextCtx.editable["q-color-theme"] = true;
-      nextCtx.hasLocal["q-color-theme"] = true;
+      nextCtx.local["q-style"] = styleSource;
+      nextCtx.editable["q-style"] = true;
+      nextCtx.hasLocal["q-style"] = true;
       s.colorsEditContext = nextCtx;
       this.setColorsTabContent(nextCtx);
-      var themeEditor = this.querySelector("q-editor[q-builder-colors-editor='q-color-theme']");
+      var styleEditor = this.querySelector("q-editor[q-builder-colors-editor='q-style']");
+      this.setColorEditorReadOnly(styleEditor, false);
+    }
+  }
+
+  function customizeThemeForSelected() {
+    try {
+      var s = this.state();
+      var ctx = s.colorsEditContext && typeof s.colorsEditContext === "object" ? s.colorsEditContext : null;
+      if (!ctx || !s.target) { return; }
+      if (ctx.editable && ctx.editable["q-theme"]) {
+        this.setColorsTabContent(ctx);
+        return;
+      }
+      var themeSource = String(ctx.computed && ctx.computed["q-theme"] || "").trim();
+      if (!themeSource) {
+        var fallbackStyle = String(ctx.suggestedStyleName || "selected-style").trim() || "selected-style";
+        var fallbackTheme = String(ctx.suggestedThemeName || "selected-theme").trim() || "selected-theme";
+        themeSource = "q-theme " + fallbackTheme + " {\n  * { " + fallbackStyle + " }\n}";
+      }
+      var nextSource = this.upsertTopLevelKeywordBlock(ctx.source, "q-theme", themeSource);
+      var root = this.qroot();
+      var host = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
+      if (!s.target || typeof s.target.replaceWithQHTML !== "function" || !root) { return; }
+      var replacement = s.target.replaceWithQHTML(nextSource, root);
+      if (replacement) {
+        if (replacement && typeof replacement === "object") {
+          s.target = replacement;
+        }
+        s.source = nextSource;
+        this.touchMutationNonce(host, replacement && typeof replacement === "object" ? replacement : s.target);
+        this.requestHostUpdate(host, null);
+        this.refreshPalette(host);
+      } else {
+        return;
+      }
+      var nextCtx = this.buildColorsEditContext(nextSource, s.target, host, s.selectedEl);
+      nextCtx.local["q-theme"] = themeSource;
+      nextCtx.editable["q-theme"] = true;
+      nextCtx.hasLocal["q-theme"] = true;
+      s.colorsEditContext = nextCtx;
+      this.setColorsTabContent(nextCtx);
+      var themeEditor = this.querySelector("q-editor[q-builder-colors-editor='q-theme']");
       this.setColorEditorReadOnly(themeEditor, false);
     } catch (error) {
       this.logIssue("customizeThemeForSelected failed", error);
@@ -2817,7 +2595,7 @@ q-component q-builder {
         return;
       }
       var nextSource = String(editContext.source || "").trim();
-      var keywords = ["q-color", "q-color-schema", "q-color-theme"];
+      var keywords = ["q-style", "q-theme"];
       for (var i = 0; i < keywords.length; i += 1) {
         var keyword = keywords[i];
         if (!(editContext.editable && editContext.editable[keyword])) { continue; }
@@ -2825,7 +2603,10 @@ q-component q-builder {
         var editorSource = editorNode && typeof editorNode.getQhtmlSource === "function"
           ? String(editorNode.getQhtmlSource() || "").trim()
           : "";
-        var blockSource = editorSource || (keyword + " { }");
+        var blockSource = editorSource;
+        if (!blockSource) {
+          blockSource = keyword === "q-style" ? "q-style selected-style { }" : "q-theme selected-theme { }";
+        }
         nextSource = this.upsertTopLevelKeywordBlock(nextSource, keyword, blockSource);
       }
       if (!nextSource) {
@@ -3103,8 +2884,9 @@ q-component q-builder {
       if (action === "close") { self.setOpen(false); }
       if (action === "save-colors") { self.saveColors(); }
       if (action === "close-colors") { self.setColorsOpen(false); }
+      if (action === "customize-style") { self.customizeStyleForSelected(); }
       if (action === "customize-theme") { self.customizeThemeForSelected(); }
-      if (action === "add-color-area") { self.addColorAreaToEditor(); }
+      if (action === "add-theme-style") { self.addThemeStyleToEditor(); }
     });
 
     var globalRef = this.getGlobalRef();

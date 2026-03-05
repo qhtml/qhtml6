@@ -1,16 +1,47 @@
+q-style q-modal-root-style {
+  q-style-class { w3-modal }
+}
+q-style q-modal-container-style {
+  q-style-class { w3-modal-content w3-card-4 w3-animate-zoom }
+  backgroundColor: var(--q-modal-container-bg, rgb(230, 238, 249))
+  color: var(--q-modal-container-fg, #0f172a)
+}
+q-style q-modal-titlebar-style {
+  q-style-class { w3-center }
+  backgroundColor: var(--q-modal-titlebar-bg, rgb(222, 232, 246))
+  color: var(--q-modal-titlebar-fg, #0f172a)
+}
+q-style q-modal-closebutton-style {
+  q-style-class { w3-button w3-xlarge w3-display-topright }
+  backgroundColor: var(--q-modal-closebutton-bg, rgb(203, 213, 225))
+  color: var(--q-modal-titlebar-fg, #0f172a)
+}
+q-style q-modal-title-style {
+  q-style-class { w3-margin-top w3-large }
+  backgroundColor: var(--q-modal-title-bg, rgb(230, 238, 249))
+  color: var(--q-modal-title-fg, #0f172a)
+}
+q-style q-modal-content-style {
+  q-style-class { w3-container w3-section }
+  backgroundColor: var(--q-modal-content-bg, rgb(238, 243, 251))
+  color: var(--q-modal-content-fg, #0f172a)
+}
+q-style q-modal-footer-style {
+  q-style-class { w3-container w3-border-top w3-padding-16 }
+  backgroundColor: var(--q-modal-footer-bg, rgb(222, 232, 246))
+  color: var(--q-modal-container-fg, #0f172a)
+}
+q-theme q-modal-theme {
+  .q-modal-root { q-modal-root-style }
+  .q-modal-container { q-modal-container-style }
+  .q-modal-titlebar { q-modal-titlebar-style }
+  .q-modal-closebutton { q-modal-closebutton-style }
+  .q-modal-title { q-modal-title-style }
+  .q-modal-content { q-modal-content-style }
+  .q-modal-footer { q-modal-footer-style }
+}
+
 q-component q-modal {
-  q-color-schema {
-    q-modal-container-bg { background-color }
-    q-modal-titlebar-bg { background-color }
-    q-modal-closebutton-bg { background-color }
-    q-modal-container-fg { color }
-    q-modal-footer-bg { background-color }
-    q-modal-content-bg { background-color }
-    q-modal-content-fg { color }
-    q-modal-titlebar-fg { color }
-    q-modal-title-bg { background-color }
-    q-modal-title-fg { color }
-  }
 
   q-property { isOpen }
   isOpen: false
@@ -41,44 +72,40 @@ q-component q-modal {
     this.hide();
   }
 
-  div.w3-modal {
-    q-modal-root: "1"
-    style { display: none; }
+  q-modal-theme {
+    div.q-modal-root {
+      q-modal-root: "1"
+      style { display: none; }
 
-    div.w3-modal-content.w3-card-4.w3-animate-zoom {
-      q-color { q-modal-container-bg q-modal-container-fg }
-      style { max-width: 600px; }
+      div.q-modal-container {
+        style { max-width: 600px; }
 
-      div.w3-center {
-        q-color { q-modal-titlebar-bg q-modal-titlebar-fg }
-        br { }
-        span.w3-button.w3-xlarge.w3-display-topright {
-          q-modal-close-trigger: "1"
-          title: "Close Modal"
-          q-color { q-modal-closebutton-bg q-modal-titlebar-fg }
-          onclick { this.closest("q-modal").hide(); }
-          html { &times; }
+        div.q-modal-titlebar {
+          br { }
+          span.q-modal-closebutton {
+            q-modal-close-trigger: "1"
+            title: "Close Modal"
+            onclick { this.closest("q-modal").hide(); }
+            html { &times; }
+          }
+          div.q-modal-title {
+            slot { title }
+            slot { heading }
+            slot { header }
+          }
         }
-        div.w3-margin-top.w3-large {
-          q-color { q-modal-title-bg q-modal-title-fg }
-          slot { title }
-          slot { heading }
-          slot { header }
+
+        div.q-modal-content {
+          slot { body }
+          slot { main }
+          slot { content }
         }
-      }
 
-      div.w3-container.w3-section {
-        q-color { q-modal-content-bg q-modal-content-fg }
-        slot { body }
-        slot { main }
-        slot { content }
-      }
-
-      div.w3-container.w3-border-top.w3-padding-16 {
-        q-color { q-modal-footer-bg q-modal-container-fg }
-        slot { bottom }
-        slot { footer }
-        slot { foot }
+        div.q-modal-footer {
+          slot { bottom }
+          slot { footer }
+          slot { foot }
+        }
       }
     }
   }

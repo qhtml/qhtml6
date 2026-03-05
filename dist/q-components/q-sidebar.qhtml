@@ -1,12 +1,20 @@
+q-style q-sidebar-panel-style {
+  backgroundColor: var(--q-sidebar-panel-bg, rgb(230, 238, 249))
+  color: var(--q-sidebar-panel-fg, #0f172a)
+  borderColor: var(--q-sidebar-panel-border, #c7d8ef)
+}
+q-style q-sidebar-toggle-style {
+  q-style-class { w3-button }
+  backgroundColor: var(--q-sidebar-toggle-bg, rgb(203, 213, 225))
+  color: var(--q-sidebar-toggle-fg, #0f172a)
+  borderColor: var(--q-sidebar-toggle-border, #94a3b8)
+}
+q-theme q-sidebar-theme {
+  .q-sidebar-panel { q-sidebar-panel-style }
+  .q-sidebar-toggle { q-sidebar-toggle-style }
+}
+
 q-component q-sidebar {
-  q-color-schema {
-    q-sidebar-panel-bg { background-color }
-    q-sidebar-panel-fg { color }
-    q-sidebar-panel-border { border-color }
-    q-sidebar-toggle-bg { background-color }
-    q-sidebar-toggle-fg { color }
-    q-sidebar-toggle-border { border-color }
-  }
 
   q-property open: "1"
   q-property sidebarWidth: "260"
@@ -98,61 +106,61 @@ q-component q-sidebar {
     this.applyOpenMode(this.currentOpenValue());
   }
 
-  div {
-    q-sidebar-root: "1"
-    style { position: relative; min-height: 1px; height: 100%; overflow: hidden; }
+  q-sidebar-theme {
     div {
-      q-sidebar-layout: "1"
-      style {
-        display: grid;
-        grid-template-columns: 260px minmax(0, 1fr);
-        height: 100%;
-        min-height: 1px;
-        transition: grid-template-columns 220ms ease;
-      }
-      aside {
-        q-sidebar-panel: "1"
-        q-color { q-sidebar-panel-bg q-sidebar-panel-fg q-sidebar-panel-border }
-        style {
-          min-width: 0;
-          overflow: hidden;
-          border-right: 1px solid transparent;
-          transition: opacity 140ms ease;
-        }
-        slot { content }
-      }
+      q-sidebar-root: "1"
+      style { position: relative; min-height: 1px; height: 100%; overflow: hidden; }
       div {
-        q-sidebar-main: "1"
-        style { min-width: 0; overflow: auto; }
-        slot { main }
+        q-sidebar-layout: "1"
+        style {
+          display: grid;
+          grid-template-columns: 260px minmax(0, 1fr);
+          height: 100%;
+          min-height: 1px;
+          transition: grid-template-columns 220ms ease;
+        }
+        aside.q-sidebar-panel {
+          q-sidebar-panel: "1"
+          style {
+            min-width: 0;
+            overflow: hidden;
+            border-right: 1px solid transparent;
+            transition: opacity 140ms ease;
+          }
+          slot { content }
+        }
+        div {
+          q-sidebar-main: "1"
+          style { min-width: 0; overflow: auto; }
+          slot { main }
+        }
       }
-    }
 
-    button.w3-button {
-      q-sidebar-toggle: "1"
-      type: "button"
-      q-color { q-sidebar-toggle-bg q-sidebar-toggle-fg q-sidebar-toggle-border }
-      style {
-        position: absolute;
-        top: 8px;
-        left: calc(260px - 16px);
-        z-index: 1002;
-        border-radius: 6px;
-        transition: left 220ms ease;
-        padding: 4px 10px;
-      }
-      onclick {
-        var host = this.closest ? this.closest("q-sidebar") : null;
-        if (!host && this.component) {
-          host = this.component.closest ? this.component.closest("q-sidebar") : this.component;
+      button.q-sidebar-toggle {
+        q-sidebar-toggle: "1"
+        type: "button"
+        style {
+          position: absolute;
+          top: 8px;
+          left: calc(260px - 16px);
+          z-index: 1002;
+          border-radius: 6px;
+          transition: left 220ms ease;
+          padding: 4px 10px;
         }
-        if (host && typeof host.toggle === "function") {
-          host.toggle();
+        onclick {
+          var host = this.closest ? this.closest("q-sidebar") : null;
+          if (!host && this.component) {
+            host = this.component.closest ? this.component.closest("q-sidebar") : this.component;
+          }
+          if (host && typeof host.toggle === "function") {
+            host.toggle();
+          }
         }
-      }
-      span {
-        q-sidebar-indicator: "1"
-        html { &#10094; }
+        span {
+          q-sidebar-indicator: "1"
+          html { &#10094; }
+        }
       }
     }
   }

@@ -1,13 +1,37 @@
 q-component q-estore {
-  q-color-schema {
-    q-estore-card-bg { background-color }
-    q-estore-card-fg { color }
-    q-estore-card-border { border-color }
-    q-estore-muted-fg { color }
-    q-estore-status-bg { background-color }
-    q-estore-status-fg { color }
-    q-estore-status-border { border-color }
-    q-estore-status-left-border { border-left-color }
+  q-style q-estore-card-style {
+    q-style-class { w3-card w3-round-large w3-border w3-padding }
+    backgroundColor: var(--q-estore-card-bg, #eef4fb)
+    color: var(--q-estore-card-fg, #102a43)
+    borderColor: var(--q-estore-card-border, #c7d8ef)
+  }
+  q-style q-estore-header-row-style {
+    q-style-class { w3-row-padding w3-margin-bottom }
+  }
+  q-style q-estore-header-col-style {
+    q-style-class { w3-col s12 }
+  }
+  q-style q-estore-title-style {
+    q-style-class { w3-margin-top w3-margin-bottom }
+  }
+  q-style q-estore-muted-style {
+    q-style-class { w3-small }
+    color: var(--q-estore-muted-fg, #5b708a)
+  }
+  q-style q-estore-status-style {
+    q-style-class { w3-panel w3-leftbar w3-small }
+    backgroundColor: var(--q-estore-status-bg, #e8f2ff)
+    color: var(--q-estore-status-fg, #1f3b57)
+    borderColor: var(--q-estore-status-border, #c7d8ef)
+    borderLeftColor: var(--q-estore-status-left-border, #3b82f6)
+  }
+  q-theme q-estore-theme {
+    .q-estore-card { q-estore-card-style }
+    .q-estore-header-row { q-estore-header-row-style }
+    .q-estore-header-col { q-estore-header-col-style }
+    .q-estore-title { q-estore-title-style }
+    .q-estore-muted { q-estore-muted-style }
+    .q-estore-status { q-estore-status-style }
   }
 
   q-property { state catalog checkout statusNode }
@@ -288,33 +312,32 @@ q-component q-estore {
     this.component.storeReady();
   }
 
-  div.w3-card.w3-round-large.w3-border.w3-padding {
-    q-color { q-estore-card-bg q-estore-card-fg q-estore-card-border }
-    div.w3-row-padding.w3-margin-bottom {
-      div.w3-col.s12 {
-        h2.w3-margin-top.w3-margin-bottom {
-          text { Q E-Store }
-        }
-         p.w3-small {
-          q-color { q-estore-muted-fg }
-          text { Catalog + checkout modal composed into one reusable component. }
+  q-estore-theme {
+    div.q-estore-card {
+      div.q-estore-header-row {
+        div.q-estore-header-col {
+          h2.q-estore-title {
+            text { Q E-Store }
+          }
+          p.q-estore-muted {
+            text { Catalog + checkout modal composed into one reusable component. }
+          }
         }
       }
-    }
 
-    div.w3-panel.w3-leftbar.w3-small {
-      q-color { q-estore-status-bg q-estore-status-fg q-estore-status-border q-estore-status-left-border }
-      style { border-left-color: transparent; }
-      q-estore-status: "1"
-      text { Initializing e-store component... }
-    }
+      div.q-estore-status {
+        style { border-left-color: transparent; }
+        q-estore-status: "1"
+        text { Initializing e-store component... }
+      }
 
-    q-store-catalog {
-      q-estore-catalog: "1"
-    }
+      q-store-catalog {
+        q-estore-catalog: "1"
+      }
 
-    q-checkout-modal {
-      q-estore-checkout: "1"
+      q-checkout-modal {
+        q-estore-checkout: "1"
+      }
     }
   }
 }

@@ -1,4 +1,3 @@
-q-import { q-components/q-defaults.qhtml }
 q-import { q-components/q-tech-tag.qhtml }
 q-import { q-components/q-form.qhtml }
 q-import { q-components/q-modal.qhtml }

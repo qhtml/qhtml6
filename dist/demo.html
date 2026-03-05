@@ -188,16 +188,24 @@
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-defaults.qhtml }
-default-color-schema { }
-default-color-theme { }
-
 q-keyword component { q-component }
 
+q-style tiny-card-style {
+  q-style-class { w3-round-large w3-border }
+  backgroundColor: #eef4ff
+  color: #0f172a
+  border: 1px solid #bfd0ea
+}
+
+q-theme tiny-card-theme {
+  .tiny-card-shell { tiny-card-style }
+}
+
 component tiny-card {
-  div.w3-card.w3-padding {
-    q-color { tiny-card-bg tiny-card-fg tiny-card-border }
-    text { Tiny Card }
+  tiny-card-theme {
+    div.tiny-card-shell.w3-card.w3-padding {
+      text { Tiny Card }
+    }
   }
 }
 
@@ -213,12 +221,25 @@ tiny-card { }
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-defaults.qhtml }
-default-color-schema { }
-default-color-theme { }
-
 q-import { q-components/q-modal.qhtml }
 q-import { q-components/q-builder.qhtml }
+
+q-style builder-preview-style {
+  backgroundColor: #f5f8ff
+  color: #0f172a
+  border: 1px solid #c8d8f2
+}
+
+q-style builder-action-style {
+  backgroundColor: #1d4ed8
+  color: #ffffff
+  border: 1px solid #1e40af
+}
+
+q-theme builder-demo-theme {
+  .builder-preview { builder-preview-style }
+  .builder-action { builder-action-style }
+}
 
 onReady {
   var host = this;
@@ -228,22 +249,21 @@ onReady {
   builder.querySelector("q-builder-palette").remove();
 }
 
-q-builder {
-  id: "page-builder"
-  q-builder-runtime: "1"
-}
+builder-demo-theme {
+  q-builder {
+    id: "page-builder"
+    q-builder-runtime: "1"
+  }
 
-div.w3-container.w3-border.w3-round-large.w3-padding.w3-margin-top {
-  h4 { text { Builder Demo } }
-  div.w3-panel.w3-border.w3-round-large.w3-margin-top {
-    q-color { demo-builder-preview-bg demo-builder-preview-fg demo-builder-preview-border }
-    id: "builder-preview-root"
-    h4 { text { Preview Scope } }
-    p { text { q-builder is always enabled in this example. Click here to inspect/edit. } }
-    button.w3-button.w3-small {
-      q-color { demo-builder-action-bg demo-builder-action-fg demo-builder-action-border }
-      type: "button"
-      text { Inner Action }
+  div.w3-container.w3-border.w3-round-large.w3-padding.w3-margin-top {
+    h4 { text { Builder Demo } }
+    div#builder-preview-root.builder-preview.w3-panel.w3-border.w3-round-large.w3-margin-top {
+      h4 { text { Preview Scope } }
+      p { text { q-builder is always enabled in this example. Click here to inspect/edit. } }
+      button.builder-action.w3-button.w3-small {
+        type: "button"
+        text { Inner Action }
+      }
     }
   }
 }
@@ -258,28 +278,35 @@ div.w3-container.w3-border.w3-round-large.w3-padding.w3-margin-top {
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-defaults.qhtml }
-default-color-schema { }
-default-color-theme { }
-
 q-import { q-components/q-modal.qhtml }
 q-import { q-components/q-form.qhtml }
 q-import { q-components/q-grid.qhtml }
 q-import { q-components/q-checkout-modal.qhtml?v=cart-fix-3 }
 
-button.w3-button {
-  q-color { checkout-open-btn-bg checkout-open-btn-fg checkout-open-btn-border }
-  text { Open Checkout Modal }
-  onclick {
-    var modal = document.querySelector("#checkout-usage");
-    modal.setItems([
-      { id: "sku-1", name: "Starter Pack", price: 24.99, quantity: 2 },
-      { id: "sku-2", name: "Add-on", price: 8.5, quantity: 1 }
-    ]);
-    modal.show();
-  }
+q-style checkout-open-style {
+  backgroundColor: #0f766e
+  color: #ffffff
+  border: 1px solid #115e59
 }
-q-checkout-modal { id: "checkout-usage" }
+
+q-theme checkout-theme {
+  .checkout-open-btn { checkout-open-style }
+}
+
+checkout-theme {
+  button.checkout-open-btn.w3-button {
+    text { Open Checkout Modal }
+    onclick {
+      var modal = document.querySelector("#checkout-usage");
+      modal.setItems([
+        { id: "sku-1", name: "Starter Pack", price: 24.99, quantity: 2 },
+        { id: "sku-2", name: "Add-on", price: 8.5, quantity: 1 }
+      ]);
+      modal.show();
+    }
+  }
+  q-checkout-modal { id: "checkout-usage" }
+}
           </q-editor>
         </div>
       </section>
@@ -291,10 +318,6 @@ q-checkout-modal { id: "checkout-usage" }
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-defaults.qhtml }
-default-color-schema { }
-default-color-theme { }
-
 q-import { q-components/q-form.qhtml }
 q-import { q-components/q-grid.qhtml }
 q-import { q-components/q-modal.qhtml }
@@ -318,18 +341,22 @@ q-estore {
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-defaults.qhtml }
-default-color-schema { }
-default-color-theme { }
-
 q-import { q-components/q-form.qhtml }
 
-q-form {
-  h3 { text { Quick Form } }
-  q-input { placeholder: "Name" }
-  q-input { type: "email" placeholder: "Email" }
-  q-textarea { text { Tell us what you are building... } }
-  q-submit { text { Send } }
+q-style form-demo-overrides {
+  --q-form-shell-bg: #fff7ed
+  --q-form-input-bg: #fffaf0
+  --q-form-submit-bg: #ea580c
+}
+
+form-demo-overrides,div {
+  q-form {
+    h3 { text { Quick Form } }
+    q-input { placeholder: "Name" }
+    q-input { type: "email" placeholder: "Email" }
+    q-textarea { text { Tell us what you are building... } }
+    q-submit { text { Send } }
+  }
 }
           </q-editor>
         </div>
@@ -342,17 +369,37 @@ q-form {
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-defaults.qhtml }
-default-color-schema { }
-default-color-theme { }
-
 q-import { q-components/q-grid.qhtml }
 
-q-grid {
-  columns: 3;
-  div.w3-panel.w3-border { q-color { grid-cell-a-bg grid-cell-fg grid-cell-border } text { Cell A } }
-  div.w3-panel.w3-border { q-color { grid-cell-b-bg grid-cell-fg grid-cell-border } text { Cell B } }
-  div.w3-panel.w3-border { q-color { grid-cell-c-bg grid-cell-fg grid-cell-border } text { Cell C } }
+q-style cell-a-style {
+  backgroundColor: #eff6ff
+  color: #1e3a8a
+  border: 1px solid #93c5fd
+}
+q-style cell-b-style {
+  backgroundColor: #ecfeff
+  color: #155e75
+  border: 1px solid #67e8f9
+}
+q-style cell-c-style {
+  backgroundColor: #f0fdf4
+  color: #166534
+  border: 1px solid #86efac
+}
+
+q-theme grid-cells-theme {
+  .cell-a { cell-a-style }
+  .cell-b { cell-b-style }
+  .cell-c { cell-c-style }
+}
+
+grid-cells-theme {
+  q-grid {
+    columns: 3;
+    div.cell-a.w3-panel.w3-border { text { Cell A } }
+    div.cell-b.w3-panel.w3-border { text { Cell B } }
+    div.cell-c.w3-panel.w3-border { text { Cell C } }
+  }
 }
           </q-editor>
         </div>
@@ -361,30 +408,54 @@ q-grid {
       <section class="example-class" id="q-modal" data-title="q-modal.qhtml usage">
         <div class="example-head">
           <h3>q-modal.qhtml usage</h3>
-          <p>Open and close modal content via component methods.</p>
+          <p>Use built-in <code>q-modal-theme</code> defaults, then layer an external theme override.</p>
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-defaults.qhtml }
-default-color-schema { }
-default-color-theme { }
-
 q-import { q-components/q-modal.qhtml }
 
-button.w3-button {
-  q-color { modal-open-btn-bg modal-open-btn-fg modal-open-btn-border }
-  text { Open Modal }
-  onclick { document.querySelector("#modal-usage").show(); }
+q-style modal-open-button-style {
+  backgroundColor: #16a34a
+  color: #ffffff
+  border: 1px solid #15803d
 }
-q-modal {
-  id: "modal-usage"
-  title { h3 { text { q-modal Usage } } }
-  body { p { text { Modal body content from slots. } } }
-  footer {
-    button.w3-button {
-      q-color { modal-close-btn-bg modal-close-btn-fg modal-close-btn-border }
-      text { Close }
-      onclick { this.component.hide(); }
+q-style modal-default-overrides {
+  --q-modal-container-bg: #ffedd5
+  --q-modal-container-fg: #7c2d12
+  --q-modal-titlebar-bg: #ef4444
+  --q-modal-titlebar-fg: #ffffff
+  --q-modal-closebutton-bg: #7f1d1d
+  --q-modal-title-bg: #fb923c
+  --q-modal-title-fg: #111827
+  --q-modal-content-bg: #dbeafe
+  --q-modal-content-fg: #1e3a8a
+  --q-modal-footer-bg: #fde047
+}
+
+q-theme modal-demo-theme {
+  q-modal-theme { }
+  .modal-open-btn { modal-open-button-style }
+  q-modal { modal-default-overrides }
+  button { modal-open-button-style }
+}
+
+modal-demo-theme {
+  button.modal-open-btn.w3-button {
+    text { Open Modal }
+    onclick { document.querySelector("#modal-usage").show(); }
+  }
+  q-modal {
+    id: "modal-usage"
+    title { h3 { text { q-modal Usage } } }
+    body {
+      p { text { Modal default colors are overridden externally via q-theme composition. } }
+      button.w3-button { text { In-modal button override } }
+    }
+    footer {
+      button.w3-button {
+        text { Close }
+        onclick { this.component.hide(); }
+      }
     }
   }
 }
@@ -395,39 +466,67 @@ q-modal {
       <section class="example-class" id="q-sidebar" data-title="q-sidebar.qhtml usage">
         <div class="example-head">
           <h3>q-sidebar.qhtml usage</h3>
-          <p>Toggle a sidebar panel and slot-based content.</p>
+          <p>Use one theme: include <code>q-sidebar-theme</code> defaults, then apply targeted overrides.</p>
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-defaults.qhtml }
-default-color-schema { }
-default-color-theme { }
-
 q-import { q-components/q-sidebar.qhtml?v=drawer-width }
 
-div.w3-container.w3-border.w3-round-large {
-  style { position: relative; height: 240px; overflow: hidden; padding: 8px; }
-  button.w3-button.w3-margin-bottom {
-    q-color { sidebar-toggle-btn-bg sidebar-toggle-btn-fg sidebar-toggle-btn-border }
-    text { Toggle Sidebar }
-    onclick { this.closest("div").querySelector("q-sidebar").toggle(); }
-  }
-  q-sidebar {
-    sidebarWidth: "280"
-    collapsedWidth: "2vw"
-    open: "1"
-    content {
-      div.w3-bar-block.w3-padding.w3-border {
-        q-color { sidebar-content-bg sidebar-content-fg sidebar-content-border }
-        h4 { text { Sidebar } }
-        a.w3-bar-item.w3-button { text { Nav Item 1 } }
-        a.w3-bar-item.w3-button { text { Nav Item 2 } }
-      }
+q-style sidebar-toggle-override-style {
+  backgroundColor: #16a34a
+  color: #ffffff
+  border: 1px solid #15803d
+}
+q-style sidebar-shell-override-style {
+  --q-sidebar-panel-bg: #ffedd5
+  --q-sidebar-panel-fg: #7c2d12
+  --q-sidebar-panel-border: #fb923c
+  --q-sidebar-toggle-bg: #ef4444
+  --q-sidebar-toggle-fg: #ffffff
+  --q-sidebar-toggle-border: #7f1d1d
+}
+q-style sidebar-content-card-style {
+  backgroundColor: #dbeafe
+  color: #1e3a8a
+  border: 1px solid #60a5fa
+}
+q-style sidebar-nav-link-style {
+  backgroundColor: #fef3c7
+  color: #92400e
+  border: 1px solid #f59e0b
+}
+
+q-theme sidebar-demo-theme {
+  q-sidebar-theme { }
+  q-sidebar { sidebar-shell-override-style }
+  .q-sidebar-toggle { sidebar-toggle-override-style }
+  .sidebar-content-pane { sidebar-content-card-style }
+  .sidebar-nav-btn { sidebar-nav-link-style }
+}
+
+sidebar-demo-theme {
+  div.w3-container.w3-border.w3-round-large {
+    style { position: relative; height: 240px; overflow: hidden; padding: 8px; }
+    button.w3-button.w3-margin-bottom {
+      text { Toggle Sidebar }
+      onclick { this.closest("div").querySelector("q-sidebar").toggle(); }
     }
-    main {
-      div.w3-padding {
-        h4 { text { Main Content } }
-        p { text { q-sidebar uses an in-container grid layout (sidebar + main). } }
+    q-sidebar {
+      sidebarWidth: "280"
+      collapsedWidth: "2vw"
+      open: "1"
+      content {
+        div.sidebar-content-pane.w3-bar-block.w3-padding.w3-border {
+          h4 { text { Sidebar } }
+          a.sidebar-nav-btn.w3-bar-item.w3-button { text { Nav Item 1 } }
+          a.sidebar-nav-btn.w3-bar-item.w3-button { text { Nav Item 2 } }
+        }
+      }
+      main {
+        div.w3-padding {
+          h4 { text { Main Content } }
+          p { text { q-sidebar uses an in-container grid layout (sidebar + main). } }
+        }
       }
     }
   }
@@ -443,21 +542,25 @@ div.w3-container.w3-border.w3-round-large {
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-defaults.qhtml }
-default-color-schema { }
-default-color-theme { }
-
 q-import { q-components/q-form.qhtml }
 q-import { q-components/q-grid.qhtml }
 q-import { q-components/q-store-catalog-item.qhtml?v=cart-fix-2 }
 q-import { q-components/q-store-catalog.qhtml?v=cart-fix-2 }
 
-button.w3-button.w3-margin-bottom {
-  q-color { catalog-add-btn-bg catalog-add-btn-fg catalog-add-btn-border }
-  text { Add Sample Item }
-  onclick { document.querySelector("#catalog-usage").addCatalogItem({ name: "Demo Item", description: "Added via method", price: 11.25 }); }
+q-style catalog-add-style {
+  backgroundColor: #0ea5e9
+  color: #082f49
+  border: 1px solid #0284c7
 }
-q-store-catalog { id: "catalog-usage" }
+q-theme catalog-theme { .catalog-add-btn { catalog-add-style } }
+
+catalog-theme {
+  button.catalog-add-btn.w3-button.w3-margin-bottom {
+    text { Add Sample Item }
+    onclick { document.querySelector("#catalog-usage").addCatalogItem({ name: "Demo Item", description: "Added via method", price: 11.25 }); }
+  }
+  q-store-catalog { id: "catalog-usage" }
+}
           </q-editor>
         </div>
       </section>
@@ -469,10 +572,6 @@ q-store-catalog { id: "catalog-usage" }
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-defaults.qhtml }
-default-color-schema { }
-default-color-theme { }
-
 q-import { q-components/q-store-catalog-item.qhtml?v=cart-fix-2 }
 
 q-store-catalog-item {
@@ -492,32 +591,48 @@ q-store-catalog-item {
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-defaults.qhtml }
-default-color-schema { }
-default-color-theme { }
-
 q-import { q-components/q-popup-menu.qhtml }
 
-div.w3-container.w3-border.w3-round-large.w3-padding {
-  h4 { text { Right-click inside the dashed area } }
-  div.w3-panel.w3-border-dashed.w3-round-large {
-    q-color { popup-zone-bg popup-zone-fg popup-zone-border }
-    id: "ctx-zone"
-    style { min-height: 140px; }
-    p { text { This context menu is scoped to this panel only. } }
-    q-context-menu {
-      id: "ctx-usage"
-      q-popup-text { text { Actions } }
-      q-popup-separator { }
-      q-popup-item { content { text { Rename } } }
-      q-popup-item { content { text { Duplicate } } }
-      q-popup-submenu {
-        content { text { More } }
-        menu { q-popup-item { content { text { Archive } } } q-popup-item { content { text { Delete } } } }
+q-style popup-zone-style {
+  backgroundColor: #f8fafc
+  color: #0f172a
+  border: 1px dashed #94a3b8
+}
+q-style popup-log-style {
+  color: #334155
+}
+q-style popup-menu-override-style {
+  --q-popup-menu-panel-bg: #fff7ed
+  --q-popup-item-bg: #ffedd5
+  --q-popup-submenu-panel-bg: #fff1f2
+}
+
+q-theme popup-demo-theme {
+  .popup-zone { popup-zone-style }
+  .popup-log { popup-log-style }
+  #ctx-zone { popup-menu-override-style }
+}
+
+popup-demo-theme {
+  div.w3-container.w3-border.w3-round-large.w3-padding {
+    h4 { text { Right-click inside the dashed area } }
+    div#ctx-zone.popup-zone.w3-panel.w3-border-dashed.w3-round-large {
+      style { min-height: 140px; }
+      p { text { This context menu is scoped to this panel only. } }
+      q-context-menu {
+        id: "ctx-usage"
+        q-popup-text { text { Actions } }
+        q-popup-separator { }
+        q-popup-item { content { text { Rename } } }
+        q-popup-item { content { text { Duplicate } } }
+        q-popup-submenu {
+          content { text { More } }
+          menu { q-popup-item { content { text { Archive } } } q-popup-item { content { text { Delete } } } }
+        }
       }
     }
+    p#ctx-log.popup-log.w3-small { text { Last click: none } }
   }
-  p.w3-small { q-color { popup-log-fg } id: "ctx-log" text { Last click: none } }
 }
 onReady {
   var menu = this.querySelector("#ctx-usage");
@@ -537,22 +652,35 @@ onReady {
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-defaults.qhtml }
-default-color-schema { }
-default-color-theme { }
-
 q-import { q-components/q-tabs.qhtml }
 
-button.w3-button.w3-margin-bottom {
-  q-color { tabs-show-btn-bg tabs-show-btn-fg tabs-show-btn-border }
-  text { Show Tab 3 }
-  onclick { document.querySelector("#tabs-usage").showTab(2); }
+q-style tabs-show-btn-style {
+  backgroundColor: #334155
+  color: #ffffff
+  border: 1px solid #1e293b
 }
-q-tabs {
-  id: "tabs-usage"
-  q-tab { name { text { Overview } } content { p { text { Overview content } } } }
-  q-tab { name { text { Details } } content { p { text { Details content } } } }
-  q-tab { name { text { Logs } } content { p { text { Logs content } } } }
+q-style tabs-instance-override-style {
+  --q-tabs-nav-bg: #ffedd5
+  --q-tabs-nav-active-bg: #ea580c
+  --q-tabs-nav-active-fg: #ffffff
+  --q-tabs-content-bg: #fffaf0
+}
+q-theme tabs-demo-theme {
+  .tabs-show-btn { tabs-show-btn-style }
+  #tabs-usage { tabs-instance-override-style }
+}
+
+tabs-demo-theme {
+  button.tabs-show-btn.w3-button.w3-margin-bottom {
+    text { Show Tab 3 }
+    onclick { document.querySelector("#tabs-usage").showTab(2); }
+  }
+  q-tabs {
+    id: "tabs-usage"
+    q-tab { name { text { Overview } } content { p { text { Overview content } } } }
+    q-tab { name { text { Details } } content { p { text { Details content } } } }
+    q-tab { name { text { Logs } } content { p { text { Logs content } } } }
+  }
 }
           </q-editor>
         </div>
@@ -565,14 +693,19 @@ q-tabs {
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-defaults.qhtml }
-default-color-schema { }
-default-color-theme { }
-
 q-import { q-components/q-tech-tag.qhtml }
 
-q-tech-tag { text { Extend this tag by adding definitions inside q-tech-tag.qhtml. } }
-div.w3-panel.w3-small.w3-border { q-color { tech-note-bg tech-note-fg tech-note-border } text { q-tech-tag.qhtml currently has no built-in definitions. } }
+q-style tech-note-style {
+  backgroundColor: #eef4ff
+  color: #334155
+  border: 1px solid #c7d8ef
+}
+q-theme tech-tag-theme { .tech-note { tech-note-style } }
+
+tech-tag-theme {
+  q-tech-tag { text { Extend this tag by adding definitions inside q-tech-tag.qhtml. } }
+  div.tech-note.w3-panel.w3-small.w3-border { text { q-tech-tag.qhtml currently has no built-in definitions. } }
+}
           </q-editor>
         </div>
       </section>

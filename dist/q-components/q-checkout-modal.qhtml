@@ -1,19 +1,59 @@
 q-component q-checkout-modal {
-  q-color-schema {
-    q-checkout-muted-fg { color }
-    q-checkout-card-bg { background-color }
-    q-checkout-card-fg { color }
-    q-checkout-card-border { border-color }
-    q-checkout-summary-bg { background-color }
-    q-checkout-summary-fg { color }
-    q-checkout-summary-border { border-color }
-    q-checkout-badge-bg { background-color }
-    q-checkout-badge-fg { color }
-    q-checkout-badge-border { border-color }
-    q-checkout-subtotal-fg { color }
-    q-checkout-clear-btn-bg { background-color }
-    q-checkout-clear-btn-fg { color }
-    q-checkout-clear-btn-border { border-color }
+  q-style q-checkout-muted-style {
+    q-style-class { w3-small }
+    color: var(--q-checkout-muted-fg, #5b708a)
+  }
+  q-style q-checkout-title-style {
+    q-style-class { w3-margin-top w3-margin-bottom }
+  }
+  q-style q-checkout-card-style {
+    q-style-class { w3-card w3-round-large w3-border w3-padding }
+    backgroundColor: var(--q-checkout-card-bg, #eef4fb)
+    color: var(--q-checkout-card-fg, #102a43)
+    borderColor: var(--q-checkout-card-border, #c7d8ef)
+  }
+  q-style q-checkout-summary-style {
+    q-style-class { w3-card w3-round-large w3-border w3-padding }
+    backgroundColor: var(--q-checkout-summary-bg, #f7faff)
+    color: var(--q-checkout-summary-fg, #102a43)
+    borderColor: var(--q-checkout-summary-border, #c7d8ef)
+  }
+  q-style q-checkout-summary-row-style {
+    q-style-class { w3-small }
+  }
+  q-style q-checkout-badge-style {
+    q-style-class { w3-tag w3-round w3-margin-left }
+    backgroundColor: var(--q-checkout-badge-bg, #2563eb)
+    color: var(--q-checkout-badge-fg, #f8fbff)
+    borderColor: var(--q-checkout-badge-border, #1e40af)
+  }
+  q-style q-checkout-subtotal-label-style {
+    q-style-class { w3-large w3-margin-top }
+  }
+  q-style q-checkout-subtotal-style {
+    q-style-class { w3-xxlarge }
+    color: var(--q-checkout-subtotal-fg, #1d4ed8)
+  }
+  q-style q-checkout-footer-actions-style {
+    q-style-class { w3-right-align }
+  }
+  q-style q-checkout-clear-btn-style {
+    q-style-class { w3-button w3-round w3-margin-right }
+    backgroundColor: var(--q-checkout-clear-btn-bg, #475569)
+    color: var(--q-checkout-clear-btn-fg, #f8fbff)
+    borderColor: var(--q-checkout-clear-btn-border, #334155)
+  }
+  q-theme q-checkout-theme {
+    .q-checkout-muted { q-checkout-muted-style }
+    .q-checkout-title { q-checkout-title-style }
+    .q-checkout-card { q-checkout-card-style }
+    .q-checkout-summary { q-checkout-summary-style }
+    .q-checkout-summary-row { q-checkout-summary-row-style }
+    .q-checkout-badge { q-checkout-badge-style }
+    .q-checkout-subtotal-label { q-checkout-subtotal-label-style }
+    .q-checkout-subtotal { q-checkout-subtotal-style }
+    .q-checkout-footer-actions { q-checkout-footer-actions-style }
+    .q-checkout-clear-btn { q-checkout-clear-btn-style }
   }
 
   q-property { items modalHost linesNode subtotalNode countNode payloadNode }
@@ -209,72 +249,67 @@ q-component q-checkout-modal {
     this.hide();
   }
 
-  q-modal {
-    title {
-      h3.w3-margin-top.w3-margin-bottom {
-        text { Checkout }
+  q-checkout-theme {
+    q-modal {
+      title {
+        h3.q-checkout-title {
+          text { Checkout }
+        }
+        div.q-checkout-muted {
+          text { Review cart subtotal before taxes. }
+        }
       }
-      div.w3-small {
-        q-color { q-checkout-muted-fg }
-        text { Review cart subtotal before taxes. }
-      }
-    }
 
-    body {
-      q-form {
-        q-grid {
-          q-grid-cell {
-            div.w3-card.w3-round-large.w3-border.w3-padding {
-              q-color { q-checkout-card-bg q-checkout-card-fg q-checkout-card-border }
-              h4 { text { Cart Items } }
-              div {
-                q-checkout-lines: "1"
-              }
-            }
-          }
-          q-grid-cell {
-            div.w3-card.w3-round-large.w3-border.w3-padding {
-              q-color { q-checkout-summary-bg q-checkout-summary-fg q-checkout-summary-border }
-              h4 { text { Summary } }
-              div.w3-small {
-                text { Items in cart: }
-                span.w3-tag.w3-round.w3-margin-left {
-                  q-color { q-checkout-badge-bg q-checkout-badge-fg q-checkout-badge-border }
-                  q-checkout-count: "1"
-                  text { 0 }
+      body {
+        q-form {
+          q-grid {
+            q-grid-cell {
+              div.q-checkout-card {
+                h4 { text { Cart Items } }
+                div {
+                  q-checkout-lines: "1"
                 }
               }
-              p.w3-large.w3-margin-top {
-                text { Subtotal (before tax): }
-              }
-              div.w3-xxlarge {
-                q-color { q-checkout-subtotal-fg }
-                q-checkout-subtotal: "1"
-                text { $0.00 }
+            }
+            q-grid-cell {
+              div.q-checkout-summary {
+                h4 { text { Summary } }
+                div.q-checkout-summary-row {
+                  text { Items in cart: }
+                  span.q-checkout-badge {
+                    q-checkout-count: "1"
+                    text { 0 }
+                  }
+                }
+                p.q-checkout-subtotal-label {
+                  text { Subtotal (before tax): }
+                }
+                div.q-checkout-subtotal {
+                  q-checkout-subtotal: "1"
+                  text { $0.00 }
+                }
               }
             }
           }
         }
-      }
 
-      textarea {
-        q-checkout-payload: "1"
-        style { display: none; }
-      }
-    }
-
-    footer {
-      div.w3-right-align {
-        button.w3-button.w3-round.w3-margin-right {
-          q-color { q-checkout-clear-btn-bg q-checkout-clear-btn-fg q-checkout-clear-btn-border }
-          text { Clear Cart }
-          onclick {
-            this.closest("q-checkout-modal").clearItems();
-          }
+        textarea {
+          q-checkout-payload: "1"
+          style { display: none; }
         }
-        span.w3-small {
-          q-color { q-checkout-muted-fg }
-          text { The close button is provided by q-modal. }
+      }
+
+      footer {
+        div.q-checkout-footer-actions {
+          button.q-checkout-clear-btn {
+            text { Clear Cart }
+            onclick {
+              this.closest("q-checkout-modal").clearItems();
+            }
+          }
+          span.q-checkout-muted {
+            text { The close button is provided by q-modal. }
+          }
         }
       }
     }
