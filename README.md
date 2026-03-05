@@ -339,10 +339,10 @@ q-style card-shell {
 
 ```qhtml
 q-style title-accent { color: #1d4ed8 }
-q-style body-muted   { color: #64748b }
+q-style body-muted   { backgroundColor: #64748b }
 
 q-theme article-theme {
-  h3 { title-accent }
+  h3 { title-accent body muted }
   p  { body-muted }
 }
 ```
