@@ -21,6 +21,7 @@
   const TEXT_BLOCK_KEYWORDS = new Set(["text", "innertext"]);
   const LIFECYCLE_BLOCKS = new Set(["onready", "onload", "onloaded"]);
   const BINDING_EXPRESSION_KEYWORDS = new Set(["q-bind", "q-script"]);
+  const DEPRECATED_FEATURE_WARNED = new Set();
   const CANONICAL_KEYWORD_TARGETS = new Set([
     "q-component",
     "q-template",
@@ -31,6 +32,9 @@
     "q-property",
     "q-signal",
     "q-alias",
+    "q-style",
+    "q-style-class",
+    "q-theme",
     "q-color",
     "q-color-schema",
     "q-color-theme",
@@ -284,7 +288,9 @@
       nameLower === "q-component" ||
       nameLower === "q-signal" ||
       nameLower === "q-rewrite" ||
-      nameLower === "q-macro"
+      nameLower === "q-macro" ||
+      nameLower === "q-style" ||
+      nameLower === "q-theme"
     ) {
       return isIdentifierStartChar(next) || next === "{";
     }
@@ -906,11 +912,16 @@
       }
       const key = parseQColorIdentifier(parser, "q-color-theme");
       skipWhitespace(parser);
-      if (peek(parser) !== ":") {
-        throw ParseError("Expected ':' inside q-color-theme", parser.index);
+      let value = "";
+      if (peek(parser) === ":") {
+        consume(parser);
+        value = parseQColorValueToken(parser, keywordAliases);
+      } else if (peek(parser) === "{") {
+        consume(parser);
+        value = String(readBalancedBlockContent(parser) || "").trim();
+      } else {
+        throw ParseError("Expected ':' or '{...}' inside q-color-theme", parser.index);
       }
-      consume(parser);
-      const value = parseQColorValueToken(parser, keywordAliases);
       if (value) {
         out[key] = value;
       }
@@ -985,6 +996,102 @@
           out.assignments[areaName] = true;
         }
       }
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+      }
+    }
+    return out;
+  }
+
+  function parseQStyleDeclarations(rawBody, keywordAliases) {
+    const parser = parserFor(String(rawBody || ""));
+    const out = {};
+    const classes = [];
+    const seenClasses = new Set();
+    const styleClassKeywords = collectAliasesTargeting(keywordAliases, "q-style-class");
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+      const propertyName = parseQColorIdentifier(parser, "q-style");
+      const propertyLower = String(propertyName || "").trim().toLowerCase();
+      skipWhitespace(parser);
+      if (styleClassKeywords.has(propertyLower)) {
+        if (peek(parser) !== "{") {
+          throw ParseError("Expected '{...}' after q-style-class inside q-style", parser.index);
+        }
+        consume(parser);
+        const classBody = String(readBalancedBlockContent(parser) || "");
+        const parsedClasses = parseQPropertyNames(classBody);
+        if (parsedClasses.length === 0) {
+          if (typeof console !== "undefined" && console && typeof console.warn === "function") {
+            console.warn("qhtml q-style warning: q-style-class has no class names", {
+              styleBlock: String(rawBody || "").trim(),
+            });
+          }
+        } else {
+          for (let i = 0; i < parsedClasses.length; i += 1) {
+            const className = String(parsedClasses[i] || "").trim();
+            const normalizedClass = className.toLowerCase();
+            if (!className || seenClasses.has(normalizedClass)) {
+              continue;
+            }
+            seenClasses.add(normalizedClass);
+            classes.push(className);
+          }
+        }
+        skipWhitespaceAndSemicolons(parser);
+        if (peek(parser) === ",") {
+          consume(parser);
+        }
+        continue;
+      }
+      let value = "";
+      if (peek(parser) === ":") {
+        consume(parser);
+        value = parseQColorValueToken(parser, keywordAliases);
+      } else if (peek(parser) === "{") {
+        consume(parser);
+        value = String(readBalancedBlockContent(parser) || "").trim();
+      } else {
+        throw ParseError("Expected ':' or '{...}' inside q-style", parser.index);
+      }
+      if (value) {
+        out[propertyName] = value;
+      }
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+      }
+    }
+    return {
+      declarations: out,
+      classes: classes,
+    };
+  }
+
+  function parseQThemeRules(rawBody) {
+    const parser = parserFor(String(rawBody || ""));
+    const out = [];
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+      const selector = parseQColorIdentifier(parser, "q-theme");
+      skipWhitespace(parser);
+      if (peek(parser) !== "{") {
+        throw ParseError("Expected '{...}' inside q-theme", parser.index);
+      }
+      consume(parser);
+      const body = String(readBalancedBlockContent(parser) || "").trim();
+      const styleNames = parseQPropertyNames(body);
+      out.push({
+        selector: selector,
+        styles: styleNames,
+      });
       skipWhitespaceAndSemicolons(parser);
       if (peek(parser) === ",") {
         consume(parser);
@@ -1444,6 +1551,7 @@
           continue;
         }
         if (nameLower === "q-color-schema" && nextChar !== "{") {
+          warnDeprecatedSyntaxFeature("q-color-schema");
           const schemaName = parseQColorIdentifier(parser, "q-color-schema");
           skipWhitespace(parser);
           if (peek(parser) !== "{") {
@@ -1463,6 +1571,7 @@
           continue;
         }
         if (nameLower === "q-color-theme" && nextChar !== "{") {
+          warnDeprecatedSyntaxFeature("q-color-theme");
           const themeName = parseQColorIdentifier(parser, "q-color-theme");
           skipWhitespace(parser);
           if (peek(parser) !== "{") {
@@ -1474,6 +1583,68 @@
             type: "QColorThemeDefinition",
             name: themeName,
             assignments: parseQColorAssignments(themeBody, scopedKeywordAliases),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-color" && nextChar !== "{") {
+          warnDeprecatedSyntaxFeature("q-color");
+          const setupName = parseQColorIdentifier(parser, "q-color");
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-color name", parser.index);
+          }
+          consume(parser);
+          const colorBody = readBalancedBlockContent(parser);
+          const parsed = parseQColorApplyBlock(colorBody, scopedKeywordAliases);
+          items.push({
+            type: "QColorDefinition",
+            name: setupName,
+            assignments: parsed.assignments,
+            areas: parsed.areas,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-style" && nextChar !== "{") {
+          const styleName = parseQColorIdentifier(parser, "q-style");
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-style name", parser.index);
+          }
+          consume(parser);
+          const styleBody = readBalancedBlockContent(parser);
+          const parsedStyle = parseQStyleDeclarations(styleBody, scopedKeywordAliases);
+          items.push({
+            type: "QStyleDefinition",
+            name: styleName,
+            declarations: parsedStyle.declarations,
+            classes: parsedStyle.classes,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-theme" && nextChar !== "{") {
+          const themeName = parseQColorIdentifier(parser, "q-theme");
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-theme name", parser.index);
+          }
+          consume(parser);
+          const themeBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "QThemeDefinition",
+            name: themeName,
+            rules: parseQThemeRules(themeBody),
             keywords: keywordSnapshot,
             start: itemStart,
             end: parser.index,
@@ -1695,6 +1866,7 @@
           }
 
           if (nameLower === "q-color-schema") {
+            warnDeprecatedSyntaxFeature("q-color-schema");
             consume(parser);
             const schemaBody = readBalancedBlockContent(parser);
             items.push({
@@ -1710,6 +1882,7 @@
           }
 
           if (nameLower === "q-color-theme") {
+            warnDeprecatedSyntaxFeature("q-color-theme");
             consume(parser);
             const themeBody = readBalancedBlockContent(parser);
             items.push({
@@ -1725,6 +1898,7 @@
           }
 
           if (nameLower === "q-color") {
+            warnDeprecatedSyntaxFeature("q-color");
             consume(parser);
             const colorBody = readBalancedBlockContent(parser);
             const parsed = parseQColorApplyBlock(colorBody, scopedKeywordAliases);
@@ -1738,6 +1912,14 @@
               raw: parser.source.slice(itemStart, parser.index),
             });
             continue;
+          }
+
+          if (nameLower === "q-style") {
+            throw ParseError("Anonymous q-style is not allowed", parser.index);
+          }
+
+          if (nameLower === "q-theme") {
+            throw ParseError("Anonymous q-theme is not allowed", parser.index);
           }
 
           if (isEventBlockName(name)) {
@@ -2003,6 +2185,7 @@
         }
 
         if (firstLower === "q-color-schema" && peek(parser) !== "{" && peek(parser) !== ",") {
+          warnDeprecatedSyntaxFeature("q-color-schema");
           const schemaName = parseQColorIdentifier(parser, "q-color-schema");
           skipWhitespace(parser);
           if (peek(parser) !== "{") {
@@ -2023,6 +2206,7 @@
         }
 
         if (firstLower === "q-color-schema" && peek(parser) === "{") {
+          warnDeprecatedSyntaxFeature("q-color-schema");
           consume(parser);
           const schemaBody = readBalancedBlockContent(parser);
           body.push({
@@ -2038,6 +2222,7 @@
         }
 
         if (firstLower === "q-color-theme" && peek(parser) === "{") {
+          warnDeprecatedSyntaxFeature("q-color-theme");
           consume(parser);
           const themeBody = readBalancedBlockContent(parser);
           body.push({
@@ -2053,6 +2238,7 @@
         }
 
         if (firstLower === "q-color-theme" && peek(parser) !== "{" && peek(parser) !== ",") {
+          warnDeprecatedSyntaxFeature("q-color-theme");
           const themeName = parseQColorIdentifier(parser, "q-color-theme");
           skipWhitespace(parser);
           if (peek(parser) !== "{") {
@@ -2070,6 +2256,79 @@
             raw: parser.source.slice(start, parser.index),
           });
           continue;
+        }
+
+        if (firstLower === "q-color" && peek(parser) !== "{" && peek(parser) !== ",") {
+          warnDeprecatedSyntaxFeature("q-color");
+          const setupName = parseQColorIdentifier(parser, "q-color");
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-color name", parser.index);
+          }
+          consume(parser);
+          const colorBody = readBalancedBlockContent(parser);
+          const parsed = parseQColorApplyBlock(colorBody, scopedKeywordAliases);
+          body.push({
+            type: "QColorDefinition",
+            name: setupName,
+            assignments: parsed.assignments,
+            areas: parsed.areas,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-style" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const styleName = parseQColorIdentifier(parser, "q-style");
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-style name", parser.index);
+          }
+          consume(parser);
+          const styleBody = readBalancedBlockContent(parser);
+          const parsedStyle = parseQStyleDeclarations(styleBody, scopedKeywordAliases);
+          body.push({
+            type: "QStyleDefinition",
+            name: styleName,
+            declarations: parsedStyle.declarations,
+            classes: parsedStyle.classes,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-theme" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const themeName = parseQColorIdentifier(parser, "q-theme");
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-theme name", parser.index);
+          }
+          consume(parser);
+          const themeBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QThemeDefinition",
+            name: themeName,
+            rules: parseQThemeRules(themeBody),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-style" && peek(parser) === "{") {
+          throw ParseError("Anonymous q-style is not allowed", parser.index);
+        }
+
+        if (firstLower === "q-theme" && peek(parser) === "{") {
+          throw ParseError("Anonymous q-theme is not allowed", parser.index);
         }
 
         const selectors = parseSelectorList(parser, firstSelector);
@@ -2702,12 +2961,68 @@
       : {};
   }
 
+  function cloneQColorAreas(areas) {
+    return Array.isArray(areas) ? areas.slice() : [];
+  }
+
+  function cloneQColorSetup(setup) {
+    if (!setup || typeof setup !== "object") {
+      return { name: "", assignments: {}, areas: [] };
+    }
+    return {
+      name: String(setup.name || "").trim(),
+      assignments: cloneQColorAssignments(setup.assignments),
+      areas: cloneQColorAreas(setup.areas),
+    };
+  }
+
+  function appendActiveQColorSetup(colorContext, setup) {
+    if (!colorContext || !Array.isArray(colorContext.activeSetups)) {
+      return;
+    }
+    const cloned = cloneQColorSetup(setup);
+    if (!cloned.name && Object.keys(cloned.assignments).length === 0 && cloned.areas.length === 0) {
+      return;
+    }
+    colorContext.activeSetups.push(cloned);
+  }
+
+  function registerQColorDefinition(colorContext, definitionName, parsed) {
+    if (!colorContext || !(colorContext.colorDefs instanceof Map)) {
+      return;
+    }
+    const normalized = normalizeColorLookupKey(definitionName);
+    const name = String(definitionName || "").trim();
+    if (!normalized || !name) {
+      return;
+    }
+    const definition = cloneQColorSetup({
+      name: name,
+      assignments: parsed && parsed.assignments,
+      areas: parsed && parsed.areas,
+    });
+    definition.name = name;
+    colorContext.colorDefs.set(normalized, definition);
+  }
+
+  function lookupQColorDefinition(colorContext, definitionName) {
+    const normalized = normalizeColorLookupKey(definitionName);
+    if (!normalized || !colorContext || !(colorContext.colorDefs instanceof Map)) {
+      return null;
+    }
+    const entry = colorContext.colorDefs.get(normalized);
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+    return cloneQColorSetup(entry);
+  }
+
   function registerQColorSchema(colorContext, areaName, cssProperty) {
     if (!colorContext || !(colorContext.schemas instanceof Map)) {
       return;
     }
     const normalized = normalizeColorLookupKey(areaName);
-    const property = String(cssProperty || "").trim();
+    const property = normalizeCssPropertyName(cssProperty);
     if (!normalized || !property) {
       return;
     }
@@ -2739,6 +3054,8 @@
     const context = {
       schemas: new Map(),
       schemaDefs: new Map(),
+      colorDefs: new Map(),
+      activeSetups: [],
       themes: new Map(),
       defaultThemeName: DEFAULT_QCOLOR_THEME_NAME,
     };
@@ -2763,6 +3080,19 @@
           entries: cloneQColorAssignments(entry.entries),
         });
       });
+    }
+    if (parentContext && parentContext.colorDefs instanceof Map) {
+      parentContext.colorDefs.forEach(function copyColorDef(entry, key) {
+        if (!entry || typeof entry !== "object") {
+          return;
+        }
+        context.colorDefs.set(String(key || ""), cloneQColorSetup(entry));
+      });
+    }
+    if (parentContext && Array.isArray(parentContext.activeSetups)) {
+      for (let i = 0; i < parentContext.activeSetups.length; i += 1) {
+        appendActiveQColorSetup(context, parentContext.activeSetups[i]);
+      }
     }
     if (parentContext && parentContext.themes instanceof Map) {
       parentContext.themes.forEach(function copyTheme(entry, key) {
@@ -2796,18 +3126,317 @@
       parentContext && parentContext.qColors && typeof parentContext.qColors === "object"
         ? parentContext.qColors
         : null;
+    const parentStyles =
+      parentContext && parentContext.qStyles && typeof parentContext.qStyles === "object"
+        ? parentContext.qStyles
+        : null;
     return {
       qColors: createQColorContext(parentColors),
+      qStyles: createQStyleContext(parentStyles),
     };
   }
 
-  function lookupQColorPropertyByArea(colorContext, areaName) {
+  function cloneQStyleDeclarations(declarations) {
+    return declarations && typeof declarations === "object" && !Array.isArray(declarations)
+      ? Object.assign({}, declarations)
+      : {};
+  }
+
+  function cloneQStyleClasses(classes) {
+    const list = Array.isArray(classes) ? classes : [];
+    const out = [];
+    const seen = new Set();
+    for (let i = 0; i < list.length; i += 1) {
+      const className = String(list[i] || "").trim();
+      const normalized = className.toLowerCase();
+      if (!className || seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      out.push(className);
+    }
+    return out;
+  }
+
+  function cloneQThemeRules(rules) {
+    const list = Array.isArray(rules) ? rules : [];
+    const out = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const rule = list[i];
+      if (!rule || typeof rule !== "object") {
+        continue;
+      }
+      const includeTheme = String(rule.includeTheme || "").trim();
+      if (includeTheme) {
+        out.push({
+          includeTheme: includeTheme,
+        });
+        continue;
+      }
+      out.push({
+        selector: String(rule.selector || "").trim(),
+        styles: Array.isArray(rule.styles)
+          ? rule.styles.map(function cloneStyleName(entry) { return String(entry || "").trim(); }).filter(Boolean)
+          : [],
+      });
+    }
+    return out;
+  }
+
+  function cloneQThemeDefinition(themeDefinition) {
+    const entry = themeDefinition && typeof themeDefinition === "object" ? themeDefinition : {};
+    return {
+      name: String(entry.name || "").trim(),
+      rules: cloneQThemeRules(entry.rules),
+    };
+  }
+
+  function cloneQStyleDefinition(styleDefinition) {
+    const entry = styleDefinition && typeof styleDefinition === "object" ? styleDefinition : {};
+    return {
+      name: String(entry.name || "").trim(),
+      declarations: cloneQStyleDeclarations(entry.declarations),
+      classes: cloneQStyleClasses(entry.classes),
+    };
+  }
+
+  function registerQStyleDefinition(styleContext, styleName, declarations, classes) {
+    if (!styleContext || !(styleContext.styles instanceof Map)) {
+      return;
+    }
+    const name = String(styleName || "").trim();
+    const normalized = normalizeColorLookupKey(name);
+    if (!name || !normalized) {
+      return;
+    }
+    styleContext.styles.set(normalized, {
+      name: name,
+      declarations: cloneQStyleDeclarations(declarations),
+      classes: cloneQStyleClasses(classes),
+    });
+  }
+
+  function lookupQStyleDefinition(styleContext, styleName) {
+    if (!styleContext || !(styleContext.styles instanceof Map)) {
+      return null;
+    }
+    const normalized = normalizeColorLookupKey(styleName);
+    if (!normalized) {
+      return null;
+    }
+    const entry = styleContext.styles.get(normalized);
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+    const out = cloneQStyleDefinition(entry);
+    out.name = out.name || String(styleName || "").trim();
+    return out;
+  }
+
+  function registerQThemeDefinition(styleContext, themeName, rules) {
+    if (!styleContext || !(styleContext.themes instanceof Map)) {
+      return;
+    }
+    const name = String(themeName || "").trim();
+    const normalized = normalizeColorLookupKey(name);
+    if (!name || !normalized) {
+      return;
+    }
+    styleContext.themes.set(normalized, {
+      name: name,
+      rules: cloneQThemeRules(rules),
+    });
+  }
+
+  function lookupQThemeDefinition(styleContext, themeName) {
+    if (!styleContext || !(styleContext.themes instanceof Map)) {
+      return null;
+    }
+    const normalized = normalizeColorLookupKey(themeName);
+    if (!normalized) {
+      return null;
+    }
+    const entry = styleContext.themes.get(normalized);
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+    const out = cloneQThemeDefinition(entry);
+    out.name = out.name || String(themeName || "").trim();
+    return out;
+  }
+
+  function appendActiveQTheme(styleContext, themeDefinition) {
+    if (!styleContext || !Array.isArray(styleContext.activeThemes)) {
+      return;
+    }
+    if (!themeDefinition || typeof themeDefinition !== "object") {
+      return;
+    }
+    const themeName = String(themeDefinition.name || "").trim();
+    const visited = new Set();
+    const themeKey = normalizeColorLookupKey(themeName);
+    if (themeKey) {
+      visited.add(themeKey);
+    }
+    const expandedRules = expandQThemeRules(styleContext, themeDefinition, visited);
+    styleContext.activeThemes.push({
+      name: themeName,
+      rules: expandedRules,
+    });
+  }
+
+  function createQStyleContext(parentContext) {
+    const context = {
+      styles: new Map(),
+      themes: new Map(),
+      activeThemes: [],
+    };
+    if (parentContext && parentContext.styles instanceof Map) {
+      parentContext.styles.forEach(function copyStyle(entry, key) {
+        if (!entry || typeof entry !== "object") {
+          return;
+        }
+        context.styles.set(String(key || ""), {
+          name: String(entry.name || key || "").trim() || String(key || ""),
+          declarations: cloneQStyleDeclarations(entry.declarations),
+          classes: cloneQStyleClasses(entry.classes),
+        });
+      });
+    }
+    if (parentContext && parentContext.themes instanceof Map) {
+      parentContext.themes.forEach(function copyTheme(entry, key) {
+        if (!entry || typeof entry !== "object") {
+          return;
+        }
+        context.themes.set(String(key || ""), {
+          name: String(entry.name || key || "").trim() || String(key || ""),
+          rules: cloneQThemeRules(entry.rules),
+        });
+      });
+    }
+    if (parentContext && Array.isArray(parentContext.activeThemes)) {
+      for (let i = 0; i < parentContext.activeThemes.length; i += 1) {
+        appendActiveQTheme(context, parentContext.activeThemes[i]);
+      }
+    }
+    return context;
+  }
+
+  function qStyleDeclarationsToCssText(declarations) {
+    const source = declarations && typeof declarations === "object" && !Array.isArray(declarations)
+      ? declarations
+      : {};
+    const keys = Object.keys(source);
+    const chunks = [];
+    for (let i = 0; i < keys.length; i += 1) {
+      const rawProperty = String(keys[i] || "").trim();
+      if (!rawProperty) {
+        continue;
+      }
+      const value = String(source[rawProperty] || "").trim();
+      if (!value) {
+        continue;
+      }
+      const property = normalizeCssPropertyName(rawProperty);
+      if (!property) {
+        continue;
+      }
+      chunks.push(property + ": " + value);
+    }
+    return chunks.join("; ").trim();
+  }
+
+  function applyQStyleToElementNode(elementNode, styleDefinition) {
+    if (!elementNode || elementNode.kind !== core.NODE_TYPES.element) {
+      return;
+    }
+    if (!styleDefinition || typeof styleDefinition !== "object") {
+      return;
+    }
+    const classNames = cloneQStyleClasses(styleDefinition.classes);
+    if (classNames.length > 0) {
+      elementNode.attributes.class = core.mergeClasses(
+        elementNode.attributes && elementNode.attributes.class,
+        classNames
+      );
+    }
+    const cssText = qStyleDeclarationsToCssText(styleDefinition.declarations);
+    if (!cssText) {
+      return;
+    }
+    mergeStyleAttribute(elementNode, cssText);
+  }
+
+  function doesQThemeSelectorMatchElement(selector, elementNode) {
+    const target = String(selector || "").trim();
+    if (!target || !elementNode || elementNode.kind !== core.NODE_TYPES.element) {
+      return false;
+    }
+    if (target === "*") {
+      return true;
+    }
+    const parsed = parseTagToken(target);
+    const nodeTag = String(elementNode.tagName || "").trim().toLowerCase();
+    if (parsed.tag && parsed.tag !== nodeTag) {
+      return false;
+    }
+    const attrs = elementNode.attributes && typeof elementNode.attributes === "object" ? elementNode.attributes : {};
+    if (parsed.id && String(attrs.id || "").trim() !== parsed.id) {
+      return false;
+    }
+    if (Array.isArray(parsed.classes) && parsed.classes.length > 0) {
+      const classNameSet = new Set(String(attrs.class || "").split(/\s+/).filter(Boolean));
+      for (let i = 0; i < parsed.classes.length; i += 1) {
+        if (!classNameSet.has(parsed.classes[i])) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  function applyActiveQThemesToElementNode(elementNode, styleContext) {
+    if (!elementNode || elementNode.kind !== core.NODE_TYPES.element) {
+      return;
+    }
+    if (!styleContext || !Array.isArray(styleContext.activeThemes) || styleContext.activeThemes.length === 0) {
+      return;
+    }
+    for (let ti = 0; ti < styleContext.activeThemes.length; ti += 1) {
+      const theme = styleContext.activeThemes[ti];
+      const rules = Array.isArray(theme && theme.rules) ? theme.rules : [];
+      for (let ri = 0; ri < rules.length; ri += 1) {
+        const rule = rules[ri];
+        if (!rule || !doesQThemeSelectorMatchElement(rule.selector, elementNode)) {
+          continue;
+        }
+        const styleNames = Array.isArray(rule.styles) ? rule.styles : [];
+        for (let si = 0; si < styleNames.length; si += 1) {
+          const styleDef = lookupQStyleDefinition(styleContext, styleNames[si]);
+          if (!styleDef) {
+            continue;
+          }
+          applyQStyleToElementNode(elementNode, styleDef);
+        }
+      }
+    }
+  }
+
+  function lookupQColorPropertyByArea(colorContext, areaName, options) {
+    const opts = options && typeof options === "object" ? options : {};
     const normalized = normalizeColorLookupKey(areaName);
     if (!normalized || !colorContext || !(colorContext.schemas instanceof Map)) {
       return "";
     }
     const entry = colorContext.schemas.get(normalized);
     if (!entry || typeof entry !== "object") {
+      const areaValues =
+        opts.areaValues && typeof opts.areaValues === "object" && !Array.isArray(opts.areaValues)
+          ? opts.areaValues
+          : null;
+      if (areaValues && lookupAreaValueInObject(areaValues, areaName)) {
+        return normalizeCssPropertyName(areaName);
+      }
       const choices = Array.from(colorContext.schemas.keys());
       if (choices.length === 0) {
         return "";
@@ -2945,7 +3574,9 @@
       if (!key || !value) {
         continue;
       }
-      const cssProperty = lookupQColorPropertyByArea(colorContext, key) || inferQColorCssProperty(key);
+      const cssProperty = lookupQColorPropertyByArea(colorContext, key, {
+        areaValues: source,
+      }) || inferQColorCssProperty(key);
       if (!cssProperty) {
         continue;
       }
@@ -3240,8 +3871,34 @@
     console.warn("qhtml q-color warning:", message, detail);
   }
 
+  function warnDeprecatedSyntaxFeature(featureName) {
+    const feature = String(featureName || "").trim().toLowerCase();
+    if (!feature || DEPRECATED_FEATURE_WARNED.has(feature)) {
+      return;
+    }
+    DEPRECATED_FEATURE_WARNED.add(feature);
+    if (typeof console === "undefined" || !console || typeof console.warn !== "function") {
+      return;
+    }
+    console.warn(
+      "[qhtml] Deprecated syntax `" +
+        feature +
+        "` is scheduled for removal in v6.0.8. Use `q-style` / `q-theme` instead."
+    );
+  }
+
   function normalizeCssPropertyName(name) {
-    return String(name || "").trim().toLowerCase();
+    const raw = String(name || "").trim();
+    if (!raw) {
+      return "";
+    }
+    if (raw.indexOf("--") === 0) {
+      return raw;
+    }
+    if (raw.indexOf("-") >= 0) {
+      return raw.toLowerCase();
+    }
+    return raw.replace(/([A-Z])/g, "-$1").toLowerCase();
   }
 
   function isLikelyColorValue(value) {
@@ -3360,7 +4017,9 @@
     const sourceAreaMap = Object.create(null);
     for (let i = 0; i < requestedAreas.length; i += 1) {
       const areaName = requestedAreas[i];
-      const explicitProperty = lookupQColorPropertyByArea(colorContext, areaName);
+      const explicitProperty = lookupQColorPropertyByArea(colorContext, areaName, {
+        areaValues: areaValues,
+      });
       if (explicitProperty) {
         if (!elementNode.meta || typeof elementNode.meta !== "object") {
           elementNode.meta = {};
@@ -3556,6 +4215,47 @@
     return requested;
   }
 
+  function applyQColorSetupToElementNode(elementNode, setup, colorContext) {
+    if (!elementNode || typeof elementNode !== "object") {
+      return;
+    }
+    const config = setup && typeof setup === "object" ? setup : null;
+    if (!config) {
+      return;
+    }
+    const assignments = cloneQColorAssignments(config.assignments);
+    const areas = cloneQColorAreas(config.areas);
+    const hasAssignments = Object.keys(assignments).length > 0;
+    const hasAreas = areas.length > 0;
+    if (!hasAssignments && !hasAreas) {
+      return;
+    }
+    if (!elementNode.meta || typeof elementNode.meta !== "object") {
+      elementNode.meta = {};
+    }
+    if (!Array.isArray(elementNode.meta.qColorAssignments)) {
+      elementNode.meta.qColorAssignments = [];
+    }
+    if (!Array.isArray(elementNode.meta.qColorAreas)) {
+      elementNode.meta.qColorAreas = [];
+    }
+    if (typeof elementNode.meta.qColorBaseStyle !== "string") {
+      elementNode.meta.qColorBaseStyle = String(elementNode.attributes && elementNode.attributes.style || "").trim();
+    }
+    elementNode.meta.qColorAssignments.push(assignments);
+    elementNode.meta.qColorAreas.push(hasAreas ? areas : Object.keys(assignments));
+    applyQColorAssignmentsToElementNode(elementNode, colorContext);
+  }
+
+  function applyActiveQColorSetupsToElementNode(elementNode, colorContext) {
+    if (!colorContext || !Array.isArray(colorContext.activeSetups) || colorContext.activeSetups.length === 0) {
+      return;
+    }
+    for (let i = 0; i < colorContext.activeSetups.length; i += 1) {
+      applyQColorSetupToElementNode(elementNode, colorContext.activeSetups[i], colorContext);
+    }
+  }
+
   function registerQColorSchemaItem(colorContext, item) {
     if (!item || typeof item !== "object") {
       return;
@@ -3594,6 +4294,20 @@
     }
     registerQColorTheme(colorContext, themeName, item.assignments, {
       setAsDefault: normalizedThemeName === DEFAULT_QCOLOR_THEME_NAME,
+    });
+  }
+
+  function registerQColorDefinitionItem(colorContext, item) {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+    const setupName = String(item.name || "").trim();
+    if (!setupName) {
+      return;
+    }
+    registerQColorDefinition(colorContext, setupName, {
+      assignments: item.assignments,
+      areas: item.areas,
     });
   }
 
@@ -3648,6 +4362,27 @@
         return;
       }
       out[name] = cloneQColorAssignments(entry.entries);
+    });
+    return out;
+  }
+
+  function serializeQColorDefinitions(colorContext) {
+    const out = {};
+    if (!colorContext || !(colorContext.colorDefs instanceof Map)) {
+      return out;
+    }
+    colorContext.colorDefs.forEach(function eachColorDef(entry) {
+      if (!entry || typeof entry !== "object") {
+        return;
+      }
+      const name = String(entry.name || "").trim();
+      if (!name) {
+        return;
+      }
+      out[name] = {
+        assignments: cloneQColorAssignments(entry.assignments),
+        areas: cloneQColorAreas(entry.areas),
+      };
     });
     return out;
   }
@@ -5550,6 +6285,21 @@
         continue;
       }
       if (item.type !== "Property") {
+        if (item.type === "Element") {
+          const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+          if (selectors.length !== 1) {
+            continue;
+          }
+          const key = String(selectors[0] || "").trim();
+          if (!key) {
+            continue;
+          }
+          const value = extractQColorTextFromAstItems(item.items);
+          if (!value) {
+            continue;
+          }
+          out[key] = value;
+        }
         continue;
       }
       const key = String(item.name || "").trim();
@@ -5573,6 +6323,158 @@
       out[key] = value;
     }
     return out;
+  }
+
+  function registerQStyleDefinitionItem(styleContext, item) {
+    if (!styleContext || !item || typeof item !== "object") {
+      return;
+    }
+    const styleName = String(item.name || "").trim();
+    if (!styleName) {
+      throw new Error("q-style requires a name.");
+    }
+    registerQStyleDefinition(styleContext, styleName, item.declarations, item.classes);
+  }
+
+  function registerQThemeDefinitionItem(styleContext, item) {
+    if (!styleContext || !item || typeof item !== "object") {
+      return;
+    }
+    const themeName = String(item.name || "").trim();
+    if (!themeName) {
+      throw new Error("q-theme requires a name.");
+    }
+    const rawRules = Array.isArray(item.rules) ? item.rules : [];
+    const normalizedRules = [];
+    for (let i = 0; i < rawRules.length; i += 1) {
+      const rule = rawRules[i];
+      if (!rule || typeof rule !== "object") {
+        continue;
+      }
+      const selector = String(rule.selector || "").trim();
+      const styles = Array.isArray(rule.styles)
+        ? rule.styles.map(function normalizeStyleName(entry) { return String(entry || "").trim(); }).filter(Boolean)
+        : [];
+      if (!selector) {
+        continue;
+      }
+      if (styles.length === 0 && /^[A-Za-z_][A-Za-z0-9_-]*$/.test(selector)) {
+        normalizedRules.push({
+          includeTheme: selector,
+        });
+        continue;
+      }
+      normalizedRules.push({
+        selector: selector,
+        styles: styles,
+      });
+    }
+    registerQThemeDefinition(styleContext, themeName, normalizedRules);
+  }
+
+  function resolveNamedQThemeInvocation(item, styleContext) {
+    if (!item || typeof item !== "object" || item.type !== "Element") {
+      return null;
+    }
+    const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+    if (selectors.length !== 1) {
+      return null;
+    }
+    const invocationName = String(selectors[0] || "").trim();
+    if (!invocationName) {
+      return null;
+    }
+    return lookupQThemeDefinition(styleContext, invocationName);
+  }
+
+  function expandQThemeRules(styleContext, themeDefinition, visited) {
+    const out = [];
+    const theme = themeDefinition && typeof themeDefinition === "object" ? themeDefinition : null;
+    if (!theme) {
+      return out;
+    }
+    const rules = Array.isArray(theme.rules) ? theme.rules : [];
+    const seen = visited instanceof Set ? visited : new Set();
+    for (let i = 0; i < rules.length; i += 1) {
+      const rule = rules[i];
+      if (!rule || typeof rule !== "object") {
+        continue;
+      }
+      const includeName = String(rule.includeTheme || "").trim();
+      if (includeName) {
+        const includeKey = normalizeColorLookupKey(includeName);
+        if (!includeKey || seen.has(includeKey)) {
+          continue;
+        }
+        seen.add(includeKey);
+        const includeTheme = lookupQThemeDefinition(styleContext, includeName);
+        if (includeTheme) {
+          const expanded = expandQThemeRules(styleContext, includeTheme, seen);
+          for (let j = 0; j < expanded.length; j += 1) {
+            out.push(expanded[j]);
+          }
+        }
+        seen.delete(includeKey);
+        continue;
+      }
+      const selector = String(rule.selector || "").trim();
+      const styles = Array.isArray(rule.styles)
+        ? rule.styles.map(function cloneStyleName(entry) { return String(entry || "").trim(); }).filter(Boolean)
+        : [];
+      if (!selector || styles.length === 0) {
+        continue;
+      }
+      out.push({
+        selector: selector,
+        styles: styles,
+      });
+    }
+    return out;
+  }
+
+  function tryApplyNamedQThemeInvocation(item, styleContext) {
+    if (!item || typeof item !== "object" || item.type !== "Element") {
+      return false;
+    }
+    if (!styleContext || !(styleContext.themes instanceof Map)) {
+      return false;
+    }
+    const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+    if (selectors.length !== 1) {
+      return false;
+    }
+    const invocationName = String(selectors[0] || "").trim();
+    if (!invocationName) {
+      return false;
+    }
+    const definition = lookupQThemeDefinition(styleContext, invocationName);
+    if (!definition) {
+      return false;
+    }
+    const childItems = Array.isArray(item.items) ? item.items : [];
+    if (childItems.length > 0) {
+      return false;
+    }
+    appendActiveQTheme(styleContext, definition);
+    return true;
+  }
+
+  function resolveNamedQColorSetupInvocation(item, colorContext) {
+    if (!item || typeof item !== "object" || item.type !== "Element") {
+      return null;
+    }
+    if (!colorContext || typeof colorContext !== "object") {
+      return null;
+    }
+    const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+    if (selectors.length !== 1) {
+      return null;
+    }
+    const invocationName = String(selectors[0] || "").trim();
+    if (!invocationName) {
+      return null;
+    }
+    return lookupQColorDefinition(colorContext, invocationName);
   }
 
   function tryApplyNamedQColorInvocation(item, colorContext) {
@@ -5610,6 +6512,19 @@
       return true;
     }
 
+    if (colorContext.colorDefs instanceof Map && colorContext.colorDefs.has(invocationKey)) {
+      const setup = lookupQColorDefinition(colorContext, invocationName);
+      if (!setup) {
+        return false;
+      }
+      const childItems = Array.isArray(item.items) ? item.items : [];
+      if (childItems.length > 0) {
+        return false;
+      }
+      appendActiveQColorSetup(colorContext, setup);
+      return true;
+    }
+
     return false;
   }
 
@@ -5618,6 +6533,27 @@
       context && context.qColors && typeof context.qColors === "object"
         ? context.qColors
         : createQColorContext();
+    const styleContext =
+      context && context.qStyles && typeof context.qStyles === "object"
+        ? context.qStyles
+        : createQStyleContext();
+    const childScopedStyles =
+      context && Array.isArray(context.qStyleChildScope)
+        ? context.qStyleChildScope
+        : [];
+    applyActiveQColorSetupsToElementNode(targetElement, colorContext);
+
+    function appendChildNode(childNode) {
+      if (!childNode) {
+        return;
+      }
+      if (childNode.kind === core.NODE_TYPES.element && childScopedStyles.length > 0) {
+        for (let i = 0; i < childScopedStyles.length; i += 1) {
+          applyQStyleToElementNode(childNode, childScopedStyles[i]);
+        }
+      }
+      targetElement.children.push(childNode);
+    }
 
     function tryAssignSlotNameFromText(textValue) {
       if (!targetElement || String(targetElement.tagName || "").toLowerCase() !== "slot") {
@@ -5642,11 +6578,70 @@
 
     for (let i = 0; i < astItems.length; i += 1) {
       const item = astItems[i];
+      const namedTheme = resolveNamedQThemeInvocation(item, styleContext);
+      if (namedTheme && Array.isArray(item.items) && item.items.length > 0) {
+        const invocationContext = createScopedConversionContext({ qColors: colorContext, qStyles: styleContext });
+        appendActiveQTheme(invocationContext.qStyles, namedTheme);
+        const scopeNode = core.createElementNode({
+          tagName: "q-theme-scope",
+          selectorMode: "single",
+          selectorChain: ["q-theme-scope"],
+          attributes: {},
+          children: [],
+          meta: {
+            generated: true,
+            virtual: true,
+          },
+        });
+        processElementItems(scopeNode, item.items, source, invocationContext);
+        const scopedChildren = Array.isArray(scopeNode.children) ? scopeNode.children : [];
+        for (let ci = 0; ci < scopedChildren.length; ci += 1) {
+          appendChildNode(scopedChildren[ci]);
+        }
+        continue;
+      }
+      if (tryApplyNamedQThemeInvocation(item, styleContext)) {
+        continue;
+      }
+      const namedColorSetup = resolveNamedQColorSetupInvocation(item, colorContext);
+      if (namedColorSetup && Array.isArray(item.items) && item.items.length > 0) {
+        const invocationContext = createScopedConversionContext({ qColors: colorContext, qStyles: styleContext });
+        appendActiveQColorSetup(invocationContext.qColors, namedColorSetup);
+        const scopeNode = core.createElementNode({
+          tagName: "q-color-scope",
+          selectorMode: "single",
+          selectorChain: ["q-color-scope"],
+          attributes: {},
+          children: [],
+          meta: {
+            generated: true,
+            virtual: true,
+          },
+        });
+        processElementItems(scopeNode, item.items, source, invocationContext);
+        const scopedChildren = Array.isArray(scopeNode.children) ? scopeNode.children : [];
+        for (let ci = 0; ci < scopedChildren.length; ci += 1) {
+          appendChildNode(scopedChildren[ci]);
+        }
+        continue;
+      }
       if (tryApplyNamedQColorInvocation(item, colorContext)) {
         continue;
       }
       if (item.type === "QColorSchemaDefinition") {
         registerQColorSchemaItem(colorContext, item);
+        continue;
+      }
+      if (item.type === "QStyleDefinition") {
+        registerQStyleDefinitionItem(styleContext, item);
+        continue;
+      }
+      if (item.type === "QThemeDefinition") {
+        registerQThemeDefinitionItem(styleContext, item);
+        continue;
+      }
+      if (item.type === "QColorDefinition") {
+        registerQColorDefinitionItem(colorContext, item);
         continue;
       }
       if (item.type === "QColorThemeDefinition") {
@@ -5755,10 +6750,10 @@
             const nested = convertAstItemToNode(
               nestedAst.body[j],
               resolved,
-              createScopedConversionContext({ qColors: colorContext })
+              createScopedConversionContext({ qColors: colorContext, qStyles: styleContext })
             );
             if (nested) {
-              targetElement.children.push(nested);
+              appendChildNode(nested);
             }
           }
         } else {
@@ -5771,9 +6766,13 @@
           });
         }
       } else {
-        const childNode = convertAstItemToNode(item, source, createScopedConversionContext({ qColors: colorContext }));
+        const childNode = convertAstItemToNode(
+          item,
+          source,
+          createScopedConversionContext({ qColors: colorContext, qStyles: styleContext })
+        );
         if (childNode) {
-          targetElement.children.push(childNode);
+          appendChildNode(childNode);
         }
       }
     }
@@ -5832,6 +6831,7 @@
     const opts = options || {};
     const scopedContext = createScopedConversionContext(context);
     const colorContext = scopedContext.qColors;
+    const styleContext = scopedContext.qStyles;
     const componentAttributes = {};
     const componentProperties = [];
     const componentPropertiesSeen = new Set();
@@ -5847,11 +6847,70 @@
     const items = Array.isArray(astNode.items) ? astNode.items : [];
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i];
+      const namedTheme = resolveNamedQThemeInvocation(item, styleContext);
+      if (namedTheme && Array.isArray(item.items) && item.items.length > 0) {
+        const invocationContext = createScopedConversionContext({ qColors: colorContext, qStyles: styleContext });
+        appendActiveQTheme(invocationContext.qStyles, namedTheme);
+        const scopeNode = core.createElementNode({
+          tagName: "q-theme-scope",
+          selectorMode: "single",
+          selectorChain: ["q-theme-scope"],
+          attributes: {},
+          children: [],
+          meta: {
+            generated: true,
+            virtual: true,
+          },
+        });
+        processElementItems(scopeNode, item.items, source, invocationContext);
+        const scopedChildren = Array.isArray(scopeNode.children) ? scopeNode.children : [];
+        for (let ci = 0; ci < scopedChildren.length; ci += 1) {
+          templateNodes.push(scopedChildren[ci]);
+        }
+        continue;
+      }
+      if (tryApplyNamedQThemeInvocation(item, styleContext)) {
+        continue;
+      }
+      const namedColorSetup = resolveNamedQColorSetupInvocation(item, colorContext);
+      if (namedColorSetup && Array.isArray(item.items) && item.items.length > 0) {
+        const invocationContext = createScopedConversionContext({ qColors: colorContext, qStyles: styleContext });
+        appendActiveQColorSetup(invocationContext.qColors, namedColorSetup);
+        const scopeNode = core.createElementNode({
+          tagName: "q-color-scope",
+          selectorMode: "single",
+          selectorChain: ["q-color-scope"],
+          attributes: {},
+          children: [],
+          meta: {
+            generated: true,
+            virtual: true,
+          },
+        });
+        processElementItems(scopeNode, item.items, source, invocationContext);
+        const scopedChildren = Array.isArray(scopeNode.children) ? scopeNode.children : [];
+        for (let ci = 0; ci < scopedChildren.length; ci += 1) {
+          templateNodes.push(scopedChildren[ci]);
+        }
+        continue;
+      }
       if (tryApplyNamedQColorInvocation(item, colorContext)) {
         continue;
       }
       if (item.type === "QColorSchemaDefinition") {
         registerQColorSchemaItem(colorContext, item);
+        continue;
+      }
+      if (item.type === "QStyleDefinition") {
+        registerQStyleDefinitionItem(styleContext, item);
+        continue;
+      }
+      if (item.type === "QThemeDefinition") {
+        registerQThemeDefinitionItem(styleContext, item);
+        continue;
+      }
+      if (item.type === "QColorDefinition") {
+        registerQColorDefinitionItem(colorContext, item);
         continue;
       }
       if (item.type === "QColorThemeDefinition") {
@@ -5989,6 +7048,8 @@
 
   function buildElementFromAst(astElement, source, context) {
     const scopedContext = createScopedConversionContext(context);
+    const colorContext = scopedContext.qColors;
+    const styleContext = scopedContext.qStyles;
     const selectors = astElement.selectors.map((entry) => String(entry).trim()).filter(Boolean);
     const prefixDirectives = Array.isArray(astElement.prefixDirectives) ? astElement.prefixDirectives.slice() : [];
     if (selectors.length === 0) {
@@ -6001,7 +7062,70 @@
       }, scopedContext);
     }
 
-    const selectorTokens = selectors.map(parseTagToken);
+    const selectorTokens = [];
+    const selectorSources = [];
+    const selectorSetupScopes = [];
+    const selectorStyleScopes = [];
+    const selectorThemeScopes = [];
+    const pendingSetups = [];
+    const pendingStyles = [];
+    const pendingThemes = [];
+    for (let si = 0; si < selectors.length; si += 1) {
+      const selectorSource = selectors[si];
+      const parsedToken = parseTagToken(selectorSource);
+      const hasFragments = !!parsedToken.id || (Array.isArray(parsedToken.classes) && parsedToken.classes.length > 0);
+      if (!hasFragments) {
+        const namedTheme = lookupQThemeDefinition(styleContext, selectorSource);
+        if (namedTheme) {
+          pendingThemes.push(namedTheme);
+          continue;
+        }
+        const namedStyle = lookupQStyleDefinition(styleContext, selectorSource);
+        if (namedStyle) {
+          pendingStyles.push(namedStyle);
+          continue;
+        }
+        const namedSetup = lookupQColorDefinition(colorContext, selectorSource);
+        if (namedSetup) {
+          pendingSetups.push(namedSetup);
+          continue;
+        }
+      }
+      selectorTokens.push(parsedToken);
+      selectorSources.push(selectorSource);
+      selectorSetupScopes.push(pendingSetups.map(cloneQColorSetup));
+      selectorStyleScopes.push(pendingStyles.map(cloneQStyleDefinition));
+      selectorThemeScopes.push(pendingThemes.map(cloneQThemeDefinition));
+      pendingStyles.length = 0;
+      pendingThemes.length = 0;
+    }
+    const trailingChildStyles = pendingStyles.map(cloneQStyleDefinition);
+    if (selectorTokens.length === 0) {
+      if (trailingChildStyles.length > 0) {
+        const childItems = Array.isArray(astElement.items) ? astElement.items : [];
+        let hasElementChild = false;
+        for (let i = 0; i < childItems.length; i += 1) {
+          const item = childItems[i];
+          if (!item || typeof item !== "object") {
+            continue;
+          }
+          if (item.type === "Element" || item.type === "ComponentDefinition" || item.type === "TemplateDefinition") {
+            hasElementChild = true;
+            break;
+          }
+        }
+        if (!hasElementChild && typeof console !== "undefined" && console && typeof console.warn === "function") {
+          const styleNames = trailingChildStyles
+            .map(function mapStyleName(entry) { return String(entry && entry.name || "").trim(); })
+            .filter(Boolean);
+          console.warn(
+            "qhtml q-style warning: cannot apply q-style to a text-only block without element children",
+            { styles: styleNames, selector: selectors.slice() }
+          );
+        }
+      }
+      return null;
+    }
     const selectorMode = detectSelectorMode(selectorTokens);
 
     if (selectorMode === "class-shorthand") {
@@ -6009,7 +7133,7 @@
       const leaf = createElementFromToken(
         last,
         "class-shorthand",
-        selectors,
+        selectorSources,
         [astElement.start, astElement.end],
         astElement.raw
       );
@@ -6020,7 +7144,21 @@
       if (prefixDirectives.length > 0) {
         leaf.slotDirectives = prefixDirectives;
       }
-      processElementItems(leaf, astElement.items, source, scopedContext);
+      const classScopeSetups = selectorSetupScopes.length > 0 ? selectorSetupScopes[selectorSetupScopes.length - 1] : [];
+      const classScopeStyles = selectorStyleScopes.length > 0 ? selectorStyleScopes[selectorStyleScopes.length - 1] : [];
+      const classScopeThemes = selectorThemeScopes.length > 0 ? selectorThemeScopes[selectorThemeScopes.length - 1] : [];
+      const leafContext = createScopedConversionContext(scopedContext);
+      leafContext.qStyleChildScope = trailingChildStyles.map(cloneQStyleDefinition);
+      for (let i = 0; i < classScopeSetups.length; i += 1) {
+        appendActiveQColorSetup(leafContext.qColors, classScopeSetups[i]);
+      }
+      for (let i = 0; i < classScopeThemes.length; i += 1) {
+        appendActiveQTheme(leafContext.qStyles, classScopeThemes[i]);
+      }
+      for (let i = 0; i < classScopeStyles.length; i += 1) {
+        applyQStyleToElementNode(leaf, classScopeStyles[i]);
+      }
+      processElementItems(leaf, astElement.items, source, leafContext);
       applyKeywordAliasesToNode(leaf, astElement.keywords);
       return leaf;
     }
@@ -6029,7 +7167,7 @@
       return createElementFromToken(
         token,
         index === 0 && selectorTokens.length > 1 ? "nest" : "single",
-        index === 0 ? selectors : [selectors[index]],
+        index === 0 ? selectorSources : [selectorSources[index]],
         index === 0 ? [astElement.start, astElement.end] : null,
         index === 0 ? astElement.raw : null
       );
@@ -6039,6 +7177,22 @@
       chain[i].children.push(chain[i + 1]);
     }
     for (let i = 0; i < chain.length; i += 1) {
+      const nodeContext = createQColorContext(colorContext);
+      const setupsForNode = Array.isArray(selectorSetupScopes[i]) ? selectorSetupScopes[i] : [];
+      for (let si = 0; si < setupsForNode.length; si += 1) {
+        appendActiveQColorSetup(nodeContext, setupsForNode[si]);
+      }
+      applyActiveQColorSetupsToElementNode(chain[i], nodeContext);
+      const stylesForNode = Array.isArray(selectorStyleScopes[i]) ? selectorStyleScopes[i] : [];
+      const themesForNode = Array.isArray(selectorThemeScopes[i]) ? selectorThemeScopes[i] : [];
+      for (let ssi = 0; ssi < stylesForNode.length; ssi += 1) {
+        applyQStyleToElementNode(chain[i], stylesForNode[ssi]);
+      }
+      const nodeStyleContext = createQStyleContext(styleContext);
+      for (let tsi = 0; tsi < themesForNode.length; tsi += 1) {
+        appendActiveQTheme(nodeStyleContext, themesForNode[tsi]);
+      }
+      applyActiveQThemesToElementNode(chain[i], nodeStyleContext);
       applyKeywordAliasesToNode(chain[i], astElement.keywords);
     }
 
@@ -6046,7 +7200,21 @@
     if (prefixDirectives.length > 0) {
       leaf.slotDirectives = prefixDirectives;
     }
-    processElementItems(leaf, astElement.items, source, scopedContext);
+    const leafContext = createScopedConversionContext(scopedContext);
+    leafContext.qStyleChildScope = trailingChildStyles.map(cloneQStyleDefinition);
+    const setupsForLeaf = Array.isArray(selectorSetupScopes[selectorSetupScopes.length - 1])
+      ? selectorSetupScopes[selectorSetupScopes.length - 1]
+      : [];
+    const themesForLeaf = Array.isArray(selectorThemeScopes[selectorThemeScopes.length - 1])
+      ? selectorThemeScopes[selectorThemeScopes.length - 1]
+      : [];
+    for (let si = 0; si < setupsForLeaf.length; si += 1) {
+      appendActiveQColorSetup(leafContext.qColors, setupsForLeaf[si]);
+    }
+    for (let ti = 0; ti < themesForLeaf.length; ti += 1) {
+      appendActiveQTheme(leafContext.qStyles, themesForLeaf[ti]);
+    }
+    processElementItems(leaf, astElement.items, source, leafContext);
 
     return chain[0];
   }
@@ -6187,9 +7355,72 @@
         registerQColorSchemaItem(conversionContext.qColors, item);
         continue;
       }
+      if (item.type === "QStyleDefinition") {
+        registerQStyleDefinitionItem(conversionContext.qStyles, item);
+        continue;
+      }
+      if (item.type === "QThemeDefinition") {
+        registerQThemeDefinitionItem(conversionContext.qStyles, item);
+        continue;
+      }
+      if (item.type === "QColorDefinition") {
+        registerQColorDefinitionItem(conversionContext.qColors, item);
+        continue;
+      }
       if (item.type === "QColorThemeDefinition") {
         registerQColorThemeItem(conversionContext.qColors, item);
         continue;
+      }
+      {
+        const namedTheme = resolveNamedQThemeInvocation(item, conversionContext.qStyles);
+        if (namedTheme && Array.isArray(item.items) && item.items.length > 0) {
+          const invocationContext = createScopedConversionContext(conversionContext);
+          appendActiveQTheme(invocationContext.qStyles, namedTheme);
+          const scopeNode = core.createElementNode({
+            tagName: "q-theme-scope",
+            selectorMode: "single",
+            selectorChain: ["q-theme-scope"],
+            attributes: {},
+            children: [],
+            meta: {
+              generated: true,
+              virtual: true,
+            },
+          });
+          processElementItems(scopeNode, item.items, evaluatedSource, invocationContext);
+          const scopedChildren = Array.isArray(scopeNode.children) ? scopeNode.children : [];
+          for (let ci = 0; ci < scopedChildren.length; ci += 1) {
+            doc.nodes.push(scopedChildren[ci]);
+          }
+          continue;
+        }
+      }
+      if (tryApplyNamedQThemeInvocation(item, conversionContext.qStyles)) {
+        continue;
+      }
+      {
+        const namedColorSetup = resolveNamedQColorSetupInvocation(item, conversionContext.qColors);
+        if (namedColorSetup && Array.isArray(item.items) && item.items.length > 0) {
+          const invocationContext = createScopedConversionContext(conversionContext);
+          appendActiveQColorSetup(invocationContext.qColors, namedColorSetup);
+          const scopeNode = core.createElementNode({
+            tagName: "q-color-scope",
+            selectorMode: "single",
+            selectorChain: ["q-color-scope"],
+            attributes: {},
+            children: [],
+            meta: {
+              generated: true,
+              virtual: true,
+            },
+          });
+          processElementItems(scopeNode, item.items, evaluatedSource, invocationContext);
+          const scopedChildren = Array.isArray(scopeNode.children) ? scopeNode.children : [];
+          for (let ci = 0; ci < scopedChildren.length; ci += 1) {
+            doc.nodes.push(scopedChildren[ci]);
+          }
+          continue;
+        }
       }
       if (tryApplyNamedQColorInvocation(item, conversionContext.qColors)) {
         continue;
@@ -6216,6 +7447,7 @@
     doc.meta.lifecycleScripts = lifecycleScripts;
     doc.meta.qColorSchemas = serializeQColorSchemas(conversionContext.qColors);
     doc.meta.qColorSchemaDefs = serializeQColorSchemaDefinitions(conversionContext.qColors);
+    doc.meta.qColorDefs = serializeQColorDefinitions(conversionContext.qColors);
     doc.meta.qColorThemes = serializeQColorThemes(conversionContext.qColors);
     doc.meta.qColorDefaultTheme = String(
       conversionContext.qColors && conversionContext.qColors.defaultThemeName

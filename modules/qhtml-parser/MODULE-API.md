@@ -43,6 +43,10 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - named schema/theme declarations plus invocation overrides
       - `q-color { area1 area2 ... }` generates inline style declarations
       - emitted metadata: `doc.meta.qColorSchemas`, `doc.meta.qColorSchemaDefs`, `doc.meta.qColorThemes`
+    - style declarations and application:
+      - `q-style name { q-style-class { classA classB } prop: value }`
+      - `q-style-class` stores class tokens in the style definition
+      - applying the style merges classes into `class` and declarations into `style`
 
 ### Preprocessing/import APIs
 - `applyQRewriteBlocks(source, options?)`
@@ -65,6 +69,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
 - Throws `QHtmlParseError` with `.index` for syntax errors.
 - Throws `QHtmlKeywordAliasError` with `.index` for invalid alias declarations/usages (self-reference or alias-to-alias).
 - Import/macro stages throw descriptive `Error` messages for recursion/limits/unbalanced blocks.
+- `q-style-class` is block-only inside `q-style` (`q-style-class { ... }`).
 
 ## Binding semantics
 - Preprocess `q-script` evaluation intentionally skips assignment context (`name: q-script { ... }`) so assignment scripts can be preserved as runtime bindings.

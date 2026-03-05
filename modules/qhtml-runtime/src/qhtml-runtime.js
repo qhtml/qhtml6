@@ -431,7 +431,7 @@
       return;
     }
     const normalized = normalizeQColorKey(areaName);
-    const property = String(cssProperty || "").trim();
+    const property = normalizeCssPropertyName(cssProperty);
     if (!normalized || !property) {
       return;
     }
@@ -575,13 +575,21 @@
       String(context && context.defaultThemeName || DEFAULT_QCOLOR_THEME_NAME).trim() || DEFAULT_QCOLOR_THEME_NAME;
   }
 
-  function lookupQColorPropertyByArea(colorContext, areaName) {
+  function lookupQColorPropertyByArea(colorContext, areaName, options) {
+    const opts = options && typeof options === "object" ? options : {};
     const normalized = normalizeQColorKey(areaName);
     if (!normalized || !colorContext || !(colorContext.schemas instanceof Map)) {
       return "";
     }
     const entry = colorContext.schemas.get(normalized);
     if (!entry || typeof entry !== "object") {
+      const areaValues =
+        opts.areaValues && typeof opts.areaValues === "object" && !Array.isArray(opts.areaValues)
+          ? opts.areaValues
+          : null;
+      if (areaValues && lookupAreaValueInObject(areaValues, areaName)) {
+        return normalizeCssPropertyName(areaName);
+      }
       const choices = Array.from(colorContext.schemas.keys());
       if (choices.length === 0) {
         return "";
@@ -733,7 +741,9 @@
       if (!key || !value) {
         continue;
       }
-      const cssProp = lookupQColorPropertyByArea(colorContext, key) || inferQColorCssProperty(key);
+      const cssProp = lookupQColorPropertyByArea(colorContext, key, {
+        areaValues: source,
+      }) || inferQColorCssProperty(key);
       if (!cssProp) {
         continue;
       }
@@ -1025,7 +1035,17 @@
   }
 
   function normalizeCssPropertyName(name) {
-    return String(name || "").trim().toLowerCase();
+    const raw = String(name || "").trim();
+    if (!raw) {
+      return "";
+    }
+    if (raw.indexOf("--") === 0) {
+      return raw;
+    }
+    if (raw.indexOf("-") >= 0) {
+      return raw.toLowerCase();
+    }
+    return raw.replace(/([A-Z])/g, "-$1").toLowerCase();
   }
 
   function isLikelyColorValue(value) {
@@ -1148,7 +1168,9 @@
         }
         continue;
       }
-      const explicitProperty = lookupQColorPropertyOnNode(node, areaName) || lookupQColorPropertyByArea(colorContext, areaName);
+      const explicitProperty = lookupQColorPropertyOnNode(node, areaName) || lookupQColorPropertyByArea(colorContext, areaName, {
+        areaValues: areaValues,
+      });
       const cssProperty = explicitProperty || inferQColorCssProperty(areaName);
       if (!cssProperty) {
         continue;
@@ -1387,7 +1409,9 @@
           if (!key) {
             continue;
           }
-          const cssProperty = lookupQColorPropertyByArea(colorContext, key) || inferQColorCssProperty(key);
+          const cssProperty = lookupQColorPropertyByArea(colorContext, key, {
+            areaValues: assignments,
+          }) || inferQColorCssProperty(key);
           if (!cssProperty) {
             continue;
           }

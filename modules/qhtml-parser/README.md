@@ -4,6 +4,10 @@
 
 ## What's New in v6.0.4
 
+- Added `q-style-class` support inside `q-style`:
+  - `q-style card { q-style-class { w3-card w3-round-large } backgroundColor: #eef4ff }`
+  - Class tokens are stored as part of the style definition and merged onto target elements when applied.
+  - Inline style declarations still apply normally (inline declarations override class-provided CSS on conflicts).
 - Added scoped keyword aliasing with `q-keyword name { replacement-head }`.
 - Added direct-only alias enforcement (`alias -> alias` is a parse error).
 - Added per-node alias metadata handoff via `node.keywords` in parsed QDom.
@@ -70,6 +74,10 @@
   - cascading `q-color-theme` area/value definitions
   - named schema/theme invocation with overrides
   - `q-color { area... }` style generation from cascaded schema+theme
+- q-style declarations and application:
+  - `q-style name { q-style-class { classA classB } prop: value }`
+  - class imports and CSS declarations travel together in style definitions
+  - `q-theme` rules can apply styles that include class imports + inline declarations
 
 `q-script` in this module is mixed-mode:
 - Standalone structural `q-script { ... }` is source-time expansion support.
