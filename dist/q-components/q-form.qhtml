@@ -1,34 +1,34 @@
 q-style q-form-root-style {
   q-style-class { w3-container w3-margin-top w3-margin-bottom }
-  color: var(--q-form-root-fg, #102a43)
+  color: #102a43
 }
 
 q-style q-form-shell-style {
   q-style-class { w3-card w3-round-large w3-padding }
-  backgroundColor: var(--q-form-shell-bg, #eef4fb)
-  color: var(--q-form-shell-fg, #102a43)
-  border: 1px solid var(--q-form-shell-border, #c7d8ef)
+  backgroundColor: #eef4fb
+  color: #102a43
+  border: 1px solid #c7d8ef
 }
 
 q-style q-form-input-style {
   q-style-class { w3-input w3-border w3-round-large w3-margin-bottom }
-  backgroundColor: var(--q-form-input-bg, #f8fbff)
-  color: var(--q-form-input-fg, #102a43)
-  borderColor: var(--q-form-input-border, #c7d8ef)
+  backgroundColor: #f8fbff
+  color: #102a43
+  borderColor: #c7d8ef
 }
 
 q-style q-form-textarea-style {
   q-style-class { w3-input w3-border w3-round-large w3-margin-bottom }
-  backgroundColor: var(--q-form-textarea-bg, #f8fbff)
-  color: var(--q-form-textarea-fg, #102a43)
-  borderColor: var(--q-form-textarea-border, #c7d8ef)
+  backgroundColor: #f8fbff
+  color: #102a43
+  borderColor: #c7d8ef
 }
 
 q-style q-form-submit-style {
   q-style-class { w3-button w3-round-large w3-margin-top }
-  backgroundColor: var(--q-form-submit-bg, #334155)
-  color: var(--q-form-submit-fg, #f8fbff)
-  border: 1px solid var(--q-form-submit-border, #1e293b)
+  backgroundColor: #334155
+  color: #f8fbff
+  border: 1px solid #1e293b
 }
 
 q-theme q-form-theme {
@@ -39,7 +39,7 @@ q-theme q-form-theme {
   .q-form-submit { q-form-submit-style }
 }
 
-q-keyword q-form { q-form-theme,form.q-form-root,q-form-theme,div.q-form-shell }
+q-keyword q-form { q-form-theme,form.q-form-root,div.q-form-shell }
 q-keyword q-input { q-form-theme,input.q-form-input }
 q-keyword q-textarea { q-form-theme,textarea.q-form-textarea }
 q-keyword q-submit { q-form-theme,button.q-form-submit }

@@ -343,13 +343,31 @@ q-estore {
           <q-editor>
 q-import { q-components/q-form.qhtml }
 
-q-style form-demo-overrides {
-  --q-form-shell-bg: #fff7ed
-  --q-form-input-bg: #fffaf0
-  --q-form-submit-bg: #ea580c
+q-style form-shell-custom {
+  backgroundColor: #fff7ed
+  borderColor: #fdba74
+  color: #7c2d12
 }
 
-form-demo-overrides,div {
+q-style form-input-custom {
+  backgroundColor: #fffaf0
+  borderColor: #fed7aa
+}
+
+q-style form-submit-custom {
+  backgroundColor: #ea580c
+  border: 1px solid #c2410c
+  color: #ffffff
+}
+
+q-theme form-demo-theme {
+  q-form-theme { }
+  .q-form-shell { form-shell-custom }
+  .q-form-input { form-input-custom }
+  .q-form-submit { form-submit-custom }
+}
+
+form-demo-theme {
   q-form {
     h3 { text { Quick Form } }
     q-input { placeholder: "Name" }
