@@ -1604,7 +1604,7 @@
     }
     return (
       "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
-      " ? this.__qhtmlScopedSelector : function(){ return null; };\\n" +
+      " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
       source
     );
   }

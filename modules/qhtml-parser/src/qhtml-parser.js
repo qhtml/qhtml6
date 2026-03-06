@@ -6131,7 +6131,7 @@
     }
     const source =
       "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
-      " ? this.__qhtmlScopedSelector : function(){ return null; };\\n" +
+      " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
       String(scriptBody || "");
     const fn = new Function(source);
     const out = fn.call(context);

@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-03-06T14:03:32Z */
+/* generated: 2026-03-06T14:45:41Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -7292,7 +7292,7 @@
     }
     const source =
       "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
-      " ? this.__qhtmlScopedSelector : function(){ return null; };\\n" +
+      " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
       String(scriptBody || "");
     const fn = new Function(source);
     const out = fn.call(context);
@@ -10176,6 +10176,19 @@
     });
   }
 
+  function observePromiseRejection(promise, label) {
+    if (!promise || typeof promise.then !== "function" || typeof promise.catch !== "function") {
+      return promise;
+    }
+    promise.catch(function onObservedPromiseRejection(error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error(String(label || "qhtml async operation failed:"), error);
+      }
+      return undefined;
+    });
+    return promise;
+  }
+
   function createMainThreadWasmSession(config) {
     let instanceExports = null;
     const readyPromise = Promise.resolve().then(function loadWasmInMainThread() {
@@ -10233,9 +10246,11 @@
       );
     }
 
+    const ready = withWasmTimeout(readyPromise, config.timeoutMs, "q-wasm init");
+    observePromiseRejection(ready, "qhtml q-wasm init failed:");
     return {
       mode: "main",
-      ready: withWasmTimeout(readyPromise, config.timeoutMs, "q-wasm init"),
+      ready: ready,
       invoke: invoke,
       terminate: function terminateMainThreadWasmSession() {
         instanceExports = null;
@@ -10422,9 +10437,11 @@
       );
     }
 
+    const ready = withWasmTimeout(readyPromise, config.timeoutMs, "q-wasm init");
+    observePromiseRejection(ready, "qhtml q-wasm worker init failed:");
     return {
       mode: "worker",
-      ready: withWasmTimeout(readyPromise, config.timeoutMs, "q-wasm init"),
+      ready: ready,
       invoke: invoke,
       terminate: function terminateWorkerWasmSession() {
         if (terminated) {
@@ -10758,7 +10775,7 @@
     }
     return (
       "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
-      " ? this.__qhtmlScopedSelector : function(){ return null; };\\n" +
+      " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
       source
     );
   }
@@ -11657,7 +11674,30 @@
       src: resolveWasmResourceUrl(normalized.src, hostElement),
     });
     const bindings = buildWasmBindingMaps(config.bind);
-    const session = createWasmSession(config);
+    let session;
+    try {
+      session = createWasmSession(config);
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml q-wasm session init failed:", error);
+      }
+      const rejectedReady = Promise.reject(error);
+      observePromiseRejection(rejectedReady, "qhtml q-wasm ready rejected:");
+      hostElement.wasm = {
+        mode: "none",
+        ready: rejectedReady,
+        call: function callFailedWasmExport() {
+          return Promise.reject(error);
+        },
+        terminate: function terminateFailedWasmSession() {},
+      };
+      hostElement.__qhtmlWasmRuntime = {
+        session: null,
+        terminate: hostElement.wasm.terminate,
+        config: config,
+      };
+      return;
+    }
     const exportNames = config.exportNames instanceof Set ? config.exportNames : new Set();
 
     function serializePayload(payload) {
@@ -11720,6 +11760,7 @@
         }
       },
     };
+    observePromiseRejection(wasmApi.ready, "qhtml q-wasm ready rejected:");
 
     hostElement.wasm = wasmApi;
     hostElement.__qhtmlWasmRuntime = {
@@ -11752,6 +11793,7 @@
         config.timeoutMs,
         "q-wasm init"
       );
+      observePromiseRejection(wasmApi.ready, "qhtml q-wasm init export failed:");
     }
   }
 
@@ -14320,7 +14362,7 @@
     }
     return (
       "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
-      " ? this.__qhtmlScopedSelector : function(){ return null; };\\n" +
+      " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
       source
     );
   }
