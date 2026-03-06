@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v2.0.8
+# QHTML.js v6.0.8
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -11,11 +11,12 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Dev testbed: `dist/test.html`
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v2.0.8
+## Whats New in v6.0.8
 
 - Aligned README examples with validated `dist/test.html` syntax patterns.
 - Expanded `dist/test.html` coverage for QDOM operations and runtime update paths.
 - Removed remaining legacy color-system documentation references in favor of `q-style` / `q-theme`.
+- Added scoped selector shortcut `$("<css selector>")` for runtime script contexts (`onclick`, `onReady`, `q-bind`, `q-script`, component methods/aliases/properties).
 
 ## Whats New in v6.0.7.4
 
@@ -260,6 +261,24 @@ Resulting HTML:
 <q-html data-ready="1">
   <div>Host ready hook executed.</div>
 </q-html>
+```
+
+### Scoped `$()` selector shortcut
+
+Use `$("<selector>")` inside QHTML runtime JavaScript to query within the current `<q-html>` root only.
+
+- `$("#sender")` is equivalent to `this.component.qhtmlRoot().querySelector("#sender")` (or closest `<q-html>` root).
+- For global page lookup, use `document.querySelector(...)`.
+
+```qhtml
+q-component notifier {
+  function notify(msg) { this.setAttribute("data-msg", msg); }
+}
+
+q-component sender {
+  q-signal sendSignal(message)
+  onReady { $("#sender").sendSignal.connect(this.component.notify) }
+}
 ```
 
 
