@@ -273,11 +273,13 @@ Use `$("<selector>")` inside QHTML runtime JavaScript to query within the curren
 ```qhtml
 q-component notifier {
   function notify(msg) { this.setAttribute("data-msg", msg); }
+  onReady { $("#sender").sendSignal.connect(this.component.notify) }
+
 }
 
 q-component sender {
   q-signal sendSignal(message)
-  onReady { $("#sender").sendSignal.connect(this.component.notify) }
+
 }
 ```
 
