@@ -2363,6 +2363,8 @@ q-component q-builder {
       this.setColorsTabContent(nextCtx);
       var styleEditor = this.querySelector("q-editor[q-builder-colors-editor='q-style']");
       this.setColorEditorReadOnly(styleEditor, false);
+    } catch (error) {
+      this.logIssue("customizeStyleForSelected failed", error);
     }
   }
 
