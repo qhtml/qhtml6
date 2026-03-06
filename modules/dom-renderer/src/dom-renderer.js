@@ -825,6 +825,119 @@
     return typeof value === "string" && value.indexOf("${") !== -1;
   }
 
+  function readInlineReferencePath(base, tail) {
+    const parts = String(tail || "")
+      .split(".")
+      .map(function trimInlinePathPart(part) {
+        return String(part || "").trim();
+      })
+      .filter(Boolean);
+    let cursor = base;
+    for (let i = 0; i < parts.length; i += 1) {
+      if (cursor == null) {
+        return undefined;
+      }
+      try {
+        cursor = cursor[parts[i]];
+      } catch (error) {
+        return undefined;
+      }
+    }
+    return cursor;
+  }
+
+  function resolveInlineComponentSource(thisArg, scope) {
+    if (scope && typeof scope === "object" && scope.component) {
+      return scope.component;
+    }
+    if (thisArg && (typeof thisArg === "object" || typeof thisArg === "function")) {
+      try {
+        if (thisArg.component) {
+          return thisArg.component;
+        }
+      } catch (ignoredReadComponent) {
+        // no-op
+      }
+      if (thisArg.nodeType === 1 && typeof thisArg.closest === "function") {
+        const nearest = thisArg.closest("[qhtml-component-instance='1']");
+        if (nearest) {
+          return nearest;
+        }
+      }
+    }
+    return null;
+  }
+
+  function ensureInlineComponentQdom(componentSource, scope) {
+    if (!componentSource || componentSource.nodeType !== 1) {
+      return;
+    }
+    if (typeof componentSource.qdom === "function") {
+      return;
+    }
+    const fallbackQdom = scope && typeof scope === "object" ? scope.componentQdom || null : null;
+    if (!fallbackQdom || typeof fallbackQdom !== "object") {
+      return;
+    }
+    try {
+      Object.defineProperty(componentSource, "qdom", {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: function inlineComponentQdomFallback() {
+          return fallbackQdom;
+        },
+      });
+    } catch (error) {
+      componentSource.qdom = function inlineComponentQdomFallback() {
+        return fallbackQdom;
+      };
+    }
+  }
+
+  function tryResolveInlineReferencePath(expression, thisArg, scope) {
+    const source = String(expression || "").trim();
+    if (!source) {
+      return { matched: false, value: undefined };
+    }
+    const componentSource = resolveInlineComponentSource(thisArg, scope);
+    if (componentSource) {
+      ensureInlineComponentQdom(componentSource, scope);
+    }
+    if (source === "this.component.qdom()" || source === "component.qdom()") {
+      if (componentSource && typeof componentSource.qdom === "function") {
+        try {
+          return { matched: true, value: componentSource.qdom() };
+        } catch (error) {
+          return { matched: true, value: null };
+        }
+      }
+      return {
+        matched: true,
+        value: scope && typeof scope === "object" ? scope.componentQdom || null : null,
+      };
+    }
+    if (/^this\.component\.[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(source)) {
+      return {
+        matched: true,
+        value: readInlineReferencePath(componentSource, source.slice("this.component.".length)),
+      };
+    }
+    if (/^component\.[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(source)) {
+      return {
+        matched: true,
+        value: readInlineReferencePath(componentSource, source.slice("component.".length)),
+      };
+    }
+    if (/^this\.[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(source)) {
+      return {
+        matched: true,
+        value: readInlineReferencePath(thisArg, source.slice("this.".length)),
+      };
+    }
+    return { matched: false, value: undefined };
+  }
+
   function resolveInlineExpressionScope(thisArg, extraScope) {
     const scope = Object.create(null);
     if (extraScope && typeof extraScope === "object") {
@@ -859,11 +972,14 @@
         }
       }
     }
+    const resolvedComponent = resolveInlineComponentSource(thisArg, scope);
+    if (resolvedComponent) {
+      scope.component = resolvedComponent;
+      ensureInlineComponentQdom(resolvedComponent, scope);
+    }
     if (scope.component && (typeof thisArg === "object" || typeof thisArg === "function") && thisArg) {
       try {
-        if (typeof thisArg.component === "undefined" || thisArg.component === null) {
-          thisArg.component = scope.component;
-        }
+        thisArg.component = scope.component;
       } catch (ignoredAssignComponent) {
         // no-op
       }
@@ -875,6 +991,10 @@
     const source = String(expression || "").trim();
     if (!source) {
       return "";
+    }
+    const directPathResult = tryResolveInlineReferencePath(source, thisArg, scope);
+    if (directPathResult.matched) {
+      return directPathResult.value;
     }
     try {
       const evaluator = new Function("__qhtmlScope", "with(__qhtmlScope){ return (" + source + "); }");
@@ -914,6 +1034,14 @@
       return null;
     }
     return node.closest("[qhtml-component-instance='1']");
+  }
+
+  function resolveComponentQdomForInterpolation(context) {
+    const stack = context && Array.isArray(context.componentQdomStack) ? context.componentQdomStack : [];
+    if (stack.length > 0) {
+      return stack[stack.length - 1];
+    }
+    return null;
   }
 
   function createTextFillNode(text) {
@@ -2081,6 +2209,7 @@
             parent && parent.nodeType === 1 ? parent : null,
             {
               component: resolveComponentForInterpolation(context, parent),
+              componentQdom: resolveComponentQdomForInterpolation(context),
             },
             "qhtml text interpolation failed:"
           );
@@ -2122,6 +2251,7 @@
         thisArg: element,
         scope: {
           component: interpolationComponent,
+          componentQdom: resolveComponentQdomForInterpolation(context),
         },
       });
       parent.appendChild(element);
@@ -2146,6 +2276,7 @@
             element,
             {
               component: interpolationComponent,
+              componentQdom: resolveComponentQdomForInterpolation(context),
             },
             "qhtml text interpolation failed:"
           );
@@ -2351,9 +2482,11 @@
 
     stack.push(key);
     context.componentHostStack.push(hostElement);
+    context.componentQdomStack.push(instanceNode);
     try {
       renderComponentContentIntoHost(componentNode, instanceNode, hostElement, targetDocument, context);
     } finally {
+      context.componentQdomStack.pop();
       context.componentHostStack.pop();
       stack.pop();
     }
@@ -2482,6 +2615,7 @@
       componentRegistry: componentRegistry,
       componentStack: [],
       componentHostStack: [],
+      componentQdomStack: [],
       slotStack: [],
       disableLifecycleHooks: !!(options && options.disableLifecycleHooks),
       capture: options && options.capture ? options.capture : null,
@@ -2619,6 +2753,8 @@
     const context = {
       componentRegistry: registry,
       componentStack: Array.isArray(opts.componentStack) ? opts.componentStack : [],
+      componentHostStack: Array.isArray(opts.componentHostStack) ? opts.componentHostStack : [],
+      componentQdomStack: Array.isArray(opts.componentQdomStack) ? opts.componentQdomStack : [],
       disableLifecycleHooks: !!opts.disableLifecycleHooks,
     };
 
@@ -2640,9 +2776,13 @@
     }
 
     context.componentStack.push(key);
+    context.componentHostStack.push(hostElement);
+    context.componentQdomStack.push(instanceNode);
     try {
       renderComponentContentIntoHost(componentNode, instanceNode, hostElement, doc, context);
     } finally {
+      context.componentQdomStack.pop();
+      context.componentHostStack.pop();
       context.componentStack.pop();
     }
     stripRenderedSlotElements(hostElement);

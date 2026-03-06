@@ -11,10 +11,7 @@
 - Added scoped keyword aliasing with `q-keyword name { replacement-head }`.
 - Added direct-only alias enforcement (`alias -> alias` is a parse error).
 - Added per-node alias metadata handoff via `node.keywords` in parsed QDom.
-- Added cascading color-area syntax:
-  - `q-color-schema { area-name { css-property } ... }`
-  - `q-color-theme { area-name: value, ... }` and named theme invocation overrides
-  - `q-color { area1 area2 ... }` (compiled into inline style declarations on elements)
+- Removed legacy color-area syntax documentation in favor of `q-style` / `q-theme`.
 
 ## What's New in v6.0.3
 
@@ -73,11 +70,6 @@
 - q-import blocks
 - q-rewrite definitions + invocations
 - q-keyword declarations and alias invocation expansion
-- q-color declarations and application:
-  - cascading `q-color-schema` area/property definitions
-  - cascading `q-color-theme` area/value definitions
-  - named schema/theme invocation with overrides
-  - `q-color { area... }` style generation from cascaded schema+theme
 - q-style declarations and application:
   - `q-style name { q-style-class { classA classB } prop: value }`
   - class imports and CSS declarations travel together in style definitions
@@ -119,4 +111,4 @@ component app-card {
 - Uses original source when `meta.dirty` is false and `preserveOriginal` is enabled.
 - Emits explicit QDom shapes when dirty (including slots, invocation nodes, lifecycle scripts).
 - Preserves definition kind: template stays `q-template`, component stays `q-component`, signal stays `q-signal`.
-- Persists parsed color dictionaries to `qdom.meta.qColorSchemas` / `qdom.meta.qColorSchemaDefs` / `qdom.meta.qColorThemes`.
+- Persists parsed style/theme dictionaries for runtime reuse.

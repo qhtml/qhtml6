@@ -5412,6 +5412,32 @@
 
   const SCOPED_REFERENCE_ESCAPE_TOKEN = "__QHTML_ESCAPED_SCOPED_REF__";
 
+  function resolveScopedReferenceExpression(expressionText, references) {
+    const refs = references && typeof references === "object" ? references : null;
+    if (!refs) {
+      return null;
+    }
+    const expression = String(expressionText || "").trim();
+    if (!expression) {
+      return null;
+    }
+
+    const directKey = normalizeScopedReferenceKey(expression);
+    if (directKey && Object.prototype.hasOwnProperty.call(refs, directKey)) {
+      return refs[directKey];
+    }
+
+    const slotCallMatch = expression.match(/^this\.slot\s*\(\s*(["']?)([A-Za-z_][A-Za-z0-9_-]*)\1\s*\)$/i);
+    if (slotCallMatch) {
+      const slotKey = normalizeScopedReferenceKey(slotCallMatch[2] || "");
+      if (slotKey && Object.prototype.hasOwnProperty.call(refs, slotKey)) {
+        return refs[slotKey];
+      }
+    }
+
+    return null;
+  }
+
   function replaceScopedReferencesInText(source, references) {
     const text = String(source || "");
     const refs = references && typeof references === "object" ? references : null;
@@ -5424,9 +5450,8 @@
       if (!expression) {
         return matchText;
       }
-      const key = normalizeScopedReferenceKey(expression);
-      if (refs && key && Object.prototype.hasOwnProperty.call(refs, key)) {
-        const referenceValue = refs[key];
+      const referenceValue = resolveScopedReferenceExpression(expression, refs);
+      if (referenceValue !== null) {
         return referenceValue == null ? "" : String(referenceValue);
       }
       return matchText;
@@ -5661,12 +5686,30 @@
     const defs = definitions || {};
     let pos = Math.max(0, Number(fromIndex) || 0);
 
+    function hasValidInvocationLeftBoundary(tokenStart) {
+      const index = Number(tokenStart);
+      if (!Number.isFinite(index) || index <= 0) {
+        return true;
+      }
+      const prev = input[index - 1];
+      if (!prev) {
+        return true;
+      }
+      if (/\s/.test(prev)) {
+        return true;
+      }
+      return prev === "{" || prev === "}" || prev === ";" || prev === "," || prev === "(";
+    }
+
     while (pos < input.length) {
       const token = findNextIdentifierTokenSkippingLiterals(input, pos);
       if (!token) {
         return null;
       }
       pos = token.end;
+      if (!hasValidInvocationLeftBoundary(token.start)) {
+        continue;
+      }
       const nameLower = String(token.name || "").toLowerCase();
       if (!Object.prototype.hasOwnProperty.call(defs, nameLower)) {
         continue;
@@ -5896,12 +5939,30 @@
     const defs = definitions || {};
     let pos = Math.max(0, Number(fromIndex) || 0);
 
+    function hasValidInvocationLeftBoundary(tokenStart) {
+      const index = Number(tokenStart);
+      if (!Number.isFinite(index) || index <= 0) {
+        return true;
+      }
+      const prev = input[index - 1];
+      if (!prev) {
+        return true;
+      }
+      if (/\s/.test(prev)) {
+        return true;
+      }
+      return prev === "{" || prev === "}" || prev === ";" || prev === "," || prev === "(";
+    }
+
     while (pos < input.length) {
       const token = findNextIdentifierTokenSkippingLiterals(input, pos);
       if (!token) {
         return null;
       }
       pos = token.end;
+      if (!hasValidInvocationLeftBoundary(token.start)) {
+        continue;
+      }
       const nameLower = String(token.name || "").toLowerCase();
       if (!Object.prototype.hasOwnProperty.call(defs, nameLower)) {
         continue;

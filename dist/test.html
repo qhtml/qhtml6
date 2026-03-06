@@ -1,276 +1,1493 @@
 <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML Script Input/Output Test Board</title>
+  <script src="qhtml.js"></script>
+  <style>
+    :root {
+      --bg: #eef4fb;
+      --panel: #ffffff;
+      --ink: #11253d;
+      --muted: #4f6078;
+      --edge: #d2deec;
+      --accent: #295a92;
+      --pass: #0f7a52;
+      --fail: #b42323;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Fira Sans", "Segoe UI", sans-serif;
+    }
+    .page {
+      max-width: 1600px;
+      margin: 0 auto;
+      display: grid;
+      gap: 14px;
+    }
+    .hero {
+      background: var(--panel);
+      border: 1px solid var(--edge);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .hero h1 {
+      margin: 0 0 6px 0;
+      color: var(--accent);
+      font-size: 24px;
+    }
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .summary-shell {
+      background: var(--panel);
+      border: 1px solid var(--edge);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .summary-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      font-weight: 700;
+      align-items: center;
+    }
+    .summary-pass {
+      color: var(--pass);
+    }
+    .summary-fail {
+      color: var(--fail);
+    }
+    .tests {
+      display: grid;
+      gap: 12px;
+    }
+    .test-card {
+      background: var(--panel);
+      border: 1px solid var(--edge);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .test-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      background: #f7fbff;
+      border-bottom: 1px solid var(--edge);
+    }
+    .test-head h2 {
+      margin: 0;
+      font-size: 15px;
+      color: var(--accent);
+    }
+    .io-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      padding: 10px;
+    }
+    .cell {
+      border: 1px solid var(--edge);
+      border-radius: 8px;
+      background: #fbfdff;
+      min-height: 140px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    .cell h3 {
+      margin: 0;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #34506d;
+      border-bottom: 1px solid var(--edge);
+      padding: 8px 10px;
+    }
+    pre {
+      margin: 0;
+      padding: 10px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow: auto;
+      font-family: "Fira Code", "Cascadia Code", monospace;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .preview {
+      margin: 0 10px 10px 10px;
+      border: 1px dashed var(--edge);
+      border-radius: 8px;
+      background: #f8fbff;
+      padding: 8px;
+    }
+    .preview h3 {
+      margin: 0 0 8px 0;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #34506d;
+    }
+    q-html[data-qtest-host="1"] {
+      display: block;
+      border: 1px solid #e4edf7;
+      border-radius: 6px;
+      background: #ffffff;
+      padding: 6px;
+      min-height: 26px;
+    }
+    .status {
+      display: inline-block;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .status.pass {
+      color: var(--pass);
+      border-color: #96dbc3;
+      background: #e8faf2;
+    }
+    .status.fail {
+      color: var(--fail);
+      border-color: #f0a7a7;
+      background: #fff1f1;
+    }
+    .status-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 0 0 8px 0;
+    }
+    .detail {
+      margin-top: 6px;
+      color: #42556f;
+      background: #f6f9fd;
+      border-radius: 6px;
+      border: 1px solid var(--edge);
+    }
+    .muted {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    @media (max-width: 1120px) {
+      .io-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>QHTML Syntax Input / Output Board</h1>
+      <p>All tests are hard-coded in markup. Pass/fail is computed by q-bind and refreshed periodically.</p>
+    </section>
 
-<head></head><body>
-<link rel="stylesheet" href="w3.css">
-<link rel="stylesheet" href="bs.css">
-<script src="bs.js"></script>
-<script src="qhtml.js"></script>
-<script src="w3-tags.js"></script>
-<script src="bs-tags.js"></script>
+    <section class="summary-shell">
+      <div id="summary-static" class="summary-row">
+        <span id="summary-total">Total: 0</span>
+        <span id="summary-passed" class="summary-pass">Passed: 0</span>
+        <span id="summary-failed" class="summary-fail">Failed: 0</span>
+        <span id="summary-muted" class="muted">Waiting for test refresh...</span>
+      </div>
+    </section>
 
-<script src="q-editor.js"></script>
-
-<q-html>
-q-import { q-components.qhtml }
-
+    <section class="tests">
+      <article class="test-card">
+        <div class="test-head"><h2>1. Braces + text block</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>div { text { hello-world } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>&lt;div&gt;hello-world&lt;/div&gt;</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t01" data-mode="exact" data-expected="&lt;div&gt;hello-world&lt;/div&gt;">
 onReady {
   var host = this;
-  if (!host || host.__qbuilderPageEditWired) { return; }
-  host.__qbuilderPageEditWired = true;
-  var initialMode = "0";
-  try {
-    initialMode = typeof getBuilderConfig === "function"
-      ? String(getBuilderConfig("edit_mode") || "").trim()
-      : "0";
-  } catch (ignoredInitialMode) { initialMode = "0"; }
-  host.setAttribute("data-page-edit-mode", initialMode === "1" ? "1" : "0");
-  try {
-    var runtimeBuilder = host.querySelector("q-builder[q-builder-runtime='1']");
-    if (runtimeBuilder) {
-      if (typeof runtimeBuilder.enabled !== "undefined") {
-        runtimeBuilder.enabled = initialMode === "1";
-      } else if (typeof qbuilder !== "undefined" && qbuilder && typeof qbuilder.inspect === "function") {
-        qbuilder.inspect(host, initialMode === "1");
-      }
-    }
-  } catch (ignoredBuilderInit) { }
+  if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); }
 }
-
-q-component nav-bar {
-  w3-black,w3-center {
-    w3-bar-item,w3-btn,w3-hover-grey {
-      slot { nav-items }
-    }
+div.status-line {
+  span {
+    class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; }
+    content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; }
   }
 }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t01" data-qtest-host="1">div { text { hello-world } }</q-html>
+        </section>
+      </article>
 
-q-template q-input-with-label {
+      <article class="test-card">
+        <div class="test-head"><h2>2. Comma selector + .class + #id</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>div#main.container,span.item { text { chain } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>&lt;div id="main" class="container"&gt;&lt;span class="item"&gt;chain&lt;/span&gt;&lt;/div&gt;</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t02" data-mode="exact" data-expected="&lt;div id=&quot;main&quot; class=&quot;container&quot;&gt;&lt;span class=&quot;item&quot;&gt;chain&lt;/span&gt;&lt;/div&gt;">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview"><h3>Rendered Preview</h3><q-html id="host-t02" data-qtest-host="1">div#main.container,span.item { text { chain } }</q-html></section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>3. Colon assignments + quoted punctuation</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>button.btn#go { data-note: "a:b;c,d" aria-label: "Run" text { Click } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>&lt;button class="btn" id="go" data-note="a:b;c,d" aria-label="Run"&gt;Click&lt;/button&gt;</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t03" data-mode="exact" data-expected="&lt;button class=&quot;btn&quot; id=&quot;go&quot; data-note=&quot;a:b;c,d&quot; aria-label=&quot;Run&quot;&gt;Click&lt;/button&gt;">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview"><h3>Rendered Preview</h3><q-html id="host-t03" data-qtest-host="1">button.btn#go { data-note: "a:b;c,d" aria-label: "Run" text { Click } }</q-html></section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>4. Escaped right brace in text</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>div { text { hello \} world } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>&lt;div&gt;hello } world&lt;/div&gt;</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t04" data-mode="exact" data-expected="&lt;div&gt;hello } world&lt;/div&gt;">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview"><h3>Rendered Preview</h3><q-html id="host-t04" data-qtest-host="1">div { text { hello \} world } }</q-html></section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>5. ${expr} interpolation</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>div { text { hello ${"qhtml"} } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>&lt;div&gt;hello qhtml&lt;/div&gt;</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t05" data-mode="exact" data-expected="&lt;div&gt;hello qhtml&lt;/div&gt;">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview"><h3>Rendered Preview</h3><q-html id="host-t05" data-qtest-host="1">div { text { hello ${"qhtml"} } }</q-html></section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>6. q-property + q-bind + ${ref}</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-component bind-a {
+  q-property divText: q-bind { return "bound-" + (2 + 3) }
+  div { text { ${this.component.divText} } }
+}
+bind-a { }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>&lt;bind-a&gt;&lt;div&gt;bound-5&lt;/div&gt;&lt;/bind-a&gt;</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t06" data-mode="contains" data-contains="bound-5||bind-a">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t06" data-qtest-host="1">
+q-component bind-a {
+  q-property divText: q-bind { return "bound-" + (2 + 3) }
+  div { text { ${this.component.divText} } }
+}
+bind-a { }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>7. q-rewrite + slot + q-script</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-rewrite make-strong {
+  slot { input }
+  return { strong { q-script { return String(this.slot("input")); } } }
+}
+div { make-strong { rewrite-ok } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>&lt;div&gt;&lt;strong&gt;rewrite-ok&lt;/strong&gt;&lt;/div&gt;</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t07" data-mode="exact" data-expected="&lt;div&gt;&lt;strong&gt;rewrite-ok&lt;/strong&gt;&lt;/div&gt;">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t07" data-qtest-host="1">
+q-rewrite make-strong {
+  slot { input }
+  return { strong { q-script { return String(this.slot("input")); } } }
+}
+div { make-strong { rewrite-ok } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>8. q-macro + slot + ${slot}</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-macro badge {
+  slot { label }
+  return { span.badge { text { ${this.slot("label")} } } }
+}
+div { badge { label { macro-ok } } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>&lt;div&gt;&lt;span class="badge"&gt;macro-ok&lt;/span&gt;&lt;/div&gt;</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t08" data-mode="exact" data-expected="&lt;div&gt;&lt;span class=&quot;badge&quot;&gt;macro-ok&lt;/span&gt;&lt;/div&gt;">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t08" data-qtest-host="1">
+q-macro badge {
+  slot { label }
+  return { span.badge { text { ${this.slot("label")} } } }
+}
+div { badge { label { macro-ok } } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>9. q-template + named slot</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-template shell {
+  div.shell { slot { body } }
+}
+shell { body { p { text { templated } } } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>&lt;div class="shell"&gt;&lt;p&gt;templated&lt;/p&gt;&lt;/div&gt;</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t09" data-mode="exact" data-expected="&lt;div class=&quot;shell&quot;&gt;&lt;p&gt;templated&lt;/p&gt;&lt;/div&gt;">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t09" data-qtest-host="1">
+q-template shell {
+  div.shell { slot { body } }
+}
+shell { body { p { text { templated } } } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>10. q-component + q-property + slot</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-component card-a {
+  q-property title: "CardTitle"
+  div.card {
+    h4 { text { ${this.component.title} } }
+    slot { body }
+  }
+}
+card-a { body { p { text { body-copy } } } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: CardTitle, body-copy</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t10" data-mode="contains" data-contains="CardTitle||body-copy||card-a">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t10" data-qtest-host="1">
+q-component card-a {
+  q-property title: "CardTitle"
+  div.card {
+    h4 { text { ${this.component.title} } }
+    slot { body }
+  }
+}
+card-a { body { p { text { body-copy } } } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>11. q-signal declaration syntax</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-component sig-a {
+  q-signal ping(message)
+  div { text { signal-ready } }
+}
+sig-a { }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: signal-ready</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t11" data-mode="contains" data-contains="signal-ready||sig-a">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t11" data-qtest-host="1">
+q-component sig-a {
+  q-signal ping(message)
+  div { text { signal-ready } }
+}
+sig-a { }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>12. q-alias resolution</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-component alias-a {
+  q-property p: "alias-ok"
+  q-alias a { return this.p }
+  div { text { ${this.component.a} } }
+}
+alias-a { }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: alias-ok</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t12" data-mode="contains" data-contains="alias-ok||alias-a">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t12" data-qtest-host="1">
+q-component alias-a {
+  q-property p: "alias-ok"
+  q-alias a { return this.p }
+  div { text { ${this.component.a} } }
+}
+alias-a { }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>13. q-keyword aliasing</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-keyword component { q-component }
+component tiny-a { div { text { alias-keyword } } }
+tiny-a { }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: alias-keyword</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t13" data-mode="contains" data-contains="alias-keyword||tiny-a">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t13" data-qtest-host="1">
+q-keyword component { q-component }
+component tiny-a { div { text { alias-keyword } } }
+tiny-a { }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>14. q-style + q-theme merge</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-style demo-style {
+  backgroundColor: rgb(255, 232, 204)
+  color: rgb(120, 53, 15)
+}
+q-theme demo-theme { .themed { demo-style } }
+demo-theme { div.themed { text { themed-output } } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: themed-output, background-color, color</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t14" data-mode="contains" data-contains="themed-output||background-color||color">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t14" data-qtest-host="1">
+q-style demo-style {
+  backgroundColor: rgb(255, 232, 204)
+  color: rgb(120, 53, 15)
+}
+q-theme demo-theme { .themed { demo-style } }
+demo-theme { div.themed { text { themed-output } } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>15. Deep selector punctuation chain</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>section#s.one.two,ul.list,li.item { text { selector-stack } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>&lt;section id="s" class="one two"&gt;&lt;ul class="list"&gt;&lt;li class="item"&gt;selector-stack&lt;/li&gt;&lt;/ul&gt;&lt;/section&gt;</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t15" data-mode="exact" data-expected="&lt;section id=&quot;s&quot; class=&quot;one two&quot;&gt;&lt;ul class=&quot;list&quot;&gt;&lt;li class=&quot;item&quot;&gt;selector-stack&lt;/li&gt;&lt;/ul&gt;&lt;/section&gt;">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview"><h3>Rendered Preview</h3><q-html id="host-t15" data-qtest-host="1">section#s.one.two,ul.list,li.item { text { selector-stack } }</q-html></section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>16. JSON via q-property + q-bind</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-component my-comp {
+  q-property jsonData: q-bind { return JSON.stringify({a:[1,2],b:true}) }
   div {
-    span.w3-label { slot { label } }
-    slot { input-element }
+    text { ${this.component.jsonData} }
   }
 }
-
-q-macro quick-note {
-  slot { message }
-  return {
-    p.w3-small.w3-text-blue { text { ${message} } }
+my-comp { }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: my-comp, "a":[1,2], "b":true</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t16" data-mode="contains" data-contains="my-comp||&quot;a&quot;:[1,2]||&quot;b&quot;:true">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t16" data-qtest-host="1">
+q-component my-comp {
+  q-property jsonData: q-bind { return JSON.stringify({a:[1,2],b:true}) }
+  div {
+    text { ${this.component.jsonData} }
   }
 }
+my-comp { }
+          </q-html>
+        </section>
+      </article>
 
-q-style panel-demo-base {
-  backgroundColor: #182A21
-  color: #F5FFF9
-  borderColor: #2A5A49
+      <article class="test-card">
+        <div class="test-head"><h2>17. Method + q-property access from component</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-component method-a {
+  function myprop() { return "method-ok"; }
+  q-property prop: q-bind { return this.myprop() }
+  div { text { ${this.component.prop} } }
 }
-
-q-style panel-demo-border-override {
-  borderColor: #9A7EF7
+method-a { }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: method-ok</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t17" data-mode="contains" data-contains="method-ok||method-a">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t17" data-qtest-host="1">
+q-component method-a {
+  function myprop() { return "method-ok"; }
+  q-property prop: q-bind { return this.myprop() }
+  div { text { ${this.component.prop} } }
 }
+method-a { }
+          </q-html>
+        </section>
+      </article>
 
-q-theme panel-demo-theme {
-  #qstyle-demo { panel-demo-base }
+      <article class="test-card">
+        <div class="test-head"><h2>18. q-default-theme fallback + override merge</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-style panel-base {
+  backgroundColor: rgb(254, 240, 220)
+  color: rgb(120, 50, 30)
 }
-
-q-theme panel-demo-override-theme {
-  #qstyle-demo { panel-demo-border-override }
+q-style panel-extend {
+  border: 2px solid rgb(120, 50, 30)
 }
+q-default-theme fallback-theme {
+  .theme-box { panel-base }
+}
+q-theme runtime-theme {
+  fallback-theme { }
+  .theme-box { panel-extend }
+}
+runtime-theme {
+  div.theme-box { text { default-theme-ok } }
+}</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: default-theme-ok, background-color, border</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t18" data-mode="contains" data-contains="default-theme-ok||background-color||border">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t18" data-qtest-host="1">
+q-style panel-base {
+  backgroundColor: rgb(254, 240, 220)
+  color: rgb(120, 50, 30)
+}
+q-style panel-extend {
+  border: 2px solid rgb(120, 50, 30)
+}
+q-default-theme fallback-theme {
+  .theme-box { panel-base }
+}
+q-theme runtime-theme {
+  fallback-theme { }
+  .theme-box { panel-extend }
+}
+runtime-theme {
+  div.theme-box { text { default-theme-ok } }
+}
+          </q-html>
+        </section>
+      </article>
 
-q-component toggle-builder-button {
-  q-signal toggleBuilder()
+      <article class="test-card">
+        <div class="test-head"><h2>19. q-script in attribute and text contexts</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>div#script-box {
+  data-note: q-script { return "n:" + (4 + 1) }
+  text { q-script { return "script-inline"; } }
+}</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>&lt;div id="script-box" data-note="n:5"&gt;script-inline&lt;/div&gt;</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t19" data-mode="exact" data-expected="&lt;div id=&quot;script-box&quot; data-note=&quot;n:5&quot;&gt;script-inline&lt;/div&gt;">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview"><h3>Rendered Preview</h3><q-html id="host-t19" data-qtest-host="1">div#script-box { data-note: q-script { return "n:" + (4 + 1) } text { q-script { return "script-inline"; } } }</q-html></section>
+      </article>
 
-  onReady {
-    try { this.style.display = "contents"; } catch (ignoredDisplay) { }
-  }
+      <article class="test-card">
+        <div class="test-head"><h2>20. Edge case: class-leading selector current behavior</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>.class {
+  div { hello }
+  div { world }
+}</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>.<class><div>hello</div><div>world</div></class></pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t20" data-mode="exact" data-expected=".<class><div>hello</div><div>world</div></class>">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t20" data-qtest-host="1">
+.class {
+  div { hello }
+  div { world }
+}
+          </q-html>
+        </section>
+      </article>
 
-  function toggle() {
+      <article class="test-card">
+        <div class="test-head"><h2>21. Multiple q-styles + theme merge override</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-style style-a {
+  backgroundColor: rgb(230, 240, 255)
+  color: rgb(20, 30, 50)
+}
+q-style style-b {
+  border: 1px solid rgb(20, 30, 50)
+}
+q-style style-c {
+  color: rgb(10, 90, 20)
+}
+q-theme base-theme { .multi { style-a style-b } }
+q-theme merged-theme {
+  base-theme { }
+  .multi { style-c }
+}
+merged-theme {
+  div.multi { text { style-merge-ok } }
+}</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: style-merge-ok, background-color, border, color</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t21" data-mode="contains" data-contains="style-merge-ok||background-color||border||color">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t21" data-qtest-host="1">
+q-style style-a {
+  backgroundColor: rgb(230, 240, 255)
+  color: rgb(20, 30, 50)
+}
+q-style style-b {
+  border: 1px solid rgb(20, 30, 50)
+}
+q-style style-c {
+  color: rgb(10, 90, 20)
+}
+q-theme base-theme { .multi { style-a style-b } }
+q-theme merged-theme {
+  base-theme { }
+  .multi { style-c }
+}
+merged-theme {
+  div.multi { text { style-merge-ok } }
+}
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>22. qdom() context resolution (this / element / this.component)</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-component comp2 {
+  div#ctx-in-comp2 { text { ${this.component.getAttribute("q-component")} } }
+}
+q-component qdom-context-case {
+  function runCheck() {
+    var nestedName = "";
+    var result = "qdom-context-fail";
     try {
-      this.toggleBuilder();
+      var rootApi = this.qdom();
+      var span = this.querySelector("#ctx-span");
+      var spanApi = span && typeof span.qdom === "function" ? span.qdom() : null;
+      var nested = this.querySelector("#ctx-in-comp2");
+      var nestedComp = nested ? nested.component : null;
+      nestedName = nestedComp && typeof nestedComp.getAttribute === "function" ? String(nestedComp.getAttribute("q-component") || "") : "";
+      var nestedApi = nestedComp && typeof nestedComp.qdom === "function" ? nestedComp.qdom() : null;
+      var ok = !!(rootApi && spanApi && nestedApi && nestedName === "comp2");
+      result = ok ? "qdom-context-ok" : "qdom-context-fail";
+    } catch (evt) { }
+    this.setAttribute("data-result", result);
+    this.setAttribute("data-nested-component", nestedName);
+    var statusNode = this.querySelector("#qdom-context-status");
+    if (statusNode) { statusNode.textContent = result; }
+  }
+  onReady { this.runCheck(); }
+  div#ctx-span { text { span-ok } }
+  comp2 { }
+  div#qdom-context-status { text { pending } }
+}
+qdom-context-case { }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: qdom-context-ok, data-nested-component="comp2"</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t22" data-mode="contains" data-contains="qdom-context-ok||data-nested-component=&quot;comp2&quot;">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t22" data-qtest-host="1">
+q-component comp2 {
+  div#ctx-in-comp2 { text { ${this.component.getAttribute("q-component")} } }
+}
+q-component qdom-context-case {
+  function runCheck() {
+    var nestedName = "";
+    var result = "qdom-context-fail";
+    try {
+      var rootApi = this.qdom();
+      var span = this.querySelector("#ctx-span");
+      var spanApi = span && typeof span.qdom === "function" ? span.qdom() : null;
+      var nested = this.querySelector("#ctx-in-comp2");
+      var nestedComp = nested ? nested.component : null;
+      nestedName = nestedComp && typeof nestedComp.getAttribute === "function" ? String(nestedComp.getAttribute("q-component") || "") : "";
+      var nestedApi = nestedComp && typeof nestedComp.qdom === "function" ? nestedComp.qdom() : null;
+      var ok = !!(rootApi && spanApi && nestedApi && nestedName === "comp2");
+      result = ok ? "qdom-context-ok" : "qdom-context-fail";
+    } catch (evt) { }
+    this.setAttribute("data-result", result);
+    this.setAttribute("data-nested-component", nestedName);
+    var statusNode = this.querySelector("#qdom-context-status");
+    if (statusNode) { statusNode.textContent = result; }
+  }
+  onReady { this.runCheck(); }
+  div#ctx-span { text { span-ok } }
+  comp2 { }
+  div#qdom-context-status { text { pending } }
+}
+qdom-context-case { }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>23. qdom() mutation + update() syncs DOM (component context)</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-component qdom-mutate-case {
+  onReady {
+    try { var q = this.qdom(); q.setAttribute("data-flag", "1"); this.qhtmlRoot().update({ force: true, forceBindings: true }); q.setAttribute("data-result", this.getAttribute("data-flag") === "1" ? "qdom-mutate-update-ok" : "qdom-mutate-update-fail"); this.qhtmlRoot().update({ force: true, forceBindings: true }); } catch (evt) { this.setAttribute("data-result", "qdom-mutate-update-fail"); }
+  }
+  div#mut-target { text { before } }
+}
+qdom-mutate-case { }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: qdom-mutate-update-ok, data-flag="1"</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t23" data-mode="contains" data-contains="qdom-mutate-update-ok||data-flag=&quot;1&quot;">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t23" data-qtest-host="1">
+q-component qdom-mutate-case {
+  onReady {
+    try { var q = this.qdom(); q.setAttribute("data-flag", "1"); this.qhtmlRoot().update({ force: true, forceBindings: true }); q.setAttribute("data-result", this.getAttribute("data-flag") === "1" ? "qdom-mutate-update-ok" : "qdom-mutate-update-fail"); this.qhtmlRoot().update({ force: true, forceBindings: true }); } catch (evt) { this.setAttribute("data-result", "qdom-mutate-update-fail"); }
+  }
+  div#mut-target { text { before } }
+}
+qdom-mutate-case { }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>24. qdom() mutation + update() syncs DOM (q-html host context)</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>onReady {
+  var self = this;
+  try {
+    var api = this.qdom();
+    var target = api &amp;&amp; typeof api.find === "function" ? api.find("#host-qdom-target") : null;
+    if (target &amp;&amp; typeof target.setAttribute === "function") {
+      target.setAttribute("data-host-mut", "1");
+    }
+    this.update({ force: true, forceBindings: true });
+    setTimeout(function () {
+      var domTarget = self.querySelector("#host-qdom-target");
+      var ok = !!(domTarget &amp;&amp; domTarget.getAttribute("data-host-mut") === "1");
+      var result = ok ? "host-qdom-update-ok" : "host-qdom-update-fail";
+      self.setAttribute("data-result", result);
+      var statusNode = self.querySelector("#host-qdom-status");
+      if (statusNode) { statusNode.textContent = result; }
+    }, 80);
+    return;
+  } catch (evt) { }
+  this.setAttribute("data-result", "host-qdom-update-fail");
+  var statusNode = this.querySelector("#host-qdom-status");
+  if (statusNode) { statusNode.textContent = "host-qdom-update-fail"; }
+}
+div#host-qdom-target { text { host-qdom } }
+div#host-qdom-status { text { pending } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: host-qdom-update-ok, data-host-mut="1"</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t24" data-mode="contains" data-contains="host-qdom-update-ok||data-host-mut=&quot;1&quot;">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t24" data-qtest-host="1">
+onReady {
+  var self = this;
+  try {
+    var api = this.qdom();
+    var target = api && typeof api.find === "function" ? api.find("#host-qdom-target") : null;
+    if (target && typeof target.setAttribute === "function") {
+      target.setAttribute("data-host-mut", "1");
+    }
+    this.update({ force: true, forceBindings: true });
+    setTimeout(function () {
+      var domTarget = self.querySelector("#host-qdom-target");
+      var ok = !!(domTarget && domTarget.getAttribute("data-host-mut") === "1");
+      var result = ok ? "host-qdom-update-ok" : "host-qdom-update-fail";
+      self.setAttribute("data-result", result);
+      var statusNode = self.querySelector("#host-qdom-status");
+      if (statusNode) { statusNode.textContent = result; }
+    }, 80);
+    return;
+  } catch (evt) { }
+  this.setAttribute("data-result", "host-qdom-update-fail");
+  var statusNode = this.querySelector("#host-qdom-status");
+  if (statusNode) { statusNode.textContent = "host-qdom-update-fail"; }
+}
+div#host-qdom-target { text { host-qdom } }
+div#host-qdom-status { text { pending } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>25. q-style-class merges class tokens with inline styles</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-style class-style {
+  q-style-class { w3-container test-style-class }
+  backgroundColor: rgb(224, 242, 254)
+  color: rgb(12, 74, 110)
+}
+class-style,div { text { style-class-ok } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: style-class-ok, test-style-class, background-color</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t25" data-mode="contains" data-contains="style-class-ok||test-style-class||background-color">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t25" data-qtest-host="1">
+q-style class-style {
+  q-style-class { w3-container test-style-class }
+  backgroundColor: rgb(224, 242, 254)
+  color: rgb(12, 74, 110)
+}
+class-style,div { text { style-class-ok } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>26. q-import inline expansion</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-import { qtest-import-sample.qhtml }
+import-sample { }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: import-ok, import-sample</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t26" data-mode="contains" data-contains="import-ok||import-sample">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t26" data-qtest-host="1">
+q-import { qtest-import-sample.qhtml }
+import-sample { }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>27. q-signal slot payload declaration syntax</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-signal menuItemClicked { slot { itemId } }
+div {
+  menuItemClicked { itemId { A } }
+  p { text { signal-syntax-ok } }
+}</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: signal-syntax-ok</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t27" data-mode="contains" data-contains="signal-syntax-ok">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t27" data-qtest-host="1">
+q-signal menuItemClicked { slot { itemId } }
+div {
+  menuItemClicked { itemId { A } }
+  p { text { signal-syntax-ok } }
+}
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>28. qdom() method surface (find/show/map)</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>onReady {
+  try {
+    var api = this.qdom();
+    var ok = !!(api && typeof api.find === "function" && typeof api.show === "function" && typeof api.map === "function");
+    this.querySelector("#qdom-method-status").textContent = ok ? "qdom-methods-ok" : "qdom-methods-fail";
+  } catch (evt) {
+    this.querySelector("#qdom-method-status").textContent = "qdom-methods-fail";
+  }
+}
+div#qdom-method-status { text { pending } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: qdom-methods-ok</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t28" data-mode="contains" data-contains="qdom-methods-ok">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t28" data-qtest-host="1">
+onReady {
+  try {
+    var api = this.qdom();
+    var ok = !!(api && typeof api.find === "function" && typeof api.show === "function" && typeof api.map === "function");
+    this.querySelector("#qdom-method-status").textContent = ok ? "qdom-methods-ok" : "qdom-methods-fail";
+  } catch (evt) {
+    this.querySelector("#qdom-method-status").textContent = "qdom-methods-fail";
+  }
+}
+div#qdom-method-status { text { pending } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>29. qdom() serialize/deserialize method availability</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>onReady {
+  try {
+    var api = this.qdom();
+    var ok = !!(api && typeof api.serialize === "function" && typeof api.deserialize === "function");
+    this.querySelector("#qdom-serde-status").textContent = ok ? "serde-methods-ok" : "serde-methods-fail";
+  } catch (evt) {
+    this.querySelector("#qdom-serde-status").textContent = "serde-methods-fail";
+  }
+}
+div#qdom-serde-status { text { pending } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: serde-methods-ok</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t29" data-mode="contains" data-contains="serde-methods-ok">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t29" data-qtest-host="1">
+onReady {
+  try {
+    var api = this.qdom();
+    var ok = !!(api && typeof api.serialize === "function" && typeof api.deserialize === "function");
+    this.querySelector("#qdom-serde-status").textContent = ok ? "serde-methods-ok" : "serde-methods-fail";
+  } catch (evt) {
+    this.querySelector("#qdom-serde-status").textContent = "serde-methods-fail";
+  }
+}
+div#qdom-serde-status { text { pending } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>30. this.component.update() + this.component.root().update()</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-component scoped-update-case {
+  onReady {
+    try {
+      var hasScoped = typeof this.component.update === "function";
+      var rootHost = this.component.root && typeof this.component.root === "function" ? this.component.root() : null;
+      var hasRoot = !!(rootHost && typeof rootHost.update === "function");
+      this.setAttribute("data-result", hasScoped &amp;&amp; hasRoot ? "scoped-update-ok" : "scoped-update-fail");
     } catch (evt) {
-      try { console.log("Cannot emit toggleBuilder signal", evt); } catch (ignoredLog) { }
+      this.setAttribute("data-result", "scoped-update-fail");
     }
   }
+  div { text { scoped-update-body } }
+}
+scoped-update-case { }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: scoped-update-ok, scoped-update-body</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t30" data-mode="contains" data-contains="scoped-update-ok||scoped-update-body">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t30" data-qtest-host="1">
+q-component scoped-update-case {
+  onReady {
+    try {
+      var hasScoped = typeof this.component.update === "function";
+      var rootHost = this.component.root && typeof this.component.root === "function" ? this.component.root() : null;
+      var hasRoot = !!(rootHost && typeof rootHost.update === "function");
+      this.setAttribute("data-result", hasScoped && hasRoot ? "scoped-update-ok" : "scoped-update-fail");
+    } catch (evt) {
+      this.setAttribute("data-result", "scoped-update-fail");
+    }
+  }
+  div { text { scoped-update-body } }
+}
+scoped-update-case { }
+          </q-html>
+        </section>
+      </article>
 
-  li {
-    id: "toggle-editor"
-    data-page-edit-toggle: "1"
-    class: q-bind {
-      var mode = typeof getBuilderConfig === "function"
-        ? String(getBuilderConfig("edit_mode") || "").trim()
-        : "0";
-      return mode === "1" ? "w3-button w3-green" : "w3-button w3-orange";
-    }
-    content: q-bind {
-      var mode = typeof getBuilderConfig === "function"
-        ? String(getBuilderConfig("edit_mode") || "").trim()
-        : "0";
-      return mode === "1" ? "Edit Mode: ON" : "Edit Mode: OFF";
-    }
-    onclick {
-      try {
-        this.component.toggle();
-        var host = this.closest("q-html");
-        var builder = host && host.querySelector ? host.querySelector("q-builder[q-builder-runtime='1']") : null;
-        var active = builder && builder.enabled ? "1" : "0";
-        if (typeof setBuilderConfig === "function") { setBuilderConfig("edit-mode", active); }
-        if (host && typeof host.setAttribute === "function") { host.setAttribute("data-page-edit-mode", active); }
-        this.setAttribute("class", active === "1" ? "w3-button w3-green" : "w3-button w3-orange");
-        this.textContent = active === "1" ? "Edit Mode: ON" : "Edit Mode: OFF";
-      } catch (evt) {
-        try { console.log("Cannot toggle builder", evt); } catch (ignoredLog) { }
+      <article class="test-card">
+        <div class="test-head"><h2>31. q-wasm declaration syntax</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-component wasm-syntax-case {
+  q-wasm {
+    src: "data:application/wasm;base64,AGFzbQEAAA=="
+    mode: main
+    awaitWasm: false
+  }
+  div { text { wasm-syntax-ok } }
+}
+wasm-syntax-case { }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: wasm-syntax-ok, wasm-syntax-case</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t31" data-mode="contains" data-contains="wasm-syntax-ok||wasm-syntax-case">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t31" data-qtest-host="1">
+q-component wasm-syntax-case {
+  q-wasm {
+    src: "data:application/wasm;base64,AGFzbQEAAA=="
+    mode: main
+    awaitWasm: false
+  }
+  div { text { wasm-syntax-ok } }
+}
+wasm-syntax-case { }
+          </q-html>
+        </section>
+      </article>
+    </section>
+  </div>
+
+  <script>
+    (function setupQHtmlTestHelpers() {
+      function normalizeWhitespace(input) {
+        return String(input == null ? "" : input).replace(/\s+/g, " ").trim();
       }
-    }
-  }
-}
 
-q-builder {
-  id: "page-builder"
-  q-builder-runtime: "1"
-}
-
-div.w3-black.w3-text-white.w3-bar, nav-bar {
-  li { html { top-item 1 } }
-  li { html { top-item 2 } }
-  li { html { top-item 3 } }
-}
-
-div.w3-container.w3-title.w3-header.w3-xlarge.w3-green {
-  html { Hello world }
-}
-quick-note { message { q-macro is active in test.html } }
-div.w3-container.w3-margin-top {
-  panel-demo-theme {
-    panel-demo-override-theme {
-      div#qstyle-demo.w3-padding.w3-round-large.w3-border {
-        h4 { text { q-style demo } }
-        p { text { q-style + q-theme are active. } }
-      }
-    }
-  }
-}
-div.w3-threequarter.w3-light-grey,q-tabs {
-  id: "demo-tabs"
-  q-tab.w3-light-grey {
-    name { text { Sign-in } }
-    content { div.w3-light-grey {
-        h3 { text { Sign-in } }
-        q-form {
-          q-input-with-label {
-            label { text { username } }
-            input-element {
-              input.w3-input.w3-border.w3-round-large.w3-margin-bottom {
-                id: "signin-username"
-                name: "username"
-                autocomplete: "username"
-              }
+      function canonicalizeNode(node) {
+        if (!node) {
+          return "";
+        }
+        if (node.nodeType === 3) {
+          var text = normalizeWhitespace(node.textContent || "");
+          return text ? "#text(" + text + ")" : "";
+        }
+        if (node.nodeType !== 1) {
+          return "";
+        }
+        var tag = String(node.tagName || "").toLowerCase();
+        var attrs = [];
+        if (node.attributes && typeof node.attributes.length === "number") {
+          for (var i = 0; i < node.attributes.length; i += 1) {
+            var attr = node.attributes[i];
+            if (!attr) {
+              continue;
             }
-          }
-          q-input-with-label {
-            label { text { password } }
-            input-element {
-              input.w3-input.w3-border.w3-round-large.w3-margin-bottom {
-                id: "signin-password"
-                type: "password"
-                name: "password"
-                autocomplete: "current-password"
-              }
-            }
-          }
-          q-input-with-label {
-            label { text { Remember Me } }
-            input-element {
-              input {
-                id: "signin-remember"
-                type: "checkbox"
-                name: "remember"
-                text { Remember me }
-              }
-            }
-          }
-          center,q-input-with-label {
-            label { }
-            input-element { button.w3-btn { text { Submit } } }
+            attrs.push([String(attr.name || "").toLowerCase(), normalizeWhitespace(attr.value || "")]);
           }
         }
-      } }
-  }
-  q-tab {
-    name { text { Details } }
-    content { div.w3-light-grey {
-        h3 { text { Details } }
-        p { text { This is the second tab. } }
-      } }
-  }
-  q-tab {
-    name { text { Contact } }
-    content { div {
-        h3 { text { Contact } }
-        p { text { This is the third tab. } }
-      } }
-  }
-}
-
-div.w3-quarter.w3-nav.w3-col.w3-right.w3-padding {
-  ul.w3-list.w3-block {
-    li.w3-bar.w3-green.w3-bar-item {
-      html { navigation }
-    }
-    nav-bar {
-      w3-bar {
-        li { html { right-item 1 } }
-        li { html { right-item 2 } }
-        li { html { right-item 3 } }
-        li.w3-button.w3-blue {
-          text { Show Tab 2 }
-          onclick {
-            document.querySelector("#demo-tabs").show(1);
+        attrs.sort(function sortAttrs(a, b) {
+          return a[0].localeCompare(b[0]);
+        });
+        var attrText = attrs.map(function joinAttr(entry) {
+          return entry[0] + "=" + JSON.stringify(entry[1]);
+        }).join(",");
+        var children = [];
+        if (node.childNodes && typeof node.childNodes.length === "number") {
+          for (var j = 0; j < node.childNodes.length; j += 1) {
+            var child = canonicalizeNode(node.childNodes[j]);
+            if (child) {
+              children.push(child);
+            }
           }
         }
+        return "<" + tag + (attrText ? " " + attrText : "") + ">" + children.join("") + "</" + tag + ">";
+      }
 
-        toggle-builder-button {
-          onReady {
+      function canonicalizeFragment(html) {
+        var tpl = document.createElement("template");
+        tpl.innerHTML = String(html == null ? "" : html).trim();
+        var out = [];
+        for (var i = 0; i < tpl.content.childNodes.length; i += 1) {
+          var rendered = canonicalizeNode(tpl.content.childNodes[i]);
+          if (rendered) {
+            out.push(rendered);
+          }
+        }
+        return out.join("");
+      }
+
+      function splitContains(value) {
+        return String(value || "")
+          .split("||")
+          .map(function trimItem(item) { return normalizeWhitespace(item); })
+          .filter(function keep(item) { return item.length > 0; });
+      }
+
+      window.qtestEvaluateShell = function qtestEvaluateShell(shell) {
+        if (!shell || shell.nodeType !== 1) {
+          return { pass: false, actual: "", detail: "No result shell." };
+        }
+        var caseId = String(shell.getAttribute("data-qtest-case") || "").trim();
+        var host = caseId ? document.querySelector("#host-" + caseId) : null;
+        if (
+          host &&
+          typeof host.getAttribute === "function" &&
+          !host.getAttribute("data-qdom-host-id") &&
+          window.QHtml &&
+          typeof window.QHtml.mountQHtmlElement === "function"
+        ) {
+          try {
+            window.QHtml.mountQHtmlElement(host);
+          } catch (mountError) {
+            if (window.console && typeof window.console.warn === "function") {
+              window.console.warn("[qtest] mount failed for", caseId, mountError);
+            }
+          }
+        }
+        var actual = host ? String(host.innerHTML || "").trim() : "";
+        var mode = String(shell.getAttribute("data-mode") || "exact").trim().toLowerCase();
+        var pass = false;
+        var detail = "";
+
+        if (!host) {
+          pass = false;
+          detail = "Preview host #host-" + caseId + " not found.";
+        } else if (mode === "contains") {
+          var expectedParts = splitContains(shell.getAttribute("data-contains"));
+          var normalizedActual = normalizeWhitespace(actual);
+          var missing = expectedParts.filter(function missingPart(part) {
+            return normalizedActual.indexOf(part) === -1;
+          });
+          pass = missing.length === 0;
+          detail = pass ? "All expected substrings found." : "Missing: " + missing.join(" | ");
+        } else {
+          var expected = String(shell.getAttribute("data-expected") || "");
+          var expectedCanonical = canonicalizeFragment(expected);
+          var actualCanonical = canonicalizeFragment(actual);
+          pass = expectedCanonical === actualCanonical;
+          detail = pass
+            ? "Canonical HTML matches."
+            : "Canonical mismatch.\nExpected: " + expectedCanonical + "\nActual: " + actualCanonical;
+        }
+
+        shell.setAttribute("data-pass", pass ? "1" : "0");
+        shell.setAttribute("data-actual", actual);
+        shell.setAttribute("data-detail", detail);
+        return {
+          pass: pass,
+          actual: actual,
+          detail: detail,
+        };
+      };
+
+      window.qtestSummary = function qtestSummary() {
+        var shells = document.querySelectorAll("q-html[data-qtest-role='result']");
+        var total = shells.length;
+        var passed = 0;
+        for (var i = 0; i < shells.length; i += 1) {
+          var result = window.qtestEvaluateShell(shells[i]);
+          if (result.pass) {
+            passed += 1;
+          }
+        }
+        return {
+          total: total,
+          passed: passed,
+          failed: total - passed,
+        };
+      };
+
+      function updateSummaryHost(stats) {
+        var totalNode = document.querySelector("#summary-total");
+        var passedNode = document.querySelector("#summary-passed");
+        var failedNode = document.querySelector("#summary-failed");
+        var mutedNode = document.querySelector("#summary-muted");
+        if (!totalNode || !passedNode || !failedNode || !mutedNode) {
+          return;
+        }
+        var values = stats && typeof stats === "object" ? stats : { total: 0, passed: 0, failed: 0 };
+        var total = Number(values.total || 0);
+        var passed = Number(values.passed || 0);
+        var failed = Number(values.failed || 0);
+        totalNode.textContent = "Total: " + String(total);
+        passedNode.textContent = "Passed: " + String(passed);
+        failedNode.textContent = "Failed: " + String(failed);
+        mutedNode.textContent = failed === 0 ? "All tests currently passing." : "Some tests are currently failing.";
+      }
+
+      function refreshAllTestHosts() {
+        var previewHosts = document.querySelectorAll("q-html[data-qtest-host='1']");
+        for (var i = 0; i < previewHosts.length; i += 1) {
+          var previewHost = previewHosts[i];
+          if (
+            previewHost &&
+            typeof previewHost.getAttribute === "function" &&
+            !previewHost.getAttribute("data-qdom-host-id") &&
+            window.QHtml &&
+            typeof window.QHtml.mountQHtmlElement === "function"
+          ) {
             try {
-              var host = this.closest ? this.closest("q-html") : null;
-              var builder = host && host.querySelector ? host.querySelector("q-builder[q-builder-runtime='1']") : null;
-              if (!builder && typeof document !== "undefined" && document && document.querySelector) {
-                builder = document.querySelector("q-builder[q-builder-runtime='1']");
+              window.QHtml.mountQHtmlElement(previewHost);
+            } catch (mountError) {
+              if (window.console && typeof window.console.warn === "function") {
+                window.console.warn("[qtest] periodic preview mount failed", mountError);
               }
-              if (builder && typeof builder.toggle === "function" && this.toggleBuilder && typeof this.toggleBuilder.connect === "function") {
-                this.toggleBuilder.connect(builder.toggle);
-                this.setAttribute("data-toggle-connected", "1");
-              } else {
-                this.setAttribute("data-toggle-connected", "0");
-              }
-            } catch (evt) {
-              try { console.log("Cannot connect toggle-builder-button", evt); } catch (ignoredLog) { }
             }
           }
         }
+
+        var resultHosts = document.querySelectorAll("q-html[data-qtest-role='result']");
+        for (var j = 0; j < resultHosts.length; j += 1) {
+          var resultHost = resultHosts[j];
+          if (!resultHost || typeof resultHost.update !== "function") {
+            continue;
+          }
+          try {
+            resultHost.update({ forceBindings: true, force: true });
+          } catch (updateError) {
+            if (window.console && typeof window.console.warn === "function") {
+              window.console.warn("[qtest] result update failed", updateError);
+            }
+          }
+        }
+
+        updateSummaryHost(window.qtestSummary());
       }
-    }
-  }
-}
 
-</q-html>
-<template id="builder-config" edit-mode="1"></template>
-<script>
-function getBuilderConfig(parameter) {
-  try {
-    var node = document.querySelector("#builder-config");
-    if (!node) { return null; }
-    var key = String(parameter || "").replace(/_/g, "-");
-    return node.getAttribute(key);
-  } catch (err) { return null }
-}
-function setBuilderConfig(parameter,value) {
-  try {
-    var node = document.querySelector("#builder-config");
-    if (!node) { return; }
-    var key = String(parameter || "").replace(/_/g, "-");
-    node.setAttribute(key, value);
-  } catch (err) {  }
-}
-</script>
-
+      window.addEventListener("DOMContentLoaded", function onQTestDomReady() {
+        refreshAllTestHosts();
+        window.setInterval(refreshAllTestHosts, 1200);
+      });
+    })();
+  </script>
 </body>
 </html>

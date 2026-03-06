@@ -48,6 +48,7 @@
   const DOM_MUTATION_DIRTY_ATTRIBUTE = "qhtml-unsynced";
   const DOM_MUTATION_SYNC_FLUSH_BATCH_SIZE = 25;
   const DOM_MUTATION_SYNC_FLUSH_DELAY_MS = 0;
+  const DEFAULT_TEMPLATE_PERSIST_DEBOUNCE_MS = 180;
   const INLINE_REFERENCE_PATTERN = /\$\{\s*([^}]+?)\s*\}/g;
   const INLINE_REFERENCE_ESCAPE_TOKEN = "__QHTML_ESCAPED_INLINE_REF__";
   const DOM_MUTATION_SYNC_OBSERVER_OPTIONS = {
@@ -55,6 +56,14 @@
     characterData: true,
     subtree: true,
   };
+  const QDOM_CHILD_COLLECTION_KEYS = new Set([
+    "nodes",
+    "children",
+    "templateNodes",
+    "slots",
+    "__qhtmlSlotNodes",
+    "__qhtmlRenderTree",
+  ]);
   const Q_COLOR_STYLE_PROPERTY_MAP = Object.freeze({
     background: "background-color",
     foreground: "color",
@@ -1415,6 +1424,76 @@
     return typeof value === "string" && value.indexOf("${") !== -1;
   }
 
+  function readInlineReferencePath(base, tail) {
+    const parts = String(tail || "")
+      .split(".")
+      .map(function trimInlinePathPart(part) {
+        return String(part || "").trim();
+      })
+      .filter(Boolean);
+    let cursor = base;
+    for (let i = 0; i < parts.length; i += 1) {
+      if (cursor == null) {
+        return undefined;
+      }
+      try {
+        cursor = cursor[parts[i]];
+      } catch (error) {
+        return undefined;
+      }
+    }
+    return cursor;
+  }
+
+  function resolveInlineComponentSource(thisArg, scope) {
+    if (scope && typeof scope === "object" && scope.component) {
+      return scope.component;
+    }
+    if (thisArg && (typeof thisArg === "object" || typeof thisArg === "function")) {
+      try {
+        if (thisArg.component) {
+          return thisArg.component;
+        }
+      } catch (ignoredReadComponent) {
+        // no-op
+      }
+      if (thisArg.nodeType === 1 && typeof thisArg.closest === "function") {
+        const nearest = thisArg.closest("[qhtml-component-instance='1']");
+        if (nearest) {
+          return nearest;
+        }
+      }
+    }
+    return null;
+  }
+
+  function ensureInlineComponentQdom(componentSource, scope) {
+    if (!componentSource || componentSource.nodeType !== 1) {
+      return;
+    }
+    if (typeof componentSource.qdom === "function") {
+      return;
+    }
+    const fallbackQdom = scope && typeof scope === "object" ? scope.componentQdom || null : null;
+    if (!fallbackQdom || typeof fallbackQdom !== "object") {
+      return;
+    }
+    try {
+      Object.defineProperty(componentSource, "qdom", {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: function inlineComponentQdomFallback() {
+          return fallbackQdom;
+        },
+      });
+    } catch (error) {
+      componentSource.qdom = function inlineComponentQdomFallback() {
+        return fallbackQdom;
+      };
+    }
+  }
+
   function buildInlineExpressionScope(thisArg, extraScope) {
     const scope = Object.create(null);
     if (extraScope && typeof extraScope === "object") {
@@ -1449,11 +1528,14 @@
         }
       }
     }
+    const resolvedComponent = resolveInlineComponentSource(thisArg, scope);
+    if (resolvedComponent) {
+      scope.component = resolvedComponent;
+      ensureInlineComponentQdom(resolvedComponent, scope);
+    }
     if (scope.component && (typeof thisArg === "object" || typeof thisArg === "function") && thisArg) {
       try {
-        if (typeof thisArg.component === "undefined" || thisArg.component === null) {
-          thisArg.component = scope.component;
-        }
+        thisArg.component = scope.component;
       } catch (ignoredAssignComponent) {
         // no-op
       }
@@ -1486,51 +1568,43 @@
     if (!source) {
       return { matched: false, value: undefined };
     }
+    const componentSource = resolveInlineComponentSource(thisArg, scope);
+    if (componentSource) {
+      ensureInlineComponentQdom(componentSource, scope);
+    }
 
-    function readPath(base, tail) {
-      const parts = String(tail || "")
-        .split(".")
-        .map(function trimPathPart(part) {
-          return String(part || "").trim();
-        })
-        .filter(Boolean);
-      let cursor = base;
-      for (let i = 0; i < parts.length; i += 1) {
-        if (cursor == null) {
-          return undefined;
-        }
+    if (source === "this.component.qdom()" || source === "component.qdom()") {
+      if (componentSource && typeof componentSource.qdom === "function") {
         try {
-          cursor = cursor[parts[i]];
+          return { matched: true, value: componentSource.qdom() };
         } catch (error) {
-          return undefined;
+          return { matched: true, value: null };
         }
       }
-      return cursor;
+      return {
+        matched: true,
+        value: scope && typeof scope === "object" ? scope.componentQdom || null : null,
+      };
     }
 
     if (/^this\.component\.[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(source)) {
-      const componentSource =
-        (thisArg && (typeof thisArg === "object" || typeof thisArg === "function") && thisArg.component) ||
-        (scope && typeof scope === "object" ? scope.component : null) ||
-        null;
       return {
         matched: true,
-        value: readPath(componentSource, source.slice("this.component.".length)),
+        value: readInlineReferencePath(componentSource, source.slice("this.component.".length)),
       };
     }
 
     if (/^component\.[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(source)) {
-      const componentSource = scope && typeof scope === "object" ? scope.component : null;
       return {
         matched: true,
-        value: readPath(componentSource, source.slice("component.".length)),
+        value: readInlineReferencePath(componentSource, source.slice("component.".length)),
       };
     }
 
     if (/^this\.[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(source)) {
       return {
         matched: true,
-        value: readPath(thisArg, source.slice("this.".length)),
+        value: readInlineReferencePath(thisArg, source.slice("this.".length)),
       };
     }
 
@@ -1893,21 +1967,74 @@
     );
   }
 
-  function persistQDomTemplate(binding) {
-    if (!binding || !binding.host) {
-      return;
-    }
-    if (bindings.get(binding.host) !== binding) {
-      return;
-    }
-    core.saveQDomTemplateBefore(binding.host, binding.rawQdom || binding.qdom, binding.doc);
+  function isTemplatePersistenceEnabled() {
+    return !(global && global.QHTML_PERSIST_QDOM_TEMPLATE === false);
   }
 
-  function scheduleTemplatePersistence(binding) {
-    if (!binding) {
+  function readTemplatePersistDebounceMs() {
+    const configured =
+      global && Object.prototype.hasOwnProperty.call(global, "QHTML_TEMPLATE_PERSIST_DEBOUNCE_MS")
+        ? Number(global.QHTML_TEMPLATE_PERSIST_DEBOUNCE_MS)
+        : DEFAULT_TEMPLATE_PERSIST_DEBOUNCE_MS;
+    if (!Number.isFinite(configured) || configured < 0) {
+      return DEFAULT_TEMPLATE_PERSIST_DEBOUNCE_MS;
+    }
+    return Math.max(0, Math.floor(configured));
+  }
+
+  function persistQDomTemplate(binding, options) {
+    if (!binding || !binding.host || !isTemplatePersistenceEnabled()) {
+      return false;
+    }
+    if (bindings.get(binding.host) !== binding) {
+      return false;
+    }
+    const rootNode = sourceNodeOf(binding.rawQdom || binding.qdom);
+    if (!rootNode || typeof rootNode !== "object") {
+      return false;
+    }
+    if (!binding.templatePersistState || typeof binding.templatePersistState !== "object") {
+      binding.templatePersistState = {
+        lastNonce: "",
+        lastPersistedAt: 0,
+      };
+    }
+    const state = binding.templatePersistState;
+    const opts = options && typeof options === "object" ? options : {};
+    const force = opts.force === true;
+    const rootNonce = ensureNodeUpdateNonce(rootNode);
+    if (!force && rootNonce && state.lastNonce === rootNonce) {
+      return false;
+    }
+    core.saveQDomTemplateBefore(binding.host, rootNode, binding.doc);
+    state.lastNonce = rootNonce || "";
+    state.lastPersistedAt = Date.now();
+    return true;
+  }
+
+  function scheduleTemplatePersistence(binding, options) {
+    if (!binding || !isTemplatePersistenceEnabled()) {
       return;
     }
-    persistQDomTemplate(binding);
+    const opts = options && typeof options === "object" ? options : {};
+    const force = opts.force === true;
+    const immediate = opts.immediate === true;
+    const debounceMs = immediate ? 0 : readTemplatePersistDebounceMs();
+
+    if (binding.templateSaveTimer && typeof global.clearTimeout === "function") {
+      global.clearTimeout(binding.templateSaveTimer);
+      binding.templateSaveTimer = null;
+    }
+
+    if (debounceMs <= 0 || typeof global.setTimeout !== "function") {
+      persistQDomTemplate(binding, { force: force });
+      return;
+    }
+
+    binding.templateSaveTimer = global.setTimeout(function persistLater() {
+      binding.templateSaveTimer = null;
+      persistQDomTemplate(binding, { force: force });
+    }, debounceMs);
   }
 
   function describeElementForLog(element) {
@@ -4937,7 +5064,7 @@
     attachDomControlSync(binding);
     attachDomMutationSync(binding);
     attachScriptRules(binding);
-    persistQDomTemplate(binding);
+    scheduleTemplatePersistence(binding);
     return true;
   }
 
@@ -4991,7 +5118,7 @@
       attachDomMutationSync(binding);
       runHostLifecycleHooks(binding);
       attachScriptRules(binding);
-      persistQDomTemplate(binding);
+      scheduleTemplatePersistence(binding);
     } finally {
       binding.rendering = false;
     }
@@ -5005,7 +5132,6 @@
     const host = binding.host;
     const slotHandleByContainer = new WeakMap();
     const slotContainerByHandle = new WeakMap();
-    const nodeFacadeCache = new WeakMap();
     const childrenAccessorCache = new WeakMap();
 
     function readNodeChildrenList(targetNode) {
@@ -5112,6 +5238,31 @@
           const fragment = qdomNodeList.htmldom(targetDocument);
           return fragmentToHtmlString(fragment, targetDocument);
         },
+        find: function find(callback, thisArg) {
+          if (typeof callback !== "function") {
+            return null;
+          }
+          for (let i = 0; i < list.length; i += 1) {
+            const value = installQDomFactories(list[i]);
+            if (callback.call(thisArg, value, i, qdomNodeList)) {
+              return value;
+            }
+          }
+          return null;
+        },
+        filter: function filter(callback, thisArg) {
+          if (typeof callback !== "function") {
+            return [];
+          }
+          const out = [];
+          for (let i = 0; i < list.length; i += 1) {
+            const value = installQDomFactories(list[i]);
+            if (callback.call(thisArg, value, i, qdomNodeList)) {
+              out.push(value);
+            }
+          }
+          return out;
+        },
       };
 
       Object.defineProperty(qdomNodeList, "length", {
@@ -5143,7 +5294,67 @@
         });
       }
 
-      return qdomNodeList;
+      return new Proxy(qdomNodeList, {
+        get: function getQDomNodeList(target, prop, receiver) {
+          if (typeof prop === "string" && /^[0-9]+$/.test(prop)) {
+            const idx = Number(prop);
+            if (!Number.isFinite(idx) || idx < 0 || idx >= list.length) {
+              return undefined;
+            }
+            return installQDomFactories(list[idx]);
+          }
+          if (prop === "__qhtmlSourceArray") {
+            return list;
+          }
+          if (prop === "push" || prop === "unshift") {
+            return function pushOrUnshift() {
+              const args = Array.prototype.slice.call(arguments).map(unwrapQDomInput);
+              return list[prop].apply(list, args);
+            };
+          }
+          if (prop === "splice") {
+            return function splice(start, deleteCount) {
+              const args = Array.prototype.slice.call(arguments);
+              const head = args.slice(0, 2);
+              const tail = args.slice(2).map(unwrapQDomInput);
+              const removed = list.splice.apply(list, head.concat(tail));
+              return removed.map(function mapRemoved(item) {
+                return installQDomFactories(item);
+              });
+            };
+          }
+          if (prop === "pop" || prop === "shift") {
+            return function popOrShift() {
+              return installQDomFactories(list[prop]());
+            };
+          }
+          if (prop === "at") {
+            return target.at;
+          }
+          const value = Reflect.get(target, prop, receiver);
+          if (typeof value !== "undefined") {
+            return value;
+          }
+          const listValue = list[prop];
+          if (typeof listValue === "function") {
+            return function delegatedListMethod() {
+              return listValue.apply(list, arguments);
+            };
+          }
+          return listValue;
+        },
+        set: function setQDomNodeList(_, prop, value) {
+          if (typeof prop === "string" && /^[0-9]+$/.test(prop)) {
+            list[Number(prop)] = unwrapQDomInput(value);
+            return true;
+          }
+          if (prop === "length") {
+            list.length = Math.max(0, Number(value) || 0);
+            return true;
+          }
+          return Reflect.set(list, prop, unwrapQDomInput(value));
+        },
+      });
     }
 
     function unwrapQDomInput(value) {
@@ -5151,6 +5362,36 @@
         return sourceNodeOf(value) || value;
       }
       return value;
+    }
+
+    function shouldExposeAsQDomNodeList(prop, value) {
+      if (!Array.isArray(value)) {
+        return false;
+      }
+      const propName = String(prop == null ? "" : prop);
+      if (
+        propName === "nodes" ||
+        propName === "templateNodes" ||
+        propName === "children" ||
+        propName === "slots" ||
+        propName === "__qhtmlSlotNodes" ||
+        propName === "__qhtmlRenderTree"
+      ) {
+        return true;
+      }
+      for (let i = 0; i < value.length; i += 1) {
+        const item = value[i];
+        if (
+          item &&
+          typeof item === "object" &&
+          (isQDomTypedNode(item) ||
+            Object.prototype.hasOwnProperty.call(item, "__qhtmlFactoriesInstalled") ||
+            (item.__qhtmlSourceNode && typeof item.__qhtmlSourceNode === "object"))
+        ) {
+          return true;
+        }
+      }
+      return false;
     }
 
     function createChildrenAccessor(targetNode) {
@@ -5277,7 +5518,8 @@
         return kind;
       }
 
-      function cloneForOutput(value, options, visited) {
+      function cloneForOutput(value, options, visited, depth) {
+        const level = Number.isFinite(depth) ? depth : 0;
         if (value == null) {
           return value;
         }
@@ -5295,7 +5537,7 @@
           visited.add(value);
           const out = [];
           for (let i = 0; i < value.length; i += 1) {
-            const next = cloneForOutput(value[i], options, visited);
+            const next = cloneForOutput(value[i], options, visited, level + 1);
             if (typeof next !== "undefined") {
               out.push(next);
             }
@@ -5309,6 +5551,7 @@
           opts.mapSpec && typeof opts.mapSpec === "object" && !Array.isArray(opts.mapSpec)
             ? opts.mapSpec
             : null;
+        const shallow = opts.shallow === true;
         const whitelist =
           opts.whitelist instanceof Set ? opts.whitelist : null;
         const shouldFilterNodeKeys = !!(whitelist && isQDomTypedNode(value));
@@ -5331,11 +5574,19 @@
           if (!key || !Object.prototype.hasOwnProperty.call(value, key)) {
             continue;
           }
+          if (shallow && QDOM_CHILD_COLLECTION_KEYS.has(key)) {
+            if (level >= 1) {
+              continue;
+            }
+            if (!whitelist || !whitelist.has(key)) {
+              continue;
+            }
+          }
           const mappedKey =
             mapSpec && Object.prototype.hasOwnProperty.call(mapSpec, key)
               ? String(mapSpec[key] || "").trim() || key
               : key;
-          const next = cloneForOutput(value[key], opts, visited);
+          const next = cloneForOutput(value[key], opts, visited, level + 1);
           if (typeof next !== "undefined") {
             out[mappedKey] = next;
           }
@@ -5366,68 +5617,92 @@
         return keys;
       }
 
+      function remapShowKeysToSource(keys, mapSpec) {
+        const out = Array.isArray(keys) ? keys.slice() : [];
+        if (!mapSpec || typeof mapSpec !== "object" || Array.isArray(mapSpec)) {
+          return out;
+        }
+        const byMappedName = {};
+        const sourceKeys = Object.keys(mapSpec);
+        for (let i = 0; i < sourceKeys.length; i += 1) {
+          const sourceKey = String(sourceKeys[i] || "").trim();
+          if (!sourceKey) {
+            continue;
+          }
+          const mappedKey = String(mapSpec[sourceKey] == null ? "" : mapSpec[sourceKey]).trim();
+          if (!mappedKey || Object.prototype.hasOwnProperty.call(byMappedName, mappedKey)) {
+            continue;
+          }
+          byMappedName[mappedKey] = sourceKey;
+        }
+        for (let i = 0; i < out.length; i += 1) {
+          const key = String(out[i] == null ? "" : out[i]).trim();
+          if (!key) {
+            continue;
+          }
+          if (Object.prototype.hasOwnProperty.call(byMappedName, key)) {
+            out[i] = byMappedName[key];
+          }
+        }
+        return out;
+      }
+
+      function createProjectedView(sourceTarget, mapSpec, whitelist) {
+        const options = {};
+        if (mapSpec && typeof mapSpec === "object" && !Array.isArray(mapSpec)) {
+          options.mapSpec = mapSpec;
+        }
+        options.shallow = true;
+        if (whitelist instanceof Set && whitelist.size > 0) {
+          options.whitelist = whitelist;
+        }
+        const out = [cloneForOutput(sourceTarget, options, new Set(), 0)];
+        Object.defineProperty(out, "show", {
+          configurable: true,
+          enumerable: false,
+          writable: false,
+          value: function showProjected() {
+            const keys = remapShowKeysToSource(
+              normalizeShowKeys(Array.prototype.slice.call(arguments)),
+              mapSpec
+            );
+            return createProjectedView(
+              sourceTarget,
+              mapSpec,
+              keys.length > 0 ? new Set(keys) : null
+            );
+          },
+        });
+        Object.defineProperty(out, "map", {
+          configurable: true,
+          enumerable: false,
+          writable: false,
+          value: function mapProjected(nextMappingSpec) {
+            const nextMapping =
+              nextMappingSpec && typeof nextMappingSpec === "object" && !Array.isArray(nextMappingSpec)
+                ? nextMappingSpec
+                : {};
+            const merged = Object.assign({}, mapSpec || {}, nextMapping);
+            return createProjectedView(sourceTarget, merged, whitelist);
+          },
+        });
+        return out;
+      }
+
       function createNodeFacade(targetNode) {
         const sourceTarget = sourceNodeOf(targetNode) || targetNode;
         if (!sourceTarget || typeof sourceTarget !== "object") {
           return sourceTarget;
         }
-      if (nodeFacadeCache.has(sourceTarget)) {
-        return nodeFacadeCache.get(sourceTarget);
+        return sourceTarget;
       }
-
-      const facade = new Proxy(sourceTarget, {
-        get: function getNodeFacade(target, prop, receiver) {
-          if (prop === "__qhtmlSourceNode") {
-            return target;
-          }
-          if (prop === "children") {
-            return createChildrenAccessor(target);
-          }
-          if (prop === "childrenArray") {
-            return readNodeChildrenList(target);
-          }
-          const value = Reflect.get(target, prop, receiver);
-          if (value && typeof value === "object") {
-            if (Array.isArray(value)) {
-              return value;
-            }
-            if (
-              isQDomTypedNode(value) ||
-              Object.prototype.hasOwnProperty.call(value, "__qhtmlFactoriesInstalled") ||
-              (value.__qhtmlSourceNode && typeof value.__qhtmlSourceNode === "object")
-            ) {
-              return installQDomFactories(value);
-            }
-            return value;
-          }
-          if (typeof value === "function") {
-            return function boundNodeMethod() {
-              return value.apply(target, arguments);
-            };
-          }
-          return value;
-        },
-        set: function setNodeFacade(target, prop, value, receiver) {
-          if (prop === "children") {
-            if (Array.isArray(value)) {
-              target.children = value.map(unwrapQDomInput);
-              return true;
-            }
-            return true;
-          }
-          return Reflect.set(target, prop, unwrapQDomInput(value), receiver);
-        },
-      });
-      nodeFacadeCache.set(sourceTarget, facade);
-      return facade;
-    }
 
     function installQDomFactories(node) {
       if (!node || typeof node !== "object") {
         return node;
       }
       if (Object.prototype.hasOwnProperty.call(node, "__qhtmlFactoriesInstalled")) {
-        return createNodeFacade(node);
+        return node;
       }
 
       // Preserve parsed instance slot arrays before installing facade methods
@@ -6622,6 +6897,110 @@
           return installQDomFactories(node);
         },
       });
+      Object.defineProperty(node, "setProperty", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function setProperty(name, value) {
+          const key = String(name || "").trim();
+          if (!key) {
+            return installQDomFactories(node);
+          }
+          if (!node.props || typeof node.props !== "object" || Array.isArray(node.props)) {
+            node.props = {};
+          }
+          node.props[key] = value;
+          if (!Array.isArray(node.properties)) {
+            node.properties = [];
+          }
+          let matched = false;
+          for (let i = 0; i < node.properties.length; i += 1) {
+            const entry = node.properties[i];
+            if (!entry || typeof entry !== "object") {
+              continue;
+            }
+            if (String(entry.name || "").trim() !== key) {
+              continue;
+            }
+            entry.value = value;
+            matched = true;
+            break;
+          }
+          if (!matched) {
+            node.properties.push({
+              kind: "property",
+              name: key,
+              value: value,
+            });
+          }
+          return installQDomFactories(node);
+        },
+      });
+      Object.defineProperty(node, "addProperty", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function addProperty(name, value) {
+          return node.setProperty(name, value);
+        },
+      });
+      Object.defineProperty(node, "removeProperty", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function removeProperty(name) {
+          const key = String(name || "").trim();
+          if (!key) {
+            return installQDomFactories(node);
+          }
+          if (node.props && typeof node.props === "object" && !Array.isArray(node.props)) {
+            delete node.props[key];
+          }
+          if (Array.isArray(node.properties)) {
+            node.properties = node.properties.filter(function keepProperty(entry) {
+              return String(entry && entry.name ? entry.name : "").trim() !== key;
+            });
+          }
+          return installQDomFactories(node);
+        },
+      });
+      Object.defineProperty(node, "addTheme", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function addTheme(themeName) {
+          const key = String(themeName || "").trim();
+          if (!key) {
+            return installQDomFactories(node);
+          }
+          if (!Array.isArray(node.themes)) {
+            node.themes = [];
+          }
+          if (node.themes.indexOf(key) === -1) {
+            node.themes.push(key);
+          }
+          return installQDomFactories(node);
+        },
+      });
+      Object.defineProperty(node, "removeTheme", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function removeTheme(themeName) {
+          const key = String(themeName || "").trim();
+          if (!key) {
+            return installQDomFactories(node);
+          }
+          if (!Array.isArray(node.themes)) {
+            node.themes = [];
+            return installQDomFactories(node);
+          }
+          node.themes = node.themes.filter(function keepTheme(name) {
+            return String(name || "").trim() !== key;
+          });
+          return installQDomFactories(node);
+        },
+      });
       Object.defineProperty(node, "createInstanceFromQHTML", {
         configurable: true,
         enumerable: false,
@@ -6766,8 +7145,7 @@
         value: function show() {
           const keys = normalizeShowKeys(Array.prototype.slice.call(arguments));
           const sourceTarget = sourceNodeOf(node) || node;
-          const options = keys.length > 0 ? { whitelist: new Set(keys) } : {};
-          return [cloneForOutput(sourceTarget, options, new Set())];
+          return createProjectedView(sourceTarget, null, keys.length > 0 ? new Set(keys) : null);
         },
       });
       Object.defineProperty(node, "map", {
@@ -6780,7 +7158,30 @@
               ? mappingSpec
               : {};
           const sourceTarget = sourceNodeOf(node) || node;
-          return [cloneForOutput(sourceTarget, { mapSpec: mapping }, new Set())];
+          return createProjectedView(sourceTarget, mapping, null);
+        },
+      });
+      Object.defineProperty(node, "traverse", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function traverse(visitor, thisArg) {
+          if (typeof visitor !== "function") {
+            return 0;
+          }
+          let visitedCount = 0;
+          const sourceRoot = sourceNodeOf(node) || node;
+          walkTree(sourceRoot, function walkTraverse(candidate) {
+            visitedCount += 1;
+            const res = visitor.call(
+              typeof thisArg === "undefined" ? installQDomFactories(node) : thisArg,
+              installQDomFactories(candidate),
+              visitedCount - 1,
+              installQDomFactories(sourceRoot)
+            );
+            return res === true;
+          });
+          return visitedCount;
         },
       });
       Object.defineProperty(node, "deserialize", {
@@ -6924,6 +7325,51 @@
           return updateQHtmlElement(host, opts);
         },
       });
+      Object.defineProperty(node, "component", {
+        configurable: true,
+        enumerable: true,
+        get: function getNodeComponentRef() {
+          const sourceTarget = sourceNodeOf(node) || node;
+          if (binding && binding.domByQdomNode && typeof binding.domByQdomNode.get === "function") {
+            const mapped = binding.domByQdomNode.get(sourceTarget);
+            if (mapped && mapped.nodeType === 1) {
+              return mapped;
+            }
+          }
+          return null;
+        },
+      });
+      Object.defineProperty(node, "qhtml", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function qhtml(options) {
+          const docNode = createTransientDocumentFromNodes([node], true);
+          const opts = options && typeof options === "object" ? Object.assign({}, options) : {};
+          if (!Object.prototype.hasOwnProperty.call(opts, "preserveOriginal")) {
+            opts.preserveOriginal = false;
+          }
+          return parser.qdomToQHtml(docNode, opts);
+        },
+      });
+      Object.defineProperty(node, "htmldom", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function htmldom(targetDocument) {
+          const docNode = createTransientDocumentFromNodes([node], true);
+          return renderer.renderDocumentToFragment(docNode, targetDocument || binding.doc || global.document);
+        },
+      });
+      Object.defineProperty(node, "html", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function html(targetDocument) {
+          const fragment = node.htmldom(targetDocument);
+          return fragmentToHtmlString(fragment, targetDocument);
+        },
+      });
       Object.defineProperty(node, "__qhtmlFactoriesInstalled", {
         configurable: true,
         enumerable: false,
@@ -6931,7 +7377,7 @@
         value: true,
       });
 
-      return createNodeFacade(node);
+      return node;
     }
 
     host.qdom = function hostQdomAccessor() {
@@ -7622,6 +8068,36 @@
     return id ? tag + "#" + id : tag;
   }
 
+  function resolveScopedUpdateElementFromStaleNodes(binding, staleNodes) {
+    if (!binding || !Array.isArray(staleNodes) || staleNodes.length === 0) {
+      return null;
+    }
+    for (let i = 0; i < staleNodes.length; i += 1) {
+      const sourceNode = sourceNodeOf(staleNodes[i]) || staleNodes[i];
+      if (!sourceNode || typeof sourceNode !== "object") {
+        continue;
+      }
+      const mappedElements = collectMappedDomElements(binding, sourceNode);
+      for (let j = 0; j < mappedElements.length; j += 1) {
+        const element = mappedElements[j];
+        if (!element || element.nodeType !== 1) {
+          continue;
+        }
+        let cursor = element;
+        while (cursor && cursor.nodeType === 1) {
+          if (cursor === binding.host) {
+            break;
+          }
+          if (typeof cursor.hasAttribute === "function" && cursor.hasAttribute("qhtml-component-instance")) {
+            return cursor;
+          }
+          cursor = cursor.parentElement || null;
+        }
+      }
+    }
+    return null;
+  }
+
   function ensureBindingUpdateGuardState(binding) {
     if (!binding || typeof binding !== "object") {
       return null;
@@ -7745,10 +8221,11 @@
         evaluateAllNodeQColors(binding);
         const updateNonce = createRuntimeUpdateNonceToken();
         const staleNodes = prepareBindingNodeNoncesForUpdate(binding, binding.lastUpdateNonce);
+        const inferredScopeElement = activeScopeElement || resolveScopedUpdateElementFromStaleNodes(binding, staleNodes);
         let didRender = false;
         try {
-          if (activeScopeElement) {
-            if (!renderScopedComponentBinding(binding, activeScopeElement, { skipBindingEvaluation: true })) {
+          if (inferredScopeElement) {
+            if (!renderScopedComponentBinding(binding, inferredScopeElement, { skipBindingEvaluation: true })) {
               renderBinding(binding, { skipBindingEvaluation: true });
             }
             didRender = true;

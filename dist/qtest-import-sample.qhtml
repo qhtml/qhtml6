@@ -1,0 +1,3 @@
+q-component import-sample {
+  div { text { import-ok } }
+}

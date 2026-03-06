@@ -3,13 +3,19 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.0.7.5
+# QHTML.js v2.0.8
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
 - Live demo: https://qhtml.github.io/qhtml6/dist/demo.html
 - Dev testbed: `dist/test.html`
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
+
+## Whats New in v2.0.8
+
+- Aligned README examples with validated `dist/test.html` syntax patterns.
+- Expanded `dist/test.html` coverage for QDOM operations and runtime update paths.
+- Removed remaining legacy color-system documentation references in favor of `q-style` / `q-theme`.
 
 ## Whats New in v6.0.7.4
 
@@ -26,12 +32,12 @@ QHTML is a compact language and runtime for building web UIs with readable block
 
 1. Clone qhtml6 github repository
 
-```
-git clone https://github.com/qhtml/qhtml6.git`
+```bash
+git clone https://github.com/qhtml/qhtml6.git
 ```
 2. Create new project directory and copy required files (linux)
   (Copies javascript files, css files, q-component files and codemirror for q-editor / q-builder)
-```
+```bash
 mkdir my-project
 cp qhtml6/dist/*.js /path/to/my-project/
 cp qhtml6/dist/q-components* /path/to/my-project/ -R
@@ -39,7 +45,7 @@ cp qhtml6/dist/*.css /path/to/my-project/
 cp qhtml6/dist/codemirror* /path/to/my-project/ -R
 ```
 3. Create index.html in your project folder and spin up a HTTP Server
-```
+```bash
 cp qhtml6/dist/demo.html /path/to/my-project/
 cd /path/to/my-project
 python -m http.server
@@ -423,7 +429,7 @@ Notes:
   q-component app-card {
     q-property { title }
     div {
-      h3 { q-bind { return this.component.title; } }
+      h3 { text { ${this.component.title} } }
       slot { body }
     }
   }
@@ -494,14 +500,16 @@ q-component my-comp {
 
 ```qhtml
 q-component mycomp {
-  q-alias myotherprop { return this.querySelector("#mydiv").myprop; }
+  q-alias myotherprop { return document.querySelector("#mydiv").myprop; }
 }
 
+q-component mytarget {
+  q-property myprop: "hello world"
+}
+
+mytarget { id: "mydiv" }
 mycomp {
-  div {
-    id: "mydiv"
-    q-property myprop: "hello world"
-  }
+  div { text { ${this.component.myotherprop} } }
 }
 ```
 
@@ -511,17 +519,15 @@ mycomp {
 It behaves like a reusable inline source generator.
 
 ```qhtml
-q-macro mymacro {
-  slot { input1 }
-  slot { input2 }
+q-macro badge {
+  slot { label }
   return {
-    div.${input1} { text { ${input2} } }
+    span.badge { text { ${this.slot("label")} } }
   }
 }
 
-mymacro {
-  input1 { status-pill }
-  input2 { hello world }
+div {
+  badge { label { hello world } }
 }
 ```
 
@@ -530,16 +536,15 @@ mymacro {
 Inside macro output, `${name}` resolves using the current scoped references (macro slots).
 
 ```qhtml
-q-macro action-macro {
-  slot { in1 }
+q-macro scoped-label {
+  slot { value }
   return {
-    function enableComponent() { this.querySelector("${in1}").dowork(); }
-    div,span { text { target = ${in1} } }
+    p { text { value=${this.slot("value")} } }
   }
 }
 
-q-component mything {
-  action-macro { in1 { #my-object } }
+scoped-label {
+  value { demo-ref }
 }
 ```
 
@@ -551,14 +556,14 @@ Use `slot { name }` for raw slot insertion blocks, and `${name}` for inline plac
 
 ### Bind to text
 
-You can use q-bind with q-properties in q-components to re-evaluate after calling this.component.update(). 
-```
+You can use q-bind with q-properties in q-components to re-evaluate after calling `this.component.update()`.
+```qhtml
 q-component my-component {
-  q-property myprop: q-bind { return window.getSelection().baseNode.textContent }
+  q-property myprop: q-bind { return "bound-" + (2 + 3) }
+  div { text { ${this.component.myprop} } }
 }
 
-my-component { div { q-bind { return this.component.myprop } } }
-/*my-component.myprop === <whatever is selected when this.component.update() is called> */
+my-component { }
 ```
 
 ## 5. `q-script`
@@ -582,7 +587,10 @@ my-component { div { q-bind { return this.component.myprop } } }
 
 ```qhtml
 <q-html>
-  h3 {  q-script { return "text { Computed at mount }"; } }
+  div {
+    data-note: q-script { return "n:" + (4 + 1) }
+    text { q-script { return "script-inline"; } }
+  }
 </q-html>
 ```
 
@@ -632,8 +640,9 @@ ${tagName} { text { hi } }         // invalid
 ### Use `q-bind` for reactive re-evaluation
 
 ```qhtml
-div {
-  text: q-bind { return "Count: " + window.count; }
+q-component counter-label {
+  q-property label: q-bind { return "Count: " + window.count; }
+  div { text { ${this.component.label} } }
 }
 ```
 
@@ -661,15 +670,6 @@ div {
 }
 
 box { text { outside } }    // unchanged (no alias in this scope)
-```
-
-`q-keyword` supports raw keyword heads, including assignment-style forms:
-
-```qhtml
-q-component my-comp {
-  q-keyword titleFrom { q-property title: q-bind }
-  titleFrom { return "hello" }
-}
 ```
 
 Invalid direct aliasing is rejected:
@@ -723,14 +723,8 @@ This dispatches a DOM `CustomEvent` named `menuItemClicked` with `event.detail.s
   }
 
   div {
-    onmenuItemClicked {
-      const id = (event.detail && event.detail.slots && event.detail.slots.itemId || [""])[0];
-      this.querySelector("#out").textContent = "Clicked: " + id;
-    }
-
-    button { text { A } onclick { menuItemClicked { itemId { A } } } }
-    button { text { B } onclick { menuItemClicked { itemId { B } } } }
-    p { id: "out" text { ... } }
+    menuItemClicked { itemId { A } }
+    p { text { signal-syntax-ok } }
   }
 </q-html>
 ```
@@ -815,18 +809,6 @@ host.update();
 
 host.qdom().deserialize(serialized, true);  // replace
 host.update();
-```
-
-### Read color schemas/themes from QDOM
-
-```js
-const root = document.querySelector("q-html").qdom();
-
-const panelBackground = root.qcolor("panel-background");
-console.log(panelBackground.value); // css property mapping (for example "background-color")
-
-const panel = root.qcolor("panel");
-console.log(panel.style()); // style declarations generated from theme values
 ```
 
 ### Scoped vs full updates
