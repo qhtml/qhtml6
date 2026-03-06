@@ -4043,8 +4043,64 @@
     if (!normalizedScope || typeof normalizedScope !== "object") {
       return null;
     }
-    if (normalizedScope.__qhtmlBindingComponentProxy && typeof normalizedScope.__qhtmlBindingComponentProxy === "object") {
-      return normalizedScope.__qhtmlBindingComponentProxy;
+    const bindingKey = binding && (typeof binding === "object" || typeof binding === "function") ? binding : null;
+    let perBindingProxyCache =
+      normalizedScope.__qhtmlBindingComponentProxyByBinding &&
+      typeof normalizedScope.__qhtmlBindingComponentProxyByBinding.get === "function"
+        ? normalizedScope.__qhtmlBindingComponentProxyByBinding
+        : null;
+    if (!perBindingProxyCache) {
+      perBindingProxyCache = new WeakMap();
+      try {
+        Object.defineProperty(normalizedScope, "__qhtmlBindingComponentProxyByBinding", {
+          value: perBindingProxyCache,
+          configurable: true,
+          writable: true,
+          enumerable: false,
+        });
+      } catch (error) {
+        normalizedScope.__qhtmlBindingComponentProxyByBinding = perBindingProxyCache;
+      }
+    }
+    if (bindingKey && perBindingProxyCache.has(bindingKey)) {
+      return perBindingProxyCache.get(bindingKey) || null;
+    }
+
+    function resolveScopedComponentHost() {
+      if (
+        bindingKey &&
+        bindingKey.componentHostBySourceNode &&
+        typeof bindingKey.componentHostBySourceNode.get === "function"
+      ) {
+        const mappedByScope = bindingKey.componentHostBySourceNode.get(normalizedScope);
+        if (mappedByScope && mappedByScope.nodeType === 1) {
+          return mappedByScope;
+        }
+      }
+      const mappedScopeElements = collectMappedDomElements(bindingKey, normalizedScope);
+      for (let i = 0; i < mappedScopeElements.length; i += 1) {
+        const candidate = mappedScopeElements[i];
+        if (!candidate || candidate.nodeType !== 1) {
+          continue;
+        }
+        if (
+          typeof candidate.getAttribute === "function" &&
+          candidate.getAttribute("qhtml-component-instance") === "1"
+        ) {
+          return candidate;
+        }
+      }
+      for (let i = 0; i < mappedScopeElements.length; i += 1) {
+        const candidate = mappedScopeElements[i];
+        if (!candidate || candidate.nodeType !== 1 || typeof candidate.closest !== "function") {
+          continue;
+        }
+        const closestHost = candidate.closest("[qhtml-component-instance='1']");
+        if (closestHost && closestHost.nodeType === 1) {
+          return closestHost;
+        }
+      }
+      return null;
     }
 
     const proxy = new Proxy({}, {
@@ -4053,6 +4109,18 @@
           return function bindingComponentScopeQdom() {
             return installQDomFactories(normalizedScope);
           };
+        }
+        const scopedHost = resolveScopedComponentHost();
+        if (scopedHost && scopedHost.nodeType === 1 && typeof prop === "string" && prop) {
+          const hostValue = scopedHost[prop];
+          if (typeof hostValue === "function") {
+            return function callScopedHostMethod() {
+              return hostValue.apply(scopedHost, arguments);
+            };
+          }
+          if (typeof hostValue !== "undefined") {
+            return hostValue;
+          }
         }
         const key = typeof prop === "string" ? prop : "";
         if (!key) {
@@ -4074,6 +4142,11 @@
         if (!key) {
           return true;
         }
+        const scopedHost = resolveScopedComponentHost();
+        if (scopedHost && scopedHost.nodeType === 1) {
+          scopedHost[key] = value;
+          return true;
+        }
         if (!normalizedScope.props || typeof normalizedScope.props !== "object") {
           normalizedScope.props = {};
         }
@@ -4082,15 +4155,8 @@
       },
     });
 
-    try {
-      Object.defineProperty(normalizedScope, "__qhtmlBindingComponentProxy", {
-        value: proxy,
-        configurable: true,
-        writable: true,
-        enumerable: false,
-      });
-    } catch (error) {
-      normalizedScope.__qhtmlBindingComponentProxy = proxy;
+    if (bindingKey) {
+      perBindingProxyCache.set(bindingKey, proxy);
     }
     return proxy;
   }
@@ -4256,6 +4322,10 @@
             if (componentHost) {
               return componentHost;
             }
+            const scopedHost = resolveBindingComponentHostElement(componentScopeNode, host);
+            if (scopedHost) {
+              return scopedHost;
+            }
             return createBindingComponentScopeProxy(binding, componentScopeNode);
           }
           if (prop === "closest") {
@@ -4311,10 +4381,15 @@
     }
     const attributes =
       sourceNode && sourceNode.attributes && typeof sourceNode.attributes === "object" ? sourceNode.attributes : null;
-    const componentHost = resolveBindingComponentHostElement(componentScopeNode, host);
+    function resolveContextComponentHost() {
+      const resolved = resolveBindingComponentHostElement(componentScopeNode, host);
+      if (resolved && resolved.nodeType === 1) {
+        return resolved;
+      }
+      return null;
+    }
     const context = {
       qhtmlRoot: host,
-      component: componentHost || createBindingComponentScopeProxy(binding, componentScopeNode),
       root: function bindingRootAccessor() {
         return host;
       },
@@ -4389,6 +4464,22 @@
         delete sourceNode.attributes[key];
       },
     };
+    Object.defineProperty(context, "component", {
+      configurable: true,
+      enumerable: true,
+      get: function getBindingContextComponent() {
+        const resolved = resolveContextComponentHost();
+        if (resolved) {
+          return resolved;
+        }
+        return createBindingComponentScopeProxy(binding, componentScopeNode);
+      },
+      set: function setBindingContextComponent(value) {
+        if (value && value.nodeType === 1) {
+          return;
+        }
+      },
+    });
     if (host) {
       context.document = host.ownerDocument || global.document || null;
     }
