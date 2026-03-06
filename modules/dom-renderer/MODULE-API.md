@@ -38,6 +38,11 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - `instance.name.disconnect(fn?)`
   - `instance.name.emit(...)`
 - Binds component alias declarations (`q-alias aliasName { return ... }`) onto host instances as computed properties (`instance.aliasName`).
+- Binds component wasm declarations (`q-wasm { ... }`) onto host instances as `instance.wasm` with:
+  - `ready` Promise
+  - `call(exportName, payload)`
+  - `terminate()`
+  - optional export→method and export→signal mappings from `bind { ... }`
 - Tracks ownership for slot routing and dynamic lookup in runtime.
 
 ## Failure behavior

@@ -22,9 +22,11 @@
 - Wires inline `on<Event>` handlers to rendered DOM nodes.
 - Registers valid `q-component` definitions as custom elements.
 - Hydrates component host elements and maintains component/slot context accessors in rendered DOM.
+- Initializes component-level `q-wasm` runtimes (worker-first, main-thread fallback) and exposes `this.component.wasm`.
 - Re-evaluates assignment bindings (`q-bind` and assignment-form `q-script`) before render and when `update()` is called on a mounted `<q-html>` host.
 - Guards `update()` against binding-driven re-entry loops with per-tick cycle/re-entry limits, aborting noisy recursive updates with a console error instead of spinning forever.
 - Exposes signal helpers for runtime dispatch (`emitQSignal` / `createQSignalEvent`).
+- Tears down active component wasm runtimes during scoped/full rerender and unmount.
 
 ## `.qdom()` model in runtime
 

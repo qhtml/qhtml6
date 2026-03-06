@@ -16,6 +16,7 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Added `q-style`, `q-style-class`, and `q-theme` support for merging and building complex stylesheets with advanced theming capabilities (see section on Styles and Themes).
 - Added `q-default-theme` for fallback theme layers. `q-default-theme` rules apply first, and conflicting `q-theme` rules override them.
 - `q-style`, `q-style-class`, and `q-theme` are actively evolving and may change in future releases.
+- Added component-level `q-wasm` for loading `.wasm` modules with method/signal bindings and worker-first execution.
 
 
 
@@ -442,6 +443,41 @@ q-component my-comp {
   q-property selected: true
 }
 ```
+
+### `q-wasm` syntax (component-level WebAssembly bridge)
+
+`q-wasm` is supported inside `q-component` and exposes `this.component.wasm` with:
+- `ready` (Promise)
+- `call(exportName, payload)`
+- `terminate()`
+
+```qhtml
+q-component wasm-card {
+  q-signal computed(result)
+
+  q-wasm {
+    src: "/wasm/demo.wasm"
+    mode: worker
+    awaitWasm: true
+    timeoutMs: 5000
+    maxPayloadBytes: 65536
+    exports { init compute }
+    bind {
+      compute -> method runCompute
+      compute -> signal computed
+    }
+  }
+
+  onReady {
+    this.component.wasm.ready.then(() => this.component.runCompute({ value: 7 }));
+  }
+}
+```
+
+Notes:
+- `q-wasm` is valid only inside `q-component`.
+- `mode: worker` is default; if worker mode cannot be used, runtime falls back to main thread.
+- `allowImports { ... }` is supported in main-thread mode.
 
 ### Bind a named child node to a component property (`property <name> { ... }`)
 

@@ -70,6 +70,7 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - Executes lifecycle scripts and inline `on<Event>` handler bodies with dynamic `Function` evaluation.
 - Executes `meta.qBindings` scripts (`q-bind` and assignment `q-script`) with `this` bound to each source QDom node before render/update.
 - Emits runtime signal events through `emitQSignal(...)` helpers.
+- Initializes/terminates component `q-wasm` sessions as component hosts are rendered, replaced, or unmounted.
 - Persists updated QDom into mapped sibling template nodes.
 - Emits/consumes DOM events and mutation observers.
 - Adds context helpers on DOM elements (`qhtmlRoot()`, `root()`, `component`, `slot`, `qdom`).

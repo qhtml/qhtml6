@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-03-05T12:37:06Z */
+/* generated: 2026-03-05T13:15:01Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -91,6 +91,10 @@
       this.methods = Array.isArray(opts.methods) ? opts.methods : [];
       this.signalDeclarations = Array.isArray(opts.signalDeclarations) ? opts.signalDeclarations : [];
       this.aliasDeclarations = Array.isArray(opts.aliasDeclarations) ? opts.aliasDeclarations : [];
+      this.wasmConfig =
+        opts.wasmConfig && typeof opts.wasmConfig === "object" && !Array.isArray(opts.wasmConfig)
+          ? Object.assign({}, opts.wasmConfig)
+          : null;
       this.lifecycleScripts = Array.isArray(opts.lifecycleScripts) ? opts.lifecycleScripts : [];
       this.attributes = Object.assign({}, opts.attributes || {});
       this.properties = Array.isArray(opts.properties) ? opts.properties.slice() : [];
@@ -767,6 +771,11 @@
         methods: reviveQDomTree(Array.isArray(value.methods) ? value.methods : []),
         signalDeclarations: reviveQDomTree(Array.isArray(value.signalDeclarations) ? value.signalDeclarations : []),
         aliasDeclarations: reviveQDomTree(Array.isArray(value.aliasDeclarations) ? value.aliasDeclarations : []),
+        wasmConfig: reviveQDomTree(
+          value.wasmConfig && typeof value.wasmConfig === "object" && !Array.isArray(value.wasmConfig)
+            ? value.wasmConfig
+            : null
+        ),
         lifecycleScripts: reviveQDomTree(Array.isArray(value.lifecycleScripts) ? value.lifecycleScripts : []),
         attributes: reviveQDomTree(value.attributes || {}),
         properties: reviveQDomTree(Array.isArray(value.properties) ? value.properties : []),
@@ -1184,6 +1193,7 @@
     "q-property",
     "q-signal",
     "q-alias",
+    "q-wasm",
     "q-style",
     "q-style-class",
     "q-theme",
@@ -1197,6 +1207,233 @@
     "text",
     "html",
   ]);
+
+  function normalizeWasmMode(value) {
+    const mode = String(value || "").trim().toLowerCase();
+    if (mode === "main" || mode === "main-thread" || mode === "mainthread") {
+      return "main";
+    }
+    if (mode === "worker" || mode === "worker-thread" || mode === "workerthread") {
+      return "worker";
+    }
+    return "";
+  }
+
+  function parseWasmBoolean(value) {
+    const text = String(value || "").trim().toLowerCase();
+    if (!text) {
+      return null;
+    }
+    if (text === "true" || text === "1" || text === "yes" || text === "on") {
+      return true;
+    }
+    if (text === "false" || text === "0" || text === "no" || text === "off") {
+      return false;
+    }
+    return null;
+  }
+
+  function parseWasmPositiveInteger(value) {
+    const parsed = Number(String(value || "").trim());
+    if (!Number.isFinite(parsed)) {
+      return null;
+    }
+    const rounded = Math.floor(parsed);
+    if (rounded < 0) {
+      return null;
+    }
+    return rounded;
+  }
+
+  function parseQWasmBindingRules(rawBody) {
+    const parser = parserFor(String(rawBody || ""));
+    const out = [];
+    const seen = new Set();
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+
+      const exportName = parseQColorIdentifier(parser, "q-wasm bind");
+      skipWhitespace(parser);
+      if (!(peek(parser) === "-" && peek(parser, 1) === ">")) {
+        throw ParseError("Expected '->' inside q-wasm bind block", parser.index);
+      }
+      parser.index += 2;
+
+      skipWhitespace(parser);
+      const targetType = String(parseIdentifier(parser) || "").trim().toLowerCase();
+      if (targetType !== "method" && targetType !== "signal") {
+        throw ParseError("q-wasm bind target must be 'method' or 'signal'", parser.index);
+      }
+
+      skipWhitespace(parser);
+      const targetName = String(parseIdentifier(parser) || "").trim();
+      if (!targetName) {
+        throw ParseError("Expected target name in q-wasm bind block", parser.index);
+      }
+
+      skipInlineWhitespace(parser);
+      const trailing = parseBareValue(parser);
+      if (String(trailing || "").trim()) {
+        throw ParseError("Unexpected trailing content in q-wasm bind entry", parser.index);
+      }
+
+      const dedupeKey = exportName.toLowerCase() + "::" + targetType + "::" + targetName.toLowerCase();
+      if (!seen.has(dedupeKey)) {
+        seen.add(dedupeKey);
+        out.push({
+          exportName: exportName,
+          targetType: targetType,
+          targetName: targetName,
+        });
+      }
+
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+      }
+    }
+    return out;
+  }
+
+  function parseQWasmConfig(rawBody, keywordAliases) {
+    const parser = parserFor(String(rawBody || ""));
+    const config = {
+      src: "",
+      mode: "",
+      awaitWasm: null,
+      timeoutMs: null,
+      maxPayloadBytes: null,
+      exports: [],
+      allowImports: [],
+      bind: [],
+    };
+    const seen = {
+      exports: new Set(),
+      allowImports: new Set(),
+      bind: new Set(),
+    };
+
+    function pushUnique(list, set, value) {
+      const entry = String(value || "").trim();
+      const key = entry.toLowerCase();
+      if (!entry || set.has(key)) {
+        return;
+      }
+      set.add(key);
+      list.push(entry);
+    }
+
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+      const key = String(parseIdentifier(parser) || "").trim();
+      const keyLower = key.toLowerCase();
+      skipWhitespace(parser);
+
+      if ((keyLower === "exports" || keyLower === "allowimports" || keyLower === "bind") && peek(parser) === "{") {
+        consume(parser);
+        const blockBody = String(readBalancedBlockContent(parser) || "");
+        if (keyLower === "exports") {
+          const names = parseQPropertyNames(blockBody);
+          for (let i = 0; i < names.length; i += 1) {
+            pushUnique(config.exports, seen.exports, names[i]);
+          }
+        } else if (keyLower === "allowimports") {
+          const names = parseQPropertyNames(blockBody);
+          for (let i = 0; i < names.length; i += 1) {
+            pushUnique(config.allowImports, seen.allowImports, names[i]);
+          }
+        } else {
+          const bindings = parseQWasmBindingRules(blockBody);
+          for (let i = 0; i < bindings.length; i += 1) {
+            const entry = bindings[i];
+            if (!entry || typeof entry !== "object") {
+              continue;
+            }
+            const dedupeKey =
+              String(entry.exportName || "").toLowerCase() +
+              "::" +
+              String(entry.targetType || "").toLowerCase() +
+              "::" +
+              String(entry.targetName || "").toLowerCase();
+            if (!dedupeKey || seen.bind.has(dedupeKey)) {
+              continue;
+            }
+            seen.bind.add(dedupeKey);
+            config.bind.push({
+              exportName: String(entry.exportName || ""),
+              targetType: String(entry.targetType || ""),
+              targetName: String(entry.targetName || ""),
+            });
+          }
+        }
+        continue;
+      }
+
+      if (peek(parser) !== ":") {
+        throw ParseError("Expected ':' or '{...}' inside q-wasm", parser.index);
+      }
+      consume(parser);
+      const rawValue = parseValue(parser, keywordAliases);
+      const value = String(coercePropertyValue(rawValue) || "").trim();
+
+      if (keyLower === "src") {
+        config.src = value;
+      } else if (keyLower === "mode") {
+        config.mode = normalizeWasmMode(value);
+      } else if (keyLower === "awaitwasm") {
+        config.awaitWasm = parseWasmBoolean(value);
+      } else if (keyLower === "timeoutms") {
+        config.timeoutMs = parseWasmPositiveInteger(value);
+      } else if (keyLower === "maxpayloadbytes") {
+        config.maxPayloadBytes = parseWasmPositiveInteger(value);
+      } else if (keyLower === "exports") {
+        const names = parseQPropertyNames(value);
+        for (let i = 0; i < names.length; i += 1) {
+          pushUnique(config.exports, seen.exports, names[i]);
+        }
+      } else if (keyLower === "allowimports") {
+        const names = parseQPropertyNames(value);
+        for (let i = 0; i < names.length; i += 1) {
+          pushUnique(config.allowImports, seen.allowImports, names[i]);
+        }
+      } else if (keyLower === "bind") {
+        const bindings = parseQWasmBindingRules(value);
+        for (let i = 0; i < bindings.length; i += 1) {
+          const entry = bindings[i];
+          if (!entry || typeof entry !== "object") {
+            continue;
+          }
+          const dedupeKey =
+            String(entry.exportName || "").toLowerCase() +
+            "::" +
+            String(entry.targetType || "").toLowerCase() +
+            "::" +
+            String(entry.targetName || "").toLowerCase();
+          if (!dedupeKey || seen.bind.has(dedupeKey)) {
+            continue;
+          }
+          seen.bind.add(dedupeKey);
+          config.bind.push({
+            exportName: String(entry.exportName || ""),
+            targetType: String(entry.targetType || ""),
+            targetName: String(entry.targetName || ""),
+          });
+        }
+      }
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+      }
+    }
+
+    return config;
+  }
 
   function ParseError(message, index) {
     const error = new Error(message + " (at index " + index + ")");
@@ -2981,6 +3218,20 @@
             items.push({
               type: "QScriptInline",
               script: scriptBody,
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
+          if (nameLower === "q-wasm") {
+            consume(parser);
+            const wasmBody = readBalancedBlockContent(parser);
+            items.push({
+              type: "QWasmBlock",
+              config: parseQWasmConfig(wasmBody, scopedKeywordAliases),
               keywords: keywordSnapshot,
               start: itemStart,
               end: parser.index,
@@ -7969,6 +8220,9 @@
         registerQColorThemeItem(colorContext, item);
         continue;
       }
+      if (item.type === "QWasmBlock") {
+        throw new Error("q-wasm is only valid inside q-component definitions.");
+      }
       if (item.type === "Property") {
         applyPropertyToElement(targetElement, item);
       } else if (item.type === "HtmlBlock") {
@@ -8161,6 +8415,7 @@
     const methods = [];
     const signalDeclarations = [];
     const aliasDeclarations = [];
+    let wasmConfig = null;
     const lifecycleScripts = [];
     const definitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
     let componentId = String(opts.componentId || "").trim();
@@ -8332,6 +8587,29 @@
         }
         continue;
       }
+      if (item.type === "QWasmBlock") {
+        if (definitionType !== "component") {
+          throw new Error("q-wasm is only valid inside q-component definitions.");
+        }
+        const parsed =
+          item.config && typeof item.config === "object" && !Array.isArray(item.config)
+            ? item.config
+            : parseQWasmConfig("", null);
+        const exportList = Array.isArray(parsed.exports) ? parsed.exports.slice() : [];
+        const allowImportsList = Array.isArray(parsed.allowImports) ? parsed.allowImports.slice() : [];
+        const bindList = Array.isArray(parsed.bind) ? parsed.bind.slice() : [];
+        wasmConfig = {
+          src: String(parsed.src || "").trim(),
+          mode: String(parsed.mode || "").trim(),
+          awaitWasm: typeof parsed.awaitWasm === "boolean" ? parsed.awaitWasm : null,
+          timeoutMs: Number.isFinite(parsed.timeoutMs) ? Number(parsed.timeoutMs) : null,
+          maxPayloadBytes: Number.isFinite(parsed.maxPayloadBytes) ? Number(parsed.maxPayloadBytes) : null,
+          exports: exportList,
+          allowImports: allowImportsList,
+          bind: bindList,
+        };
+        continue;
+      }
       if (item.type === "EventBlock" && item.isLifecycle) {
         if (definitionType === "component") {
           lifecycleScripts.push({
@@ -8355,6 +8633,7 @@
       propertyDefinitions: propertyDefinitions,
       signalDeclarations: signalDeclarations,
       aliasDeclarations: aliasDeclarations,
+      wasmConfig: wasmConfig,
       lifecycleScripts: lifecycleScripts,
       attributes: componentAttributes,
       properties: componentProperties,
@@ -8613,6 +8892,10 @@
       return textNode;
     }
 
+    if (item.type === "QWasmBlock") {
+      throw new Error("q-wasm is only valid inside q-component definitions.");
+    }
+
     return null;
   }
 
@@ -8694,6 +8977,9 @@
       if (item.type === "QColorThemeDefinition") {
         registerQColorThemeItem(conversionContext.qColors, item);
         continue;
+      }
+      if (item.type === "QWasmBlock") {
+        throw new Error("q-wasm is only valid inside q-component definitions.");
       }
       {
         const namedTheme = resolveNamedQThemeInvocation(item, conversionContext.qStyles);
@@ -8852,6 +9138,60 @@
       for (let i = 0; i < chunks.length; i += 1) {
         lines.push(indent + "  " + chunks[i]);
       }
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
+  function serializeWasmConfigBlock(wasmConfig, indentLevel) {
+    const config =
+      wasmConfig && typeof wasmConfig === "object" && !Array.isArray(wasmConfig)
+        ? wasmConfig
+        : null;
+    if (!config) {
+      return "";
+    }
+    const indent = "  ".repeat(indentLevel);
+    const lines = [indent + "q-wasm {"];
+    const src = String(config.src || "").trim();
+    if (src) {
+      lines.push(indent + "  src: " + src);
+    }
+    const mode = String(config.mode || "").trim();
+    if (mode) {
+      lines.push(indent + "  mode: " + mode);
+    }
+    if (typeof config.awaitWasm === "boolean") {
+      lines.push(indent + "  awaitWasm: " + (config.awaitWasm ? "true" : "false"));
+    }
+    if (Number.isFinite(config.timeoutMs)) {
+      lines.push(indent + "  timeoutMs: " + String(Math.max(0, Math.floor(Number(config.timeoutMs)))));
+    }
+    if (Number.isFinite(config.maxPayloadBytes)) {
+      lines.push(indent + "  maxPayloadBytes: " + String(Math.max(0, Math.floor(Number(config.maxPayloadBytes)))));
+    }
+    const exportsList = Array.isArray(config.exports) ? config.exports : [];
+    if (exportsList.length > 0) {
+      lines.push(indent + "  exports { " + exportsList.join(" ") + " }");
+    }
+    const allowImportsList = Array.isArray(config.allowImports) ? config.allowImports : [];
+    if (allowImportsList.length > 0) {
+      lines.push(indent + "  allowImports { " + allowImportsList.join(" ") + " }");
+    }
+    const bindList = Array.isArray(config.bind) ? config.bind : [];
+    if (bindList.length > 0) {
+      lines.push(indent + "  bind {");
+      for (let i = 0; i < bindList.length; i += 1) {
+        const entry = bindList[i] || {};
+        const exportName = String(entry.exportName || "").trim();
+        const targetType = String(entry.targetType || "").trim();
+        const targetName = String(entry.targetName || "").trim();
+        if (!exportName || !targetType || !targetName) {
+          continue;
+        }
+        lines.push(indent + "    " + exportName + " -> " + targetType + " " + targetName);
+      }
+      lines.push(indent + "  }");
     }
     lines.push(indent + "}");
     return lines.join("\n");
@@ -9024,6 +9364,10 @@
               lines.push(serializedAliasDeclaration);
             }
           }
+        }
+        const serializedWasmConfig = serializeWasmConfigBlock(node.wasmConfig, indentLevel + 1);
+        if (serializedWasmConfig) {
+          lines.push(serializedWasmConfig);
         }
         for (let i = 0; i < node.methods.length; i += 1) {
           lines.push(serializeFunctionBlock(node.methods[i], indentLevel + 1));
@@ -9334,9 +9678,13 @@
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
   const INLINE_REFERENCE_PATTERN = /\$\{\s*([^}]+?)\s*\}/g;
   const INLINE_REFERENCE_ESCAPE_TOKEN = "__QHTML_ESCAPED_INLINE_REF__";
+  const WASM_DEFAULT_TIMEOUT_MS = 15000;
+  const WASM_DEFAULT_MAX_PAYLOAD_BYTES = 1024 * 1024;
   let qdomInstanceCounter = 0;
   const qdomInstanceIds = new WeakMap();
   const qdomSlotOwnerIds = new WeakMap();
+  let wasmWorkerScriptUrl = null;
+  let wasmCallSequence = 0;
 
   function cloneNodeDeep(node) {
     if (!node || typeof node !== "object") {
@@ -9468,6 +9816,539 @@
         applyRuntimeThemeRuleToElement(targets[ti], rule);
       }
     }
+  }
+
+  function resolveWasmResourceUrl(src, hostElement) {
+    const value = String(src || "").trim();
+    if (!value) {
+      return "";
+    }
+    const doc = hostElement && hostElement.ownerDocument ? hostElement.ownerDocument : global.document;
+    const base = doc && typeof doc.baseURI === "string" ? doc.baseURI : String(global.location && global.location.href || "");
+    try {
+      return new URL(value, base || undefined).toString();
+    } catch (error) {
+      return value;
+    }
+  }
+
+  function normalizeWasmConfig(rawConfig) {
+    if (!rawConfig || typeof rawConfig !== "object" || Array.isArray(rawConfig)) {
+      return null;
+    }
+    const src = String(rawConfig.src || "").trim();
+    if (!src) {
+      return null;
+    }
+    const modeRaw = String(rawConfig.mode || "").trim().toLowerCase();
+    const mode =
+      modeRaw === "main" || modeRaw === "main-thread" || modeRaw === "mainthread"
+        ? "main"
+        : modeRaw === "worker" || modeRaw === "worker-thread" || modeRaw === "workerthread"
+          ? "worker"
+          : "worker";
+    const awaitWasm = rawConfig.awaitWasm === true;
+    const timeoutMsRaw = Number(rawConfig.timeoutMs);
+    const timeoutMs =
+      Number.isFinite(timeoutMsRaw) && timeoutMsRaw > 0
+        ? Math.max(1, Math.floor(timeoutMsRaw))
+        : WASM_DEFAULT_TIMEOUT_MS;
+    const maxPayloadRaw = Number(rawConfig.maxPayloadBytes);
+    const maxPayloadBytes =
+      Number.isFinite(maxPayloadRaw) && maxPayloadRaw > 0
+        ? Math.max(1, Math.floor(maxPayloadRaw))
+        : WASM_DEFAULT_MAX_PAYLOAD_BYTES;
+
+    const exports = [];
+    const exportNames = new Set();
+    const exportList = Array.isArray(rawConfig.exports) ? rawConfig.exports : [];
+    for (let i = 0; i < exportList.length; i += 1) {
+      const name = String(exportList[i] || "").trim();
+      const key = name.toLowerCase();
+      if (!name || exportNames.has(key)) {
+        continue;
+      }
+      exportNames.add(key);
+      exports.push(name);
+    }
+
+    const allowImports = [];
+    const allowImportSet = new Set();
+    const importList = Array.isArray(rawConfig.allowImports) ? rawConfig.allowImports : [];
+    for (let i = 0; i < importList.length; i += 1) {
+      const name = String(importList[i] || "").trim();
+      const key = name.toLowerCase();
+      if (!name || allowImportSet.has(key)) {
+        continue;
+      }
+      allowImportSet.add(key);
+      allowImports.push(name);
+    }
+
+    const bind = [];
+    const bindSet = new Set();
+    const bindList = Array.isArray(rawConfig.bind) ? rawConfig.bind : [];
+    for (let i = 0; i < bindList.length; i += 1) {
+      const entry = bindList[i];
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const exportName = String(entry.exportName || "").trim();
+      const targetType = String(entry.targetType || "").trim().toLowerCase();
+      const targetName = String(entry.targetName || "").trim();
+      if (!exportName || !targetName || (targetType !== "method" && targetType !== "signal")) {
+        continue;
+      }
+      const key = exportName.toLowerCase() + "::" + targetType + "::" + targetName.toLowerCase();
+      if (bindSet.has(key)) {
+        continue;
+      }
+      bindSet.add(key);
+      bind.push({
+        exportName: exportName,
+        targetType: targetType,
+        targetName: targetName,
+      });
+    }
+
+    return {
+      src: src,
+      mode: mode,
+      awaitWasm: awaitWasm,
+      timeoutMs: timeoutMs,
+      maxPayloadBytes: maxPayloadBytes,
+      exports: exports,
+      exportNames: exportNames,
+      allowImports: allowImports,
+      bind: bind,
+    };
+  }
+
+  function buildWasmBindingMaps(bindEntries) {
+    const methodBindings = [];
+    const signalBindingsByExport = new Map();
+    const list = Array.isArray(bindEntries) ? bindEntries : [];
+    for (let i = 0; i < list.length; i += 1) {
+      const entry = list[i];
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const exportName = String(entry.exportName || "").trim();
+      const exportKey = exportName.toLowerCase();
+      const targetType = String(entry.targetType || "").trim().toLowerCase();
+      const targetName = String(entry.targetName || "").trim();
+      if (!exportName || !exportKey || !targetName) {
+        continue;
+      }
+      if (targetType === "method") {
+        methodBindings.push({
+          exportName: exportName,
+          exportKey: exportKey,
+          targetName: targetName,
+        });
+        continue;
+      }
+      if (targetType === "signal") {
+        if (!signalBindingsByExport.has(exportKey)) {
+          signalBindingsByExport.set(exportKey, []);
+        }
+        signalBindingsByExport.get(exportKey).push(targetName);
+      }
+    }
+    return {
+      methodBindings: methodBindings,
+      signalBindingsByExport: signalBindingsByExport,
+    };
+  }
+
+  function resolveGlobalFunction(path) {
+    const input = String(path || "").trim();
+    if (!input) {
+      return null;
+    }
+    if (typeof global[input] === "function") {
+      return global[input];
+    }
+    const segments = input.split(".");
+    let cursor = global;
+    for (let i = 0; i < segments.length; i += 1) {
+      const part = String(segments[i] || "").trim();
+      if (!part || cursor == null) {
+        return null;
+      }
+      cursor = cursor[part];
+    }
+    return typeof cursor === "function" ? cursor : null;
+  }
+
+  function buildWasmImports(allowedImportNames) {
+    const imports = {
+      env: {},
+    };
+    const names = Array.isArray(allowedImportNames) ? allowedImportNames : [];
+    for (let i = 0; i < names.length; i += 1) {
+      const name = String(names[i] || "").trim();
+      if (!name) {
+        continue;
+      }
+      const fn = resolveGlobalFunction(name);
+      if (typeof fn !== "function") {
+        continue;
+      }
+      imports.env[name] = function qhtmlWasmImportedFunctionProxy() {
+        return fn.apply(global, arguments);
+      };
+    }
+    return imports;
+  }
+
+  function normalizeWasmResult(rawValue) {
+    if (typeof rawValue === "string") {
+      const trimmed = rawValue.trim();
+      if (!trimmed) {
+        return "";
+      }
+      try {
+        return JSON.parse(trimmed);
+      } catch (error) {
+        return rawValue;
+      }
+    }
+    return rawValue;
+  }
+
+  function measureUtf8Bytes(input) {
+    const text = String(input || "");
+    if (typeof global.TextEncoder === "function") {
+      try {
+        return new global.TextEncoder().encode(text).length;
+      } catch (error) {
+        return text.length;
+      }
+    }
+    return text.length;
+  }
+
+  function withWasmTimeout(promise, timeoutMs, label) {
+    const timeout = Number(timeoutMs);
+    if (!Number.isFinite(timeout) || timeout <= 0 || typeof global.setTimeout !== "function") {
+      return promise;
+    }
+    return new Promise(function wrapTimeout(resolve, reject) {
+      let settled = false;
+      const timer = global.setTimeout(function onTimeout() {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        reject(new Error(String(label || "WASM operation") + " timed out after " + String(timeout) + "ms."));
+      }, timeout);
+      promise.then(
+        function onResolve(value) {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          if (typeof global.clearTimeout === "function") {
+            global.clearTimeout(timer);
+          }
+          resolve(value);
+        },
+        function onReject(error) {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          if (typeof global.clearTimeout === "function") {
+            global.clearTimeout(timer);
+          }
+          reject(error);
+        }
+      );
+    });
+  }
+
+  function createMainThreadWasmSession(config) {
+    let instanceExports = null;
+    const readyPromise = Promise.resolve().then(function loadWasmInMainThread() {
+      if (!global.WebAssembly || typeof global.WebAssembly.instantiate !== "function") {
+        throw new Error("WebAssembly is not available in this environment.");
+      }
+      if (typeof global.fetch !== "function") {
+        throw new Error("fetch is not available for q-wasm loading.");
+      }
+      return global.fetch(config.src).then(function parseFetchResponse(response) {
+        const status = Number(response && typeof response.status !== "undefined" ? response.status : 200);
+        const ok = !!response && (response.ok === true || (status >= 200 && status < 300) || status === 0);
+        if (!ok) {
+          throw new Error("q-wasm load failed for '" + config.src + "' (status " + status + ").");
+        }
+        if (typeof response.arrayBuffer !== "function") {
+          throw new Error("q-wasm load failed for '" + config.src + "': arrayBuffer() is unavailable.");
+        }
+        return response.arrayBuffer();
+      }).then(function instantiate(buffer) {
+        return global.WebAssembly.instantiate(buffer, buildWasmImports(config.allowImports));
+      }).then(function onInstantiated(result) {
+        const instance = result && result.instance ? result.instance : result;
+        if (!instance || !instance.exports || typeof instance.exports !== "object") {
+          throw new Error("q-wasm instantiate failed for '" + config.src + "': missing exports.");
+        }
+        instanceExports = instance.exports;
+        return true;
+      });
+    });
+
+    function invoke(exportName, payloadJson) {
+      return withWasmTimeout(
+        readyPromise.then(function invokeLoadedWasm() {
+          const key = String(exportName || "").trim();
+          const fn = instanceExports && typeof instanceExports[key] === "function" ? instanceExports[key] : null;
+          if (!fn) {
+            throw new Error("q-wasm export '" + key + "' is missing in " + config.src + ".");
+          }
+          let result;
+          if (fn.length <= 0) {
+            result = fn();
+          } else if (fn.length === 1) {
+            result = fn(payloadJson);
+          } else {
+            result = fn(payloadJson, String(payloadJson || "").length);
+          }
+          if (result && typeof result.then === "function") {
+            return result;
+          }
+          return result;
+        }),
+        config.timeoutMs,
+        "q-wasm call '" + String(exportName || "").trim() + "'"
+      );
+    }
+
+    return {
+      mode: "main",
+      ready: withWasmTimeout(readyPromise, config.timeoutMs, "q-wasm init"),
+      invoke: invoke,
+      terminate: function terminateMainThreadWasmSession() {
+        instanceExports = null;
+      },
+    };
+  }
+
+  function getOrCreateWasmWorkerScriptUrl() {
+    if (wasmWorkerScriptUrl) {
+      return wasmWorkerScriptUrl;
+    }
+    if (typeof global.URL === "undefined" || typeof global.URL.createObjectURL !== "function" || typeof global.Blob !== "function") {
+      return "";
+    }
+    const source = [
+      "let __qhtmlWasmExports = null;",
+      "self.onmessage = async function(event){",
+      "  const message = event && event.data ? event.data : {};",
+      "  const type = String(message.type || '').trim();",
+      "  try {",
+      "    if (type === 'init') {",
+      "      const config = message.config || {};",
+      "      if (typeof fetch !== 'function') { throw new Error('fetch is unavailable in worker.'); }",
+      "      if (!self.WebAssembly || typeof self.WebAssembly.instantiate !== 'function') { throw new Error('WebAssembly is unavailable in worker.'); }",
+      "      const response = await fetch(String(config.src || ''));",
+      "      const status = Number(typeof response.status !== 'undefined' ? response.status : 200);",
+      "      const ok = response && (response.ok === true || (status >= 200 && status < 300) || status === 0);",
+      "      if (!ok) { throw new Error(\"q-wasm load failed (status \" + status + \")\"); }",
+      "      const bytes = await response.arrayBuffer();",
+      "      const instantiated = await self.WebAssembly.instantiate(bytes, { env: {} });",
+      "      const instance = instantiated && instantiated.instance ? instantiated.instance : instantiated;",
+      "      __qhtmlWasmExports = instance && instance.exports ? instance.exports : null;",
+      "      if (!__qhtmlWasmExports) { throw new Error('q-wasm instantiate produced no exports.'); }",
+      "      self.postMessage({ type: 'ready' });",
+      "      return;",
+      "    }",
+      "    if (type === 'terminate') {",
+      "      __qhtmlWasmExports = null;",
+      "      self.postMessage({ type: 'terminated' });",
+      "      close();",
+      "      return;",
+      "    }",
+      "    if (type === 'call') {",
+      "      if (!__qhtmlWasmExports) { throw new Error('q-wasm session is not initialized.'); }",
+      "      const id = message.id;",
+      "      const exportName = String(message.exportName || '').trim();",
+      "      const fn = __qhtmlWasmExports[exportName];",
+      "      if (typeof fn !== 'function') { throw new Error(\"q-wasm export '\" + exportName + \"' is missing.\"); }",
+      "      const payload = String(message.payload == null ? '' : message.payload);",
+      "      let result;",
+      "      if (fn.length <= 0) {",
+      "        result = fn();",
+      "      } else if (fn.length === 1) {",
+      "        result = fn(payload);",
+      "      } else {",
+      "        result = fn(payload, payload.length);",
+      "      }",
+      "      if (result && typeof result.then === 'function') {",
+      "        result = await result;",
+      "      }",
+      "      if (typeof result === 'bigint') {",
+      "        result = String(result);",
+      "      }",
+      "      self.postMessage({ type: 'result', id: id, result: result });",
+      "      return;",
+      "    }",
+      "  } catch (error) {",
+      "    self.postMessage({ type: 'error', id: message.id, error: error && error.message ? error.message : String(error) });",
+      "  }",
+      "};",
+    ].join("\n");
+    wasmWorkerScriptUrl = global.URL.createObjectURL(
+      new global.Blob([source], {
+        type: "application/javascript",
+      })
+    );
+    return wasmWorkerScriptUrl;
+  }
+
+  function createWorkerWasmSession(config) {
+    if (typeof global.Worker !== "function") {
+      throw new Error("Worker is not available for q-wasm.");
+    }
+    const scriptUrl = getOrCreateWasmWorkerScriptUrl();
+    if (!scriptUrl) {
+      throw new Error("Unable to initialize q-wasm worker script.");
+    }
+    const worker = new global.Worker(scriptUrl);
+    const pending = new Map();
+    let terminated = false;
+    let readyResolve;
+    let readyReject;
+    const readyPromise = new Promise(function captureReady(resolve, reject) {
+      readyResolve = resolve;
+      readyReject = reject;
+    });
+
+    function rejectPending(errorMessage) {
+      pending.forEach(function rejectEntry(entry) {
+        if (!entry || typeof entry.reject !== "function") {
+          return;
+        }
+        entry.reject(new Error(errorMessage));
+      });
+      pending.clear();
+    }
+
+    worker.onmessage = function onWorkerMessage(event) {
+      const message = event && event.data ? event.data : {};
+      const type = String(message.type || "").trim();
+      if (type === "ready") {
+        if (typeof readyResolve === "function") {
+          readyResolve(true);
+        }
+        return;
+      }
+      if (type === "error") {
+        const id = message.id;
+        if (typeof id !== "undefined" && pending.has(id)) {
+          const pendingEntry = pending.get(id);
+          pending.delete(id);
+          if (pendingEntry && typeof pendingEntry.reject === "function") {
+            pendingEntry.reject(new Error(String(message.error || "q-wasm worker call failed.")));
+          }
+          return;
+        }
+        if (typeof readyReject === "function") {
+          readyReject(new Error(String(message.error || "q-wasm worker init failed.")));
+        }
+        rejectPending(String(message.error || "q-wasm worker failure."));
+        return;
+      }
+      if (type === "result") {
+        const id = message.id;
+        if (!pending.has(id)) {
+          return;
+        }
+        const pendingEntry = pending.get(id);
+        pending.delete(id);
+        if (pendingEntry && typeof pendingEntry.resolve === "function") {
+          pendingEntry.resolve(message.result);
+        }
+      }
+    };
+
+    worker.onerror = function onWorkerError(event) {
+      const message = event && event.message ? event.message : "q-wasm worker crashed.";
+      if (typeof readyReject === "function") {
+        readyReject(new Error(String(message)));
+      }
+      rejectPending(String(message));
+    };
+
+    worker.postMessage({
+      type: "init",
+      config: {
+        src: config.src,
+      },
+    });
+
+    function invoke(exportName, payloadJson) {
+      if (terminated) {
+        return Promise.reject(new Error("q-wasm worker session is terminated."));
+      }
+      return withWasmTimeout(
+        withWasmTimeout(readyPromise, config.timeoutMs, "q-wasm init").then(function callWorkerAfterReady() {
+          wasmCallSequence += 1;
+          const id = "qwasm-call-" + String(wasmCallSequence);
+          return new Promise(function awaitWorkerResponse(resolve, reject) {
+            pending.set(id, {
+              resolve: resolve,
+              reject: reject,
+            });
+            worker.postMessage({
+              type: "call",
+              id: id,
+              exportName: String(exportName || "").trim(),
+              payload: String(payloadJson == null ? "" : payloadJson),
+            });
+          });
+        }),
+        config.timeoutMs,
+        "q-wasm call '" + String(exportName || "").trim() + "'"
+      );
+    }
+
+    return {
+      mode: "worker",
+      ready: withWasmTimeout(readyPromise, config.timeoutMs, "q-wasm init"),
+      invoke: invoke,
+      terminate: function terminateWorkerWasmSession() {
+        if (terminated) {
+          return;
+        }
+        terminated = true;
+        rejectPending("q-wasm worker session terminated.");
+        try {
+          worker.postMessage({
+            type: "terminate",
+          });
+        } catch (error) {
+          // no-op
+        }
+        if (typeof worker.terminate === "function") {
+          worker.terminate();
+        }
+      },
+    };
+  }
+
+  function createWasmSession(config) {
+    const supportsWorker = typeof global.Worker === "function";
+    if (config.mode === "worker" && supportsWorker && (!Array.isArray(config.allowImports) || config.allowImports.length === 0)) {
+      return createWorkerWasmSession(config);
+    }
+    if (config.mode === "worker" && Array.isArray(config.allowImports) && config.allowImports.length > 0) {
+      if (global.console && typeof global.console.warn === "function") {
+        global.console.warn("qhtml q-wasm warning: allowImports requires main-thread mode; falling back to main.");
+      }
+    }
+    return createMainThreadWasmSession(config);
   }
 
   function sourceNodeOf(node) {
@@ -10249,8 +11130,32 @@
       return;
     }
 
+    const wasmConfig = normalizeWasmConfig(componentNode.wasmConfig);
+    const awaitWasm = !!(wasmConfig && wasmConfig.awaitWasm === true);
+    const wasmReadyPromise =
+      awaitWasm &&
+      hostElement &&
+      hostElement.wasm &&
+      hostElement.wasm.ready &&
+      typeof hostElement.wasm.ready.then === "function"
+        ? hostElement.wasm.ready
+        : null;
+
     for (let i = 0; i < componentNode.lifecycleScripts.length; i += 1) {
       const hook = componentNode.lifecycleScripts[i];
+      if (wasmReadyPromise && isOnReadyHook(hook)) {
+        wasmReadyPromise
+          .then(function deferOnReadyUntilWasmReady() {
+            runLifecycleHookMaybeDeferred(hook, hostElement, targetDocument, "qhtml component lifecycle hook failed:");
+          })
+          .catch(function onWasmReadyError(error) {
+            if (global.console && typeof global.console.error === "function") {
+              global.console.error("qhtml q-wasm init failed before onReady:", error);
+            }
+            runLifecycleHookMaybeDeferred(hook, hostElement, targetDocument, "qhtml component lifecycle hook failed:");
+          });
+        continue;
+      }
       runLifecycleHookMaybeDeferred(hook, hostElement, targetDocument, "qhtml component lifecycle hook failed:");
     }
   }
@@ -10303,6 +11208,184 @@
       if (global.console && typeof global.console.error === "function") {
         global.console.error("qhtml named signal dispatch failed for '" + signalName + "':", error);
       }
+    }
+  }
+
+  function emitWasmMappedSignals(componentNode, hostElement, signalBindingsByExport, exportName, args, result) {
+    const exportKey = String(exportName || "").trim().toLowerCase();
+    if (!exportKey || !(signalBindingsByExport instanceof Map) || !signalBindingsByExport.has(exportKey)) {
+      return;
+    }
+    const signalNames = signalBindingsByExport.get(exportKey) || [];
+    const componentId = String(componentNode && (componentNode.componentId || hostElement.tagName) || "").trim().toLowerCase();
+    for (let i = 0; i < signalNames.length; i += 1) {
+      const signalName = String(signalNames[i] || "").trim();
+      if (!signalName) {
+        continue;
+      }
+      const payload = {
+        type: "signal",
+        signal: signalName,
+        component: componentId,
+        signalId: signalName,
+        source: "wasm",
+        exportName: String(exportName || ""),
+        args: [result],
+        params: {
+          result: result,
+          exportName: String(exportName || ""),
+        },
+        slots: {
+          result: [result],
+          exportName: [String(exportName || "")],
+        },
+        wasmArgs: Array.isArray(args) ? args.slice() : [],
+      };
+      dispatchSignalPayload(hostElement, signalName, payload);
+    }
+  }
+
+  function emitWasmErrorSignal(componentNode, hostElement, exportName, error) {
+    const signalName = "wasmError";
+    const componentId = String(componentNode && (componentNode.componentId || hostElement.tagName) || "").trim().toLowerCase();
+    const message =
+      error && typeof error === "object" && typeof error.message === "string"
+        ? error.message
+        : String(error || "q-wasm call failed.");
+    const payload = {
+      type: "signal",
+      signal: signalName,
+      component: componentId,
+      signalId: signalName,
+      source: "wasm",
+      exportName: String(exportName || ""),
+      args: [message],
+      params: {
+        error: message,
+        exportName: String(exportName || ""),
+      },
+      slots: {
+        error: [message],
+        exportName: [String(exportName || "")],
+      },
+    };
+    dispatchSignalPayload(hostElement, signalName, payload);
+  }
+
+  function bindComponentWasm(componentNode, hostElement) {
+    const normalized = normalizeWasmConfig(componentNode && componentNode.wasmConfig);
+    if (!normalized || !hostElement || hostElement.nodeType !== 1) {
+      return;
+    }
+
+    const existingRuntime = hostElement.__qhtmlWasmRuntime;
+    if (existingRuntime && typeof existingRuntime.terminate === "function") {
+      try {
+        existingRuntime.terminate();
+      } catch (error) {
+        // no-op
+      }
+    }
+
+    const config = Object.assign({}, normalized, {
+      src: resolveWasmResourceUrl(normalized.src, hostElement),
+    });
+    const bindings = buildWasmBindingMaps(config.bind);
+    const session = createWasmSession(config);
+    const exportNames = config.exportNames instanceof Set ? config.exportNames : new Set();
+
+    function serializePayload(payload) {
+      const raw =
+        typeof payload === "string"
+          ? payload
+          : payload == null
+            ? ""
+            : JSON.stringify(payload);
+      const size = measureUtf8Bytes(raw);
+      if (size > config.maxPayloadBytes) {
+        throw new Error(
+          "q-wasm payload exceeds maxPayloadBytes (" +
+            String(size) +
+            " > " +
+            String(config.maxPayloadBytes) +
+            ")."
+        );
+      }
+      return String(raw);
+    }
+
+    const wasmApi = {
+      mode: session.mode,
+      ready: session.ready,
+      call: function callWasmExport(exportName, payload, options) {
+        const opts = options && typeof options === "object" ? options : {};
+        const key = String(exportName || "").trim();
+        const keyLower = key.toLowerCase();
+        if (!key) {
+          return Promise.reject(new Error("q-wasm call requires an export name."));
+        }
+        if (exportNames.size > 0 && !exportNames.has(keyLower)) {
+          return Promise.reject(new Error("q-wasm export '" + key + "' is not declared in q-wasm exports."));
+        }
+        let payloadJson;
+        try {
+          payloadJson = serializePayload(payload);
+        } catch (error) {
+          emitWasmErrorSignal(componentNode, hostElement, key, error);
+          return Promise.reject(error);
+        }
+        return session
+          .invoke(key, payloadJson)
+          .then(function onInvokeResult(rawResult) {
+            const result = normalizeWasmResult(rawResult);
+            if (opts.skipMappedSignals !== true) {
+              emitWasmMappedSignals(componentNode, hostElement, bindings.signalBindingsByExport, key, [payload], result);
+            }
+            return result;
+          })
+          .catch(function onInvokeError(error) {
+            emitWasmErrorSignal(componentNode, hostElement, key, error);
+            throw error;
+          });
+      },
+      terminate: function terminateWasmApi() {
+        if (session && typeof session.terminate === "function") {
+          session.terminate();
+        }
+      },
+    };
+
+    hostElement.wasm = wasmApi;
+    hostElement.__qhtmlWasmRuntime = {
+      session: session,
+      terminate: wasmApi.terminate,
+      config: config,
+    };
+
+    for (let i = 0; i < bindings.methodBindings.length; i += 1) {
+      const entry = bindings.methodBindings[i] || {};
+      const methodName = String(entry.targetName || "").trim();
+      const exportName = String(entry.exportName || "").trim();
+      if (!methodName || !exportName || INVALID_METHOD_NAMES.has(methodName)) {
+        continue;
+      }
+      hostElement[methodName] = function createWasmBoundMethod(boundExportName) {
+        return function wasmBoundMethodProxy(payload, options) {
+          return this.wasm.call(boundExportName, payload, options);
+        };
+      }(exportName);
+    }
+
+    if (exportNames.has("init")) {
+      wasmApi.ready = withWasmTimeout(
+        wasmApi.ready.then(function callInitExportWhenReady() {
+          return wasmApi.call("init", null, {
+            skipMappedSignals: true,
+          });
+        }),
+        config.timeoutMs,
+        "q-wasm init"
+      );
     }
   }
 
@@ -10638,6 +11721,8 @@
         : [];
       hostElement[signalName] = createComponentSignalEmitter(signalName, parameterNames);
     }
+
+    bindComponentWasm(componentNode, hostElement);
   }
 
   function renderNode(node, parent, targetDocument, context) {
@@ -15962,6 +17047,47 @@
     }
   }
 
+  function terminateWasmRuntimesInNode(rootNode) {
+    if (!rootNode || rootNode.nodeType !== 1) {
+      return;
+    }
+    const targets = [];
+    targets.push(rootNode);
+    if (typeof rootNode.querySelectorAll === "function") {
+      const nested = rootNode.querySelectorAll("[qhtml-component-instance='1']");
+      for (let i = 0; i < nested.length; i += 1) {
+        targets.push(nested[i]);
+      }
+    }
+    for (let i = 0; i < targets.length; i += 1) {
+      const element = targets[i];
+      if (!element || element.nodeType !== 1) {
+        continue;
+      }
+      const runtimeHandle =
+        element.__qhtmlWasmRuntime &&
+        typeof element.__qhtmlWasmRuntime === "object" &&
+        typeof element.__qhtmlWasmRuntime.terminate === "function"
+          ? element.__qhtmlWasmRuntime
+          : null;
+      if (!runtimeHandle) {
+        continue;
+      }
+      try {
+        runtimeHandle.terminate();
+      } catch (error) {
+        if (global.console && typeof global.console.warn === "function") {
+          global.console.warn("qhtml q-wasm runtime terminate failed:", error);
+        }
+      }
+      try {
+        element.__qhtmlWasmRuntime = null;
+      } catch (assignError) {
+        // no-op
+      }
+    }
+  }
+
   function renderScopedComponentBinding(binding, scopeElement, options) {
     if (!binding || !binding.qdom || !scopeElement || scopeElement.nodeType !== 1) {
       return false;
@@ -16036,6 +17162,7 @@
       replaced: describeElementForLog(scopeElement),
       replacement: describeElementForLog(replacement),
     });
+    terminateWasmRuntimesInNode(scopeElement);
     withDomMutationSyncSuppressed(binding, function replaceScopedElement() {
       parentNode.replaceChild(replacement, scopeElement);
 
@@ -16080,6 +17207,7 @@
       host: describeElementForLog(binding.host),
     });
     try {
+      terminateWasmRuntimesInNode(binding.host);
       withDomMutationSyncSuppressed(binding, function renderHostTree() {
         renderer.renderIntoElement(binding.qdom, binding.host, binding.doc, {
           capture: {
@@ -18710,6 +19838,7 @@
     if (typeof binding.disconnect === "function") {
       binding.disconnect();
     }
+    terminateWasmRuntimesInNode(binding.host);
     bindings.delete(qHtmlElement);
   }
 

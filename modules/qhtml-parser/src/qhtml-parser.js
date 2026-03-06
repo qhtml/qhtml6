@@ -32,6 +32,7 @@
     "q-property",
     "q-signal",
     "q-alias",
+    "q-wasm",
     "q-style",
     "q-style-class",
     "q-theme",
@@ -45,6 +46,233 @@
     "text",
     "html",
   ]);
+
+  function normalizeWasmMode(value) {
+    const mode = String(value || "").trim().toLowerCase();
+    if (mode === "main" || mode === "main-thread" || mode === "mainthread") {
+      return "main";
+    }
+    if (mode === "worker" || mode === "worker-thread" || mode === "workerthread") {
+      return "worker";
+    }
+    return "";
+  }
+
+  function parseWasmBoolean(value) {
+    const text = String(value || "").trim().toLowerCase();
+    if (!text) {
+      return null;
+    }
+    if (text === "true" || text === "1" || text === "yes" || text === "on") {
+      return true;
+    }
+    if (text === "false" || text === "0" || text === "no" || text === "off") {
+      return false;
+    }
+    return null;
+  }
+
+  function parseWasmPositiveInteger(value) {
+    const parsed = Number(String(value || "").trim());
+    if (!Number.isFinite(parsed)) {
+      return null;
+    }
+    const rounded = Math.floor(parsed);
+    if (rounded < 0) {
+      return null;
+    }
+    return rounded;
+  }
+
+  function parseQWasmBindingRules(rawBody) {
+    const parser = parserFor(String(rawBody || ""));
+    const out = [];
+    const seen = new Set();
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+
+      const exportName = parseQColorIdentifier(parser, "q-wasm bind");
+      skipWhitespace(parser);
+      if (!(peek(parser) === "-" && peek(parser, 1) === ">")) {
+        throw ParseError("Expected '->' inside q-wasm bind block", parser.index);
+      }
+      parser.index += 2;
+
+      skipWhitespace(parser);
+      const targetType = String(parseIdentifier(parser) || "").trim().toLowerCase();
+      if (targetType !== "method" && targetType !== "signal") {
+        throw ParseError("q-wasm bind target must be 'method' or 'signal'", parser.index);
+      }
+
+      skipWhitespace(parser);
+      const targetName = String(parseIdentifier(parser) || "").trim();
+      if (!targetName) {
+        throw ParseError("Expected target name in q-wasm bind block", parser.index);
+      }
+
+      skipInlineWhitespace(parser);
+      const trailing = parseBareValue(parser);
+      if (String(trailing || "").trim()) {
+        throw ParseError("Unexpected trailing content in q-wasm bind entry", parser.index);
+      }
+
+      const dedupeKey = exportName.toLowerCase() + "::" + targetType + "::" + targetName.toLowerCase();
+      if (!seen.has(dedupeKey)) {
+        seen.add(dedupeKey);
+        out.push({
+          exportName: exportName,
+          targetType: targetType,
+          targetName: targetName,
+        });
+      }
+
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+      }
+    }
+    return out;
+  }
+
+  function parseQWasmConfig(rawBody, keywordAliases) {
+    const parser = parserFor(String(rawBody || ""));
+    const config = {
+      src: "",
+      mode: "",
+      awaitWasm: null,
+      timeoutMs: null,
+      maxPayloadBytes: null,
+      exports: [],
+      allowImports: [],
+      bind: [],
+    };
+    const seen = {
+      exports: new Set(),
+      allowImports: new Set(),
+      bind: new Set(),
+    };
+
+    function pushUnique(list, set, value) {
+      const entry = String(value || "").trim();
+      const key = entry.toLowerCase();
+      if (!entry || set.has(key)) {
+        return;
+      }
+      set.add(key);
+      list.push(entry);
+    }
+
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+      const key = String(parseIdentifier(parser) || "").trim();
+      const keyLower = key.toLowerCase();
+      skipWhitespace(parser);
+
+      if ((keyLower === "exports" || keyLower === "allowimports" || keyLower === "bind") && peek(parser) === "{") {
+        consume(parser);
+        const blockBody = String(readBalancedBlockContent(parser) || "");
+        if (keyLower === "exports") {
+          const names = parseQPropertyNames(blockBody);
+          for (let i = 0; i < names.length; i += 1) {
+            pushUnique(config.exports, seen.exports, names[i]);
+          }
+        } else if (keyLower === "allowimports") {
+          const names = parseQPropertyNames(blockBody);
+          for (let i = 0; i < names.length; i += 1) {
+            pushUnique(config.allowImports, seen.allowImports, names[i]);
+          }
+        } else {
+          const bindings = parseQWasmBindingRules(blockBody);
+          for (let i = 0; i < bindings.length; i += 1) {
+            const entry = bindings[i];
+            if (!entry || typeof entry !== "object") {
+              continue;
+            }
+            const dedupeKey =
+              String(entry.exportName || "").toLowerCase() +
+              "::" +
+              String(entry.targetType || "").toLowerCase() +
+              "::" +
+              String(entry.targetName || "").toLowerCase();
+            if (!dedupeKey || seen.bind.has(dedupeKey)) {
+              continue;
+            }
+            seen.bind.add(dedupeKey);
+            config.bind.push({
+              exportName: String(entry.exportName || ""),
+              targetType: String(entry.targetType || ""),
+              targetName: String(entry.targetName || ""),
+            });
+          }
+        }
+        continue;
+      }
+
+      if (peek(parser) !== ":") {
+        throw ParseError("Expected ':' or '{...}' inside q-wasm", parser.index);
+      }
+      consume(parser);
+      const rawValue = parseValue(parser, keywordAliases);
+      const value = String(coercePropertyValue(rawValue) || "").trim();
+
+      if (keyLower === "src") {
+        config.src = value;
+      } else if (keyLower === "mode") {
+        config.mode = normalizeWasmMode(value);
+      } else if (keyLower === "awaitwasm") {
+        config.awaitWasm = parseWasmBoolean(value);
+      } else if (keyLower === "timeoutms") {
+        config.timeoutMs = parseWasmPositiveInteger(value);
+      } else if (keyLower === "maxpayloadbytes") {
+        config.maxPayloadBytes = parseWasmPositiveInteger(value);
+      } else if (keyLower === "exports") {
+        const names = parseQPropertyNames(value);
+        for (let i = 0; i < names.length; i += 1) {
+          pushUnique(config.exports, seen.exports, names[i]);
+        }
+      } else if (keyLower === "allowimports") {
+        const names = parseQPropertyNames(value);
+        for (let i = 0; i < names.length; i += 1) {
+          pushUnique(config.allowImports, seen.allowImports, names[i]);
+        }
+      } else if (keyLower === "bind") {
+        const bindings = parseQWasmBindingRules(value);
+        for (let i = 0; i < bindings.length; i += 1) {
+          const entry = bindings[i];
+          if (!entry || typeof entry !== "object") {
+            continue;
+          }
+          const dedupeKey =
+            String(entry.exportName || "").toLowerCase() +
+            "::" +
+            String(entry.targetType || "").toLowerCase() +
+            "::" +
+            String(entry.targetName || "").toLowerCase();
+          if (!dedupeKey || seen.bind.has(dedupeKey)) {
+            continue;
+          }
+          seen.bind.add(dedupeKey);
+          config.bind.push({
+            exportName: String(entry.exportName || ""),
+            targetType: String(entry.targetType || ""),
+            targetName: String(entry.targetName || ""),
+          });
+        }
+      }
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+      }
+    }
+
+    return config;
+  }
 
   function ParseError(message, index) {
     const error = new Error(message + " (at index " + index + ")");
@@ -1829,6 +2057,20 @@
             items.push({
               type: "QScriptInline",
               script: scriptBody,
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
+          if (nameLower === "q-wasm") {
+            consume(parser);
+            const wasmBody = readBalancedBlockContent(parser);
+            items.push({
+              type: "QWasmBlock",
+              config: parseQWasmConfig(wasmBody, scopedKeywordAliases),
               keywords: keywordSnapshot,
               start: itemStart,
               end: parser.index,
@@ -6817,6 +7059,9 @@
         registerQColorThemeItem(colorContext, item);
         continue;
       }
+      if (item.type === "QWasmBlock") {
+        throw new Error("q-wasm is only valid inside q-component definitions.");
+      }
       if (item.type === "Property") {
         applyPropertyToElement(targetElement, item);
       } else if (item.type === "HtmlBlock") {
@@ -7009,6 +7254,7 @@
     const methods = [];
     const signalDeclarations = [];
     const aliasDeclarations = [];
+    let wasmConfig = null;
     const lifecycleScripts = [];
     const definitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
     let componentId = String(opts.componentId || "").trim();
@@ -7180,6 +7426,29 @@
         }
         continue;
       }
+      if (item.type === "QWasmBlock") {
+        if (definitionType !== "component") {
+          throw new Error("q-wasm is only valid inside q-component definitions.");
+        }
+        const parsed =
+          item.config && typeof item.config === "object" && !Array.isArray(item.config)
+            ? item.config
+            : parseQWasmConfig("", null);
+        const exportList = Array.isArray(parsed.exports) ? parsed.exports.slice() : [];
+        const allowImportsList = Array.isArray(parsed.allowImports) ? parsed.allowImports.slice() : [];
+        const bindList = Array.isArray(parsed.bind) ? parsed.bind.slice() : [];
+        wasmConfig = {
+          src: String(parsed.src || "").trim(),
+          mode: String(parsed.mode || "").trim(),
+          awaitWasm: typeof parsed.awaitWasm === "boolean" ? parsed.awaitWasm : null,
+          timeoutMs: Number.isFinite(parsed.timeoutMs) ? Number(parsed.timeoutMs) : null,
+          maxPayloadBytes: Number.isFinite(parsed.maxPayloadBytes) ? Number(parsed.maxPayloadBytes) : null,
+          exports: exportList,
+          allowImports: allowImportsList,
+          bind: bindList,
+        };
+        continue;
+      }
       if (item.type === "EventBlock" && item.isLifecycle) {
         if (definitionType === "component") {
           lifecycleScripts.push({
@@ -7203,6 +7472,7 @@
       propertyDefinitions: propertyDefinitions,
       signalDeclarations: signalDeclarations,
       aliasDeclarations: aliasDeclarations,
+      wasmConfig: wasmConfig,
       lifecycleScripts: lifecycleScripts,
       attributes: componentAttributes,
       properties: componentProperties,
@@ -7461,6 +7731,10 @@
       return textNode;
     }
 
+    if (item.type === "QWasmBlock") {
+      throw new Error("q-wasm is only valid inside q-component definitions.");
+    }
+
     return null;
   }
 
@@ -7542,6 +7816,9 @@
       if (item.type === "QColorThemeDefinition") {
         registerQColorThemeItem(conversionContext.qColors, item);
         continue;
+      }
+      if (item.type === "QWasmBlock") {
+        throw new Error("q-wasm is only valid inside q-component definitions.");
       }
       {
         const namedTheme = resolveNamedQThemeInvocation(item, conversionContext.qStyles);
@@ -7700,6 +7977,60 @@
       for (let i = 0; i < chunks.length; i += 1) {
         lines.push(indent + "  " + chunks[i]);
       }
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
+  function serializeWasmConfigBlock(wasmConfig, indentLevel) {
+    const config =
+      wasmConfig && typeof wasmConfig === "object" && !Array.isArray(wasmConfig)
+        ? wasmConfig
+        : null;
+    if (!config) {
+      return "";
+    }
+    const indent = "  ".repeat(indentLevel);
+    const lines = [indent + "q-wasm {"];
+    const src = String(config.src || "").trim();
+    if (src) {
+      lines.push(indent + "  src: " + src);
+    }
+    const mode = String(config.mode || "").trim();
+    if (mode) {
+      lines.push(indent + "  mode: " + mode);
+    }
+    if (typeof config.awaitWasm === "boolean") {
+      lines.push(indent + "  awaitWasm: " + (config.awaitWasm ? "true" : "false"));
+    }
+    if (Number.isFinite(config.timeoutMs)) {
+      lines.push(indent + "  timeoutMs: " + String(Math.max(0, Math.floor(Number(config.timeoutMs)))));
+    }
+    if (Number.isFinite(config.maxPayloadBytes)) {
+      lines.push(indent + "  maxPayloadBytes: " + String(Math.max(0, Math.floor(Number(config.maxPayloadBytes)))));
+    }
+    const exportsList = Array.isArray(config.exports) ? config.exports : [];
+    if (exportsList.length > 0) {
+      lines.push(indent + "  exports { " + exportsList.join(" ") + " }");
+    }
+    const allowImportsList = Array.isArray(config.allowImports) ? config.allowImports : [];
+    if (allowImportsList.length > 0) {
+      lines.push(indent + "  allowImports { " + allowImportsList.join(" ") + " }");
+    }
+    const bindList = Array.isArray(config.bind) ? config.bind : [];
+    if (bindList.length > 0) {
+      lines.push(indent + "  bind {");
+      for (let i = 0; i < bindList.length; i += 1) {
+        const entry = bindList[i] || {};
+        const exportName = String(entry.exportName || "").trim();
+        const targetType = String(entry.targetType || "").trim();
+        const targetName = String(entry.targetName || "").trim();
+        if (!exportName || !targetType || !targetName) {
+          continue;
+        }
+        lines.push(indent + "    " + exportName + " -> " + targetType + " " + targetName);
+      }
+      lines.push(indent + "  }");
     }
     lines.push(indent + "}");
     return lines.join("\n");
@@ -7872,6 +8203,10 @@
               lines.push(serializedAliasDeclaration);
             }
           }
+        }
+        const serializedWasmConfig = serializeWasmConfigBlock(node.wasmConfig, indentLevel + 1);
+        if (serializedWasmConfig) {
+          lines.push(serializedWasmConfig);
         }
         for (let i = 0; i < node.methods.length; i += 1) {
           lines.push(serializeFunctionBlock(node.methods[i], indentLevel + 1));

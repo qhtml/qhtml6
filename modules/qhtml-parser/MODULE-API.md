@@ -37,6 +37,9 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - component alias declarations:
       - `q-alias aliasName { return ... }` inside `q-component`
       - emitted in QDom as `component.aliasDeclarations`
+    - component wasm declarations:
+      - `q-wasm { ... }` inside `q-component`
+      - emitted in QDom as `component.wasmConfig`
     - color declarations and application:
       - `q-color-schema { areaName { css-property } ... }` (cascading scope)
       - `q-color-theme { areaName: value, ... }` (cascading scope)

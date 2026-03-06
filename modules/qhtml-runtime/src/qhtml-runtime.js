@@ -4714,6 +4714,47 @@
     }
   }
 
+  function terminateWasmRuntimesInNode(rootNode) {
+    if (!rootNode || rootNode.nodeType !== 1) {
+      return;
+    }
+    const targets = [];
+    targets.push(rootNode);
+    if (typeof rootNode.querySelectorAll === "function") {
+      const nested = rootNode.querySelectorAll("[qhtml-component-instance='1']");
+      for (let i = 0; i < nested.length; i += 1) {
+        targets.push(nested[i]);
+      }
+    }
+    for (let i = 0; i < targets.length; i += 1) {
+      const element = targets[i];
+      if (!element || element.nodeType !== 1) {
+        continue;
+      }
+      const runtimeHandle =
+        element.__qhtmlWasmRuntime &&
+        typeof element.__qhtmlWasmRuntime === "object" &&
+        typeof element.__qhtmlWasmRuntime.terminate === "function"
+          ? element.__qhtmlWasmRuntime
+          : null;
+      if (!runtimeHandle) {
+        continue;
+      }
+      try {
+        runtimeHandle.terminate();
+      } catch (error) {
+        if (global.console && typeof global.console.warn === "function") {
+          global.console.warn("qhtml q-wasm runtime terminate failed:", error);
+        }
+      }
+      try {
+        element.__qhtmlWasmRuntime = null;
+      } catch (assignError) {
+        // no-op
+      }
+    }
+  }
+
   function renderScopedComponentBinding(binding, scopeElement, options) {
     if (!binding || !binding.qdom || !scopeElement || scopeElement.nodeType !== 1) {
       return false;
@@ -4788,6 +4829,7 @@
       replaced: describeElementForLog(scopeElement),
       replacement: describeElementForLog(replacement),
     });
+    terminateWasmRuntimesInNode(scopeElement);
     withDomMutationSyncSuppressed(binding, function replaceScopedElement() {
       parentNode.replaceChild(replacement, scopeElement);
 
@@ -4832,6 +4874,7 @@
       host: describeElementForLog(binding.host),
     });
     try {
+      terminateWasmRuntimesInNode(binding.host);
       withDomMutationSyncSuppressed(binding, function renderHostTree() {
         renderer.renderIntoElement(binding.qdom, binding.host, binding.doc, {
           capture: {
@@ -7462,6 +7505,7 @@
     if (typeof binding.disconnect === "function") {
       binding.disconnect();
     }
+    terminateWasmRuntimesInNode(binding.host);
     bindings.delete(qHtmlElement);
   }
 

@@ -87,6 +87,10 @@
       this.methods = Array.isArray(opts.methods) ? opts.methods : [];
       this.signalDeclarations = Array.isArray(opts.signalDeclarations) ? opts.signalDeclarations : [];
       this.aliasDeclarations = Array.isArray(opts.aliasDeclarations) ? opts.aliasDeclarations : [];
+      this.wasmConfig =
+        opts.wasmConfig && typeof opts.wasmConfig === "object" && !Array.isArray(opts.wasmConfig)
+          ? Object.assign({}, opts.wasmConfig)
+          : null;
       this.lifecycleScripts = Array.isArray(opts.lifecycleScripts) ? opts.lifecycleScripts : [];
       this.attributes = Object.assign({}, opts.attributes || {});
       this.properties = Array.isArray(opts.properties) ? opts.properties.slice() : [];
@@ -763,6 +767,11 @@
         methods: reviveQDomTree(Array.isArray(value.methods) ? value.methods : []),
         signalDeclarations: reviveQDomTree(Array.isArray(value.signalDeclarations) ? value.signalDeclarations : []),
         aliasDeclarations: reviveQDomTree(Array.isArray(value.aliasDeclarations) ? value.aliasDeclarations : []),
+        wasmConfig: reviveQDomTree(
+          value.wasmConfig && typeof value.wasmConfig === "object" && !Array.isArray(value.wasmConfig)
+            ? value.wasmConfig
+            : null
+        ),
         lifecycleScripts: reviveQDomTree(Array.isArray(value.lifecycleScripts) ? value.lifecycleScripts : []),
         attributes: reviveQDomTree(value.attributes || {}),
         properties: reviveQDomTree(Array.isArray(value.properties) ? value.properties : []),

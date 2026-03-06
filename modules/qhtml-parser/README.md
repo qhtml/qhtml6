@@ -33,6 +33,7 @@
   - child scopes may override parent aliases
 - Supports binding expressions in assignments: `name: q-bind { ... }` and `name: q-script { ... }` (assignment form), persisted as QDom binding metadata for runtime re-evaluation.
 - Parses top-level lifecycle blocks (`onReady`, `onLoad`, `onLoaded`) and stores them in document metadata.
+- Supports component-level `q-wasm { ... }` declarations and stores normalized config in `component.wasmConfig`.
 - Parses `on<Event>` inline event blocks into script-bearing element attributes.
 - Resolves recursive `q-import { ... }` chains (sync or async), including circular import protection and max-depth guards.
 - Supports `q-rewrite` macro-like expansion before parse.
@@ -66,6 +67,9 @@
 - Component alias declarations:
   - `q-alias aliasName { return ... }` inside `q-component`
   - parsed into component metadata (`component.aliasDeclarations`)
+- Component wasm declarations:
+  - `q-wasm { src: "..."; exports { ... }; bind { export -> method foo } }`
+  - parsed into component metadata (`component.wasmConfig`)
 - q-import blocks
 - q-rewrite definitions + invocations
 - q-keyword declarations and alias invocation expansion
