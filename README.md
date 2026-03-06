@@ -8,7 +8,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
 - Live demo: https://qhtml.github.io/qhtml6/dist/demo.html
-- Dev testbed: `dist/test.html`
+- Dev testbed: https://qhtml.github.io/qhtml6/dist/test.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
 ## Whats New in v6.0.8
