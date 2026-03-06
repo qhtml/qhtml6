@@ -6086,8 +6086,55 @@
   }
 
   function executeQScriptReplacement(scriptBody, thisArg) {
-    const fn = new Function(String(scriptBody || ""));
-    const out = fn.call(thisArg || {});
+    const context = (thisArg && (typeof thisArg === "object" || typeof thisArg === "function")) ? thisArg : {};
+    const scopedSelector = function parserScopedSelector(selector) {
+      const query = String(selector == null ? "" : selector).trim();
+      if (!query) {
+        return null;
+      }
+      let root = null;
+      if (context && typeof context.qhtmlRoot === "function") {
+        try {
+          root = context.qhtmlRoot();
+        } catch (ignoredQHtmlRootError) {
+          root = null;
+        }
+      }
+      if (!root && context && context.nodeType === 1 && typeof context.closest === "function") {
+        try {
+          root = context.closest("q-html");
+        } catch (ignoredClosestError) {
+          root = null;
+        }
+      }
+      if (!root && context && context.nodeType === 1 && String(context.tagName || "").toLowerCase() === "q-html") {
+        root = context;
+      }
+      if (!root || typeof root.querySelector !== "function") {
+        return null;
+      }
+      try {
+        return root.querySelector(query);
+      } catch (ignoredQueryError) {
+        return null;
+      }
+    };
+    try {
+      Object.defineProperty(context, "__qhtmlScopedSelector", {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: scopedSelector,
+      });
+    } catch (error) {
+      context.__qhtmlScopedSelector = scopedSelector;
+    }
+    const source =
+      "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
+      " ? this.__qhtmlScopedSelector : function(){ return null; };\\n" +
+      String(scriptBody || "");
+    const fn = new Function(source);
+    const out = fn.call(context);
     if (out == null) {
       return "";
     }

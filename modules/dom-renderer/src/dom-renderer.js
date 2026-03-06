@@ -868,6 +868,126 @@
     return null;
   }
 
+  function isQHtmlHostElement(node) {
+    if (!node || node.nodeType !== 1) {
+      return false;
+    }
+    return String(node.tagName || "").trim().toLowerCase() === "q-html";
+  }
+
+  function normalizeScopedSelectorRootCandidate(candidate) {
+    if (!candidate || typeof candidate !== "object") {
+      return null;
+    }
+    if (isQHtmlHostElement(candidate)) {
+      return candidate;
+    }
+    if (typeof candidate.closest === "function") {
+      try {
+        const closestRoot = candidate.closest("q-html");
+        if (closestRoot && isQHtmlHostElement(closestRoot)) {
+          return closestRoot;
+        }
+      } catch (ignoredClosestError) {
+        // no-op
+      }
+    }
+    return null;
+  }
+
+  function resolveScopedSelectorRoot(thisArg, explicitRoot) {
+    const tryResolve = function tryResolve(candidate) {
+      const normalized = normalizeScopedSelectorRootCandidate(candidate);
+      if (normalized) {
+        return normalized;
+      }
+      if (candidate && (typeof candidate === "object" || typeof candidate === "function")) {
+        try {
+          if (typeof candidate.qhtmlRoot === "function") {
+            const viaQhtmlRoot = normalizeScopedSelectorRootCandidate(candidate.qhtmlRoot());
+            if (viaQhtmlRoot) {
+              return viaQhtmlRoot;
+            }
+          }
+        } catch (ignoredQHtmlRootError) {
+          // no-op
+        }
+        try {
+          if (candidate.component) {
+            const fromComponent = normalizeScopedSelectorRootCandidate(candidate.component);
+            if (fromComponent) {
+              return fromComponent;
+            }
+          }
+        } catch (ignoredComponentError) {
+          // no-op
+        }
+      }
+      return null;
+    };
+
+    const explicitResolved = tryResolve(explicitRoot);
+    if (explicitResolved) {
+      return explicitResolved;
+    }
+    const thisResolved = tryResolve(thisArg);
+    if (thisResolved) {
+      return thisResolved;
+    }
+    return null;
+  }
+
+  function createScopedSelectorShortcut(thisArg, explicitRoot) {
+    return function qhtmlScopedSelectorShortcut(selector) {
+      const query = String(selector == null ? "" : selector).trim();
+      if (!query) {
+        return null;
+      }
+      const root = resolveScopedSelectorRoot(thisArg, explicitRoot);
+      if (!root || typeof root.querySelector !== "function") {
+        return null;
+      }
+      try {
+        return root.querySelector(query);
+      } catch (ignoredQueryError) {
+        return null;
+      }
+    };
+  }
+
+  function ensureScopedSelectorShortcut(target, explicitRoot) {
+    const shortcut = createScopedSelectorShortcut(target, explicitRoot);
+    if (target && (typeof target === "object" || typeof target === "function")) {
+      try {
+        Object.defineProperty(target, "__qhtmlScopedSelector", {
+          configurable: true,
+          enumerable: false,
+          writable: true,
+          value: shortcut,
+        });
+      } catch (error) {
+        try {
+          target.__qhtmlScopedSelector = shortcut;
+        } catch (ignoredAssignShortcut) {
+          // no-op
+        }
+      }
+    }
+    return shortcut;
+  }
+
+  function withScopedSelectorPrelude(body) {
+    const source = String(body == null ? "" : body);
+    if (!source.trim()) {
+      return source;
+    }
+    return (
+      "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
+      " ? this.__qhtmlScopedSelector : function(){ return null; };\\n" +
+      source
+    );
+  }
+
   function ensureInlineComponentQdom(componentSource, scope) {
     if (!componentSource || componentSource.nodeType !== 1) {
       return;
@@ -983,6 +1103,15 @@
       } catch (ignoredAssignComponent) {
         // no-op
       }
+    }
+    if (!Object.prototype.hasOwnProperty.call(scope, "$")) {
+      scope.$ = createScopedSelectorShortcut(
+        thisArg || scope.component || null,
+        scope.root || scope.host || null
+      );
+    }
+    if (thisArg && (typeof thisArg === "object" || typeof thisArg === "function")) {
+      ensureScopedSelectorShortcut(thisArg, scope.root || scope.host || null);
     }
     return scope;
   }
@@ -1487,7 +1616,8 @@
         },
         "qhtml lifecycle interpolation failed:"
       );
-      const fn = new Function("event", "document", hookBody);
+      ensureScopedSelectorShortcut(thisArg || {}, null);
+      const fn = new Function("event", "document", withScopedSelectorPrelude(hookBody));
       fn.call(thisArg, null, targetDocument);
     } catch (error) {
       if (global.console && typeof global.console.error === "function") {
@@ -1854,6 +1984,7 @@
     if (!componentNode || !hostElement) {
       return;
     }
+    ensureScopedSelectorShortcut(hostElement, null);
     const componentAttributes = componentNode.attributes && typeof componentNode.attributes === "object"
       ? componentNode.attributes
       : {};
@@ -1889,7 +2020,8 @@
             "qhtml declared property binding interpolation failed:"
           );
           try {
-            const runtimeBinding = new Function(interpolatedBody);
+            ensureScopedSelectorShortcut(this, null);
+            const runtimeBinding = new Function(withScopedSelectorPrelude(interpolatedBody));
             return runtimeBinding.call(this);
           } catch (error) {
             if (global.console && typeof global.console.error === "function") {
@@ -1961,7 +2093,8 @@
             "qhtml q-alias interpolation failed:"
           );
           try {
-            const runtimeAlias = new Function(interpolatedBody);
+            ensureScopedSelectorShortcut(this, null);
+            const runtimeAlias = new Function(withScopedSelectorPrelude(interpolatedBody));
             return runtimeAlias.call(this);
           } catch (error) {
             if (global.console && typeof global.console.error === "function") {
@@ -1972,7 +2105,7 @@
         };
       } else {
         try {
-          compiledAlias = new Function(aliasBody);
+          compiledAlias = new Function(withScopedSelectorPrelude(aliasBody));
         } catch (error) {
           if (global.console && typeof global.console.error === "function") {
             global.console.error("qhtml q-alias compile failed:", aliasName, error);
@@ -2023,7 +2156,7 @@
       let compiled;
       if (!hasInterpolatedBody) {
         try {
-          compiled = new Function(params, body);
+          compiled = new Function(params, withScopedSelectorPrelude(body));
         } catch (error) {
           if (global.console && typeof global.console.error === "function") {
             global.console.error("qhtml component method compile failed:", name, error);
@@ -2041,7 +2174,8 @@
             "qhtml component method interpolation failed:"
           );
           try {
-            const runtimeMethod = new Function(params, interpolatedBody);
+            ensureScopedSelectorShortcut(hostElement, null);
+            const runtimeMethod = new Function(params, withScopedSelectorPrelude(interpolatedBody));
             return runtimeMethod.apply(hostElement, arguments);
           } catch (error) {
             if (global.console && typeof global.console.error === "function") {
@@ -2050,6 +2184,7 @@
             return undefined;
           }
         }
+        ensureScopedSelectorShortcut(hostElement, null);
         return compiled.apply(hostElement, arguments);
       };
     }

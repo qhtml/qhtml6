@@ -1467,6 +1467,148 @@
     return null;
   }
 
+  function isQHtmlHostElement(node) {
+    return !!(node && node.nodeType === 1 && String(node.tagName || "").trim().toLowerCase() === "q-html");
+  }
+
+  function normalizeScopedSelectorRootCandidate(candidate) {
+    if (!candidate || typeof candidate !== "object") {
+      return null;
+    }
+    if (isQHtmlHostElement(candidate)) {
+      return candidate;
+    }
+    if (candidate.nodeType === 1 && typeof candidate.closest === "function") {
+      const closestHost = candidate.closest("q-html");
+      if (isQHtmlHostElement(closestHost)) {
+        return closestHost;
+      }
+    }
+    return null;
+  }
+
+  function resolveScopedSelectorRoot(thisArg, explicitRoot) {
+    const visited = [];
+    function hasSeen(node) {
+      return visited.indexOf(node) !== -1;
+    }
+    function markSeen(node) {
+      if (!hasSeen(node)) {
+        visited.push(node);
+      }
+    }
+    function tryResolve(node) {
+      if (!node || (typeof node !== "object" && typeof node !== "function")) {
+        return null;
+      }
+      if (hasSeen(node)) {
+        return null;
+      }
+      markSeen(node);
+      const direct = normalizeScopedSelectorRootCandidate(node);
+      if (direct) {
+        return direct;
+      }
+      try {
+        if (typeof node.qhtmlRoot === "function") {
+          const fromQhtmlRoot = normalizeScopedSelectorRootCandidate(node.qhtmlRoot());
+          if (fromQhtmlRoot) {
+            return fromQhtmlRoot;
+          }
+        } else if (node.qhtmlRoot && typeof node.qhtmlRoot === "object") {
+          const fromQhtmlRootProp = normalizeScopedSelectorRootCandidate(node.qhtmlRoot);
+          if (fromQhtmlRootProp) {
+            return fromQhtmlRootProp;
+          }
+        }
+      } catch (ignoredQhtmlRoot) {
+        // no-op
+      }
+      try {
+        if (typeof node.root === "function") {
+          const fromRoot = normalizeScopedSelectorRootCandidate(node.root());
+          if (fromRoot) {
+            return fromRoot;
+          }
+        }
+      } catch (ignoredRoot) {
+        // no-op
+      }
+      try {
+        if (node.component && (typeof node.component === "object" || typeof node.component === "function")) {
+          const fromComponent = tryResolve(node.component);
+          if (fromComponent) {
+            return fromComponent;
+          }
+        }
+      } catch (ignoredComponent) {
+        // no-op
+      }
+      return null;
+    }
+
+    const explicitResolved = tryResolve(explicitRoot);
+    if (explicitResolved) {
+      return explicitResolved;
+    }
+    const thisResolved = tryResolve(thisArg);
+    if (thisResolved) {
+      return thisResolved;
+    }
+    return null;
+  }
+
+  function createScopedSelectorShortcut(thisArg, explicitRoot) {
+    return function qhtmlScopedSelectorShortcut(selector) {
+      const query = String(selector == null ? "" : selector).trim();
+      if (!query) {
+        return null;
+      }
+      const root = resolveScopedSelectorRoot(thisArg, explicitRoot);
+      if (!root || typeof root.querySelector !== "function") {
+        return null;
+      }
+      try {
+        return root.querySelector(query);
+      } catch (ignoredQueryError) {
+        return null;
+      }
+    };
+  }
+
+  function ensureScopedSelectorShortcut(target, explicitRoot) {
+    const shortcut = createScopedSelectorShortcut(target, explicitRoot);
+    if (target && (typeof target === "object" || typeof target === "function")) {
+      try {
+        Object.defineProperty(target, "__qhtmlScopedSelector", {
+          configurable: true,
+          enumerable: false,
+          writable: true,
+          value: shortcut,
+        });
+      } catch (error) {
+        try {
+          target.__qhtmlScopedSelector = shortcut;
+        } catch (ignoredAssignShortcut) {
+          // no-op
+        }
+      }
+    }
+    return shortcut;
+  }
+
+  function withScopedSelectorPrelude(body) {
+    const source = String(body == null ? "" : body);
+    if (!source.trim()) {
+      return source;
+    }
+    return (
+      "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
+      " ? this.__qhtmlScopedSelector : function(){ return null; };\\n" +
+      source
+    );
+  }
+
   function ensureInlineComponentQdom(componentSource, scope) {
     if (!componentSource || componentSource.nodeType !== 1) {
       return;
@@ -1539,6 +1681,15 @@
       } catch (ignoredAssignComponent) {
         // no-op
       }
+    }
+    if (!Object.prototype.hasOwnProperty.call(scope, "$")) {
+      scope.$ = createScopedSelectorShortcut(
+        thisArg || scope.component || null,
+        scope.root || scope.host || null
+      );
+    }
+    if (thisArg && (typeof thisArg === "object" || typeof thisArg === "function")) {
+      ensureScopedSelectorShortcut(thisArg, scope.root || scope.host || null);
     }
     return scope;
   }
@@ -2325,7 +2476,8 @@
         },
         "qhtml lifecycle interpolation failed:"
       );
-      const fn = new Function("event", "document", executableSource);
+      ensureScopedSelectorShortcut(target || {}, null);
+      const fn = new Function("event", "document", withScopedSelectorPrelude(executableSource));
       fn.call(target, null, doc);
     } catch (error) {
       if (global.console && typeof global.console.error === "function") {
@@ -2720,7 +2872,7 @@
       let executor;
       if (!hasInterpolatedBody) {
         try {
-          executor = new Function("event", "document", body);
+          executor = new Function("event", "document", withScopedSelectorPrelude(body));
         } catch (error) {
           throw new Error("Failed to compile q-script rule for selector '" + selector + "': " + error.message);
         }
@@ -2748,7 +2900,12 @@
               "qhtml q-script interpolation failed:"
             );
             try {
-              const dynamicExecutor = new Function("event", "document", interpolatedBody);
+              ensureScopedSelectorShortcut(target, binding.host);
+              const dynamicExecutor = new Function(
+                "event",
+                "document",
+                withScopedSelectorPrelude(interpolatedBody)
+              );
               return dynamicExecutor.call(target, event, doc);
             } catch (error) {
               if (global.console && typeof global.console.error === "function") {
@@ -2757,6 +2914,7 @@
               return undefined;
             }
           }
+          ensureScopedSelectorShortcut(target, binding.host);
           return executor.call(target, event, doc);
         };
         target.addEventListener(eventName, handler);
@@ -4620,10 +4778,40 @@
     }
     const fallbackContext = sourceNodeOf(node) || node || {};
     const context = createBindingExecutionContext(binding, node);
+    const executionContext = context || fallbackContext;
+    const scopedSelector = ensureScopedSelectorShortcut(
+      executionContext && (typeof executionContext === "object" || typeof executionContext === "function")
+        ? executionContext
+        : fallbackContext,
+      binding && binding.host ? binding.host : null
+    );
+    if (
+      executionContext &&
+      (typeof executionContext === "object" || typeof executionContext === "function") &&
+      !Object.prototype.hasOwnProperty.call(executionContext, "$")
+    ) {
+      try {
+        Object.defineProperty(executionContext, "$", {
+          configurable: true,
+          enumerable: false,
+          writable: true,
+          value: scopedSelector,
+        });
+      } catch (error) {
+        try {
+          executionContext.$ = scopedSelector;
+        } catch (ignoredAssignScopedSelector) {
+          // no-op
+        }
+      }
+    }
     try {
-      const wrappedBody = "try {\n" + scriptBody + "\n} catch (__qbindError) { return undefined; }";
+      const wrappedBody =
+        "try {\n" +
+        withScopedSelectorPrelude(scriptBody) +
+        "\n} catch (__qbindError) { return undefined; }";
       const fn = new Function(wrappedBody);
-      return fn.call(context || fallbackContext);
+      return fn.call(executionContext);
     } catch (error) {
       if (isRuntimeDebugLoggingEnabled() && global.console && typeof global.console.error === "function") {
         global.console.error("qhtml q-bind evaluation failed:", error);
