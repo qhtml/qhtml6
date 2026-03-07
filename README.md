@@ -893,8 +893,12 @@ document.querySelector("q-html").update();
 document.querySelector("q-html").invalidate({ forceBindings: true });
 ```
 
-## 12. Optional Tag Libraries (`w3-tags.js`, `bs-tags.js`)
+## 12. Optional Tag Libraries (`w3-tags.js`, `bs-tags.js`) [DEPRECATED]
 
+These libraries are now obsolete as their functionality has been fully merged into the core modules through various means.  
+While they will continue to work, it is recommended to use q-style and q-theme instead for simplicity and ease of implementation. 
+
+But for those who want to use the obsolete libraries:
 These scripts register custom elements like `w3-card` and `bs-btn` so you can use them as tag names. They apply CSS classes to their first non-`w3-*` / non-`bs-*` descendant and then remove the custom wrapper elements.
 
 ### W3CSS tags
@@ -906,7 +910,7 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 
 ```qhtml
 <q-html>
-  w3-card w3-padding {
+  w3-card,w3-padding {
     div { text { This div receives W3 classes. } }
   }
 </q-html>
@@ -921,7 +925,7 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 
 ```qhtml
 <q-html>
-  bs-btn bs-btn-primary {
+  bs-btn,bs-btn-primary {
     button { text { Primary button } }
   }
 </q-html>
