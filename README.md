@@ -920,7 +920,7 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 ```qhtml
  <q-html>
    q-style padded-card {
-      q-style-class { w3-card w3-paddingg }
+      q-style-class { w3-card w3-padding }
    }
    q-theme main-theme {
      div { padded-card }
