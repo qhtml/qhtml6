@@ -916,6 +916,19 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 </q-html>
 ```
 
+#### q-style equivalent
+```qhtml
+ <q-html>
+   q-style padded-card {
+      q-style-class { w3-card w3-paddingg }
+   }
+   q-theme main-theme {
+     div { padded-card }
+   }
+  main-theme { div { text { This div receives W3 classes } } }
+</q-html>
+```
+
 ### Bootstrap tags
 
 ```html
