@@ -23,6 +23,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - `scriptRules` preparsed q-script rules
   - Language outputs include:
     - `component.properties` from `q-property { ... }` blocks
+    - instance-level `q-property` declarations are retained in node metadata (`meta.__qhtmlDeclaredProperties`) and used when mapping invocation assignments/bindings into `component-instance.props`
     - `component-instance.props` populated when invocation keys match declared component properties
     - `meta.qBindings` entries for assignment expressions (`q-bind` / assignment-form `q-script`)
     - definition kind preservation for `q-component`, `q-template`, and `q-signal`
@@ -44,6 +45,14 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - `q-style name { q-style-class { classA classB } prop: value }`
       - `q-style-class` stores class tokens in the style definition
       - applying the style merges classes into `class` and declarations into `style`
+    - repeater and iterable model support:
+      - `q-repeater` and `q-foreach` blocks
+      - model containers `q-array` and `q-object`
+      - `model { ... }` and `slot { itemName }` syntax compiled into runtime-ready repeater QDom:
+        - `repeater.kind === "repeater"`
+        - `repeater.model.kind === "model"` (`QDomModel`) with `entries`
+        - `repeater.templateNodes` kept intact for runtime rendering
+      - parser no longer expands repeater output nodes directly; rendering happens in `dom-renderer`
 
 ### Preprocessing/import APIs
 - `applyQRewriteBlocks(source, options?)`
@@ -67,6 +76,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
 - Throws `QHtmlKeywordAliasError` with `.index` for invalid alias declarations/usages (self-reference or alias-to-alias).
 - Import/macro stages throw descriptive `Error` messages for recursion/limits/unbalanced blocks.
 - `q-style-class` is block-only inside `q-style` (`q-style-class { ... }`).
+- `q-repeater` warns and falls back to a single iteration when `model { ... }` contains non-iterative blocks such as `html { ... }` or `text { ... }`.
 
 ## Binding semantics
 - Preprocess `q-script` evaluation intentionally skips assignment context (`name: q-script { ... }`) so assignment scripts can be preserved as runtime bindings.

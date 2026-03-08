@@ -6,6 +6,8 @@
     element: "element",
     text: "text",
     rawHtml: "raw-html",
+    model: "model",
+    repeater: "repeater",
     component: "component",
     componentInstance: "component-instance",
     templateInstance: "template-instance",
@@ -18,7 +20,66 @@
   const QDOM_HOST_ID_ATTR = "data-qdom-host-id";
   const QDOM_TEMPLATE_OWNER_ATTR = "data-qdom-for";
   const UPDATE_NONCE_KEY = "update-nonce";
+  const QDOM_UUID_KEY = "uuid";
   let qdomHostIdCounter = 0;
+  let qdomUuidCounter = 0;
+
+  function normalizeQDomUuid(value) {
+    if (typeof value !== "string") {
+      return "";
+    }
+    const trimmed = value.trim();
+    return trimmed || "";
+  }
+
+  function createFallbackQDomUuid() {
+    qdomUuidCounter += 1;
+    const timePart = Date.now().toString(36);
+    const randomPart = Math.floor(Math.random() * 0xffffffff)
+      .toString(16)
+      .padStart(8, "0");
+    return "qdom-" + timePart + "-" + randomPart + "-" + qdomUuidCounter.toString(36);
+  }
+
+  function createQDomUuid() {
+    const cryptoObj = global && global.crypto;
+    if (cryptoObj && typeof cryptoObj.randomUUID === "function") {
+      try {
+        const generated = cryptoObj.randomUUID();
+        const normalized = normalizeQDomUuid(generated);
+        if (normalized) {
+          return normalized;
+        }
+      } catch (error) {
+        // fallback path below
+      }
+    }
+    return createFallbackQDomUuid();
+  }
+
+  function ensureNodeUuid(node) {
+    if (!node || typeof node !== "object") {
+      return "";
+    }
+    if (!node.meta || typeof node.meta !== "object") {
+      node.meta = {};
+    }
+    const existing = normalizeQDomUuid(node.meta[QDOM_UUID_KEY]);
+    if (existing) {
+      node.meta[QDOM_UUID_KEY] = existing;
+      return existing;
+    }
+    const generated = createQDomUuid();
+    node.meta[QDOM_UUID_KEY] = generated;
+    return generated;
+  }
+
+  function getNodeUuid(node) {
+    if (!node || typeof node !== "object" || !node.meta || typeof node.meta !== "object") {
+      return "";
+    }
+    return normalizeQDomUuid(node.meta[QDOM_UUID_KEY]);
+  }
 
   class QDomNode {
     constructor(kind, meta) {
@@ -76,6 +137,35 @@
     }
   }
 
+  class QDomModel extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      super(NODE_TYPES.model, opts.meta);
+      this.entries = Array.isArray(opts.entries) ? opts.entries : [];
+      this.source = typeof opts.source === "string" ? opts.source : "";
+    }
+  }
+
+  class QRepeaterNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      super(NODE_TYPES.repeater, opts.meta);
+      this.repeaterId = String(opts.repeaterId || "").trim();
+      this.keyword = String(opts.keyword || "q-repeater").trim().toLowerCase() || "q-repeater";
+      this.slotName = String(opts.slotName || "item").trim() || "item";
+      const modelNode =
+        opts.model && typeof opts.model === "object" && opts.model.kind === NODE_TYPES.model
+          ? opts.model
+          : new QDomModel({
+              entries: Array.isArray(opts.modelEntries) ? opts.modelEntries : [],
+              source: typeof opts.modelSource === "string" ? opts.modelSource : "",
+            });
+      this.model = modelNode;
+      this.modelEntries = Array.isArray(modelNode.entries) ? modelNode.entries : [];
+      this.templateNodes = Array.isArray(opts.templateNodes) ? opts.templateNodes : [];
+    }
+  }
+
   class QComponentNode extends QDomNode {
     constructor(options) {
       const opts = options || {};
@@ -121,6 +211,18 @@
       this.textContent = typeof opts.textContent === "string" ? opts.textContent : null;
       this.selectorMode = opts.selectorMode || "single";
       this.selectorChain = Array.isArray(opts.selectorChain) ? opts.selectorChain.slice() : [tag];
+    }
+
+    properties() {
+      return Object.assign({}, this.props || {});
+    }
+
+    getProperty(key) {
+      const name = String(key || "").trim();
+      if (!name || !this.props || typeof this.props !== "object") {
+        return undefined;
+      }
+      return Object.prototype.hasOwnProperty.call(this.props, name) ? this.props[name] : undefined;
     }
   }
 
@@ -214,7 +316,7 @@
   }
 
   function createNodeMeta(overrides) {
-    return Object.assign(
+    const meta = Object.assign(
       {
         dirty: false,
         originalSource: null,
@@ -222,6 +324,9 @@
       },
       overrides || {}
     );
+    const existingUuid = normalizeQDomUuid(meta[QDOM_UUID_KEY]);
+    meta[QDOM_UUID_KEY] = existingUuid || createQDomUuid();
+    return meta;
   }
 
   function createUpdateNonceToken(length) {
@@ -320,44 +425,42 @@
 
   function createDocument(options) {
     const opts = options || {};
-    const node = new QDocumentNode(opts);
-    setUpdateNonce(node);
-    return node;
+    return new QDocumentNode(opts);
   }
 
   function createElementNode(options) {
     const opts = options || {};
-    const node = new QElementNode(opts);
-    setUpdateNonce(node);
-    return node;
+    return new QElementNode(opts);
   }
 
   function createTextNode(options) {
     const opts = options || {};
-    const node = new QTextNode(opts);
-    setUpdateNonce(node);
-    return node;
+    return new QTextNode(opts);
   }
 
   function createRawHtmlNode(options) {
     const opts = options || {};
-    const node = new QRawHtmlNode(opts);
-    setUpdateNonce(node);
-    return node;
+    return new QRawHtmlNode(opts);
+  }
+
+  function createModelNode(options) {
+    const opts = options || {};
+    return new QDomModel(opts);
+  }
+
+  function createRepeaterNode(options) {
+    const opts = options || {};
+    return new QRepeaterNode(opts);
   }
 
   function createComponentNode(options) {
     const opts = options || {};
-    const node = new QComponentNode(opts);
-    setUpdateNonce(node);
-    return node;
+    return new QComponentNode(opts);
   }
 
   function createSlotNode(options) {
     const opts = options || {};
-    const node = new QSlotNode(opts);
-    setUpdateNonce(node);
-    return node;
+    return new QSlotNode(opts);
   }
 
   function normalizeInstanceKind(kind) {
@@ -371,12 +474,9 @@
   function createComponentInstanceNode(options) {
     const opts = options || {};
     const kind = normalizeInstanceKind(opts.kind);
-    const node =
-      kind === NODE_TYPES.templateInstance
-        ? new QTemplateInstanceNode(opts)
-        : new QComponentInstanceNode(opts);
-    setUpdateNonce(node);
-    return node;
+    return kind === NODE_TYPES.templateInstance
+      ? new QTemplateInstanceNode(opts)
+      : new QComponentInstanceNode(opts);
   }
 
   function readSlotNodes(node) {
@@ -418,15 +518,11 @@
 
   function createScriptRule(options) {
     const opts = options || {};
-    const node = new QScriptRuleNode(opts);
-    setUpdateNonce(node);
-    return node;
+    return new QScriptRuleNode(opts);
   }
 
   function createQColorNode(options) {
-    const node = new QColorNode(options || {});
-    setUpdateNonce(node);
-    return node;
+    return new QColorNode(options || {});
   }
 
   function isNode(value) {
@@ -450,6 +546,23 @@
       }
       if (node.kind === NODE_TYPES.component && Array.isArray(node.templateNodes)) {
         walkNodes(node.templateNodes, visitor, node, path.concat("templateNodes"));
+      }
+      if (node.kind === NODE_TYPES.model && Array.isArray(node.entries)) {
+        for (let j = 0; j < node.entries.length; j += 1) {
+          const entry = node.entries[j];
+          if (!entry || typeof entry !== "object" || !Array.isArray(entry.nodes)) {
+            continue;
+          }
+          walkNodes(entry.nodes, visitor, node, path.concat("entries", j, "nodes"));
+        }
+      }
+      if (node.kind === NODE_TYPES.repeater) {
+        if (node.model && node.model.kind === NODE_TYPES.model) {
+          walkNodes([node.model], visitor, node, path.concat("model"));
+        }
+        if (Array.isArray(node.templateNodes)) {
+          walkNodes(node.templateNodes, visitor, node, path.concat("templateNodes"));
+        }
       }
       if (
         (node.kind === NODE_TYPES.componentInstance || node.kind === NODE_TYPES.templateInstance) &&
@@ -758,6 +871,33 @@
         meta: reviveQDomTree(value.meta || {}),
       });
     }
+    if (kind === NODE_TYPES.model) {
+      return createModelNode({
+        entries: reviveQDomTree(Array.isArray(value.entries) ? value.entries : []),
+        source: typeof value.source === "string" ? value.source : "",
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
+    if (kind === NODE_TYPES.repeater) {
+      return createRepeaterNode({
+        repeaterId: value.repeaterId,
+        keyword: value.keyword,
+        slotName: value.slotName,
+        model: reviveQDomTree(
+          value.model && typeof value.model === "object"
+            ? value.model
+            : {
+                kind: NODE_TYPES.model,
+                entries: Array.isArray(value.modelEntries) ? value.modelEntries : [],
+                source: typeof value.modelSource === "string" ? value.modelSource : "",
+              }
+        ),
+        modelEntries: reviveQDomTree(Array.isArray(value.modelEntries) ? value.modelEntries : []),
+        modelSource: typeof value.modelSource === "string" ? value.modelSource : "",
+        templateNodes: reviveQDomTree(Array.isArray(value.templateNodes) ? value.templateNodes : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
     if (kind === NODE_TYPES.component) {
       return createComponentNode({
         componentId: value.componentId,
@@ -1020,8 +1160,6 @@
       NODE_TYPES.slot,
     ]);
 
-    ensureUpdateNonceInTree(documentNode);
-
     function proxify(target, path) {
       if (!target || typeof target !== "object") {
         return target;
@@ -1058,12 +1196,6 @@
             const mutationPath = localPath.concat(String(prop));
             markDirty(obj);
             markDirty(documentNode);
-            setUpdateNonce(obj);
-            setUpdateNonce(documentNode);
-            setUpdateNonce(findNearestNodeForPath(documentNode, mutationPath));
-            if (value && (typeof value === "object" || typeof value === "function")) {
-              ensureUpdateNonceInTree(value);
-            }
             callback({
               type: "set",
               path: mutationPath,
@@ -1084,9 +1216,6 @@
             const mutationPath = localPath.concat(String(prop));
             markDirty(obj);
             markDirty(documentNode);
-            setUpdateNonce(obj);
-            setUpdateNonce(documentNode);
-            setUpdateNonce(findNearestNodeForPath(documentNode, mutationPath));
             callback({
               type: "delete",
               path: mutationPath,
@@ -1116,6 +1245,8 @@
     QElementNode: QElementNode,
     QTextNode: QTextNode,
     QRawHtmlNode: QRawHtmlNode,
+    QDomModel: QDomModel,
+    QRepeaterNode: QRepeaterNode,
     QComponentNode: QComponentNode,
     QComponentInstanceNode: QComponentInstanceNode,
     QTemplateInstanceNode: QTemplateInstanceNode,
@@ -1128,6 +1259,8 @@
     createElementNode: createElementNode,
     createTextNode: createTextNode,
     createRawHtmlNode: createRawHtmlNode,
+    createModelNode: createModelNode,
+    createRepeaterNode: createRepeaterNode,
     createComponentNode: createComponentNode,
     createComponentInstanceNode: createComponentInstanceNode,
     createSlotNode: createSlotNode,
@@ -1140,6 +1273,10 @@
     mergeClasses: mergeClasses,
     observeQDom: observeQDom,
     UPDATE_NONCE_KEY: UPDATE_NONCE_KEY,
+    QDOM_UUID_KEY: QDOM_UUID_KEY,
+    createQDomUuid: createQDomUuid,
+    ensureNodeUuid: ensureNodeUuid,
+    getNodeUuid: getNodeUuid,
     createUpdateNonceToken: createUpdateNonceToken,
     setUpdateNonce: setUpdateNonce,
     ensureUpdateNonce: ensureUpdateNonce,

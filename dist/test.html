@@ -1283,6 +1283,552 @@ wasm-syntax-case { }
           </q-html>
         </section>
       </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>32. q-theme selector scope isolation</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>onReady {
+  var inside = this.querySelector("#scope-in");
+  var outside = this.querySelector("#scope-out");
+  var status = this.querySelector("#scope-status");
+  var inStyle = inside && String(inside.getAttribute("style") || "").toLowerCase();
+  var outStyle = outside && String(outside.getAttribute("style") || "").toLowerCase();
+  var insideRed = inStyle.indexOf("color: red") !== -1;
+  var outsideRed = outStyle.indexOf("color: red") !== -1;
+  var result = insideRed && !outsideRed ? "theme-scope-ok" : "theme-scope-fail";
+  this.setAttribute("data-result", result);
+  if (status) { status.textContent = result; }
+}
+q-style some-style { color: red }
+q-theme my-theme { * { some-style } }
+my-theme {
+  div#scope-in { span { text { inside } } }
+}
+div#scope-out { text { outside } }
+div#scope-status { text { pending } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: theme-scope-ok, scope-out</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t32" data-mode="contains" data-contains="theme-scope-ok||scope-out">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t32" data-qtest-host="1">
+onReady {
+  var inside = this.querySelector("#scope-in");
+  var outside = this.querySelector("#scope-out");
+  var status = this.querySelector("#scope-status");
+  var inStyle = inside && String(inside.getAttribute("style") || "").toLowerCase();
+  var outStyle = outside && String(outside.getAttribute("style") || "").toLowerCase();
+  var insideRed = inStyle.indexOf("color: red") !== -1;
+  var outsideRed = outStyle.indexOf("color: red") !== -1;
+  var result = insideRed && !outsideRed ? "theme-scope-ok" : "theme-scope-fail";
+  this.setAttribute("data-result", result);
+  if (status) { status.textContent = result; }
+}
+q-style some-style { color: red }
+q-theme my-theme { * { some-style } }
+my-theme {
+  div#scope-in { span { text { inside } } }
+}
+div#scope-out { text { outside } }
+div#scope-status { text { pending } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>33. q-repeater + anonymous q-array model</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-repeater my-repeater {
+  model { q-array { [10,20,30,40,50] } }
+  slot { item }
+  div,span#spanId,h3 { text { ${item} } }
+}</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: spanId, 10, 50</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t33" data-mode="contains" data-contains="spanId||10||50">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t33" data-qtest-host="1">
+q-repeater my-repeater {
+  model { q-array { [10,20,30,40,50] } }
+  slot { item }
+  div,span#spanId,h3 { text { ${item} } }
+}
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>34. q-foreach alias + named q-array concatenation</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-array arrA { [1,2] }
+q-array arrB { [3,4] }
+q-array arrC { arrA arrB }
+q-foreach concat-loop {
+  model { arrC }
+  slot { item }
+  p.concat-item { text { ${item} } }
+}</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: concat-item, 1, 4</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t34" data-mode="contains" data-contains="concat-item||1||4">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t34" data-qtest-host="1">
+q-array arrA { [1,2] }
+q-array arrB { [3,4] }
+q-array arrC { arrA arrB }
+q-foreach concat-loop {
+  model { arrC }
+  slot { item }
+  p.concat-item { text { ${item} } }
+}
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>35. invalid repeater model fallback</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-repeater bad-model {
+  model { text { not-iterable-fallback } }
+  slot { item }
+  div.bad-fallback { text { ${item} } }
+}</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: bad-fallback, not-iterable-fallback</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t35" data-mode="contains" data-contains="bad-fallback||not-iterable-fallback">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t35" data-qtest-host="1">
+q-repeater bad-model {
+  model { text { not-iterable-fallback } }
+  slot { item }
+  div.bad-fallback { text { ${item} } }
+}
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>36. q-object named + anonymous usage</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-object cardObj { div.qobj-card { text { q-object-loop-ok } } }
+q-repeater obj-loop {
+  model { cardObj }
+  slot { item }
+  text { ${item} }
+}
+q-object { div.qobj-anon { text { q-object-anon-ok } } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: q-object-loop-ok, q-object-anon-ok</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t36" data-mode="contains" data-contains="q-object-loop-ok||q-object-anon-ok">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t36" data-qtest-host="1">
+q-object cardObj { div.qobj-card { text { q-object-loop-ok } } }
+q-repeater obj-loop {
+  model { cardObj }
+  slot { item }
+  text { ${item} }
+}
+q-object { div.qobj-anon { text { q-object-anon-ok } } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>37. q-repeater stores QDomModel in qdom()</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>onReady {
+  var result = "repeater-qdommodel-fail";
+  try {
+    var root = this.qdom();
+    var list = root && root.nodes ? root.nodes : [];
+    var rep = null;
+    for (var i = 0; i < list.length; i += 1) {
+      if (list[i] && list[i].kind === "repeater") {
+        rep = list[i];
+        break;
+      }
+    }
+    var modelKind = rep && rep.model ? String(rep.model.kind || "") : "";
+    var entryCount = rep && rep.model && Array.isArray(rep.model.entries) ? rep.model.entries.length : -1;
+    if (rep && modelKind === "model" && entryCount === 3) {
+      result = "repeater-qdommodel-ok";
+    }
+  } catch (err) { }
+  var status = this.querySelector("#qdommodel-result");
+  if (status) { status.textContent = result; }
+}
+q-repeater qdom-model-check {
+  model { q-array { [1,2,3] } }
+  slot { item }
+  div.rep-cell { text { ${item} } }
+}
+div#qdommodel-result { text { pending } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: repeater-qdommodel-ok, rep-cell</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t37" data-mode="contains" data-contains="repeater-qdommodel-ok||rep-cell">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t37" data-qtest-host="1">
+onReady {
+  var result = "repeater-qdommodel-fail";
+  try {
+    var root = this.qdom();
+    var list = root && root.nodes ? root.nodes : [];
+    var rep = null;
+    for (var i = 0; i < list.length; i += 1) {
+      if (list[i] && list[i].kind === "repeater") {
+        rep = list[i];
+        break;
+      }
+    }
+    var modelKind = rep && rep.model ? String(rep.model.kind || "") : "";
+    var entryCount = rep && rep.model && Array.isArray(rep.model.entries) ? rep.model.entries.length : -1;
+    if (rep && modelKind === "model" && entryCount === 3) {
+      result = "repeater-qdommodel-ok";
+    }
+  } catch (err) { }
+  var status = this.querySelector("#qdommodel-result");
+  if (status) { status.textContent = result; }
+}
+q-repeater qdom-model-check {
+  model { q-array { [1,2,3] } }
+  slot { item }
+  div.rep-cell { text { ${item} } }
+}
+div#qdommodel-result { text { pending } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>38. q-template defined inside q-repeater</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-repeater tpl-loop {
+  model { q-array { [7] } }
+  slot { item }
+  q-template innerTpl {
+    span.tpl-from-repeater { text { tpl-from-repeater-${item} } }
+  }
+  innerTpl { }
+}</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: tpl-from-repeater-7</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t38" data-mode="contains" data-contains="tpl-from-repeater-7">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t38" data-qtest-host="1">
+q-repeater tpl-loop {
+  model { q-array { [7] } }
+  slot { item }
+  q-template innerTpl {
+    span.tpl-from-repeater { text { tpl-from-repeater-${item} } }
+  }
+  innerTpl { }
+}
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>39. update(uuid) targets UUID-mapped DOM node</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>onReady {
+  function findById(node, wantedId) {
+    if (!node || typeof node !== "object") { return null; }
+    var attrs = node.attributes && typeof node.attributes === "object" ? node.attributes : {};
+    if (String(attrs.id || "") === String(wantedId || "")) { return node; }
+    var childGroups = [];
+    if (Array.isArray(node.nodes)) { childGroups.push(node.nodes); }
+    if (Array.isArray(node.children)) { childGroups.push(node.children); }
+    if (Array.isArray(node.templateNodes)) { childGroups.push(node.templateNodes); }
+    for (var g = 0; g < childGroups.length; g += 1) {
+      var group = childGroups[g];
+      for (var i = 0; i < group.length; i += 1) {
+        var found = findById(group[i], wantedId);
+        if (found) { return found; }
+      }
+    }
+    return null;
+  }
+  var status = "uuid-update-fail";
+  try {
+    var host = this;
+    var alphaEl = host.querySelector("#uuid-alpha");
+    var betaEl = host.querySelector("#uuid-beta");
+    var maps = typeof host.uuidMaps === "function" ? host.uuidMaps() : (host.__qhtmlUuidMaps || null);
+    var alphaUuid = "";
+    if (maps && maps.domToUuid && alphaEl) {
+      try { alphaUuid = String(maps.domToUuid.get(alphaEl) || ""); } catch (uuidErr) { alphaUuid = ""; }
+    }
+    if (!alphaUuid && typeof host.uuidFor === "function" && alphaEl) {
+      alphaUuid = String(host.uuidFor(alphaEl) || "");
+    }
+    var root = host.qdom();
+    var alphaNode = findById(root, "uuid-alpha");
+    if (alphaNode && typeof alphaNode.setAttribute === "function") {
+      alphaNode.setAttribute("data-state", "updated");
+    } else if (alphaNode) {
+      if (!alphaNode.attributes || typeof alphaNode.attributes !== "object") { alphaNode.attributes = {}; }
+      alphaNode.attributes["data-state"] = "updated";
+    }
+    var didUpdate = alphaUuid ? host.update(alphaUuid) : false;
+    var alphaState = alphaEl ? String(alphaEl.getAttribute("data-state") || "") : "";
+    var betaState = betaEl ? String(betaEl.getAttribute("data-state") || "") : "";
+    if (alphaUuid && didUpdate && alphaState === "updated" && betaState === "") {
+      status = "uuid-update-ok";
+    }
+  } catch (err) { }
+  var resultNode = this.querySelector("#uuid-update-result");
+  if (resultNode) { resultNode.textContent = status; }
+}
+div#uuid-alpha { text { alpha } }
+div#uuid-beta { text { beta } }
+div#uuid-update-result { text { pending } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: uuid-update-ok</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t39" data-mode="contains" data-contains="uuid-update-ok">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t39" data-qtest-host="1">
+onReady {
+  function findById(node, wantedId) {
+    if (!node || typeof node !== "object") { return null; }
+    var attrs = node.attributes && typeof node.attributes === "object" ? node.attributes : {};
+    if (String(attrs.id || "") === String(wantedId || "")) { return node; }
+    var childGroups = [];
+    if (Array.isArray(node.nodes)) { childGroups.push(node.nodes); }
+    if (Array.isArray(node.children)) { childGroups.push(node.children); }
+    if (Array.isArray(node.templateNodes)) { childGroups.push(node.templateNodes); }
+    for (var g = 0; g < childGroups.length; g += 1) {
+      var group = childGroups[g];
+      for (var i = 0; i < group.length; i += 1) {
+        var found = findById(group[i], wantedId);
+        if (found) { return found; }
+      }
+    }
+    return null;
+  }
+  var status = "uuid-update-fail";
+  try {
+    var host = this;
+    var alphaEl = host.querySelector("#uuid-alpha");
+    var betaEl = host.querySelector("#uuid-beta");
+    var maps = typeof host.uuidMaps === "function" ? host.uuidMaps() : (host.__qhtmlUuidMaps || null);
+    var alphaUuid = "";
+    if (maps && maps.domToUuid && alphaEl) {
+      try { alphaUuid = String(maps.domToUuid.get(alphaEl) || ""); } catch (uuidErr) { alphaUuid = ""; }
+    }
+    if (!alphaUuid && typeof host.uuidFor === "function" && alphaEl) {
+      alphaUuid = String(host.uuidFor(alphaEl) || "");
+    }
+    var root = host.qdom();
+    var alphaNode = findById(root, "uuid-alpha");
+    if (alphaNode && typeof alphaNode.setAttribute === "function") {
+      alphaNode.setAttribute("data-state", "updated");
+    } else if (alphaNode) {
+      if (!alphaNode.attributes || typeof alphaNode.attributes !== "object") { alphaNode.attributes = {}; }
+      alphaNode.attributes["data-state"] = "updated";
+    }
+    var didUpdate = alphaUuid ? host.update(alphaUuid) : false;
+    var alphaState = alphaEl ? String(alphaEl.getAttribute("data-state") || "") : "";
+    var betaState = betaEl ? String(betaEl.getAttribute("data-state") || "") : "";
+    if (alphaUuid && didUpdate && alphaState === "updated" && betaState === "") {
+      status = "uuid-update-ok";
+    }
+  } catch (err) { }
+  var resultNode = this.querySelector("#uuid-update-result");
+  if (resultNode) { resultNode.textContent = status; }
+}
+div#uuid-alpha { text { alpha } }
+div#uuid-beta { text { beta } }
+div#uuid-update-result { text { pending } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>40. no-op q-bind evaluation does not mutate DOM</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>onReady {
+  if (this.__noopGuard) { return; }
+  this.__noopGuard = true;
+  var host = this;
+  var target = host.querySelector("#noop-bind-target");
+  var resultNode = host.querySelector("#noop-bind-result");
+  var mutationCount = 0;
+  if (!target || !resultNode || typeof MutationObserver !== "function") {
+    if (resultNode) { resultNode.textContent = "noop-bind-fail"; }
+    return;
+  }
+  var observer = new MutationObserver(function (records) {
+    mutationCount += Array.isArray(records) ? records.length : 0;
+  });
+  observer.observe(target, { attributes: true, childList: true, subtree: true, characterData: true });
+  host.update({ forceBindings: true, force: true });
+  host.update({ forceBindings: true, force: true });
+  host.update({ forceBindings: true, force: true });
+  setTimeout(function () {
+    observer.disconnect();
+    resultNode.textContent = mutationCount === 0 ? "noop-bind-ok" : "noop-bind-fail";
+  }, 60);
+}
+div#noop-bind-target {
+  class: q-bind { return "stable-class" }
+  text { stable-node }
+}
+div#noop-bind-result { text { pending } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: noop-bind-ok</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t40" data-mode="contains" data-contains="noop-bind-ok">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t40" data-qtest-host="1">
+onReady {
+  if (this.__noopGuard) { return; }
+  this.__noopGuard = true;
+  var host = this;
+  var target = host.querySelector("#noop-bind-target");
+  var resultNode = host.querySelector("#noop-bind-result");
+  var mutationCount = 0;
+  if (!target || !resultNode || typeof MutationObserver !== "function") {
+    if (resultNode) { resultNode.textContent = "noop-bind-fail"; }
+    return;
+  }
+  var observer = new MutationObserver(function (records) {
+    mutationCount += Array.isArray(records) ? records.length : 0;
+  });
+  observer.observe(target, { attributes: true, childList: true, subtree: true, characterData: true });
+  host.update({ forceBindings: true, force: true });
+  host.update({ forceBindings: true, force: true });
+  host.update({ forceBindings: true, force: true });
+  setTimeout(function () {
+    observer.disconnect();
+    resultNode.textContent = mutationCount === 0 ? "noop-bind-ok" : "noop-bind-fail";
+  }, 60);
+}
+div#noop-bind-target {
+  class: q-bind { return "stable-class" }
+  text { stable-node }
+}
+div#noop-bind-result { text { pending } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>41. Manual Stress Benchmarks (Click to Run)</h2></div>
+        <div class="io-grid">
+          <section class="cell">
+            <h3>Scenario</h3>
+            <pre>Click "Begin Test" to run six separate benchmark tests:
+1. Time to render 1000 nodes
+2. Time to update 100 random nodes from that 1000-node render
+3. Clear + time to render 5000 nodes
+4. Time to update 500 random nodes from that 5000-node render
+5. Clear + time to render 10000 nodes
+6. Time to update 1000 random nodes from that 10000-node render
+Test C. Update Diff: 20 random parent tags with 50 random children each, then
+200 random child replaceWithQHTML() operations using UUID-targeted updates.
+Reports requested/completed operations, attempts, completion %, and skip reasons.
+Test D. q-component randomize loop: 20 component instances, randomize() called on
+every instance once (warmup), then 20 random instances every 20ms for about 10s.
+Each randomize() output must be instance-unique and tracked with duplicate/seed metrics.
+
+Each test logs independent timers and metrics.</pre>
+          </section>
+          <section class="cell">
+            <h3>Controls</h3>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+              <button id="stress-begin" type="button">Begin Test</button>
+              <span id="stress-status">Idle</span>
+            </div>
+            <pre id="stress-log">Waiting to begin stress benchmarks.</pre>
+          </section>
+          <section class="cell">
+            <h3>Scratch Host</h3>
+            <pre>The runner creates a fresh q-html instance for each render pass and benchmarks it.</pre>
+            <div style="border:1px solid #ddd; border-radius:8px; padding:10px; max-height:220px; overflow:auto;">
+              <div id="stress-host"></div>
+            </div>
+          </section>
+        </div>
+      </article>
     </section>
   </div>
 
@@ -1483,9 +2029,1054 @@ wasm-syntax-case { }
         updateSummaryHost(window.qtestSummary());
       }
 
+      function stressNowMs() {
+        if (typeof performance !== "undefined" && performance && typeof performance.now === "function") {
+          return performance.now();
+        }
+        return Date.now();
+      }
+
+      function stressSleep(ms) {
+        return new Promise(function resolveSleep(resolve) {
+          window.setTimeout(resolve, Math.max(0, Number(ms) || 0));
+        });
+      }
+
+      function appendStressLog(logNode, line) {
+        if (!logNode) {
+          return;
+        }
+        var text = String(line == null ? "" : line);
+        if (!text) {
+          return;
+        }
+        if (logNode.textContent === "Waiting to begin stress benchmarks.") {
+          logNode.textContent = "";
+        }
+        var ts = new Date().toISOString().split("T")[1].replace("Z", "");
+        logNode.textContent += "[" + ts + "] " + text + "\n";
+        logNode.scrollTop = logNode.scrollHeight;
+      }
+
+      function buildStressSource(itemCount) {
+        var count = Math.max(8, Number(itemCount) || 8);
+        var values = [];
+        for (var i = 0; i < count; i += 1) {
+          values.push(String(i));
+        }
+        return [
+          "q-array stressData { [" + values.join(",") + "] }",
+          "div#stress-root {",
+          "  q-repeater stress-loop {",
+          "    model { stressData }",
+          "    slot { item }",
+          "    span {",
+          "      class: stress-cell",
+          "      text { ${item} }",
+          "    }",
+          "  }",
+          "}",
+          "div#stress-counter { text { 0 } }"
+        ].join("\n");
+      }
+
+      function stressRandomFromList(list) {
+        var pool = Array.isArray(list) ? list : [];
+        if (pool.length === 0) {
+          return "div";
+        }
+        return String(pool[Math.floor(Math.random() * pool.length)] || "div");
+      }
+
+      function stressRandomLetters(minLen, maxLen) {
+        var min = Math.max(1, Number(minLen) || 1);
+        var max = Math.max(min, Number(maxLen) || min);
+        var target = min + Math.floor(Math.random() * (max - min + 1));
+        var chars = "abcdefghijklmnopqrstuvwxyz";
+        var out = "";
+        for (var i = 0; i < target; i += 1) {
+          out += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return out;
+      }
+
+      function buildStressDiffSource() {
+        var parentCount = 20;
+        var childrenPerParent = 50;
+        var tagPool = [
+          "div", "section", "article", "aside", "nav",
+          "header", "footer", "main", "p", "span",
+          "strong", "em", "small", "mark", "code",
+          "pre", "h3", "h4", "li", "label"
+        ];
+        var lines = [];
+        lines.push("div#stress-diff-root {");
+        for (var p = 0; p < parentCount; p += 1) {
+          var parentTag = stressRandomFromList(tagPool);
+          lines.push("  " + parentTag + ".stress-parent {");
+          lines.push("    id: stress-parent-" + String(p));
+          for (var c = 0; c < childrenPerParent; c += 1) {
+            var childTag = stressRandomFromList(tagPool);
+            var text = stressRandomLetters(6, 14);
+            lines.push("    " + childTag + ".stress-target {");
+            lines.push("      id: stress-child-" + String(p) + "-" + String(c));
+            lines.push("      text { " + text + " }");
+            lines.push("    }");
+          }
+          lines.push("  }");
+        }
+        lines.push("}");
+        return lines.join("\n");
+      }
+
+      function buildStressRandomizeSource() {
+        var instanceValues = [];
+        for (var i = 0; i < 20; i += 1) {
+          instanceValues.push(String(i));
+        }
+        return [
+          "q-array randomizeData { [" + instanceValues.join(",") + "] }",
+          "q-component random-component {",
+          "  q-property innerData: q-script {",
+          "    return this.randomize();",
+          "  }",
+          "  function randomize() {",
+          "    var letters = \"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\".split(\"\");",
+          "    var rv = [];",
+          "    while (letters.length > 20) {",
+          "      var index = Math.floor(Math.random() * letters.length);",
+          "      var letter = letters.splice(index, 1)[0];",
+          "      if (typeof letter === \"string\" && letter.length > 0) {",
+          "        rv.push(letter);",
+          "      }",
+          "    }",
+          "    var out = rv.join(\"\");",
+          "    var host = this;",
+          "    try {",
+          "      if (host && typeof host.closest === \"function\") {",
+          "        host = host.closest(\"random-component\") || host;",
+          "      }",
+          "    } catch (closestError) { }",
+          "    if (host) {",
+          "      host.innerData = out;",
+          "      try {",
+          "        var root = (typeof host.qhtmlRoot === \"function\") ? host.qhtmlRoot() : null;",
+          "        var qn = (typeof host.qdom === \"function\") ? host.qdom() : null;",
+          "        var uuid = \"\";",
+          "        if (qn && typeof qn === \"object\") {",
+          "          uuid = String(qn.UUID || qn.uuid || (qn.meta && qn.meta.uuid) || \"\");",
+          "        }",
+          "        if (!uuid && root && typeof root.uuidFor === \"function\") {",
+          "          uuid = String(root.uuidFor(host) || (qn ? root.uuidFor(qn) : \"\") || \"\");",
+          "        }",
+          "        if (root && typeof root.update === \"function\" && uuid) {",
+          "          root.update(uuid);",
+          "        } else if (typeof host.update === \"function\" && uuid) {",
+          "          host.update(uuid);",
+          "        } else if (typeof host.invalidate === \"function\") {",
+          "          host.invalidate({ forceBindings: true });",
+          "        } else if (typeof host.update === \"function\") {",
+          "          host.update({ forceBindings: true });",
+          "        }",
+          "      } catch (updateError) { }",
+          "    }",
+          "    return out;",
+          "  }",
+          "  div.randomize-text { text { ${this.component.innerData} } }",
+          "}",
+          "div#stress-randomize-root {",
+          "  q-repeater randomize-loop {",
+          "    model { randomizeData }",
+          "    slot { item }",
+          "    random-component.randomize-item { id: random-component-${item} }",
+          "  }",
+          "}"
+        ].join("\n");
+      }
+
+      function stressReadRandomizeComponentValue(componentNode) {
+        var comp = componentNode && componentNode.nodeType === 1 ? componentNode : null;
+        if (!comp) {
+          return "";
+        }
+        var value = "";
+        try {
+          if (typeof comp.innerData !== "undefined" && comp.innerData !== null) {
+            value = String(comp.innerData);
+          } else if (typeof comp.randomString !== "undefined" && comp.randomString !== null) {
+            value = String(comp.randomString);
+          }
+        } catch (readPropError) {
+          value = "";
+        }
+        if (!value && typeof comp.querySelector === "function") {
+          var textNode = comp.querySelector(".randomize-text");
+          if (textNode && typeof textNode.textContent === "string") {
+            value = String(textNode.textContent || "");
+          }
+        }
+        return String(value || "").trim();
+      }
+
+      function stressCollectRandomizeComponentStats(hostNode) {
+        var host = hostNode && hostNode.nodeType === 1 ? hostNode : null;
+        var stats = {
+          total: 0,
+          unique: 0,
+          duplicates: 0,
+          seed: 0,
+          empty: 0
+        };
+        if (!host || typeof host.querySelectorAll !== "function") {
+          return stats;
+        }
+        var seenValues = Object.create(null);
+        var components = host.querySelectorAll("random-component");
+        stats.total = components ? components.length : 0;
+        for (var i = 0; i < stats.total; i += 1) {
+          var comp = components[i];
+          var value = stressReadRandomizeComponentValue(comp);
+          if (!value) {
+            stats.empty += 1;
+            continue;
+          }
+          if (value === "seed") {
+            stats.seed += 1;
+          }
+          if (Object.prototype.hasOwnProperty.call(seenValues, value)) {
+            stats.duplicates += 1;
+          } else {
+            seenValues[value] = true;
+            stats.unique += 1;
+          }
+        }
+        return stats;
+      }
+
+      function stressCountTextNodesInNode(node) {
+        if (!node || typeof node !== "object") {
+          return 0;
+        }
+        if (node.nodeType === 3) {
+          return 1;
+        }
+        var total = 0;
+        var children = node.childNodes && typeof node.childNodes.length === "number" ? node.childNodes : [];
+        for (var i = 0; i < children.length; i += 1) {
+          total += stressCountTextNodesInNode(children[i]);
+        }
+        return total;
+      }
+
+      function stressCountTextNodesInCollection(nodes) {
+        var total = 0;
+        if (!nodes || typeof nodes.length !== "number") {
+          return total;
+        }
+        for (var i = 0; i < nodes.length; i += 1) {
+          total += stressCountTextNodesInNode(nodes[i]);
+        }
+        return total;
+      }
+
+      function stressChildCollections(node) {
+        var out = [];
+        if (!node || typeof node !== "object") {
+          return out;
+        }
+        if (Array.isArray(node.nodes)) { out.push(node.nodes); }
+        if (Array.isArray(node.children)) { out.push(node.children); }
+        if (Array.isArray(node.templateNodes)) { out.push(node.templateNodes); }
+        if (Array.isArray(node.slots)) { out.push(node.slots); }
+        if (node.model && typeof node.model === "object") { out.push([node.model]); }
+        if (Array.isArray(node.entries)) {
+          out.push(node.entries);
+          for (var i = 0; i < node.entries.length; i += 1) {
+            var entry = node.entries[i];
+            if (entry && typeof entry === "object" && Array.isArray(entry.nodes)) {
+              out.push(entry.nodes);
+            }
+          }
+        }
+        return out;
+      }
+
+      function walkStressQDom(root, visitor) {
+        if (!root || typeof visitor !== "function") {
+          return;
+        }
+        var seen = new Set();
+        var stack = [root];
+        while (stack.length > 0) {
+          var node = stack.pop();
+          if (!node || typeof node !== "object") {
+            continue;
+          }
+          if (seen.has(node)) {
+            continue;
+          }
+          seen.add(node);
+          try {
+            visitor(node);
+          } catch (err) {
+            // continue traversal
+          }
+          var groups = stressChildCollections(node);
+          for (var g = 0; g < groups.length; g += 1) {
+            var group = groups[g];
+            if (!Array.isArray(group)) {
+              continue;
+            }
+            for (var i = 0; i < group.length; i += 1) {
+              stack.push(group[i]);
+            }
+          }
+        }
+      }
+
+      function stressFindNodeById(root, wantedId) {
+        var found = null;
+        var idText = String(wantedId || "");
+        walkStressQDom(root, function eachNode(node) {
+          if (found) {
+            return;
+          }
+          var attrs = node && node.attributes && typeof node.attributes === "object" ? node.attributes : null;
+          if (!attrs) {
+            return;
+          }
+          if (String(attrs.id || "") === idText) {
+            found = node;
+          }
+        });
+        return found;
+      }
+
+      function stressCollectMutableNodes(root) {
+        var out = [];
+        walkStressQDom(root, function collect(node) {
+          var kind = String(node && node.kind || "").toLowerCase();
+          if (kind === "element" || kind === "component-instance" || kind === "template-instance") {
+            out.push(node);
+          }
+        });
+        return out;
+      }
+
+      function stressSetNodeAttribute(node, name, value) {
+        if (!node || typeof node !== "object") {
+          return;
+        }
+        if (typeof node.setAttribute === "function") {
+          node.setAttribute(name, value);
+          return;
+        }
+        if (!node.attributes || typeof node.attributes !== "object") {
+          node.attributes = {};
+        }
+        node.attributes[name] = String(value);
+      }
+
+      function stressSetNodeText(node, value) {
+        if (!node || typeof node !== "object") {
+          return;
+        }
+        if (typeof node.text === "function") {
+          node.text(String(value));
+          return;
+        }
+        node.textContent = String(value);
+      }
+
+      async function stressMountSource(hostContainer, sourceText) {
+        if (!hostContainer || hostContainer.nodeType !== 1 || !window.QHtml || typeof window.QHtml.mountQHtmlElement !== "function") {
+          throw new Error("QHtml runtime is not available for stress host mount.");
+        }
+        var previous = hostContainer.__stressActiveHost;
+        try {
+          if (previous) {
+            window.QHtml.unmountQHtmlElement(previous);
+          }
+        } catch (unmountError) {
+          // continue with remount attempt
+        }
+        while (hostContainer.firstChild) {
+          hostContainer.removeChild(hostContainer.firstChild);
+        }
+        var host = (hostContainer.ownerDocument || document).createElement("q-html");
+        host.textContent = String(sourceText == null ? "" : sourceText);
+        hostContainer.appendChild(host);
+        var binding = window.QHtml.mountQHtmlElement(host);
+        if (binding && binding.ready && typeof binding.ready.then === "function") {
+          await binding.ready;
+        }
+        hostContainer.__stressActiveHost = host;
+        return host;
+      }
+
+      async function stressMountHost(hostContainer, itemCount) {
+        return stressMountSource(hostContainer, buildStressSource(itemCount));
+      }
+
+      function stressStopDiffTimers(host) {
+        if (!host || host.nodeType !== 1) {
+          return 0;
+        }
+        var stopped = 0;
+        if (host.__stressDiffTimer) {
+          try {
+            window.clearInterval(host.__stressDiffTimer);
+          } catch (hostTimerError) {
+            // continue timer cleanup
+          }
+          host.__stressDiffTimer = null;
+          stopped += 1;
+        }
+        var nodes = host.querySelectorAll("test-comp");
+        for (var i = 0; i < nodes.length; i += 1) {
+          var node = nodes[i];
+          if (node && node.__stressDiffTimer) {
+            try {
+              window.clearInterval(node.__stressDiffTimer);
+            } catch (timerError) {
+              // continue timer cleanup
+            }
+            node.__stressDiffTimer = null;
+            stopped += 1;
+          }
+        }
+        return stopped;
+      }
+
+      function stressStopTestDTimer(host) {
+        if (!host || host.nodeType !== 1) {
+          return false;
+        }
+        if (!host.__stressTestDTimer) {
+          return false;
+        }
+        try {
+          window.clearInterval(host.__stressTestDTimer);
+        } catch (timerError) {
+          // continue cleanup
+        }
+        host.__stressTestDTimer = null;
+        return true;
+      }
+
+      function stressPickRandomNodes(nodes, wantedCount) {
+        var pool = Array.isArray(nodes) ? nodes : [];
+        var limit = Math.min(Math.max(0, Number(wantedCount) || 0), pool.length);
+        var picked = [];
+        if (limit <= 0) {
+          return picked;
+        }
+        var used = Object.create(null);
+        while (picked.length < limit) {
+          var index = Math.floor(Math.random() * pool.length);
+          if (used[index]) {
+            continue;
+          }
+          used[index] = true;
+          picked.push(pool[index]);
+        }
+        return picked;
+      }
+
+      async function runStressRamp(hostContainer, statusNode, logNode, triggerButton) {
+        if (!hostContainer || hostContainer.nodeType !== 1) {
+          return;
+        }
+        if (hostContainer.__stressRunning) {
+          return;
+        }
+        hostContainer.__stressRunning = true;
+        if (triggerButton) {
+          triggerButton.disabled = true;
+        }
+        if (statusNode) {
+          statusNode.textContent = "Running";
+        }
+        if (logNode) {
+          logNode.textContent = "";
+        }
+
+        var suiteStart = stressNowMs();
+        var metrics = [];
+
+        try {
+          var activeHost = null;
+          var passes = [
+            { kind: "render", nodes: 1000, label: "time to render 1000 nodes" },
+            { kind: "update", nodes: 100, label: "time to update 100 nodes" },
+            { kind: "render", nodes: 5000, label: "time to render 5000 nodes" },
+            { kind: "update", nodes: 500, label: "time to update 500 nodes" },
+            { kind: "render", nodes: 10000, label: "time to render 10000 nodes" },
+            { kind: "update", nodes: 1000, label: "time to update 1000 nodes" }
+          ];
+
+          var i;
+          for (var p = 0; p < passes.length; p += 1) {
+            var pass = passes[p];
+            var passNo = p + 1;
+            appendStressLog(logNode, "Test " + String(passNo) + "/6 start: " + pass.label);
+            if (statusNode) {
+              statusNode.textContent = "Running " + String(passNo) + "/6";
+            }
+            if (pass.kind === "render") {
+              var renderStart = stressNowMs();
+              activeHost = await stressMountHost(hostContainer, pass.nodes);
+              var renderMs = stressNowMs() - renderStart;
+              var renderedStressCells = activeHost ? activeHost.querySelectorAll(".stress-cell").length : 0;
+              var renderedDomNodes = activeHost ? activeHost.querySelectorAll("*").length : 0;
+              var renderRate = renderMs > 0 ? (renderedStressCells * 1000) / renderMs : 0;
+              metrics.push({
+                name: pass.label,
+                kind: pass.kind,
+                target: pass.nodes,
+                rendered: renderedStressCells,
+                dom: renderedDomNodes,
+                ms: renderMs,
+                rate: renderRate
+              });
+              appendStressLog(
+                logNode,
+                "Test " + String(passNo) + "/6 done: " + pass.label +
+                " | ms=" + renderMs.toFixed(2) +
+                " | rendered=" + String(renderedStressCells) +
+                " | domNodes=" + String(renderedDomNodes) +
+                " | nodes/sec=" + renderRate.toFixed(2)
+              );
+              continue;
+            }
+
+            if (!activeHost || typeof activeHost.qdom !== "function") {
+              throw new Error("Update benchmark requires a mounted q-html render host.");
+            }
+            var rootDoc = activeHost.qdom();
+            var mutableNodes = stressCollectMutableNodes(rootDoc);
+            var pickedNodes = stressPickRandomNodes(mutableNodes, pass.nodes);
+            var updateRequested = pass.nodes;
+            var updateExecuted = pickedNodes.length;
+            var uuidUpdates = 0;
+            var fallbackUpdates = 0;
+            var updateStart = stressNowMs();
+            for (i = 0; i < pickedNodes.length; i += 1) {
+              var node = pickedNodes[i];
+              stressSetNodeAttribute(node, "data-bench", String(passNo) + "-" + String(i));
+              stressSetNodeText(node, "bench-" + String(passNo) + "-" + String(i));
+              var uuid = typeof activeHost.uuidFor === "function" ? String(activeHost.uuidFor(node) || "") : "";
+              if (uuid) {
+                activeHost.update(uuid);
+                uuidUpdates += 1;
+              } else {
+                activeHost.update({ forceBindings: true, force: true });
+                fallbackUpdates += 1;
+              }
+              if (i % 50 === 0) {
+                await stressSleep(0);
+              }
+            }
+            var updateMs = stressNowMs() - updateStart;
+            var updateRate = updateMs > 0 ? (updateExecuted * 1000) / updateMs : 0;
+            metrics.push({
+              name: pass.label,
+              kind: pass.kind,
+              requested: updateRequested,
+              executed: updateExecuted,
+              pool: mutableNodes.length,
+              uuid: uuidUpdates,
+              fallback: fallbackUpdates,
+              ms: updateMs,
+              rate: updateRate
+            });
+            appendStressLog(
+              logNode,
+              "Test " + String(passNo) + "/6 done: " + pass.label +
+              " | ms=" + updateMs.toFixed(2) +
+              " | requested=" + String(updateRequested) +
+              " | executed=" + String(updateExecuted) +
+              " | pool=" + String(mutableNodes.length) +
+              " | uuidUpdates=" + String(uuidUpdates) +
+              " | fallbackUpdates=" + String(fallbackUpdates) +
+              " | updates/sec=" + updateRate.toFixed(2)
+            );
+          }
+
+          appendStressLog(logNode, "Test C start: UUID rewrite batch (20 parents x 50 children, 200 ops)");
+          if (statusNode) {
+            statusNode.textContent = "Running Test C";
+          }
+          var diffRenderStart = stressNowMs();
+          activeHost = await stressMountSource(hostContainer, buildStressDiffSource());
+          var diffRenderMs = stressNowMs() - diffRenderStart;
+          var diffParentCount = activeHost ? activeHost.querySelectorAll(".stress-parent").length : 0;
+          var diffChildCount = activeHost ? activeHost.querySelectorAll(".stress-target").length : 0;
+          var diffRequestCount = 200;
+          var diffObserver = null;
+          var diffTextMutations = 0;
+          if (typeof MutationObserver === "function" && activeHost) {
+            diffObserver = new MutationObserver(function onDiffMutations(records) {
+              for (var r = 0; r < records.length; r += 1) {
+                var record = records[r];
+                if (!record) {
+                  continue;
+                }
+                if (record.type === "characterData") {
+                  diffTextMutations += 1;
+                } else if (record.type === "childList") {
+                  diffTextMutations += stressCountTextNodesInCollection(record.addedNodes);
+                }
+              }
+            });
+            diffObserver.observe(activeHost, { characterData: true, childList: true, subtree: true });
+          }
+          var diffParentUuidToDom = new Map();
+          var diffCompletedRequests = 0;
+          var diffUuidUpdateCalls = 0;
+          var diffFallbackUpdateCalls = 0;
+          var diffMutatedNodes = 0;
+          var diffAttemptCount = 0;
+          var diffMaxAttempts = Math.max(diffRequestCount * 20, diffRequestCount + 50);
+          var diffSkippedNoParent = 0;
+          var diffSkippedNoChildren = 0;
+          var diffSkippedNoTargetQdom = 0;
+          var diffReplaceErrors = 0;
+          function refreshDiffParentMap() {
+            diffParentUuidToDom.clear();
+            if (!activeHost) {
+              return [];
+            }
+            var maps = typeof activeHost.uuidMaps === "function" ? activeHost.uuidMaps() : null;
+            var parents = activeHost.querySelectorAll(".stress-parent");
+            for (var i = 0; i < parents.length; i += 1) {
+              var parentEl = parents[i];
+              if (!parentEl || parentEl.nodeType !== 1 || parentEl.isConnected === false) {
+                continue;
+              }
+              var parentUuid = "";
+              if (!parentUuid && typeof activeHost.uuidFor === "function") {
+                parentUuid = String(activeHost.uuidFor(parentEl) || "");
+              }
+              if (!parentUuid && maps && maps.domToUuid && typeof maps.domToUuid.get === "function") {
+                parentUuid = String(maps.domToUuid.get(parentEl) || "");
+              }
+              if (parentUuid) {
+                diffParentUuidToDom.set(parentUuid, parentEl);
+              }
+            }
+            var entries = [];
+            diffParentUuidToDom.forEach(function collectEntry(domElement, uuid) {
+              if (!uuid || !domElement || domElement.nodeType !== 1 || domElement.isConnected === false) {
+                return;
+              }
+              entries.push({ uuid: uuid, element: domElement });
+            });
+            return entries;
+          }
+
+          function randomReplacementQHtml(opIndex) {
+            var replaceTagPool = [
+              "div", "section", "article", "aside", "nav",
+              "header", "footer", "p", "span", "strong",
+              "em", "small", "mark", "code", "pre",
+              "h3", "h4", "li", "label", "button"
+            ];
+            var nextTag = stressRandomFromList(replaceTagPool);
+            var nextText = stressRandomLetters(5, 16);
+            return nextTag + ".stress-target { id: stress-repl-" + String(opIndex) + " text { " + nextText + " } }";
+          }
+
+          var diffParentEntries = refreshDiffParentMap();
+          var diffStart = stressNowMs();
+          while (diffCompletedRequests < diffRequestCount && diffAttemptCount < diffMaxAttempts) {
+            diffAttemptCount += 1;
+            if (!activeHost) {
+              break;
+            }
+            diffParentEntries = refreshDiffParentMap();
+            if (diffParentEntries.length === 0) {
+              diffSkippedNoParent += 1;
+              if (diffAttemptCount % 10 === 0) {
+                await stressSleep(0);
+              }
+              continue;
+            }
+            var parentPick = diffParentEntries[Math.floor(Math.random() * diffParentEntries.length)];
+            var parentUuid = parentPick && parentPick.uuid ? String(parentPick.uuid) : "";
+            var parentElement =
+              parentUuid && typeof activeHost.elementForUuid === "function"
+                ? activeHost.elementForUuid(parentUuid)
+                : null;
+            if (!parentElement && parentUuid) {
+              parentElement = diffParentUuidToDom.get(parentUuid);
+            }
+            if (!parentElement && parentPick && parentPick.element && parentPick.element.nodeType === 1) {
+              parentElement = parentPick.element;
+            }
+            if (!parentElement || parentElement.isConnected === false) {
+              diffSkippedNoParent += 1;
+              continue;
+            }
+            var children = parentElement.querySelectorAll(".stress-target");
+            if (!children || children.length === 0) {
+              diffSkippedNoChildren += 1;
+              continue;
+            }
+            var target = children[Math.floor(Math.random() * children.length)];
+            if (!target || typeof target.qdom !== "function") {
+              diffSkippedNoTargetQdom += 1;
+              continue;
+            }
+            var targetQdom = target.qdom();
+            if (!targetQdom || typeof targetQdom.replaceWithQHTML !== "function") {
+              diffSkippedNoTargetQdom += 1;
+              continue;
+            }
+            try {
+              targetQdom.replaceWithQHTML(randomReplacementQHtml(diffCompletedRequests));
+            } catch (replaceError) {
+              diffReplaceErrors += 1;
+              continue;
+            }
+            diffMutatedNodes += 1;
+            if (parentUuid) {
+              activeHost.update(parentUuid);
+              diffUuidUpdateCalls += 1;
+            } else {
+              activeHost.update({ forceBindings: true, force: true });
+              diffFallbackUpdateCalls += 1;
+            }
+            diffCompletedRequests += 1;
+            if (diffAttemptCount % 25 === 0) {
+              await stressSleep(0);
+            }
+          }
+          var diffElapsedMs = stressNowMs() - diffStart;
+          if (diffObserver && typeof diffObserver.disconnect === "function") {
+            diffObserver.disconnect();
+          }
+          var diffTextPerSec = diffElapsedMs > 0 ? (diffTextMutations * 1000) / diffElapsedMs : 0;
+          var diffRequestsPerSec = diffElapsedMs > 0 ? (diffCompletedRequests * 1000) / diffElapsedMs : 0;
+          var diffAttemptsPerSec = diffElapsedMs > 0 ? (diffAttemptCount * 1000) / diffElapsedMs : 0;
+          var diffIncomplete = Math.max(0, diffRequestCount - diffCompletedRequests);
+          var diffCompletionPct = diffRequestCount > 0 ? (diffCompletedRequests * 100) / diffRequestCount : 100;
+          metrics.push({
+            name: "Test C — Update Diff",
+            kind: "update-diff",
+            renderMs: diffRenderMs,
+            parents: diffParentCount,
+            children: diffChildCount,
+            durationMs: diffElapsedMs,
+            requests: diffRequestCount,
+            completedRequests: diffCompletedRequests,
+            requestsPerSec: diffRequestsPerSec,
+            attempts: diffAttemptCount,
+            attemptsPerSec: diffAttemptsPerSec,
+            completionPct: diffCompletionPct,
+            incomplete: diffIncomplete,
+            textMutations: diffTextMutations,
+            mutatedNodes: diffMutatedNodes,
+            parentUuidMapSize: diffParentUuidToDom.size,
+            uuidUpdates: diffUuidUpdateCalls,
+            fallbackUpdates: diffFallbackUpdateCalls,
+            skippedNoParent: diffSkippedNoParent,
+            skippedNoChildren: diffSkippedNoChildren,
+            skippedNoTargetQdom: diffSkippedNoTargetQdom,
+            replaceErrors: diffReplaceErrors,
+            textPerSec: diffTextPerSec
+          });
+          appendStressLog(
+            logNode,
+            "Test C done: Update Diff" +
+            " | renderMs=" + diffRenderMs.toFixed(2) +
+            " | parents=" + String(diffParentCount) +
+            " | children=" + String(diffChildCount) +
+            " | durationMs=" + diffElapsedMs.toFixed(2) +
+            " | requests=" + String(diffRequestCount) +
+            " | completed=" + String(diffCompletedRequests) +
+            " | attempts=" + String(diffAttemptCount) +
+            " | completion=" + diffCompletionPct.toFixed(2) + "%" +
+            " | incomplete=" + String(diffIncomplete) +
+            " | requests/sec=" + diffRequestsPerSec.toFixed(2) +
+            " | attempts/sec=" + diffAttemptsPerSec.toFixed(2) +
+            " | mutatedNodes=" + String(diffMutatedNodes) +
+            " | parentUuidMapSize=" + String(diffParentUuidToDom.size) +
+            " | skipped(noParent)=" + String(diffSkippedNoParent) +
+            " | skipped(noChildren)=" + String(diffSkippedNoChildren) +
+            " | skipped(noQdom)=" + String(diffSkippedNoTargetQdom) +
+            " | replaceErrors=" + String(diffReplaceErrors) +
+            " | textMutations=" + String(diffTextMutations) +
+            " | uuidUpdates=" + String(diffUuidUpdateCalls) +
+            " | fallbackUpdates=" + String(diffFallbackUpdateCalls) +
+            " | text updates/sec=" + diffTextPerSec.toFixed(2)
+          );
+
+          appendStressLog(logNode, "Test D start: q-component randomize loop (20 instances, 20 updates/20ms, ~10s)");
+          if (statusNode) {
+            statusNode.textContent = "Running Test D";
+          }
+          var randomizeRenderStart = stressNowMs();
+          activeHost = await stressMountSource(hostContainer, buildStressRandomizeSource());
+          var randomizeRenderMs = stressNowMs() - randomizeRenderStart;
+          var randomizeComponents = activeHost ? activeHost.querySelectorAll("random-component") : [];
+          var randomizeComponentCount = randomizeComponents ? randomizeComponents.length : 0;
+          var randomizeDurationMs = 10000;
+          var randomizeIntervalMs = 20;
+          var randomizePerTick = 20;
+          var randomizeTicks = 0;
+          var randomizeCalls = 0;
+          var randomizeWarmupCalls = 0;
+          var randomizeObserver = null;
+          var randomizeTextMutations = 0;
+          var randomizeWarmupStats = null;
+          function collectLiveRandomizeComponents() {
+            return activeHost ? activeHost.querySelectorAll("random-component") : [];
+          }
+          if (typeof MutationObserver === "function" && activeHost) {
+            randomizeObserver = new MutationObserver(function onRandomizeMutations(records) {
+              for (var rr = 0; rr < records.length; rr += 1) {
+                var rec = records[rr];
+                if (!rec) {
+                  continue;
+                }
+                if (rec.type === "characterData") {
+                  randomizeTextMutations += 1;
+                } else if (rec.type === "childList") {
+                  randomizeTextMutations += stressCountTextNodesInCollection(rec.addedNodes);
+                }
+              }
+            });
+            randomizeObserver.observe(activeHost, { characterData: true, childList: true, subtree: true });
+          }
+          if (randomizeComponents && randomizeComponents.length > 0) {
+            var warmupComponents = collectLiveRandomizeComponents();
+            for (var rw = 0; rw < warmupComponents.length; rw += 1) {
+              var warmupComp = warmupComponents[rw];
+              if (warmupComp && typeof warmupComp.randomize === "function") {
+                warmupComp.randomize();
+                randomizeCalls += 1;
+                randomizeWarmupCalls += 1;
+              }
+            }
+            await stressSleep(30);
+            randomizeWarmupStats = stressCollectRandomizeComponentStats(activeHost);
+            appendStressLog(
+              logNode,
+              "Test D warmup: one randomize() per instance" +
+              " | calls=" + String(randomizeWarmupCalls) +
+              " | unique=" + String(randomizeWarmupStats.unique) +
+              " | duplicates=" + String(randomizeWarmupStats.duplicates) +
+              " | seed=" + String(randomizeWarmupStats.seed) +
+              " | empty=" + String(randomizeWarmupStats.empty)
+            );
+          }
+          if (activeHost) {
+            stressStopTestDTimer(activeHost);
+            activeHost.__stressTestDTimer = window.setInterval(function onRandomizeTick() {
+              try {
+                var liveComponents = collectLiveRandomizeComponents();
+                if (!liveComponents || liveComponents.length === 0) {
+                  return;
+                }
+                for (var pi = 0; pi < randomizePerTick; pi += 1) {
+                  var randomIndex = Math.floor(Math.random() * liveComponents.length);
+                  var comp = liveComponents[randomIndex];
+                  if (comp && typeof comp.randomize === "function") {
+                    comp.randomize();
+                    randomizeCalls += 1;
+                  }
+                }
+                randomizeTicks += 1;
+              } catch (tickError) {
+                // keep test running
+              }
+            }, randomizeIntervalMs);
+          }
+          var randomizeStart = stressNowMs();
+          await stressSleep(randomizeDurationMs);
+          var randomizeElapsedMs = stressNowMs() - randomizeStart;
+          var randomizeTimerStopped = stressStopTestDTimer(activeHost);
+          if (randomizeObserver && typeof randomizeObserver.disconnect === "function") {
+            randomizeObserver.disconnect();
+          }
+          var randomizeFinalStats = stressCollectRandomizeComponentStats(activeHost);
+          var randomizeUniqueValues = Number(randomizeFinalStats.unique || 0);
+          var randomizeDuplicateValues = Number(randomizeFinalStats.duplicates || 0);
+          var randomizeSeedValues = Number(randomizeFinalStats.seed || 0);
+          var randomizeEmptyValues = Number(randomizeFinalStats.empty || 0);
+          var randomizePerInstancePass =
+            randomizeComponentCount > 0 &&
+            randomizeUniqueValues === randomizeComponentCount &&
+            randomizeDuplicateValues === 0 &&
+            randomizeSeedValues === 0 &&
+            randomizeEmptyValues === 0;
+          var randomizeCallsPerSec = randomizeElapsedMs > 0 ? (randomizeCalls * 1000) / randomizeElapsedMs : 0;
+          var randomizeTicksPerSec = randomizeElapsedMs > 0 ? (randomizeTicks * 1000) / randomizeElapsedMs : 0;
+          var randomizeTextPerSec = randomizeElapsedMs > 0 ? (randomizeTextMutations * 1000) / randomizeElapsedMs : 0;
+          metrics.push({
+            name: "Test D — Component Randomize Timer",
+            kind: "component-randomize",
+            renderMs: randomizeRenderMs,
+            components: randomizeComponentCount,
+            durationMs: randomizeElapsedMs,
+            intervalMs: randomizeIntervalMs,
+            perTick: randomizePerTick,
+            ticks: randomizeTicks,
+            calls: randomizeCalls,
+            warmupCalls: randomizeWarmupCalls,
+            warmupUnique: Number(randomizeWarmupStats && randomizeWarmupStats.unique || 0),
+            warmupDuplicates: Number(randomizeWarmupStats && randomizeWarmupStats.duplicates || 0),
+            warmupSeed: Number(randomizeWarmupStats && randomizeWarmupStats.seed || 0),
+            warmupEmpty: Number(randomizeWarmupStats && randomizeWarmupStats.empty || 0),
+            callsPerSec: randomizeCallsPerSec,
+            ticksPerSec: randomizeTicksPerSec,
+            textMutations: randomizeTextMutations,
+            textPerSec: randomizeTextPerSec,
+            timerStopped: randomizeTimerStopped,
+            uniqueValues: randomizeUniqueValues,
+            duplicateValues: randomizeDuplicateValues,
+            seedValues: randomizeSeedValues,
+            emptyValues: randomizeEmptyValues,
+            perInstancePass: randomizePerInstancePass
+          });
+          appendStressLog(
+            logNode,
+            "Test D done: component randomize completed" +
+            " | renderMs=" + randomizeRenderMs.toFixed(2) +
+            " | components=" + String(randomizeComponentCount) +
+            " | durationMs=" + randomizeElapsedMs.toFixed(2) +
+            " | intervalMs=" + String(randomizeIntervalMs) +
+            " | perTick=" + String(randomizePerTick) +
+            " | ticks=" + String(randomizeTicks) +
+            " | calls=" + String(randomizeCalls) +
+            " | warmupCalls=" + String(randomizeWarmupCalls) +
+            " | calls/sec=" + randomizeCallsPerSec.toFixed(2) +
+            " | ticks/sec=" + randomizeTicksPerSec.toFixed(2) +
+            " | textMutations=" + String(randomizeTextMutations) +
+            " | text updates/sec=" + randomizeTextPerSec.toFixed(2) +
+            " | timerStopped=" + String(randomizeTimerStopped) +
+            " | unique=" + String(randomizeUniqueValues) +
+            " | duplicates=" + String(randomizeDuplicateValues) +
+            " | seed=" + String(randomizeSeedValues) +
+            " | empty=" + String(randomizeEmptyValues) +
+            " | perInstancePass=" + String(randomizePerInstancePass)
+          );
+
+          var totalMs = stressNowMs() - suiteStart;
+          appendStressLog(logNode, "Benchmark suite complete in " + totalMs.toFixed(2) + "ms.");
+          appendStressLog(logNode, "---- Summary ----");
+          for (var m = 0; m < metrics.length; m += 1) {
+            var metric = metrics[m];
+            if (metric.kind === "render") {
+              appendStressLog(
+                logNode,
+                String(m + 1) + ". " + metric.name +
+                " | ms=" + Number(metric.ms || 0).toFixed(2) +
+                " | rendered=" + String(metric.rendered) +
+                " | domNodes=" + String(metric.dom) +
+                " | nodes/sec=" + Number(metric.rate || 0).toFixed(2)
+              );
+            } else if (metric.kind === "update-diff") {
+              appendStressLog(
+                logNode,
+                String(m + 1) + ". " + metric.name +
+                " | renderMs=" + Number(metric.renderMs || 0).toFixed(2) +
+                " | parents=" + String(metric.parents) +
+                " | children=" + String(metric.children) +
+                " | durationMs=" + Number(metric.durationMs || 0).toFixed(2) +
+                " | requests=" + String(metric.requests) +
+                " | completed=" + String(metric.completedRequests) +
+                " | attempts=" + String(metric.attempts || 0) +
+                " | completion=" + Number(metric.completionPct || 0).toFixed(2) + "%" +
+                " | incomplete=" + String(metric.incomplete || 0) +
+                " | requests/sec=" + Number(metric.requestsPerSec || 0).toFixed(2) +
+                " | attempts/sec=" + Number(metric.attemptsPerSec || 0).toFixed(2) +
+                " | mutatedNodes=" + String(metric.mutatedNodes) +
+                " | parentUuidMapSize=" + String(metric.parentUuidMapSize) +
+                " | skipped(noParent)=" + String(metric.skippedNoParent || 0) +
+                " | skipped(noChildren)=" + String(metric.skippedNoChildren || 0) +
+                " | skipped(noQdom)=" + String(metric.skippedNoTargetQdom || 0) +
+                " | replaceErrors=" + String(metric.replaceErrors || 0) +
+                " | textMutations=" + String(metric.textMutations) +
+                " | uuidUpdates=" + String(metric.uuidUpdates) +
+                " | fallbackUpdates=" + String(metric.fallbackUpdates) +
+                " | text updates/sec=" + Number(metric.textPerSec || 0).toFixed(2)
+              );
+            } else if (metric.kind === "component-randomize") {
+              appendStressLog(
+                logNode,
+                String(m + 1) + ". " + metric.name +
+                " | renderMs=" + Number(metric.renderMs || 0).toFixed(2) +
+                " | components=" + String(metric.components) +
+                " | durationMs=" + Number(metric.durationMs || 0).toFixed(2) +
+                " | intervalMs=" + String(metric.intervalMs) +
+                " | perTick=" + String(metric.perTick) +
+                " | ticks=" + String(metric.ticks) +
+                " | calls=" + String(metric.calls) +
+                " | warmupCalls=" + String(metric.warmupCalls) +
+                " | warmupUnique=" + String(metric.warmupUnique) +
+                " | warmupDuplicates=" + String(metric.warmupDuplicates) +
+                " | warmupSeed=" + String(metric.warmupSeed) +
+                " | warmupEmpty=" + String(metric.warmupEmpty) +
+                " | calls/sec=" + Number(metric.callsPerSec || 0).toFixed(2) +
+                " | ticks/sec=" + Number(metric.ticksPerSec || 0).toFixed(2) +
+                " | textMutations=" + String(metric.textMutations) +
+                " | text updates/sec=" + Number(metric.textPerSec || 0).toFixed(2) +
+                " | timerStopped=" + String(metric.timerStopped) +
+                " | unique=" + String(metric.uniqueValues) +
+                " | duplicates=" + String(metric.duplicateValues) +
+                " | seed=" + String(metric.seedValues) +
+                " | empty=" + String(metric.emptyValues) +
+                " | perInstancePass=" + String(metric.perInstancePass)
+              );
+            } else {
+              appendStressLog(
+                logNode,
+                String(m + 1) + ". " + metric.name +
+                " | ms=" + Number(metric.ms || 0).toFixed(2) +
+                " | requested=" + String(metric.requested) +
+                " | executed=" + String(metric.executed) +
+                " | pool=" + String(metric.pool) +
+                " | uuid=" + String(metric.uuid) +
+                " | fallback=" + String(metric.fallback) +
+                " | updates/sec=" + Number(metric.rate || 0).toFixed(2)
+              );
+            }
+          }
+          if (statusNode) {
+            statusNode.textContent = "Complete (6 + C + D)";
+          }
+        } catch (error) {
+          appendStressLog(logNode, "Stress benchmark failed: " + (error && error.message ? error.message : String(error)));
+          if (statusNode) {
+            statusNode.textContent = "Failed";
+          }
+        } finally {
+          if (hostContainer && hostContainer.__stressActiveHost) {
+            stressStopDiffTimers(hostContainer.__stressActiveHost);
+            stressStopTestDTimer(hostContainer.__stressActiveHost);
+          }
+          if (triggerButton) {
+            triggerButton.disabled = false;
+          }
+          hostContainer.__stressRunning = false;
+        }
+      }
+
       window.addEventListener("DOMContentLoaded", function onQTestDomReady() {
         refreshAllTestHosts();
         window.setInterval(refreshAllTestHosts, 1200);
+        var stressButton = document.querySelector("#stress-begin");
+        var stressStatus = document.querySelector("#stress-status");
+        var stressLog = document.querySelector("#stress-log");
+        var stressHost = document.querySelector("#stress-host");
+        if (stressButton && stressHost && !stressButton.__stressBound) {
+          stressButton.__stressBound = true;
+          stressButton.addEventListener("click", function onStressClick() {
+            runStressRamp(stressHost, stressStatus, stressLog, stressButton);
+          });
+        }
       });
     })();
   </script>

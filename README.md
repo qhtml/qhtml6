@@ -3,13 +3,23 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.0.8
+# QHTML.js v2.0.9
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
 - Live demo: https://qhtml.github.io/qhtml6/dist/demo.html
 - Dev testbed: https://qhtml.github.io/qhtml6/dist/test.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
+
+## Whats New in v2.0.9
+
+- Fixed qdom() updateing bug causing component instances to not have their own property scoping -- now each instance contains a unique property set which is accessible directly from any instance inheriting q-component definitions.
+- `HTMLElement.prototype.qdom()` now resolves from the closest `q-component` context first (when available), then falls back to the nearest `<q-html>` host context.
+- Added component-instance QDOM property helpers:
+  - `componentInstanceQDom.properties()`
+  - `componentInstanceQDom.getProperty(key)`
+  - `componentInstanceQDom.property(key)`
+  - `componentInstanceQDom.property(key, value)`
 
 ## Whats New in v6.0.8
 
@@ -783,6 +793,7 @@ div { class: choose-class { active { true } } }
 ## 9. QDOM API
 
 Mounted `<q-html>` elements expose `.qdom()` (the source-of-truth tree). Mutate QDOM, then call `.update()` to re-render.
+Any HTMLElement inside a mounted tree can also call `.qdom()`, which resolves using the closest `q-component` host when present, then the nearest `<q-html>` host.
 
 When `q-keyword` aliases are active during parse, generated QDOM nodes include a `keywords` map (effective alias table at parse time).
 
@@ -830,6 +841,17 @@ host.update();
 
 host.qdom().deserialize(serialized, true);  // replace
 host.update();
+```
+
+### Component instance property helpers
+
+```js
+const comp = document.querySelector("my-component");
+const qnode = comp.qdom();                  // component instance qdom
+const props = qnode.properties();           // shallow copy of current props
+const val = qnode.getProperty("title");     // single prop lookup
+qnode.property("title", "New title");       // set via helper
+comp.update();                              // re-render this component scope
 ```
 
 ### Scoped vs full updates

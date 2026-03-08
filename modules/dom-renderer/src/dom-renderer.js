@@ -8,6 +8,8 @@
   }
 
   const INVALID_METHOD_NAMES = new Set(["constructor", "prototype", "__proto__"]);
+  const COMPONENT_PROP_REF_INDEX_KEY = "__qhtmlComponentPropertyRefIndex";
+  const QDOM_UUID_META_KEY = typeof core.QDOM_UUID_KEY === "string" ? core.QDOM_UUID_KEY : "uuid";
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
   const INLINE_REFERENCE_PATTERN = /\$\{\s*([^}]+?)\s*\}/g;
   const INLINE_REFERENCE_ESCAPE_TOKEN = "__QHTML_ESCAPED_INLINE_REF__";
@@ -49,6 +51,101 @@
     return out;
   }
 
+  function assignFreshQDomNodeUuid(node) {
+    if (!node || typeof node !== "object" || Array.isArray(node)) {
+      return;
+    }
+    if (!node.meta || typeof node.meta !== "object") {
+      return;
+    }
+    if (typeof core.createQDomUuid === "function") {
+      node.meta[QDOM_UUID_META_KEY] = core.createQDomUuid();
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(node.meta, QDOM_UUID_META_KEY)) {
+      delete node.meta[QDOM_UUID_META_KEY];
+    }
+    if (typeof core.ensureNodeUuid === "function") {
+      core.ensureNodeUuid(node);
+    }
+  }
+
+  function refreshQDomNodeUuidsDeep(node) {
+    const queue = [node];
+    while (queue.length > 0) {
+      const current = queue.pop();
+      if (!current || typeof current !== "object") {
+        continue;
+      }
+      if (Array.isArray(current)) {
+        for (let i = 0; i < current.length; i += 1) {
+          queue.push(current[i]);
+        }
+        continue;
+      }
+      assignFreshQDomNodeUuid(current);
+      if (Array.isArray(current.nodes)) {
+        queue.push(current.nodes);
+      }
+      if (Array.isArray(current.templateNodes)) {
+        queue.push(current.templateNodes);
+      }
+      if (Array.isArray(current.children)) {
+        queue.push(current.children);
+      }
+      if (Array.isArray(current.slots)) {
+        queue.push(current.slots);
+      }
+      if (current.model && typeof current.model === "object") {
+        queue.push(current.model);
+      }
+      if (Array.isArray(current.entries)) {
+        queue.push(current.entries);
+      }
+    }
+  }
+
+  function stripQDomSourceRefsDeep(node) {
+    const queue = [node];
+    while (queue.length > 0) {
+      const current = queue.pop();
+      if (!current || typeof current !== "object") {
+        continue;
+      }
+      if (Array.isArray(current)) {
+        for (let i = 0; i < current.length; i += 1) {
+          queue.push(current[i]);
+        }
+        continue;
+      }
+      if (Object.prototype.hasOwnProperty.call(current, "__qhtmlSourceNode")) {
+        try {
+          delete current.__qhtmlSourceNode;
+        } catch (error) {
+          current.__qhtmlSourceNode = null;
+        }
+      }
+      if (Array.isArray(current.nodes)) {
+        queue.push(current.nodes);
+      }
+      if (Array.isArray(current.templateNodes)) {
+        queue.push(current.templateNodes);
+      }
+      if (Array.isArray(current.children)) {
+        queue.push(current.children);
+      }
+      if (Array.isArray(current.slots)) {
+        queue.push(current.slots);
+      }
+      if (current.model && typeof current.model === "object") {
+        queue.push(current.model);
+      }
+      if (Array.isArray(current.entries)) {
+        queue.push(current.entries);
+      }
+    }
+  }
+
   function normalizeCssPropertyName(rawProperty) {
     const value = String(rawProperty || "").trim();
     if (!value) {
@@ -70,29 +167,122 @@
     return meta.qRuntimeThemeRules;
   }
 
+  function walkElementsInScope(scopeRoot, visitor) {
+    if (!scopeRoot || scopeRoot.nodeType !== 1 || typeof visitor !== "function") {
+      return;
+    }
+    const stack = [scopeRoot];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current || current.nodeType !== 1) {
+        continue;
+      }
+      visitor(current);
+      const children =
+        current.children && typeof current.children.length === "number"
+          ? current.children
+          : current.childNodes && typeof current.childNodes.length === "number"
+            ? current.childNodes
+            : [];
+      for (let i = children.length - 1; i >= 0; i -= 1) {
+        const child = children[i];
+        if (child && child.nodeType === 1) {
+          stack.push(child);
+        }
+      }
+    }
+  }
+
+  function escapeCssAttributeSelectorValue(value) {
+    return String(value == null ? "" : value)
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"');
+  }
+
+  function wildcardTokenToAttributeSelectors(attributeName, token) {
+    const raw = String(token || "");
+    const parts = raw.split("*").filter(function keep(part) { return part.length > 0; });
+    if (parts.length === 0) {
+      return "[" + attributeName + "]";
+    }
+    let out = "";
+    for (let i = 0; i < parts.length; i += 1) {
+      out += "[" + attributeName + "*=\"" + escapeCssAttributeSelectorValue(parts[i]) + "\"]";
+    }
+    return out;
+  }
+
+  function compileThemeSelector(selector) {
+    const raw = String(selector || "").trim();
+    if (!raw) {
+      return "";
+    }
+    let normalized = raw;
+    normalized = normalized.replace(
+      /(^|[\s>+~,(])\.([A-Za-z0-9_-]*\*[A-Za-z0-9_*-]*)/g,
+      function replaceWildcardClass(matchText, prefix, token) {
+        const value = String(token || "").trim();
+        if (!value || value.indexOf("*") === -1) {
+          return matchText;
+        }
+        return String(prefix || "") + wildcardTokenToAttributeSelectors("class", value);
+      }
+    );
+    normalized = normalized.replace(
+      /(^|[\s>+~,(])#([A-Za-z0-9_-]*\*[A-Za-z0-9_*-]*)/g,
+      function replaceWildcardId(matchText, prefix, token) {
+        const value = String(token || "").trim();
+        if (!value || value.indexOf("*") === -1) {
+          return matchText;
+        }
+        return String(prefix || "") + wildcardTokenToAttributeSelectors("id", value);
+      }
+    );
+    return normalized;
+  }
+
   function collectSelectorTargets(rootElement, selector) {
     const out = [];
-    if (!rootElement || !selector) {
+    const root = rootElement && rootElement.nodeType === 1 ? rootElement : null;
+    const query = compileThemeSelector(selector);
+    if (!root || !query) {
       return out;
     }
-    try {
-      if (typeof rootElement.matches === "function" && rootElement.matches(selector)) {
-        out.push(rootElement);
+    const hasScopePseudo = query.indexOf(":scope") !== -1;
+    if (hasScopePseudo && typeof root.querySelectorAll === "function") {
+      try {
+        if (typeof root.matches === "function" && root.matches(query)) {
+          out.push(root);
+        }
+      } catch (error) {
+        // no-op
       }
-    } catch (error) {
-      return out;
-    }
-    if (typeof rootElement.querySelectorAll !== "function") {
-      return out;
-    }
-    try {
-      const list = rootElement.querySelectorAll(selector);
-      for (let i = 0; i < list.length; i += 1) {
-        out.push(list[i]);
+      try {
+        const list = root.querySelectorAll(query);
+        for (let i = 0; i < list.length; i += 1) {
+          const candidate = list[i];
+          if (!candidate || candidate.nodeType !== 1) {
+            continue;
+          }
+          out.push(candidate);
+        }
+      } catch (error) {
+        return out;
       }
-    } catch (error) {
       return out;
     }
+    walkElementsInScope(root, function collectCandidate(element) {
+      if (!element || typeof element.matches !== "function") {
+        return;
+      }
+      try {
+        if (element.matches(query)) {
+          out.push(element);
+        }
+      } catch (error) {
+        // invalid selector; ignore for this scope
+      }
+    });
     return out;
   }
 
@@ -732,24 +922,62 @@
     return "component";
   }
 
+  function collectComponentDefinitionsInNodes(nodes, registry) {
+    const items = Array.isArray(nodes) ? nodes : [];
+    for (let i = 0; i < items.length; i += 1) {
+      const node = items[i];
+      if (!node || typeof node !== "object") {
+        continue;
+      }
+      if (node.kind === core.NODE_TYPES.component) {
+        const id = String(node.componentId || "").trim().toLowerCase();
+        if (id) {
+          registry.set(id, node);
+        }
+      }
+      if (Array.isArray(node.children)) {
+        collectComponentDefinitionsInNodes(node.children, registry);
+      }
+      if (Array.isArray(node.templateNodes)) {
+        collectComponentDefinitionsInNodes(node.templateNodes, registry);
+      }
+      const slotNodes = readRendererSlotNodes(node);
+      if (slotNodes.length > 0) {
+        collectComponentDefinitionsInNodes(slotNodes, registry);
+      }
+      if (core.NODE_TYPES.repeater && node.kind === core.NODE_TYPES.repeater) {
+        if (Array.isArray(node.templateNodes)) {
+          collectComponentDefinitionsInNodes(node.templateNodes, registry);
+        }
+        const modelNode =
+          core.NODE_TYPES.model &&
+          node.model &&
+          typeof node.model === "object" &&
+          node.model.kind === core.NODE_TYPES.model
+            ? node.model
+            : null;
+        const modelEntries = modelNode && Array.isArray(modelNode.entries)
+          ? modelNode.entries
+          : Array.isArray(node.modelEntries)
+            ? node.modelEntries
+            : [];
+        for (let j = 0; j < modelEntries.length; j += 1) {
+          const entry = modelEntries[j];
+          if (!entry || typeof entry !== "object" || !Array.isArray(entry.nodes)) {
+            continue;
+          }
+          collectComponentDefinitionsInNodes(entry.nodes, registry);
+        }
+      }
+    }
+  }
+
   function collectComponentRegistry(documentNode) {
     const registry = new Map();
     if (!documentNode || !Array.isArray(documentNode.nodes)) {
       return registry;
     }
-
-    for (let i = 0; i < documentNode.nodes.length; i += 1) {
-      const node = documentNode.nodes[i];
-      if (!node || node.kind !== core.NODE_TYPES.component) {
-        continue;
-      }
-      const id = String(node.componentId || "").trim().toLowerCase();
-      if (!id) {
-        continue;
-      }
-      registry.set(id, node);
-    }
-
+    collectComponentDefinitionsInNodes(documentNode.nodes, registry);
     return registry;
   }
 
@@ -1434,6 +1662,8 @@
         if (fillNodes.length > 0) {
           for (let j = 0; j < fillNodes.length; j += 1) {
             const projected = cloneNodeDeep(fillNodes[j]);
+            refreshQDomNodeUuidsDeep(projected);
+            stripQDomSourceRefsDeep(projected);
             if (fillEntry && fillEntry.slotNode && projected && typeof projected === "object") {
               projected[RENDER_SLOT_REF] = fillEntry.slotNode;
             }
@@ -1449,6 +1679,8 @@
       }
 
       const clone = cloneNodeDeep(node);
+      refreshQDomNodeUuidsDeep(clone);
+      stripQDomSourceRefsDeep(clone);
       if (clone.kind === core.NODE_TYPES.element && Array.isArray(clone.children) && clone.children.length > 0) {
         clone.children = materializeSlots(clone.children, slotFills);
       }
@@ -2022,7 +2254,7 @@
     }
   }
 
-  function bindComponentMethods(componentNode, hostElement) {
+  function bindComponentMethods(componentNode, hostElement, instanceNode) {
     if (!componentNode || !hostElement) {
       return;
     }
@@ -2030,9 +2262,30 @@
     const componentAttributes = componentNode.attributes && typeof componentNode.attributes === "object"
       ? componentNode.attributes
       : {};
-    const declaredProperties = Array.isArray(componentNode.properties)
-      ? componentNode.properties.map(function mapDeclared(entry) { return String(entry || "").trim(); }).filter(Boolean)
-      : [];
+    const instanceProperties =
+      instanceNode && instanceNode.props && typeof instanceNode.props === "object"
+        ? instanceNode.props
+        : {};
+    const declaredProperties = [];
+    const declaredPropertiesSeen = new Set();
+    function appendDeclaredProperties(entries) {
+      const list = Array.isArray(entries) ? entries : [];
+      for (let i = 0; i < list.length; i += 1) {
+        const propertyName = String(list[i] || "").trim();
+        const normalized = propertyName.toLowerCase();
+        if (!propertyName || declaredPropertiesSeen.has(normalized)) {
+          continue;
+        }
+        declaredPropertiesSeen.add(normalized);
+        declaredProperties.push(propertyName);
+      }
+    }
+    appendDeclaredProperties(componentNode.properties);
+    appendDeclaredProperties(
+      instanceNode && instanceNode.meta && Array.isArray(instanceNode.meta.__qhtmlDeclaredProperties)
+        ? instanceNode.meta.__qhtmlDeclaredProperties
+        : []
+    );
     for (let i = 0; i < declaredProperties.length; i += 1) {
       const propertyName = declaredProperties[i];
       if (!propertyName || INVALID_METHOD_NAMES.has(propertyName)) {
@@ -2046,9 +2299,11 @@
       const bindingKey = "__qhtmlDeclaredPropBinding__" + propertyName;
       const hasInitialValue = Object.prototype.hasOwnProperty.call(hostElement, propertyName);
       const initialValue = hasInitialValue ? hostElement[propertyName] : undefined;
-      const rawDefault = Object.prototype.hasOwnProperty.call(componentAttributes, propertyName)
-        ? componentAttributes[propertyName]
-        : undefined;
+      const rawDefault = Object.prototype.hasOwnProperty.call(instanceProperties, propertyName)
+        ? instanceProperties[propertyName]
+        : Object.prototype.hasOwnProperty.call(componentAttributes, propertyName)
+          ? componentAttributes[propertyName]
+          : undefined;
       let literalDefault = rawDefault;
       let compiledBinding = null;
       const bindingMatch = typeof rawDefault === "string" ? rawDefault.match(/^\s*q-(bind|script)\s*\{([\s\S]*)\}\s*$/i) : null;
@@ -2079,6 +2334,25 @@
           configurable: true,
           enumerable: true,
           get: function getDeclaredComponentProperty() {
+            let qdomNode = null;
+            try {
+              qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
+            } catch (readQdomError) {
+              qdomNode = null;
+            }
+            if (qdomNode && typeof qdomNode === "object") {
+              if (qdomNode.props && typeof qdomNode.props === "object" && !Array.isArray(qdomNode.props)) {
+                if (Object.prototype.hasOwnProperty.call(qdomNode.props, propertyName)) {
+                  return qdomNode.props[propertyName];
+                }
+              }
+              if (typeof qdomNode.property === "function") {
+                const resolvedQDomProperty = qdomNode.property(propertyName);
+                if (typeof resolvedQDomProperty !== "undefined") {
+                  return resolvedQDomProperty;
+                }
+              }
+            }
             if (Object.prototype.hasOwnProperty.call(this, storageKey)) {
               return this[storageKey];
             }
@@ -2096,7 +2370,110 @@
             return literalDefault;
           },
           set: function setDeclaredComponentProperty(value) {
+            let hadValue = false;
+            let previousValue = undefined;
+            try {
+              const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
+              if (qdomNode && typeof qdomNode === "object" && qdomNode.props && typeof qdomNode.props === "object") {
+                if (Object.prototype.hasOwnProperty.call(qdomNode.props, propertyName)) {
+                  hadValue = true;
+                  previousValue = qdomNode.props[propertyName];
+                }
+              }
+            } catch (readQdomError) {
+              // fallback to local storage
+            }
+            if (!hadValue && Object.prototype.hasOwnProperty.call(this, storageKey)) {
+              hadValue = true;
+              previousValue = this[storageKey];
+            }
             this[storageKey] = value;
+            try {
+              const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
+              if (qdomNode && typeof qdomNode.setProperty === "function") {
+                qdomNode.setProperty(propertyName, value);
+              } else if (qdomNode && typeof qdomNode === "object") {
+                if (!qdomNode.props || typeof qdomNode.props !== "object" || Array.isArray(qdomNode.props)) {
+                  qdomNode.props = {};
+                }
+                qdomNode.props[propertyName] = value;
+              }
+            } catch (syncError) {
+              // best-effort qdom sync for declared property writes
+            }
+            if (hadValue && Object.is(previousValue, value)) {
+              return;
+            }
+            const propertyReferenceIndex =
+              this &&
+              this[COMPONENT_PROP_REF_INDEX_KEY] &&
+              typeof this[COMPONENT_PROP_REF_INDEX_KEY].get === "function"
+                ? this[COMPONENT_PROP_REF_INDEX_KEY]
+                : null;
+            if (propertyReferenceIndex) {
+              const normalizedPropertyName = String(propertyName || "").trim().toLowerCase();
+              const references = propertyReferenceIndex.get(normalizedPropertyName);
+              if (references && typeof references.forEach === "function") {
+                const canUseScopedComponentUpdate =
+                  this &&
+                  this.__qhtmlComponentUpdateAccessorInstalled === true &&
+                  typeof this.update === "function";
+                const rootHost =
+                  typeof this.qhtmlRoot === "function"
+                    ? this.qhtmlRoot()
+                    : typeof this.root === "function"
+                      ? this.root()
+                      : null;
+                const hostRef = this;
+                if (canUseScopedComponentUpdate || (rootHost && typeof rootHost.update === "function")) {
+                  let dispatched = false;
+                  references.forEach(function dispatchScopedUpdate(rawUuid) {
+                    const uuid = typeof rawUuid === "string" ? rawUuid.trim() : "";
+                    if (!uuid) {
+                      return;
+                    }
+                    try {
+                      let result = false;
+                      if (canUseScopedComponentUpdate) {
+                        result = hostRef.update({
+                          uuid: uuid,
+                          scopeElement: hostRef,
+                          forceBindings: true,
+                        });
+                      } else if (rootHost && typeof rootHost.update === "function") {
+                        result = rootHost.update({
+                          uuid: uuid,
+                          forceBindings: true,
+                        });
+                      }
+                      if (result !== false) {
+                        dispatched = true;
+                      }
+                    } catch (targetedUpdateError) {
+                      // continue and fallback below if no targeted update succeeds
+                    }
+                  });
+                  if (dispatched) {
+                    return;
+                  }
+                }
+              }
+            }
+            if (typeof this.invalidate === "function") {
+              try {
+                this.invalidate({ forceBindings: true });
+                return;
+              } catch (invalidateError) {
+                // fallback to update below
+              }
+            }
+            if (typeof this.update === "function") {
+              try {
+                this.update({ forceBindings: true });
+              } catch (updateError) {
+                // ignore auto-update failures
+              }
+            }
           },
         });
         if (compiledBinding) {
@@ -2185,6 +2562,75 @@
 
     const methods = Array.isArray(componentNode.methods) ? componentNode.methods : [];
 
+    function escapeIdForQuery(rawId) {
+      const value = String(rawId || "").trim();
+      if (!value) {
+        return "";
+      }
+      if (typeof CSS !== "undefined" && CSS && typeof CSS.escape === "function") {
+        return CSS.escape(value);
+      }
+      return value.replace(/([ #;?%&,.+*~':"!^$[\]()=>|/\\])/g, "\\$1");
+    }
+
+    function resolveLiveComponentHost(hostCandidate) {
+      const currentHost = hostCandidate && hostCandidate.nodeType === 1 ? hostCandidate : null;
+      if (!currentHost) {
+        return hostCandidate;
+      }
+      if (currentHost.isConnected !== false) {
+        return currentHost;
+      }
+      let rootHost = null;
+      try {
+        rootHost =
+          typeof currentHost.qhtmlRoot === "function"
+            ? currentHost.qhtmlRoot()
+            : typeof currentHost.root === "function"
+              ? currentHost.root()
+              : null;
+      } catch (readRootError) {
+        rootHost = null;
+      }
+      let qdomUuid = "";
+      try {
+        const qdomNode = typeof currentHost.qdom === "function" ? currentHost.qdom() : null;
+        qdomUuid =
+          qdomNode &&
+          qdomNode.meta &&
+          typeof qdomNode.meta === "object" &&
+          typeof qdomNode.meta.uuid === "string"
+            ? String(qdomNode.meta.uuid).trim()
+            : "";
+      } catch (readUuidError) {
+        qdomUuid = "";
+      }
+      if (rootHost && typeof rootHost.elementForUuid === "function" && qdomUuid) {
+        try {
+          const mappedByUuid = rootHost.elementForUuid(qdomUuid);
+          if (mappedByUuid && mappedByUuid.nodeType === 1) {
+            return mappedByUuid;
+          }
+        } catch (resolveByUuidError) {
+          // fallback to id selector below
+        }
+      }
+      if (rootHost && typeof rootHost.querySelector === "function") {
+        const hostId = String(currentHost.id || "").trim();
+        if (hostId) {
+          try {
+            const mappedById = rootHost.querySelector("#" + escapeIdForQuery(hostId));
+            if (mappedById && mappedById.nodeType === 1) {
+              return mappedById;
+            }
+          } catch (resolveByIdError) {
+            // no-op
+          }
+        }
+      }
+      return currentHost;
+    }
+
     for (let i = 0; i < methods.length; i += 1) {
       const method = methods[i];
       const name = method && typeof method.name === "string" ? method.name.trim() : "";
@@ -2208,17 +2654,18 @@
       }
 
       hostElement[name] = function componentMethodProxy() {
+        const invocationHost = resolveLiveComponentHost(hostElement);
         if (hasInterpolatedBody) {
           const interpolatedBody = interpolateInlineReferenceExpressions(
             body,
-            hostElement,
-            { component: hostElement },
+            invocationHost,
+            { component: invocationHost },
             "qhtml component method interpolation failed:"
           );
           try {
-            ensureScopedSelectorShortcut(hostElement, null);
+            ensureScopedSelectorShortcut(invocationHost, null);
             const runtimeMethod = new Function(params, withScopedSelectorPrelude(interpolatedBody));
-            return runtimeMethod.apply(hostElement, arguments);
+            return runtimeMethod.apply(invocationHost, arguments);
           } catch (error) {
             if (global.console && typeof global.console.error === "function") {
               global.console.error("qhtml component method compile failed:", name, error);
@@ -2226,8 +2673,8 @@
             return undefined;
           }
         }
-        ensureScopedSelectorShortcut(hostElement, null);
-        return compiled.apply(hostElement, arguments);
+        ensureScopedSelectorShortcut(invocationHost, null);
+        return compiled.apply(invocationHost, arguments);
       };
     }
 
@@ -2363,6 +2810,110 @@
     bindComponentWasm(componentNode, hostElement);
   }
 
+  function isRepeaterPlaceholderOnly(text, slotName) {
+    const value = String(text || "").trim();
+    const escaped = String(slotName || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp("^\\$\\{\\s*" + escaped + "\\s*\\}$");
+    return re.test(value);
+  }
+
+  function stringifyRepeaterEntry(entry) {
+    if (!entry || typeof entry !== "object") {
+      return String(entry == null ? "" : entry);
+    }
+    if (entry.kind === "qobject") {
+      return String(entry.source || "").trim();
+    }
+    if (Object.prototype.hasOwnProperty.call(entry, "value")) {
+      return String(entry.value == null ? "" : entry.value);
+    }
+    return String(entry.text || "");
+  }
+
+  function replaceRepeaterPlaceholderText(source, slotName, entry) {
+    const text = String(source == null ? "" : source);
+    const escaped = String(slotName || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp("\\$\\{\\s*" + escaped + "\\s*\\}", "g");
+    return text.replace(re, stringifyRepeaterEntry(entry));
+  }
+
+  function applyRepeaterEntryToValue(value, slotName, entry) {
+    if (typeof value === "string") {
+      return replaceRepeaterPlaceholderText(value, slotName, entry);
+    }
+    if (Array.isArray(value)) {
+      const out = [];
+      for (let i = 0; i < value.length; i += 1) {
+        out.push(applyRepeaterEntryToValue(value[i], slotName, entry));
+      }
+      return out;
+    }
+    if (!value || typeof value !== "object") {
+      return value;
+    }
+    const keys = Object.keys(value);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      value[key] = applyRepeaterEntryToValue(value[key], slotName, entry);
+    }
+    return value;
+  }
+
+  function materializeRepeaterTemplateNodes(repeaterNode, entry) {
+    const templateNodes = Array.isArray(repeaterNode && repeaterNode.templateNodes) ? repeaterNode.templateNodes : [];
+    const slotName = String(repeaterNode && repeaterNode.slotName || "item").trim() || "item";
+    const out = [];
+    for (let i = 0; i < templateNodes.length; i += 1) {
+      const templateNode = templateNodes[i];
+      const cloned = cloneNodeDeep(templateNode);
+      refreshQDomNodeUuidsDeep(cloned);
+      stripQDomSourceRefsDeep(cloned);
+      if (
+        entry &&
+        typeof entry === "object" &&
+        entry.kind === "qobject" &&
+        core.NODE_TYPES.text &&
+        cloned &&
+        cloned.kind === core.NODE_TYPES.text &&
+        isRepeaterPlaceholderOnly(cloned.value, slotName)
+      ) {
+        const objectNodes = Array.isArray(entry.nodes) ? entry.nodes : [];
+        for (let j = 0; j < objectNodes.length; j += 1) {
+          const objectClone = cloneNodeDeep(objectNodes[j]);
+          refreshQDomNodeUuidsDeep(objectClone);
+          stripQDomSourceRefsDeep(objectClone);
+          out.push(objectClone);
+        }
+        continue;
+      }
+      out.push(applyRepeaterEntryToValue(cloned, slotName, entry));
+    }
+    return out;
+  }
+
+  function renderRepeaterNode(repeaterNode, parent, targetDocument, context) {
+    const modelNode =
+      core.NODE_TYPES.model &&
+      repeaterNode &&
+      repeaterNode.model &&
+      typeof repeaterNode.model === "object" &&
+      repeaterNode.model.kind === core.NODE_TYPES.model
+        ? repeaterNode.model
+        : null;
+    const modelEntries = modelNode && Array.isArray(modelNode.entries)
+      ? modelNode.entries
+      : Array.isArray(repeaterNode && repeaterNode.modelEntries)
+        ? repeaterNode.modelEntries
+        : [];
+    for (let i = 0; i < modelEntries.length; i += 1) {
+      const entry = modelEntries[i];
+      const expanded = materializeRepeaterTemplateNodes(repeaterNode, entry);
+      for (let j = 0; j < expanded.length; j += 1) {
+        renderNode(expanded[j], parent, targetDocument, context);
+      }
+    }
+  }
+
   function renderNode(node, parent, targetDocument, context) {
     if (!node || typeof node !== "object") {
       return;
@@ -2375,6 +2926,11 @@
     try {
       if (node.kind === core.NODE_TYPES.rawHtml) {
         appendRawHtml(parent, node.html, targetDocument);
+        return;
+      }
+
+      if (core.NODE_TYPES.repeater && node.kind === core.NODE_TYPES.repeater) {
+        renderRepeaterNode(node, parent, targetDocument, context);
         return;
       }
 
@@ -2396,6 +2952,10 @@
       }
 
       if (node.kind === core.NODE_TYPES.component) {
+        const componentId = String(node.componentId || "").trim().toLowerCase();
+        if (componentId && context && context.componentRegistry instanceof Map) {
+          context.componentRegistry.set(componentId, node);
+        }
         return;
       }
 
@@ -2466,6 +3026,7 @@
           renderNode(node.children[i], element, targetDocument, context);
         }
       }
+      applyRuntimeThemeRulesToHost(element, node);
       if (!context.disableLifecycleHooks) {
         runLifecycleHooks(node, element, targetDocument);
       }
@@ -2655,7 +3216,7 @@
       }
     }
 
-    bindComponentMethods(componentNode, hostElement);
+    bindComponentMethods(componentNode, hostElement, instanceNode);
 
     stack.push(key);
     context.componentHostStack.push(hostElement);
@@ -2946,7 +3507,7 @@
       }
     }
 
-    bindComponentMethods(componentNode, hostElement);
+    bindComponentMethods(componentNode, hostElement, instanceNode);
 
     if (context.componentStack.indexOf(key) !== -1) {
       throw new Error("Recursive q-component usage detected for '" + key + "'.");

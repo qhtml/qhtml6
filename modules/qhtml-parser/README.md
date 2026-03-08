@@ -2,6 +2,17 @@
 
 `qhtml-parser` is the language layer for QHTML v6. It parses QHTML source into QDom, applies macro/script preprocessing, resolves imports, and serializes QDom back to source.
 
+## What's New in v6.0.5
+
+- Added repeater syntax with runtime rendering from QDom:
+  - `q-repeater ... { model { ... } slot { item } ... }`
+  - `q-foreach` is supported as an equivalent keyword.
+- Added iterable model containers for repeater flows:
+  - `q-array` (named and anonymous) with literal and reference-concatenation forms.
+  - `q-object` (named and anonymous) as reusable QHTML object blocks.
+- Added `QDomModel` (`kind: "model"`) as the canonical container for `model { ... }` in repeater nodes.
+- Added warning + fallback behavior for invalid non-iterative repeater model containers (for example `html { ... }` or `text { ... }`).
+
 ## What's New in v6.0.4
 
 - Added `q-style-class` support inside `q-style`:
@@ -35,6 +46,9 @@
 - Resolves recursive `q-import { ... }` chains (sync or async), including circular import protection and max-depth guards.
 - Supports `q-rewrite` macro-like expansion before parse.
 - Supports q-script evaluation passes for source preprocessing.
+- Emits `q-repeater`/`q-foreach` as first-class QDom nodes with:
+  - `node.model` (`QDomModel`) for model entries
+  - `node.templateNodes` for repeat body content
 - Serializes QDom back to QHTML, preserving original source when model is clean.
 
 ## Parsing model
@@ -70,6 +84,10 @@
 - q-import blocks
 - q-rewrite definitions + invocations
 - q-keyword declarations and alias invocation expansion
+- repeater and iterable-model constructs:
+  - `q-repeater` / `q-foreach`
+  - `q-array`
+  - `q-object`
 - q-style declarations and application:
   - `q-style name { q-style-class { classA classB } prop: value }`
   - class imports and CSS declarations travel together in style definitions

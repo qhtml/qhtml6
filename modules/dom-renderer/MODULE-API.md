@@ -9,6 +9,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 ### Primary APIs
 - `collectComponentRegistry(documentNode)`
   - Returns `Map<componentId, componentDefinitionNode>`.
+  - Walks nested definition locations including repeater template/model payloads.
 - `renderDocumentToFragment(documentNode, targetDocument?)`
   - Renders top-level runtime nodes into a `DocumentFragment`.
 - `renderIntoElement(documentNode, hostElement, targetDocument?)`
@@ -18,6 +19,8 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 
 ## Supported node kinds
 - `element`, `text`, `raw-html`
+- `repeater` (runtime iteration)
+- `model` (repeater model container consumed by repeater rendering)
 - `component-instance`, `template-instance`
 - `slot` projection containers
 - `q-signal` definitions invoked through `component-instance` dispatch behavior
@@ -25,6 +28,13 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 ## Component host assignment behavior
 - `component-instance.attributes` map to DOM attributes.
 - `component-instance.props` map to direct host element property assignment (`host[propName] = value`).
+- Declared `q-property` host setters:
+  - treat `host.qdom()` props as source-of-truth for reads/writes when available.
+  - sync value writes back to mapped QDom props when available.
+  - skip re-render when value is unchanged (`Object.is`).
+  - prefer scoped targeted updates via runtime property-reference index (`__qhtmlComponentPropertyRefIndex`) using `host.update({ uuid, scopeElement: host, forceBindings: true })`.
+  - fallback to `host.invalidate({ forceBindings: true })` / `host.update({ forceBindings: true })` if targeted dispatch is unavailable.
+ - Component method calls resolve detached/stale element references to live DOM instances by UUID/id before execution.
 
 ## Lifecycle and side effects
 - Executes hook/method bodies with `new Function(...)` bound to host element context.
@@ -44,6 +54,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - `terminate()`
   - optional export→method and export→signal mappings from `bind { ... }`
 - Tracks ownership for slot routing and dynamic lookup in runtime.
+- Registers component/template definitions encountered during render traversal (including inside repeater expansions) so subsequent instances can resolve in the same render pass.
 
 ## Failure behavior
 - Throws when required dependency (`qdom-core`) is missing.
