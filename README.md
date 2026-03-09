@@ -21,22 +21,6 @@ QHTML is a compact language and runtime for building web UIs with readable block
   - `componentInstanceQDom.property(key)`
   - `componentInstanceQDom.property(key, value)`
 
-## Whats New in v6.0.8
-
-- Aligned README examples with validated `dist/test.html` syntax patterns.
-- Expanded `dist/test.html` coverage for QDOM operations and runtime update paths.
-- Removed remaining legacy color-system documentation references in favor of `q-style` / `q-theme`.
-- Added scoped selector shortcut `$("<css selector>")` for runtime script contexts (`onclick`, `onReady`, `q-bind`, `q-script`, component methods/aliases/properties).
-
-## Whats New in v6.0.7.4
-
-- Added `q-style`, `q-style-class`, and `q-theme` support for merging and building complex stylesheets with advanced theming capabilities (see section on Styles and Themes).
-- Added `q-default-theme` for fallback theme layers. `q-default-theme` rules apply first, and conflicting `q-theme` rules override them.
-- `q-style`, `q-style-class`, and `q-theme` are actively evolving and may change in future releases.
-- Added component-level `q-wasm` for loading `.wasm` modules with method/signal bindings and worker-first execution.
-
-
-
 ## 1. Quick Start
 
 ### Project setup
@@ -46,22 +30,12 @@ QHTML is a compact language and runtime for building web UIs with readable block
 ```bash
 git clone https://github.com/qhtml/qhtml6.git
 ```
-2. Create new project directory and copy required files (linux)
-  (Copies javascript files, css files, q-component files and codemirror for q-editor / q-builder)
+
+2. Copy qhtml6 into your project `qhtml` folder
+
 ```bash
-mkdir my-project
-cp qhtml6/dist/*.js /path/to/my-project/
-cp qhtml6/dist/q-components* /path/to/my-project/ -R
-cp qhtml6/dist/*.css /path/to/my-project/
-cp qhtml6/dist/codemirror* /path/to/my-project/ -R
+source ./deploy.sh /path/to/project
 ```
-3. Create index.html in your project folder and spin up a HTTP Server
-```bash
-cp qhtml6/dist/demo.html /path/to/my-project/
-cd /path/to/my-project
-python -m http.server
-```
-4. Navigate to `http://127.0.0.1:8000/demo.html` in your web browser.
 
    
 ### 1. Include `qhtml.js`
@@ -966,7 +940,29 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 </q-html>
 ```
 
+## 13. Module READMEs
+
+- `modules/qdom-core/README.md`
+- `modules/qhtml-parser/README.md`
+- `modules/dom-renderer/README.md`
+- `modules/qhtml-runtime/README.md`
+- `modules/release-bundle/README.md`
+
 # Past Changes
+
+## Whats New in v6.0.8
+
+- Aligned README examples with validated `dist/test.html` syntax patterns.
+- Expanded `dist/test.html` coverage for QDOM operations and runtime update paths.
+- Removed remaining legacy color-system documentation references in favor of `q-style` / `q-theme`.
+- Added scoped selector shortcut `$("<css selector>")` for runtime script contexts (`onclick`, `onReady`, `q-bind`, `q-script`, component methods/aliases/properties).
+
+## Whats New in v6.0.7.4
+
+- Added `q-style`, `q-style-class`, and `q-theme` support for merging and building complex stylesheets with advanced theming capabilities (see section on Styles and Themes).
+- Added `q-default-theme` for fallback theme layers. `q-default-theme` rules apply first, and conflicting `q-theme` rules override them.
+- `q-style`, `q-style-class`, and `q-theme` are actively evolving and may change in future releases.
+- Added component-level `q-wasm` for loading `.wasm` modules with method/signal bindings and worker-first execution.
 
 ## Whats New in v6.0.6
 
@@ -1014,11 +1010,3 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 - Component aliases: `q-alias name { return ... }` for computed host properties.
 - `.qdom().deserialize(serialized, shouldReplaceQDom)` append-or-replace import flow.
 - Scoped updates: `this.component.update()` and full host updates: `this.component.root().update()`.
-
-## 13. Module READMEs
-
-- `modules/qdom-core/README.md`
-- `modules/qhtml-parser/README.md`
-- `modules/dom-renderer/README.md`
-- `modules/qhtml-runtime/README.md`
-- `modules/release-bundle/README.md`
