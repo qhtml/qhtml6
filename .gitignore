@@ -1,0 +1,13 @@
+AGENTS*.md
+LEAD-CLI.md
+lead.sh
+WHEEL.*
+README-WHEEL*.md 
+wheel*.sh
+*.db
+*.db.lock
+*.sql
+wiki/*
+*~
+..
+.*
