@@ -249,6 +249,159 @@ q-alias navactivebuttonclass { return this.component.navActiveButtonClass }
     return null;
   }
 
+  function getRootHost() {
+    if (typeof this.root === "function") {
+      const root = this.root();
+      if (root && root.nodeType === 1) {
+        return root;
+      }
+    }
+    return this.closest ? this.closest("q-html") : null;
+  }
+
+  function normalizeTabLabel(label, indexHint) {
+    const text = String(label == null ? "" : label).trim();
+    if (text) {
+      return text;
+    }
+    const idx = Number.isFinite(Number(indexHint)) ? Number(indexHint) : 0;
+    return "Tab " + String(idx + 1);
+  }
+
+  function cloneQDomNode(node) {
+    if (!node || typeof node !== "object") {
+      return null;
+    }
+    try {
+      return JSON.parse(JSON.stringify(node));
+    } catch (err) {
+      return node;
+    }
+  }
+
+  function resolveQDomNodeFromHtmlNode(domNode) {
+    if (!domNode || typeof domNode !== "object" || typeof domNode.nodeType !== "number") {
+      return null;
+    }
+    if (typeof domNode.qdom === "function") {
+      try {
+        const direct = domNode.qdom();
+        if (direct && typeof direct === "object") {
+          return direct;
+        }
+      } catch (err) { }
+    }
+    const host = this.getRootHost();
+    if (!host || typeof host.uuidFor !== "function" || typeof host.qdomForUuid !== "function") {
+      return null;
+    }
+    const uuid = String(host.uuidFor(domNode) || "").trim();
+    if (!uuid) {
+      return null;
+    }
+    const mapped = host.qdomForUuid(uuid);
+    return mapped && typeof mapped === "object" ? mapped : null;
+  }
+
+  function normalizeTabContentNodes(input) {
+    if (input == null) {
+      return [];
+    }
+
+    if (typeof input === "string") {
+      const host = this.getRootHost();
+      const rootQdom = host && typeof host.qdom === "function" ? host.qdom() : null;
+      if (!rootQdom || typeof rootQdom.createInstanceFromQHTML !== "function") {
+        return [];
+      }
+      const parsed = rootQdom.createInstanceFromQHTML(input);
+      return this.normalizeTabContentNodes(parsed);
+    }
+
+    if (Array.isArray(input)) {
+      const out = [];
+      for (let i = 0; i < input.length; i += 1) {
+        const nextNodes = this.normalizeTabContentNodes(input[i]);
+        for (let j = 0; j < nextNodes.length; j += 1) {
+          out.push(nextNodes[j]);
+        }
+      }
+      return out;
+    }
+
+    if (input && typeof input === "object" && typeof input.nodeType === "number") {
+      if (input.nodeType === 3) {
+        const tabsQdom = typeof this.qdom === "function" ? this.qdom() : null;
+        if (tabsQdom && typeof tabsQdom.createQText === "function") {
+          return [tabsQdom.createQText(String(input.textContent || ""))];
+        }
+        return [];
+      }
+      const mapped = this.resolveQDomNodeFromHtmlNode(input);
+      return this.normalizeTabContentNodes(mapped);
+    }
+
+    if (input && typeof input === "object") {
+      const kind = String(input.kind || "").trim().toLowerCase();
+      if (kind === "document" && Array.isArray(input.nodes)) {
+        return this.normalizeTabContentNodes(input.nodes);
+      }
+      const cloned = this.cloneQDomNode(input);
+      return cloned && typeof cloned === "object" ? [cloned] : [];
+    }
+
+    return [];
+  }
+
+  function addTab(label, input) {
+    const tabsQdom = typeof this.qdom === "function" ? this.qdom() : null;
+    if (!tabsQdom || typeof tabsQdom.createQComponentInstance !== "function" || typeof tabsQdom.appendNode !== "function") {
+      return null;
+    }
+
+    const existing = this.collectTabs();
+    const nextIndex = Array.isArray(existing) ? existing.length : 0;
+    const tabLabel = this.normalizeTabLabel(label, nextIndex);
+
+    const tabNode = tabsQdom.createQComponentInstance("q-tab", {
+      name: tabLabel,
+    });
+    if (!tabNode || typeof tabNode.appendNode !== "function" || typeof tabNode.createQSlot !== "function") {
+      return null;
+    }
+
+    const contentNodes = this.normalizeTabContentNodes(input);
+    if (contentNodes.length > 0) {
+      tabNode.appendNode(tabNode.createQSlot("content", contentNodes));
+    } else {
+      const fallback = tabNode.createQElement("div", {}, [tabNode.createQText(" ")]);
+      tabNode.appendNode(tabNode.createQSlot("content", [fallback]));
+    }
+
+    tabsQdom.appendNode(tabNode);
+
+    const host = this.getRootHost();
+    const tabsUuid = String((tabsQdom && tabsQdom.UUID) || "").trim();
+    if (host && typeof host.update === "function") {
+      if (tabsUuid) {
+        host.update(tabsUuid);
+      } else {
+        host.update();
+      }
+    }
+
+    const liveTabs = host && this.id ? host.querySelector("#" + this.id) || this : this;
+    if (liveTabs && typeof liveTabs.refreshTabs === "function") {
+      const refreshed = liveTabs.refreshTabs();
+      const index = Array.isArray(refreshed) ? Math.max(0, refreshed.length - 1) : nextIndex;
+      if (typeof liveTabs.showTab === "function") {
+        liveTabs.showTab(index);
+      }
+    }
+
+    return tabNode;
+  }
+
   function buildNav(tabs) {
     const nav = this.getNavBar();
     if (!nav) {

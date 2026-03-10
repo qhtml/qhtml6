@@ -3348,15 +3348,29 @@
     }
 
     const fragment = doc.createDocumentFragment();
-    const componentRegistry = collectComponentRegistry(documentNode);
+    const opts = options || {};
+    const componentRegistry = new Map();
+    if (opts.componentRegistry instanceof Map) {
+      opts.componentRegistry.forEach(function copyExternalDefinition(definitionNode, definitionId) {
+        const key = String(definitionId || "").trim().toLowerCase();
+        if (!key) {
+          return;
+        }
+        componentRegistry.set(key, definitionNode);
+      });
+    }
+    const localRegistry = collectComponentRegistry(documentNode);
+    localRegistry.forEach(function applyLocalDefinition(definitionNode, definitionId) {
+      componentRegistry.set(definitionId, definitionNode);
+    });
     const context = {
       componentRegistry: componentRegistry,
       componentStack: [],
       componentHostStack: [],
       componentQdomStack: [],
       slotStack: [],
-      disableLifecycleHooks: !!(options && options.disableLifecycleHooks),
-      capture: options && options.capture ? options.capture : null,
+      disableLifecycleHooks: !!opts.disableLifecycleHooks,
+      capture: opts.capture ? opts.capture : null,
     };
 
     const nodes = Array.isArray(documentNode && documentNode.nodes) ? documentNode.nodes : [];
@@ -3377,9 +3391,11 @@
     }
 
     const doc = targetDocument || hostElement.ownerDocument || global.document;
-    const capture = options && options.capture ? options.capture : null;
+    const opts = options || {};
+    const capture = opts.capture ? opts.capture : null;
     const fragment = renderDocumentToFragment(documentNode, doc, {
       capture: capture,
+      componentRegistry: opts.componentRegistry instanceof Map ? opts.componentRegistry : null,
     });
 
     while (hostElement.firstChild) {

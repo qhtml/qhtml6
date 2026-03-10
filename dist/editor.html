@@ -104,6 +104,61 @@ div.w3-container.w3-padding {
   editor-counter { }
   editor-counter { }
 }
+
+onReady {
+  this.__nextTabIndex = 3;
+}
+
+q-style demo-card {
+  q-style-class { w3-card w3-round-large w3-padding }
+  backgroundColor: #f8fbff
+  border: 1px solid #d5e1f3
+}
+
+q-style add-button {
+  q-style-class { w3-button w3-round w3-margin-bottom }
+  backgroundColor: #1d4ed8
+  color: #ffffff
+}
+
+q-theme tabs-demo-theme {
+  .tabs-demo-card { demo-card }
+  .tabs-demo-add-btn { add-button }
+}
+
+tabs-demo-theme {
+  div.tabs-demo-card {
+    h2 { text { q-tabs addTab() demo } }
+    p { text { Click Add Tab to append a new q-tab using a qhtml string. } }
+
+    q-tabs#demoTabs {
+      button.tabs-demo-add-btn {
+        type: "button"
+        onclick {
+          var host = this.closest("q-html");
+          var tabs = this.closest("q-tabs");
+          var index = Number(host.__nextTabIndex || 3);
+          var label = "Tab " + String(index);
+          host.__nextTabIndex = index + 1;
+
+          var tabSource = "div.w3-padding { h4 { text { " + label + " } } p { text { Here's a brand new tab } } }";
+          tabs.addTab(label, tabSource);
+        }
+        text { Add Tab }
+      }
+
+      q-tab {
+        name { text { Tab 1 } }
+        content { div.w3-padding { text { Initial tab one content. } } }
+      }
+
+      q-tab {
+        name { text { Tab 2 } }
+        content { div.w3-padding { text { Initial tab two content. } } }
+      }
+    }
+  }
+}
     </q-editor>
   </main>
 </body>

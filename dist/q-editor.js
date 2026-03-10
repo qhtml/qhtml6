@@ -46,6 +46,14 @@
   const QHTML_PUNCTUATION_CHARS = new Set(['{', '}', '[', ']', '(', ')', ':', ';', ',']);
   const QEDITOR_CODEMIRROR_SCRIPT = 'codemirror/codemirror.js';
   const QEDITOR_CODEMIRROR_CSS = 'codemirror/codemirror.css';
+  const QEDITOR_QDOM_DISPLAY_HIDDEN_KEYS = new Set([
+    'originalSource',
+    'resolvedSource',
+    'macroExpandedSource',
+    'rewrittenSource',
+    'evaluatedSource'
+  ]);
+  const QEDITOR_QDOM_WRAP_INDENT = '\u3164\u3164\u3164';
 
   const HTML_TAGS = new Set([
     'a', 'abbr', 'address', 'area', 'article', 'aside', 'audio', 'b', 'base', 'bdi', 'bdo', 'blockquote', 'body',
@@ -611,6 +619,74 @@
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+  }
+
+  function stringifyQDomForDisplay(qdomValue) {
+    return JSON.stringify(qdomValue, function qdomDisplayReplacer(key, value) {
+      if (QEDITOR_QDOM_DISPLAY_HIDDEN_KEYS.has(key)) {
+        return undefined;
+      }
+      return value;
+    });
+  }
+
+  function estimateTextareaColumns(textarea) {
+    if (!textarea || typeof globalScope.getComputedStyle !== 'function') {
+      return 120;
+    }
+    const style = globalScope.getComputedStyle(textarea);
+    const width = Number(textarea.clientWidth) || 0;
+    if (width <= 0) {
+      return 120;
+    }
+    const paddingLeft = parseFloat(style.paddingLeft || '0') || 0;
+    const paddingRight = parseFloat(style.paddingRight || '0') || 0;
+    const availableWidth = Math.max(40, width - paddingLeft - paddingRight);
+    const fontSize = parseFloat(style.fontSize || '14') || 14;
+    const averageGlyphWidth = Math.max(5, fontSize * 0.62);
+    return Math.max(24, Math.floor(availableWidth / averageGlyphWidth));
+  }
+
+  function wrapLineWithHangingIndent(line, maxColumns, indentText) {
+    const sourceLine = String(line || '');
+    const width = Math.max(24, Number(maxColumns) || 120);
+    const indent = String(indentText || '');
+    if (sourceLine.length <= width) return sourceLine;
+
+    const chunks = [];
+    let remaining = sourceLine;
+    let first = true;
+    while (remaining.length > 0) {
+      const chunkWidth = first ? width : Math.max(12, width - indent.length);
+      if (remaining.length <= chunkWidth) {
+        chunks.push((first ? '' : indent) + remaining);
+        break;
+      }
+      let breakAt = remaining.lastIndexOf(' ', chunkWidth);
+      if (breakAt <= 0) {
+        breakAt = chunkWidth;
+      }
+      const piece = remaining.slice(0, breakAt);
+      chunks.push((first ? '' : indent) + piece);
+      remaining = remaining.slice(breakAt);
+      if (remaining[0] === ' ') {
+        remaining = remaining.slice(1);
+      }
+      first = false;
+    }
+    return chunks.join('\n');
+  }
+
+  function wrapQDomTextForTextarea(textarea, text) {
+    const rawText = String(text || '');
+    if (!rawText) return rawText;
+    const columns = estimateTextareaColumns(textarea);
+    return rawText
+      .split('\n')
+      .map(function wrapLine(line) {
+        return wrapLineWithHangingIndent(line, columns, QEDITOR_QDOM_WRAP_INDENT);
+      })
+      .join('\n');
   }
 
   function wrapToken(className, value) {
@@ -1894,6 +1970,7 @@
           'q-editor .qe-input{resize:none;background:transparent;color:transparent;caret-color:#f8fafc;outline:none}' +
           'q-editor .qe-input::selection{background:rgba(130,170,255,.35);color:transparent}' +
           'q-editor .qe-code{background:var(--qe-bg);color:var(--qe-fg)}' +
+          'q-editor .qe-qdom{resize:vertical;outline:none}' +
           'q-editor .qe-preview{background:#fff;color:#0f172a;white-space:normal}' +
           'q-editor .qe-preview > *{max-width:100%}' +
           'q-editor .qe-error{color:#fecaca;white-space:pre-wrap}' +
@@ -1955,7 +2032,7 @@
           '</section>' +
           '<section class="qe-panel" data-tab="qdom" data-active="false" aria-hidden="true">' +
             '<button class="qe-copy" type="button" data-copy="qdom">Copy</button>' +
-            '<pre class="qe-code qe-qdom"></pre>' +
+            '<textarea class="qe-code qe-qdom" spellcheck="false" wrap="off"></textarea>' +
           '</section>' +
         '</div>';
     }
@@ -2568,7 +2645,6 @@
 
       let adapter = null;
       let htmlRaw = '';
-      let qdomSerialized = '';
       let qdomDecodedText = '';
       let renderError = null;
 
@@ -2576,9 +2652,7 @@
         adapter = await createQDomAdapter(source, { baseUrl: resolveImportBaseUrl() });
         htmlRaw = adapter.toHTML(document);
         if (shouldPopulateQDom) {
-          qdomSerialized = adapter.serialize();
-          const decoded = adapter.deserialize(qdomSerialized);
-          qdomDecodedText = JSON.stringify(decoded, null, 2);
+          qdomDecodedText = JSON.stringify(adapter && adapter.qdom ? adapter.qdom : null);
         }
       } catch (error) {
         renderError = error;
@@ -2590,7 +2664,7 @@
       if (version !== this._renderVersion) return;
 
       this._adapter = adapter;
-      this._qdomSerialized = shouldPopulateQDom ? qdomSerialized : '';
+      this._qdomSerialized = '';
       this._qdomDecoded = shouldPopulateQDom ? qdomDecodedText : '';
       this._htmlOutput = renderError ? '' : formatHtmlOutput(htmlRaw);
       this._componentNames = collectComponentNames(adapter && adapter.resolvedSource ? adapter.resolvedSource : source);
@@ -2607,16 +2681,6 @@
           this._htmlNode.innerHTML = '<span class="qe-tok-comment">' + escapeHtml('QDom render error:\n' + String(renderError && renderError.stack ? renderError.stack : renderError)) + '</span>';
         } else {
           this._htmlNode.innerHTML = highlightHtmlCode(this._htmlOutput, this._componentNames);
-        }
-      }
-
-      if (this._qdomNode) {
-        if (!shouldPopulateQDom) {
-          this._qdomNode.innerHTML = '<span class="qe-tok-comment">Select the QDom tab to render QDom output.</span>';
-        } else if (renderError) {
-          this._qdomNode.innerHTML = '<span class="qe-tok-comment">' + escapeHtml(this._qdomDecoded || '') + '</span>';
-        } else {
-          this._qdomNode.innerHTML = highlightQdomJson(this._qdomDecoded || '', this._componentNames);
         }
       }
 
@@ -2665,6 +2729,38 @@
               this._attachPreviewQScriptRules(adapter.qdom);
             }
           }
+        }
+      }
+
+      if (shouldPopulateQDom && !renderError) {
+        try {
+          const previewQDom =
+            this._previewQHtmlNode && typeof this._previewQHtmlNode.qdom === 'function'
+              ? this._previewQHtmlNode.qdom()
+              : adapter && adapter.qdom
+                ? adapter.qdom
+                : null;
+          this._qdomDecoded = stringifyQDomForDisplay(previewQDom);
+        } catch (error) {
+          this._qdomDecoded = String(error && error.stack ? error.stack : error);
+        }
+      }
+
+      if (this._qdomNode) {
+        const rawQdomText = !shouldPopulateQDom
+          ? 'Select the QDom tab to render QDom output.'
+          : String(this._qdomDecoded || '');
+        const qdomText = shouldPopulateQDom
+          ? rawQdomText
+              .replace(/\\r\\n/g, '\n')
+              .replace(/\\n/g, '\n')
+          : rawQdomText;
+        if (String(this._qdomNode.tagName || '').toLowerCase() === 'textarea') {
+          this._qdomNode.value = shouldPopulateQDom
+            ? wrapQDomTextForTextarea(this._qdomNode, qdomText)
+            : qdomText;
+        } else {
+          this._qdomNode.textContent = qdomText;
         }
       }
     }

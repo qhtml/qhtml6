@@ -14,6 +14,7 @@ QHTML is a compact language and runtime for building web UIs with readable block
 
 ## Whats New in v2.0.9
 
+- Fixed q-editor QDom tab lag for large 40+ KB fragments by removing heavy JSON formatting from the display path and using lightweight raw output handling.
 - Fixed qdom() updateing bug causing component instances to not have their own property scoping -- now each instance contains a unique property set which is accessible directly from any instance inheriting q-component definitions.
 - `HTMLElement.prototype.qdom()` now resolves from the closest `q-component` context first (when available), then falls back to the nearest `<q-html>` host context.
 - Added component-instance QDOM property helpers:
@@ -854,7 +855,7 @@ this.component.root().update(); // whole <q-html>
 
 ### `q-import { ... }` (include QHTML files)
 
-`q-import` loads another `.qhtml` file and expands it inline in the current source before parsing continues.
+`q-import` records import metadata in the host QDOM (`meta.imports` / `meta.importCacheRefs`) and resolves definitions from the import cache at runtime. Imported component/template/signal definitions become available without inlining full imported source into the host QDOM.
 
 ```qhtml
 <q-html>

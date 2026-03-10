@@ -1,0 +1,795 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HTML to QHTML Converter</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --ink: #1d2433;
+      --muted: #5d6678;
+      --line: #d7deea;
+      --accent: #1652f0;
+      --accent-ink: #ffffff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: linear-gradient(165deg, #eef2ff 0%, #f9fbff 100%);
+      color: var(--ink);
+      font-family: "Iosevka Web", "JetBrains Mono", "Fira Code", "Consolas", monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(5px);
+    }
+
+    .title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      padding: 8px 11px;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: var(--accent-ink);
+      border-color: #1346cc;
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    .status {
+      color: var(--muted);
+      font-size: 12px;
+      margin-left: 6px;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 12px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .pane {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .pane-head {
+      margin: 0;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      background: #fbfcff;
+    }
+
+    textarea {
+      width: 100%;
+      flex: 1;
+      border: 0;
+      margin: 0;
+      resize: none;
+      outline: none;
+      font: inherit;
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--ink);
+      background: #fff;
+      padding: 12px;
+      min-height: 260px;
+      tab-size: 2;
+    }
+
+    #qhtmlOutput {
+      background: #f8fbff;
+    }
+
+    @media (max-width: 980px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="title">Convert HTML to modern QHTML</h1>
+    <div class="controls">
+      <button id="sampleBtn">Sample</button>
+      <button id="clearBtn">Clear</button>
+      <button id="copyBtn">Copy QHTML</button>
+      <button id="convertBtn" class="primary">Convert</button>
+      <span id="status" class="status">Ready</span>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="pane">
+      <h2 class="pane-head">HTML Input</h2>
+      <textarea id="htmlInput" spellcheck="false" placeholder="Paste HTML here..."></textarea>
+    </section>
+
+    <section class="pane">
+      <h2 class="pane-head">QHTML Output</h2>
+      <textarea id="qhtmlOutput" spellcheck="false" readonly placeholder="QHTML output appears here..."></textarea>
+    </section>
+  </main>
+
+  <script>
+    (function setupConverter() {
+      var htmlInput = document.getElementById("htmlInput");
+      var qhtmlOutput = document.getElementById("qhtmlOutput");
+      var statusEl = document.getElementById("status");
+      var convertBtn = document.getElementById("convertBtn");
+      var sampleBtn = document.getElementById("sampleBtn");
+      var clearBtn = document.getElementById("clearBtn");
+      var copyBtn = document.getElementById("copyBtn");
+      var debounceTimer = null;
+
+      function setStatus(text) {
+        statusEl.textContent = String(text || "");
+      }
+
+      function isSelectorTokenSafe(value) {
+        return /^[A-Za-z_][A-Za-z0-9_-]*$/.test(String(value || ""));
+      }
+
+      function escapeQuoted(value) {
+        return String(value == null ? "" : value)
+          .replace(/\\/g, "\\\\")
+          .replace(/"/g, "\\\"")
+          .replace(/\r?\n/g, " ");
+      }
+
+      function escapeText(value) {
+        return String(value == null ? "" : value)
+          .replace(/\s+/g, " ")
+          .trim()
+          .replace(/[{}]/g, "");
+      }
+
+      function cssPropToQStyleProp(name) {
+        var source = String(name == null ? "" : name).trim().toLowerCase();
+        if (!source) {
+          return "";
+        }
+        return source.replace(/-([a-z0-9])/g, function (_, letter) {
+          return letter.toUpperCase();
+        });
+      }
+
+      function parseStyleDeclarations(styleText) {
+        var out = new Map();
+        var source = String(styleText == null ? "" : styleText);
+        var parts = source.split(";");
+        for (var i = 0; i < parts.length; i += 1) {
+          var part = String(parts[i] || "").trim();
+          if (!part) {
+            continue;
+          }
+          var idx = part.indexOf(":");
+          if (idx < 1) {
+            continue;
+          }
+          var rawName = part.slice(0, idx).trim();
+          var rawValue = part.slice(idx + 1).trim();
+          var qName = cssPropToQStyleProp(rawName);
+          if (!qName || !rawValue) {
+            continue;
+          }
+          out.set(qName, rawValue.replace(/\r?\n/g, " ").trim());
+        }
+        return out;
+      }
+
+      function declarationSignature(map) {
+        if (!(map instanceof Map) || map.size === 0) {
+          return "";
+        }
+        var keys = Array.from(map.keys()).sort();
+        var parts = [];
+        for (var i = 0; i < keys.length; i += 1) {
+          var key = keys[i];
+          parts.push(key + ":" + String(map.get(key) || ""));
+        }
+        return parts.join(";");
+      }
+
+      function cloneDeclMap(map) {
+        var next = new Map();
+        if (!(map instanceof Map)) {
+          return next;
+        }
+        map.forEach(function (value, key) {
+          next.set(key, value);
+        });
+        return next;
+      }
+
+      function intersectionDeclMaps(list) {
+        var sets = Array.isArray(list) ? list : [];
+        if (sets.length === 0) {
+          return new Map();
+        }
+        var shared = cloneDeclMap(sets[0]);
+        for (var i = 1; i < sets.length; i += 1) {
+          var current = sets[i] instanceof Map ? sets[i] : new Map();
+          Array.from(shared.keys()).forEach(function (key) {
+            if (!current.has(key) || String(current.get(key)) !== String(shared.get(key))) {
+              shared.delete(key);
+            }
+          });
+        }
+        return shared;
+      }
+
+      function buildAstFromHtml(html) {
+        var template = document.createElement("template");
+        template.innerHTML = String(html || "");
+
+        var allElements = [];
+        var nextId = 1;
+
+        function walk(node) {
+          if (!node) {
+            return null;
+          }
+
+          if (node.nodeType === Node.TEXT_NODE) {
+            var textValue = escapeText(node.nodeValue);
+            if (!textValue) {
+              return null;
+            }
+            return { type: "text", value: textValue };
+          }
+
+          if (node.nodeType !== Node.ELEMENT_NODE) {
+            return null;
+          }
+
+          var tagName = String(node.tagName || "div").toLowerCase();
+          var attrs = {};
+          var rawAttrs = node.attributes || [];
+          for (var i = 0; i < rawAttrs.length; i += 1) {
+            var attr = rawAttrs[i];
+            if (!attr || !attr.name) {
+              continue;
+            }
+            attrs[attr.name] = String(attr.value == null ? "" : attr.value);
+          }
+
+          var idValue = String(attrs.id || "").trim();
+          var classList = String(attrs["class"] || "")
+            .split(/\s+/)
+            .map(function (item) { return String(item || "").trim(); })
+            .filter(Boolean);
+          var styleDecls = parseStyleDeclarations(attrs.style || "");
+
+          var elementNode = {
+            type: "element",
+            uid: nextId,
+            tag: tagName,
+            idAttr: idValue,
+            classes: classList,
+            attrs: attrs,
+            styleDecls: styleDecls,
+            coveredDecls: new Set(),
+            children: []
+          };
+          nextId += 1;
+          allElements.push(elementNode);
+
+          var childNodes = node.childNodes || [];
+          for (var ci = 0; ci < childNodes.length; ci += 1) {
+            var child = walk(childNodes[ci]);
+            if (child) {
+              elementNode.children.push(child);
+            }
+          }
+
+          return elementNode;
+        }
+
+        var astNodes = [];
+        var top = template.content.childNodes || [];
+        for (var i = 0; i < top.length; i += 1) {
+          var parsed = walk(top[i]);
+          if (parsed) {
+            astNodes.push(parsed);
+          }
+        }
+
+        return { astNodes: astNodes, allElements: allElements };
+      }
+
+      function selectorForElement(elementNode) {
+        if (!elementNode || typeof elementNode !== "object") {
+          return "";
+        }
+        var idToken = String(elementNode.idAttr || "").trim();
+        if (idToken && isSelectorTokenSafe(idToken)) {
+          return "#" + idToken;
+        }
+        var classes = Array.isArray(elementNode.classes) ? elementNode.classes : [];
+        var safeClasses = classes
+          .map(function (item) { return String(item || "").trim(); })
+          .filter(Boolean)
+          .filter(isSelectorTokenSafe);
+        if (safeClasses.length > 0) {
+          return "." + safeClasses.join(".");
+        }
+        return String(elementNode.tag || "div").toLowerCase();
+      }
+
+      function analyzeStyles(allElements) {
+        var elements = Array.isArray(allElements) ? allElements : [];
+        var classBuckets = new Map();
+        var styleBuckets = new Map();
+        var styleDefsBySig = new Map();
+        var styleDefs = [];
+        var themeRules = new Map();
+        var styleCounter = 1;
+
+        function ensureStyleDef(declMap) {
+          var signature = declarationSignature(declMap);
+          if (!signature) {
+            return "";
+          }
+          if (styleDefsBySig.has(signature)) {
+            return styleDefsBySig.get(signature);
+          }
+          var styleName = "auto-style-" + styleCounter;
+          styleCounter += 1;
+          styleDefsBySig.set(signature, styleName);
+          styleDefs.push({ name: styleName, decls: cloneDeclMap(declMap) });
+          return styleName;
+        }
+
+        function attachThemeRule(selector, styleName) {
+          var sel = String(selector || "").trim();
+          var sty = String(styleName || "").trim();
+          if (!sel || !sty) {
+            return;
+          }
+          if (!themeRules.has(sel)) {
+            themeRules.set(sel, new Set());
+          }
+          themeRules.get(sel).add(sty);
+        }
+
+        elements.forEach(function (el) {
+          if (!el || !(el.styleDecls instanceof Map)) {
+            return;
+          }
+          var classes = Array.isArray(el.classes) ? el.classes : [];
+          for (var i = 0; i < classes.length; i += 1) {
+            var cls = String(classes[i] || "").trim();
+            if (!cls) {
+              continue;
+            }
+            if (!classBuckets.has(cls)) {
+              classBuckets.set(cls, []);
+            }
+            classBuckets.get(cls).push(el);
+          }
+        });
+
+        classBuckets.forEach(function (bucketElements, className) {
+          if (!Array.isArray(bucketElements) || bucketElements.length < 2) {
+            return;
+          }
+          var declSets = bucketElements
+            .map(function (el) { return el.styleDecls; })
+            .filter(function (set) { return set instanceof Map && set.size > 0; });
+          if (declSets.length < 2) {
+            return;
+          }
+          var shared = intersectionDeclMaps(declSets);
+          if (shared.size === 0) {
+            return;
+          }
+          var styleName = ensureStyleDef(shared);
+          if (!styleName) {
+            return;
+          }
+          var classToken = String(className || "").trim();
+          if (!classToken || !isSelectorTokenSafe(classToken)) {
+            return;
+          }
+          attachThemeRule("." + classToken, styleName);
+          bucketElements.forEach(function (el) {
+            shared.forEach(function (_, key) {
+              el.coveredDecls.add(key);
+            });
+          });
+        });
+
+        elements.forEach(function (el) {
+          if (!el || !(el.styleDecls instanceof Map) || el.styleDecls.size === 0) {
+            return;
+          }
+          var residual = new Map();
+          el.styleDecls.forEach(function (value, key) {
+            if (!el.coveredDecls.has(key)) {
+              residual.set(key, value);
+            }
+          });
+          var sig = declarationSignature(residual);
+          if (!sig) {
+            return;
+          }
+          if (!styleBuckets.has(sig)) {
+            styleBuckets.set(sig, { decls: residual, elements: [] });
+          }
+          styleBuckets.get(sig).elements.push(el);
+        });
+
+        styleBuckets.forEach(function (bucket) {
+          if (!bucket || !Array.isArray(bucket.elements) || bucket.elements.length < 2) {
+            return;
+          }
+          var styleName = ensureStyleDef(bucket.decls);
+          if (!styleName) {
+            return;
+          }
+          var seenSelectors = new Set();
+          for (var i = 0; i < bucket.elements.length; i += 1) {
+            var el = bucket.elements[i];
+            var selector = selectorForElement(el);
+            if (!selector || seenSelectors.has(selector)) {
+              continue;
+            }
+            seenSelectors.add(selector);
+            attachThemeRule(selector, styleName);
+          }
+          bucket.decls.forEach(function (_, key) {
+            for (var j = 0; j < bucket.elements.length; j += 1) {
+              bucket.elements[j].coveredDecls.add(key);
+            }
+          });
+        });
+
+        return {
+          styleDefs: styleDefs,
+          themeRules: themeRules
+        };
+      }
+
+      function emitStyleBlock(declMap, indentLevel) {
+        var indent = "  ".repeat(indentLevel);
+        var out = [];
+        var keys = Array.from(declMap.keys()).sort();
+        if (keys.length === 0) {
+          return out;
+        }
+        out.push(indent + "style {");
+        for (var i = 0; i < keys.length; i += 1) {
+          var key = keys[i];
+          var val = String(declMap.get(key) || "").replace(/\r?\n/g, " ").trim();
+          if (!val) {
+            continue;
+          }
+          out.push(indent + "  " + key + ": " + val + ";");
+        }
+        out.push(indent + "}");
+        return out;
+      }
+
+      function buildElementRenderState(node) {
+        var token = String(node && node.tag || "div").toLowerCase();
+        var attrs = Object.assign({}, node && node.attrs || {});
+
+        if (attrs.style != null) {
+          delete attrs.style;
+        }
+
+        var safeId = String(node && node.idAttr || "").trim();
+        if (safeId && isSelectorTokenSafe(safeId)) {
+          token += "#" + safeId;
+          delete attrs.id;
+        }
+
+        var classes = Array.isArray(node && node.classes) ? node.classes : [];
+        var safeClasses = [];
+        for (var ci = 0; ci < classes.length; ci += 1) {
+          var cls = String(classes[ci] || "").trim();
+          if (cls && isSelectorTokenSafe(cls)) {
+            safeClasses.push(cls);
+          }
+        }
+        if (safeClasses.length > 0) {
+          token += "." + safeClasses.join(".");
+          delete attrs["class"];
+        }
+
+        var remainingDecls = new Map();
+        if (node && node.styleDecls instanceof Map) {
+          node.styleDecls.forEach(function (value, key) {
+            if (!node.coveredDecls || !node.coveredDecls.has(key)) {
+              remainingDecls.set(key, value);
+            }
+          });
+        }
+
+        return {
+          token: token,
+          attrs: attrs,
+          remainingDecls: remainingDecls
+        };
+      }
+
+      function isCollapsibleWrapper(node, renderState) {
+        if (!node || node.type !== "element" || !renderState) {
+          return false;
+        }
+        if (Object.keys(renderState.attrs || {}).length > 0) {
+          return false;
+        }
+        if (renderState.remainingDecls instanceof Map && renderState.remainingDecls.size > 0) {
+          return false;
+        }
+        var children = Array.isArray(node.children) ? node.children : [];
+        if (children.length !== 1) {
+          return false;
+        }
+        return children[0] && children[0].type === "element";
+      }
+
+      function emitNode(node, level) {
+        var indent = "  ".repeat(level);
+        if (!node) {
+          return "";
+        }
+
+        if (node.type === "text") {
+          return indent + "text { " + escapeText(node.value) + " }";
+        }
+
+        if (node.type !== "element") {
+          return "";
+        }
+
+        var currentNode = node;
+        var currentState = buildElementRenderState(currentNode);
+        var chainTokens = [currentState.token];
+        while (isCollapsibleWrapper(currentNode, currentState)) {
+          currentNode = currentNode.children[0];
+          currentState = buildElementRenderState(currentNode);
+          chainTokens.push(currentState.token);
+        }
+        var token = chainTokens.join(",");
+        var attrs = currentState.attrs;
+        var remainingDecls = currentState.remainingDecls;
+
+        var lines = [];
+        Object.keys(attrs).sort().forEach(function (key) {
+          var value = attrs[key];
+          lines.push(indent + "  " + key + ': "' + escapeQuoted(value) + '"');
+        });
+
+        var styleLines = emitStyleBlock(remainingDecls, level + 1);
+        for (var si = 0; si < styleLines.length; si += 1) {
+          lines.push(styleLines[si]);
+        }
+
+        var children = Array.isArray(currentNode.children) ? currentNode.children : [];
+        for (var i = 0; i < children.length; i += 1) {
+          var child = emitNode(children[i], level + 1);
+          if (child) {
+            lines.push(child);
+          }
+        }
+
+        if (lines.length === 0) {
+          return indent + token + " {}";
+        }
+        return indent + token + " {\n" + lines.join("\n") + "\n" + indent + "}";
+      }
+
+      function emitQStyleBlocks(styleDefs) {
+        var defs = Array.isArray(styleDefs) ? styleDefs : [];
+        var chunks = [];
+        for (var i = 0; i < defs.length; i += 1) {
+          var def = defs[i];
+          if (!def || !(def.decls instanceof Map) || def.decls.size === 0) {
+            continue;
+          }
+          var block = [];
+          block.push("q-style " + def.name + " {");
+          var keys = Array.from(def.decls.keys()).sort();
+          for (var k = 0; k < keys.length; k += 1) {
+            var key = keys[k];
+            var val = String(def.decls.get(key) || "").replace(/\r?\n/g, " ").trim();
+            if (!val) {
+              continue;
+            }
+            block.push("  " + key + ": " + val + ";");
+          }
+          block.push("}");
+          chunks.push(block.join("\n"));
+        }
+        return chunks.join("\n\n");
+      }
+
+      function emitThemeBlock(themeRules) {
+        if (!(themeRules instanceof Map) || themeRules.size === 0) {
+          return "";
+        }
+        var selectors = Array.from(themeRules.keys()).sort();
+        var lines = [];
+        lines.push("q-theme auto-theme {");
+        for (var i = 0; i < selectors.length; i += 1) {
+          var selector = selectors[i];
+          var styles = Array.from(themeRules.get(selector) || []).sort();
+          if (styles.length === 0) {
+            continue;
+          }
+          lines.push("  " + selector + " {");
+          for (var s = 0; s < styles.length; s += 1) {
+            lines.push("    " + styles[s]);
+          }
+          lines.push("  }");
+        }
+        lines.push("}");
+        return lines.join("\n");
+      }
+
+      function convertHtmlToQhtml(rawHtml) {
+        var source = String(rawHtml == null ? "" : rawHtml);
+        if (!source.trim()) {
+          return "";
+        }
+
+        var parsed = buildAstFromHtml(source);
+        var styleAnalysis = analyzeStyles(parsed.allElements);
+
+        var nodeBlocks = [];
+        for (var i = 0; i < parsed.astNodes.length; i += 1) {
+          var rendered = emitNode(parsed.astNodes[i], styleAnalysis.themeRules.size > 0 ? 1 : 0);
+          if (rendered) {
+            nodeBlocks.push(rendered);
+          }
+        }
+
+        var outParts = [];
+        var stylePart = emitQStyleBlocks(styleAnalysis.styleDefs);
+        if (stylePart) {
+          outParts.push(stylePart);
+        }
+
+        var themePart = emitThemeBlock(styleAnalysis.themeRules);
+        if (themePart) {
+          outParts.push(themePart);
+          outParts.push("auto-theme {\n" + nodeBlocks.join("\n") + "\n}");
+        } else {
+          outParts.push(nodeBlocks.join("\n"));
+        }
+
+        return outParts.filter(Boolean).join("\n\n").trim();
+      }
+
+      function runConvert() {
+        try {
+          var result = convertHtmlToQhtml(htmlInput.value);
+          qhtmlOutput.value = result;
+          if (!result) {
+            setStatus("No output (empty input)");
+            return;
+          }
+          setStatus("Converted");
+        } catch (error) {
+          qhtmlOutput.value = "";
+          setStatus("Conversion error: " + (error && error.message ? error.message : String(error)));
+        }
+      }
+
+      function scheduleConvert() {
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+        }
+        debounceTimer = setTimeout(runConvert, 220);
+      }
+
+      sampleBtn.addEventListener("click", function () {
+        htmlInput.value = [
+          '<div class="card" style="background:#eef4ff; border:1px solid #c8d3ff; padding:12px;">',
+          '  <h3 class="card-title" style="color:#1f3aa5; margin:0 0 8px 0;">One</h3>',
+          '  <p class="card-copy" style="color:#1f3aa5; margin:0;">Hello</p>',
+          '</div>',
+          '<div class="card" style="background:#eef4ff; border:1px solid #c8d3ff; padding:12px;">',
+          '  <h3 class="card-title" style="color:#1f3aa5; margin:0 0 8px 0;">Two</h3>',
+          '  <p class="card-copy" style="color:#1f3aa5; margin:0;">World</p>',
+          '</div>',
+          '<div id="something">',
+          '  <div id="somethingelse">',
+          '    <span id="myspan">hello world</span>',
+          '  </div>',
+          '</div>'
+        ].join("\n");
+        runConvert();
+      });
+
+      clearBtn.addEventListener("click", function () {
+        htmlInput.value = "";
+        qhtmlOutput.value = "";
+        setStatus("Cleared");
+      });
+
+      copyBtn.addEventListener("click", function () {
+        var text = qhtmlOutput.value;
+        if (!text) {
+          setStatus("Nothing to copy");
+          return;
+        }
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+          navigator.clipboard.writeText(text).then(function () {
+            setStatus("Copied QHTML");
+          }, function () {
+            setStatus("Clipboard unavailable");
+          });
+          return;
+        }
+        qhtmlOutput.select();
+        document.execCommand("copy");
+        setStatus("Copied QHTML");
+      });
+
+      convertBtn.addEventListener("click", runConvert);
+      htmlInput.addEventListener("input", scheduleConvert);
+      if (String(location.hash || "").toLowerCase() === "#sample") {
+        sampleBtn.click();
+      } else {
+        runConvert();
+      }
+    })();
+  </script>
+</body>
+</html>

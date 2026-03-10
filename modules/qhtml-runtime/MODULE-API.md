@@ -42,6 +42,9 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - import controls (`importBaseUrl`, `maxImports`, `importCache`)
 - template preference (`preferTemplate`)
 - parser/rewrite/script pass limits
+- `q-import` mount behavior:
+  - host QDOM keeps lightweight import metadata (`meta.imports`, `meta.importCacheRefs`, `meta.importUrls`)
+  - imported definitions are preloaded/registered from cache without inlining imported source into host QDOM
 
 ## `.qdom()` and node list helpers
 - `host.qdom()` / `element.qdom()` return facades over source QDom nodes.

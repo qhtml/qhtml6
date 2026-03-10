@@ -61,6 +61,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
 - `resolveQImportsAsync(source, options?)`
   - Both recursively inline `q-import` blocks.
   - Detect circular imports and enforce max import count.
+  - When `parseQHtmlToQDom(..., { resolveImportsBeforeParse: false })` is used, `q-import` paths are preserved as metadata (`doc.meta.imports`) rather than inlined into the parsed host QDOM.
 
 ### Serialization APIs
 - `qdomToQHtml(documentNode, options?)`

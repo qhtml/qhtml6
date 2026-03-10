@@ -10,6 +10,7 @@
 
   const bindings = new WeakMap();
   const importSourceCache = new Map();
+  const importDocumentCache = new Map();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
   let elementPrototypeQdomAccessorInstalled = false;
@@ -2981,6 +2982,141 @@
         registerCustomElementDefinition(normalizedId);
       }
     });
+  }
+
+  function normalizeImportDeclarationPath(rawPath) {
+    let path = String(rawPath || "").trim();
+    if (!path) {
+      return "";
+    }
+    if (path.endsWith(";")) {
+      path = path.slice(0, -1).trim();
+    }
+    if (
+      (path.startsWith('"') && path.endsWith('"')) ||
+      (path.startsWith("'") && path.endsWith("'")) ||
+      (path.startsWith("`") && path.endsWith("`"))
+    ) {
+      path = path.slice(1, -1).trim();
+    }
+    return path;
+  }
+
+  function resolveImportUrlForRuntime(path, baseUrl) {
+    const value = normalizeImportDeclarationPath(path);
+    if (!value) {
+      return "";
+    }
+    const base = String(baseUrl || "").trim();
+    try {
+      if (typeof URL === "function") {
+        if (base) {
+          return new URL(value, base).toString();
+        }
+        return new URL(value).toString();
+      }
+    } catch (error) {
+      // Fallback to the original value when URL resolution is unavailable.
+    }
+    return value;
+  }
+
+  function createImportTraversalState(options) {
+    const opts = options || {};
+    const maxImports = typeof opts.maxImports === "number" && opts.maxImports > 0 ? opts.maxImports : 200;
+    return {
+      maxImports: maxImports,
+      loaded: 0,
+      visited: new Set(),
+    };
+  }
+
+  async function ensureImportedDefinitionsForUrl(url, options, traversalState) {
+    const resolvedUrl = String(url || "").trim();
+    if (!resolvedUrl) {
+      return null;
+    }
+    const state = traversalState || createImportTraversalState(options);
+    if (state.visited.has(resolvedUrl)) {
+      return importDocumentCache.get(resolvedUrl) || null;
+    }
+    if (state.loaded >= state.maxImports) {
+      throw new Error("q-import limit exceeded (" + state.maxImports + ").");
+    }
+    state.visited.add(resolvedUrl);
+    state.loaded += 1;
+
+    let pendingDocument = importDocumentCache.get(resolvedUrl);
+    if (!pendingDocument) {
+      pendingDocument = (async function parseImportedDocument() {
+        const importedSource = await loadImportSource(resolvedUrl);
+        const importedDoc = parser.parseQHtmlToQDom(importedSource, {
+          resolveImportsBeforeParse: false,
+        });
+        if (!importedDoc.meta || typeof importedDoc.meta !== "object") {
+          importedDoc.meta = {};
+        }
+        importedDoc.meta.importBaseUrl = resolvedUrl;
+        importedDoc.meta.importSource = "q-import-cache";
+        return importedDoc;
+      })();
+      importDocumentCache.set(resolvedUrl, pendingDocument);
+    }
+
+    let importedDoc;
+    try {
+      importedDoc = await pendingDocument;
+    } catch (error) {
+      importDocumentCache.delete(resolvedUrl);
+      throw error;
+    }
+
+    registerDefinitionsFromDocument(importedDoc);
+
+    const nestedImports =
+      importedDoc && importedDoc.meta && Array.isArray(importedDoc.meta.imports)
+        ? importedDoc.meta.imports
+        : [];
+    for (let i = 0; i < nestedImports.length; i += 1) {
+      const nestedPath = normalizeImportDeclarationPath(nestedImports[i]);
+      if (!nestedPath) {
+        continue;
+      }
+      const nestedUrl = resolveImportUrlForRuntime(nestedPath, resolvedUrl);
+      if (!nestedUrl) {
+        continue;
+      }
+      await ensureImportedDefinitionsForUrl(nestedUrl, options, state);
+    }
+
+    return importedDoc;
+  }
+
+  async function preloadImportedDefinitions(importPaths, baseUrl, options) {
+    const paths = Array.isArray(importPaths) ? importPaths : [];
+    if (paths.length === 0) {
+      return [];
+    }
+    const state = createImportTraversalState(options);
+    const records = [];
+    for (let i = 0; i < paths.length; i += 1) {
+      const importPath = normalizeImportDeclarationPath(paths[i]);
+      if (!importPath) {
+        continue;
+      }
+      const resolvedUrl = resolveImportUrlForRuntime(importPath, baseUrl);
+      if (!resolvedUrl) {
+        continue;
+      }
+      records.push({
+        path: importPath,
+        url: resolvedUrl,
+        cacheKey: resolvedUrl,
+        cached: importSourceCache.has(resolvedUrl) || importDocumentCache.has(resolvedUrl),
+      });
+      await ensureImportedDefinitionsForUrl(resolvedUrl, options, state);
+    }
+    return records;
   }
 
   function isWithinQHtml(element) {
@@ -5963,6 +6099,7 @@
         componentMap: capturedComponentMap,
         slotMap: capturedSlotMap,
       },
+      componentRegistry: definitionRegistry,
     });
 
     const children =
@@ -6042,6 +6179,7 @@
             componentMap: binding.componentMap,
             slotMap: binding.slotMap,
           },
+          componentRegistry: definitionRegistry,
         });
         hydrateRegisteredComponentHostsInNode(binding.doc, binding.doc);
         attachDomQDomAccessors(binding);
@@ -6177,7 +6315,9 @@
         },
         htmldom: function htmldom(targetDocument) {
           const docNode = createTransientDocumentFromNodes(list, true);
-          return renderer.renderDocumentToFragment(docNode, targetDocument || binding.doc || global.document);
+          return renderer.renderDocumentToFragment(docNode, targetDocument || binding.doc || global.document, {
+            componentRegistry: definitionRegistry,
+          });
         },
         html: function html(targetDocument) {
           const fragment = qdomNodeList.htmldom(targetDocument);
@@ -8355,7 +8495,9 @@
         writable: false,
         value: function htmldom(targetDocument) {
           const docNode = createTransientDocumentFromNodes([node], true);
-          return renderer.renderDocumentToFragment(docNode, targetDocument || binding.doc || global.document);
+          return renderer.renderDocumentToFragment(docNode, targetDocument || binding.doc || global.document, {
+            componentRegistry: definitionRegistry,
+          });
         },
       });
       Object.defineProperty(node, "html", {
@@ -8921,33 +9063,33 @@
       rules = parser.parseQScript(companionScript.textContent || "");
     }
 
-    const importUrls = [];
-    let effectiveSource = source;
-    if (typeof parser.resolveQImportsAsync === "function") {
-      effectiveSource = await parser.resolveQImportsAsync(source, {
-        loadImport: loadImportSource,
-        baseUrl: resolveImportBaseUrl(qHtmlElement, opts),
-        maxImports: opts.maxImports,
-        cache: opts.importCache,
-        onImport: function onImport(info) {
-          if (info && info.url) {
-            importUrls.push(info.url);
-          }
-        },
-      });
-    }
-
-    const parsed = parser.parseQHtmlToQDom(effectiveSource, {
+    const importBaseUrl = resolveImportBaseUrl(qHtmlElement, opts);
+    const parsed = parser.parseQHtmlToQDom(source, {
       scriptRules: rules,
       resolveImportsBeforeParse: false,
     });
     if (!parsed.meta || typeof parsed.meta !== "object") {
       parsed.meta = {};
     }
-    if (importUrls.length > 0) {
-      parsed.meta.imports = importUrls.slice();
+
+    const importPaths = Array.isArray(parsed.meta.imports)
+      ? parsed.meta.imports.map(function normalizeImportPath(path) {
+          return normalizeImportDeclarationPath(path);
+        }).filter(Boolean)
+      : [];
+    if (importPaths.length > 0) {
+      const importCacheRefs = await preloadImportedDefinitions(importPaths, importBaseUrl, {
+        maxImports: opts.maxImports,
+      });
+      parsed.meta.imports = importPaths;
+      parsed.meta.importCacheRefs = importCacheRefs;
+      parsed.meta.importUrls = importCacheRefs.map(function mapImportRef(entry) {
+        return entry.url;
+      });
     }
-    parsed.meta.resolvedSource = effectiveSource;
+    parsed.meta.importBaseUrl = importBaseUrl;
+    parsed.meta.resolvedSource = source;
+    parsed.meta.importSourceMode = "metadata-only";
     return parsed;
   }
 
