@@ -12,22 +12,12 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v2.1.0
+## Whats New in v6.1.0
 
 - Added `q-component ... extends ...` inheritance support.
 - Added multiple inheritance support with ordered merge behavior: `q-component child extends baseA extends baseB { ... }`.
 - Extended components now inherit properties, methods, signals, aliases, lifecycle hooks, slots, and template children from all parent components.
 
-## Whats New in v2.0.9
-
-- Fixed q-editor QDom tab lag for large 40+ KB fragments by removing heavy JSON formatting from the display path and using lightweight raw output handling.
-- Fixed qdom() updateing bug causing component instances to not have their own property scoping -- now each instance contains a unique property set which is accessible directly from any instance inheriting q-component definitions.
-- `HTMLElement.prototype.qdom()` now resolves from the closest `q-component` context first (when available), then falls back to the nearest `<q-html>` host context.
-- Added component-instance QDOM property helpers:
-  - `componentInstanceQDom.properties()`
-  - `componentInstanceQDom.getProperty(key)`
-  - `componentInstanceQDom.property(key)`
-  - `componentInstanceQDom.property(key, value)`
 
 ## 1. Quick Start
 
@@ -1056,6 +1046,17 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 - `modules/release-bundle/README.md`
 
 # Past Changes
+## Whats New in v6.0.9
+
+- Fixed q-editor QDom tab lag for large 40+ KB fragments by removing heavy JSON formatting from the display path and using lightweight raw output handling.
+- Fixed qdom() updateing bug causing component instances to not have their own property scoping -- now each instance contains a unique property set which is accessible directly from any instance inheriting q-component definitions.
+- `HTMLElement.prototype.qdom()` now resolves from the closest `q-component` context first (when available), then falls back to the nearest `<q-html>` host context.
+- Added component-instance QDOM property helpers:
+  - `componentInstanceQDom.properties()`
+  - `componentInstanceQDom.getProperty(key)`
+  - `componentInstanceQDom.property(key)`
+  - `componentInstanceQDom.property(key, value)`
+
 
 ## Whats New in v6.0.8
 
