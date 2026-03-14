@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v2.0.9
+# QHTML.js v2.1.0
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -11,6 +11,12 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Dev testbed: https://qhtml.github.io/qhtml6/dist/test.html
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
+
+## Whats New in v2.1.0
+
+- Added `q-component ... extends ...` inheritance support.
+- Added multiple inheritance support with ordered merge behavior: `q-component child extends baseA extends baseB { ... }`.
+- Extended components now inherit properties, methods, signals, aliases, lifecycle hooks, slots, and template children from all parent components.
 
 ## Whats New in v2.0.9
 
@@ -456,6 +462,105 @@ q-component my-comp {
   q-property selected: true
 }
 ```
+
+### `extends` syntax
+
+Use `extends` when you want one component to inherit reusable behavior from another component instead of wrapping one component inside another.
+
+Inherited component parts include:
+
+- `q-property`
+- `function ... { }`
+- `q-signal`
+- `q-alias`
+- `onReady` and other lifecycle hooks
+- `slot { ... }` placeholders
+- template children / rendered markup
+
+Child components are merged after parent components, so child methods and declarations with the same name win.
+
+#### Single inheritance
+
+```qhtml
+q-component counter-base {
+  q-property count: 0
+
+  function increment() {
+    this.count = Number(this.count) + 1;
+    this.update(this.qdom().UUID);
+  }
+}
+
+q-component counter-button extends counter-base {
+  button {
+    type: "button"
+    onclick { this.component.increment(); }
+    text { Count: ${this.component.count} }
+  }
+}
+
+counter-button { }
+```
+
+Use single inheritance when one parent component already represents the exact reusable base behavior you want.
+
+#### Multiple inheritance
+
+```qhtml
+q-component counter-base {
+  q-property count: 0
+  function increment() {
+    this.count = Number(this.count) + 1;
+    this.update(this.qdom().UUID);
+  }
+}
+
+q-component hello-base {
+  function hello() { alert("hello world"); }
+}
+
+q-component counter-toolbar extends counter-base extends hello-base {
+  button {
+    type: "button"
+    onclick { this.component.increment(); }
+    text { Count: ${this.component.count} }
+  }
+
+  button {
+    type: "button"
+    onclick { this.component.hello(); }
+    text { Say Hello }
+  }
+}
+
+counter-toolbar { }
+```
+
+Use multiple inheritance when you want to compose a new component from several reusable behavior blocks without adding extra wrapper components just to pass features through.
+
+#### Merge order
+
+```qhtml
+q-component base-a {
+  function label() { return "A"; }
+}
+
+q-component base-b {
+  function label() { return "B"; }
+}
+
+q-component final-comp extends base-a extends base-b {
+  function label() { return "child"; }
+}
+```
+
+Merge order is left-to-right, then child last:
+
+- `base-a`
+- `base-b`
+- `final-comp`
+
+So in the example above, `final-comp.label()` returns `child`. If the child did not define `label()`, then `base-b.label()` would win over `base-a.label()`.
 
 ### `q-wasm` syntax (component-level WebAssembly bridge)
 
