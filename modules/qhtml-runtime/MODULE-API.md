@@ -17,6 +17,14 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - Returns observed QDom proxy.
 - `toQHtmlSource(qHtmlElement, options?)`
   - Serialize current mounted model to source.
+- `listRegisteredComponentIds(options?)`
+  - Returns sorted globally registered definition ids from loaded components/imports.
+  - Filters to `q-component` definitions by default.
+  - `options.includeTemplates === true` includes `q-template` ids.
+  - `options.includeSignals === true` includes `q-signal` ids.
+- `listRegisteredComponentSlots(componentId)`
+  - Returns ordered unique slot names declared by a registered `q-component` definition.
+  - Reads slot declarations from the stored component definition tree, even when a mounted instance does not preserve slot handles.
 - `updateQHtmlElement(qHtmlElement, options?)`
   - Re-evaluates binding expressions and re-renders mounted output.
   - Optional `options.scopeElement` (mapped DOM element) performs scoped rerender of only that subtree.
@@ -59,6 +67,15 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - `.update(uuid)` forwards scoped refresh by UUID.
   - `.invalidate(uuid|options)` forces binding evaluation and supports UUID targeting.
 - Mounted elements expose `.root()` as shorthand for the owning `<q-html>` host.
+- Mounted elements expose `.builderNode()`:
+  - returns a reusable facade with DOM+QDOM helper methods:
+    - `highlight(shouldHighlight)`
+    - `isMouseWithin(x, y)`
+    - `hasSlots()`
+    - `hasChildComponent(componentName?)`
+    - `hasChildComponentInSlot(slotName, componentName?)`
+    - `appendToSlot(slotName, input, options?)`
+    - `replaceSlotContent(slotName, input, options?)`
 - Prototype fallback: `HTMLElement.prototype.qdom()` resolves via closest component host first (`[qhtml-component-instance='1']`), then nearest `<q-html>` host (`uuidFor/qdomForUuid` when available).
 - QDom mutation helpers include `replaceWithQHTML(source, rootNode?)` and `rewrite(parameterBindings?, callback)`.
  - QDom property helpers on facades:
@@ -83,6 +100,15 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - `repeater.model` (`QDomModel`)
   - `model.entries`
   - `entry.nodes` payloads for q-object model entries
+- Slot composition helpers on QDom facades:
+  - `hasSlots()`
+  - `hasChildComponent(componentName?)`
+  - `hasChildComponentInSlot(slotName, componentName?)`
+  - `appendToSlot(slotName, input, options?)`
+  - `replaceSlotContent(slotName, input, options?)`
+  - `input` supports QDom nodes, QHTML strings, and mapped DOM nodes.
+  - missing named slot falls back to `default`.
+  - default update behavior is automatic (`options.autoUpdate !== false`) with UUID-scoped refresh when available.
 
 ## Side effects
 - Executes lifecycle scripts and inline `on<Event>` handler bodies with dynamic `Function` evaluation.

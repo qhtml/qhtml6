@@ -1,0 +1,73 @@
+q-component q-page-builder-frame {
+  div.w3-card.w3-round-large.w3-white {
+    style { overflow: hidden; border: 1px solid #d7e2f0; }
+    header.w3-container.w3-padding {
+      style { background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%); }
+      slot { header }
+    }
+    div.w3-container.w3-padding-large {
+      slot { body }
+    }
+    footer.w3-container.w3-padding {
+      style { background: #f8fafc; border-top: 1px solid #e2e8f0; }
+      slot { footer }
+    }
+  }
+}
+
+q-component page-builder-starter-canvas {
+  q-component-wrapper {
+    q-page-builder-frame {
+      header {
+        q-component-wrapper {
+          h2.w3-margin-top { text { Page Builder Starter Canvas } }
+          p.w3-margin-bottom.w3-text-blue-grey {
+            text { Drop widgets into these wrappers to validate framework slot composition APIs. }
+          }
+        }
+      }
+
+      body {
+        q-component-wrapper {
+          div.w3-row-padding {
+            div.w3-half {
+              h3 { text { Canvas Notes } }
+              p { text { Wrappers and frame slots are used as drag targets. } }
+              ul {
+                li { text { Drop into wrapper regions to append reusable QHTML content. } }
+                li { text { Component slot insertion routes through appendToSlot(). } }
+                li { text { Highlighting is driven by builderNode().isMouseWithin(). } }
+              }
+            }
+            div.w3-half {
+              q-component-wrapper {
+                div.w3-card.w3-round-large.w3-padding {
+                  h3.w3-margin-top { text { Body Widget Area } }
+                  p { text { Drop additional widgets here. } }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      footer {
+        q-component-wrapper {
+          div.w3-row {
+            div.w3-half {
+              span.w3-tag.w3-round.w3-blue { text { header } }
+              span.w3-tag.w3-round.w3-green.w3-margin-left { text { body } }
+              span.w3-tag.w3-round.w3-amber.w3-margin-left { text { footer } }
+            }
+            div.w3-half.w3-right-align {
+              button.w3-button.w3-small.w3-round-large.w3-blue {
+                type: "button"
+                text { Sample Action }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

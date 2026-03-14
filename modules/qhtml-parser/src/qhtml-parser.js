@@ -2615,31 +2615,50 @@
         if (firstLower === "q-component" && peek(parser) !== "{" && peek(parser) !== ",") {
           const componentIdExprStart = parser.index;
           let componentIdExpression = null;
+          const extendsComponentIdExpressions = [];
 
-          if (parser.source.slice(parser.index, parser.index + 8).toLowerCase() === "q-script") {
-            const keyword = parseIdentifier(parser);
-            skipWhitespace(parser);
-            if (peek(parser) !== "{") {
-              throw ParseError("Expected '{' after q-script in component id expression", parser.index);
+          function parseComponentReferenceExpression(exprStart, contextLabel) {
+            if (parser.source.slice(parser.index, parser.index + 8).toLowerCase() === "q-script") {
+              const keyword = parseIdentifier(parser);
+              skipWhitespace(parser);
+              if (peek(parser) !== "{") {
+                throw ParseError("Expected '{' after q-script in " + contextLabel + " expression", parser.index);
+              }
+              consume(parser);
+              const scriptBody = readBalancedBlockContent(parser);
+              return {
+                type: "QScriptExpression",
+                keyword: keyword,
+                script: scriptBody,
+                raw: parser.source.slice(exprStart, parser.index),
+              };
             }
-            consume(parser);
-            const scriptBody = readBalancedBlockContent(parser);
-            componentIdExpression = {
-              type: "QScriptExpression",
-              keyword: keyword,
-              script: scriptBody,
-              raw: parser.source.slice(componentIdExprStart, parser.index),
-            };
-          } else {
-            const componentId = parseIdentifier(parser);
-            componentIdExpression = {
+            const identifier = parseIdentifier(parser);
+            return {
               type: "IdentifierExpression",
-              identifier: componentId,
-              raw: parser.source.slice(componentIdExprStart, parser.index),
+              identifier: identifier,
+              raw: parser.source.slice(exprStart, parser.index),
             };
           }
 
+          componentIdExpression = parseComponentReferenceExpression(componentIdExprStart, "component id");
           skipWhitespace(parser);
+
+          while (true) {
+            const extendsToken = scanIdentifierTokenAt(parser.source, parser.index);
+            if (!extendsToken || extendsToken.nameLower !== "extends") {
+              break;
+            }
+            parseIdentifier(parser);
+            skipWhitespace(parser);
+            if (peek(parser) === "{" || eof(parser)) {
+              throw ParseError("Expected base component id after extends", parser.index);
+            }
+            const extendsExprStart = parser.index;
+            extendsComponentIdExpressions.push(parseComponentReferenceExpression(extendsExprStart, "base component id"));
+            skipWhitespace(parser);
+          }
+
           if (peek(parser) !== "{") {
             throw ParseError("Expected '{' after q-component id", parser.index);
           }
@@ -2650,6 +2669,8 @@
           body.push({
             type: "ComponentDefinition",
             componentIdExpression: componentIdExpression,
+            extendsComponentIdExpressions: extendsComponentIdExpressions,
+            extendsComponentIdExpression: extendsComponentIdExpressions.length > 0 ? extendsComponentIdExpressions[0] : null,
             items: items,
             keywords: keywordSnapshot,
             start: start,
@@ -6857,18 +6878,80 @@
     return fills;
   }
 
-  function convertElementInvocationToInstance(elementNode, definitionNode) {
+  function normalizeDefinitionRegistryKey(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function readExtendsComponentIds(definitionNode) {
+    const out = [];
+    if (!definitionNode || typeof definitionNode !== "object") {
+      return out;
+    }
+    const rawList = Array.isArray(definitionNode.extendsComponentIds)
+      ? definitionNode.extendsComponentIds
+      : [];
+    for (let i = 0; i < rawList.length; i += 1) {
+      const inheritedId = String(rawList[i] || "").trim();
+      if (!inheritedId) {
+        continue;
+      }
+      out.push(inheritedId);
+    }
+    if (out.length === 0) {
+      const legacyId = String(definitionNode.extendsComponentId || "").trim();
+      if (legacyId) {
+        out.push(legacyId);
+      }
+    }
+    return out;
+  }
+
+  function collectInheritedDeclaredProperties(definitionNode, definitionRegistry, state) {
+    const shared = state && typeof state === "object" ? state : {};
+    const out = Array.isArray(shared.out) ? shared.out : [];
+    const seenDefs = shared.seenDefs instanceof Set ? shared.seenDefs : new Set();
+    const seenProps = shared.seenProps instanceof Set ? shared.seenProps : new Set();
+    if (!definitionNode || typeof definitionNode !== "object") {
+      return out;
+    }
+    if (seenDefs.has(definitionNode)) {
+      return out;
+    }
+    seenDefs.add(definitionNode);
+
+    const inheritedIds = readExtendsComponentIds(definitionNode);
+    for (let bi = 0; bi < inheritedIds.length; bi += 1) {
+      const baseKey = normalizeDefinitionRegistryKey(inheritedIds[bi]);
+      if (!baseKey || !(definitionRegistry instanceof Map) || !definitionRegistry.has(baseKey)) {
+        continue;
+      }
+      collectInheritedDeclaredProperties(definitionRegistry.get(baseKey), definitionRegistry, {
+        out: out,
+        seenDefs: seenDefs,
+        seenProps: seenProps,
+      });
+    }
+
+    const definitionDeclaredProperties = Array.isArray(definitionNode.properties) ? definitionNode.properties : [];
+    for (let i = 0; i < definitionDeclaredProperties.length; i += 1) {
+      const propertyName = String(definitionDeclaredProperties[i] || "").trim();
+      const normalized = normalizePropertyName(propertyName);
+      if (!propertyName || !normalized || seenProps.has(normalized)) {
+        continue;
+      }
+      seenProps.add(normalized);
+      out.push(propertyName);
+    }
+    return out;
+  }
+
+  function convertElementInvocationToInstance(elementNode, definitionNode, definitionRegistry) {
     const explicitType = String(definitionNode && definitionNode.definitionType ? definitionNode.definitionType : "component")
       .trim()
       .toLowerCase();
     const definitionType = explicitType === "template" ? "template" : explicitType === "signal" ? "signal" : "component";
     const slotFills = splitInvocationSlotFills(elementNode, definitionNode);
-    const declaredPropertyNames = [];
-    const definitionDeclaredProperties =
-      Array.isArray(definitionNode && definitionNode.properties) ? definitionNode.properties : [];
-    for (let i = 0; i < definitionDeclaredProperties.length; i += 1) {
-      declaredPropertyNames.push(definitionDeclaredProperties[i]);
-    }
+    const declaredPropertyNames = collectInheritedDeclaredProperties(definitionNode, definitionRegistry, {});
     const instanceDeclaredProperties =
       elementNode && elementNode.meta && Array.isArray(elementNode.meta.__qhtmlDeclaredProperties)
         ? elementNode.meta.__qhtmlDeclaredProperties
@@ -7040,7 +7123,7 @@
       }
       const tag = String(node.tagName || "").trim().toLowerCase();
       if (tag && tag !== "slot" && definitionRegistry.has(tag)) {
-        return convertElementInvocationToInstance(node, definitionRegistry.get(tag));
+        return convertElementInvocationToInstance(node, definitionRegistry.get(tag), definitionRegistry);
       }
       return node;
     }
@@ -8151,6 +8234,21 @@
     const lifecycleScripts = [];
     const definitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
     let componentId = String(opts.componentId || "").trim();
+    const extendsComponentIds = [];
+    const rawExtendsList = Array.isArray(opts.extendsComponentIds) ? opts.extendsComponentIds : [];
+    for (let ei = 0; ei < rawExtendsList.length; ei += 1) {
+      const inheritedId = String(rawExtendsList[ei] || "").trim();
+      if (!inheritedId) {
+        continue;
+      }
+      extendsComponentIds.push(inheritedId);
+    }
+    if (extendsComponentIds.length === 0) {
+      const legacyExtendsId = String(opts.extendsComponentId || "").trim();
+      if (legacyExtendsId) {
+        extendsComponentIds.push(legacyExtendsId);
+      }
+    }
 
     const items = Array.isArray(astNode.items) ? astNode.items : [];
     for (let i = 0; i < items.length; i += 1) {
@@ -8394,6 +8492,8 @@
 
     const componentNode = core.createComponentNode({
       componentId: componentId,
+      extendsComponentIds: extendsComponentIds,
+      extendsComponentId: extendsComponentIds.length > 0 ? extendsComponentIds[0] : "",
       definitionType: definitionType,
       templateNodes: templateNodes,
       methods: methods,
@@ -8618,8 +8718,22 @@
 
     if (item.type === "ComponentDefinition") {
       const componentId = resolveComponentIdExpression(item.componentIdExpression, "");
+      const extendsComponentIds = [];
+      const extendsExprList = Array.isArray(item.extendsComponentIdExpressions)
+        ? item.extendsComponentIdExpressions
+        : item.extendsComponentIdExpression
+          ? [item.extendsComponentIdExpression]
+          : [];
+      for (let ei = 0; ei < extendsExprList.length; ei += 1) {
+        const resolvedExtendsId = resolveComponentIdExpression(extendsExprList[ei], "");
+        if (resolvedExtendsId) {
+          extendsComponentIds.push(resolvedExtendsId);
+        }
+      }
       return buildComponentNodeFromAst(item, source, {
         componentId: componentId,
+        extendsComponentIds: extendsComponentIds,
+        extendsComponentId: extendsComponentIds.length > 0 ? extendsComponentIds[0] : "",
         definitionType: "component",
       }, context);
     }
@@ -9232,7 +9346,14 @@
         explicitDefinitionType === "template" ? "template" : explicitDefinitionType === "signal" ? "signal" : "component";
       const keyword = definitionType === "template" ? "q-template" : definitionType === "signal" ? "q-signal" : "q-component";
       const definitionId = String(node.componentId || "").trim();
-      const lines = [indent + (definitionId ? keyword + " " + definitionId + " {" : keyword + " {")];
+      const extendsComponentIds = definitionType === "component" ? readExtendsComponentIds(node) : [];
+      const extendsClause =
+        extendsComponentIds.length > 0 ? " extends " + extendsComponentIds.join(" extends ") : "";
+      const definitionHead =
+        definitionId
+          ? keyword + " " + definitionId + extendsClause + " {"
+          : keyword + extendsClause + " {";
+      const lines = [indent + definitionHead];
       const properties = Array.isArray(node.properties) ? node.properties : [];
       if (properties.length > 0) {
         lines.push(indent + "  q-property {");

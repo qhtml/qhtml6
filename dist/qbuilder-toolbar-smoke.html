@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QBuilder Toolbar Smoke</title>
+  <link rel="stylesheet" href="w3.css" />
+  <script src="qhtml.js"></script>
+  <script src="q-editor.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: #dbe7f4;
+      color: #0f172a;
+      font-family: "Avenir Next", "Segoe UI", "Trebuchet MS", sans-serif;
+    }
+
+    #status {
+      position: sticky;
+      top: 0;
+      z-index: 5000;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #c7d8ef;
+      background: rgba(248, 250, 252, 0.96);
+      white-space: pre-wrap;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">pending</div>
+  <q-html id="toolbar-host">
+    q-import { q-components.qhtml }
+
+    section#toolbar-parent {
+      article#toolbar-child {
+        text { Toolbar Smoke Child }
+      }
+    }
+
+    q-builder {
+      q-builder-runtime: "1"
+      style { display: none; }
+    }
+  </q-html>
+  <script>
+    (function () {
+      var started = false;
+      var finished = false;
+
+      function finish(lines) {
+        finished = true;
+        document.getElementById("status").textContent = lines.join("\n");
+      }
+
+      function byAction(name) {
+        return document.querySelector("[q-builder-action='" + String(name || "") + "']");
+      }
+
+      function countDirectArticleChildren(parent) {
+        if (!parent || typeof parent.qdom !== "function") { return 0; }
+        var qnode = parent.qdom();
+        var children = qnode && Array.isArray(qnode.children) ? qnode.children : [];
+        var count = 0;
+        for (var i = 0; i < children.length; i += 1) {
+          var child = children[i];
+          if (String(child && child.kind || "").toLowerCase() === "element" && String(child && child.tagName || "").toLowerCase() === "article") {
+            count += 1;
+          }
+        }
+        return count;
+      }
+
+      function buttonsPresent() {
+        return !!(
+          byAction("duplicate-selected") &&
+          byAction("select-parent") &&
+          byAction("open-source-selected") &&
+          byAction("remove-selected")
+        );
+      }
+
+      function sleep(ms) {
+        return new Promise(function (resolve) {
+          setTimeout(resolve, Number(ms || 0));
+        });
+      }
+
+      function countVisibleArticleChildren(parent) {
+        if (!parent || !parent.children) { return 0; }
+        var count = 0;
+        for (var i = 0; i < parent.children.length; i += 1) {
+          if (String(parent.children[i].tagName || "").toLowerCase() === "article") {
+            count += 1;
+          }
+        }
+        return count;
+      }
+
+      function waitForBuilder(deadline) {
+        var host = document.getElementById("toolbar-host");
+        var builder = host ? host.querySelector("q-builder[q-builder-runtime='1']") : null;
+        var parent = host ? host.querySelector("#toolbar-parent") : null;
+        var child = host ? host.querySelector("#toolbar-child") : null;
+        if (builder && typeof builder.setInspectMode === "function" && host) {
+          builder.setInspectMode(true, host);
+        }
+        if ((!host || !builder || !parent || !child) && Date.now() < deadline) {
+          setTimeout(function () { waitForBuilder(deadline); }, 120);
+          return;
+        }
+        if (builder && typeof builder.state === "function") {
+          var state = builder.state() || null;
+          if ((!state || !state.inspect || !state.host) && Date.now() < deadline) {
+            setTimeout(function () { waitForBuilder(deadline); }, 120);
+            return;
+          }
+        }
+        if (!host || !builder || !parent || !child) {
+          finish([
+            "toolbar-smoke-failed",
+            "reason=missing-prereq",
+            "host=" + !!host,
+            "builder=" + !!builder,
+            "parent=" + !!parent,
+            "child=" + !!child
+          ]);
+          return;
+        }
+        runSmoke(host, builder, parent, child);
+      }
+
+      function start() {
+        if (started || finished) { return; }
+        started = true;
+        waitForBuilder(Date.now() + 12000);
+      }
+
+      async function runSmoke(host, builder, parent, child) {
+        if (!buttonsPresent()) {
+          finish(["toolbar-smoke-failed", "reason=missing-toolbar-buttons"]);
+          return;
+        }
+
+        var baselineCount = countVisibleArticleChildren(parent);
+        if (baselineCount !== 1) {
+          finish([
+            "toolbar-smoke-failed",
+            "reason=unexpected-baseline",
+            "baselineCount=" + baselineCount
+          ]);
+          return;
+        }
+
+        builder.setSelectedElement(child);
+        if (typeof builder.setTarget === "function") { builder.setTarget(child); }
+        await sleep(120);
+
+        var duplicateApplied = !!(builder.duplicateSelected && builder.duplicateSelected());
+        await sleep(260);
+
+        var currentParent = host ? host.querySelector("#toolbar-parent") : parent;
+        var duplicateCount = countVisibleArticleChildren(currentParent);
+        var duplicateTarget = currentParent ? currentParent.lastElementChild : null;
+        builder.setSelectedElement(duplicateTarget);
+        if (typeof builder.setTarget === "function") { builder.setTarget(duplicateTarget); }
+        await sleep(120);
+
+        var parentApplied = !!(builder.selectParentElement && builder.selectParentElement());
+        await sleep(120);
+
+        var selectedId = "";
+        try {
+          selectedId = builder.state && typeof builder.state === "function" && builder.state().selectedEl
+            ? String(builder.state().selectedEl.id || "")
+            : "";
+        } catch (error) {
+          selectedId = "";
+        }
+
+        currentParent = host ? host.querySelector("#toolbar-parent") : currentParent;
+        builder.setSelectedElement(currentParent ? currentParent.firstElementChild : null);
+        if (typeof builder.setTarget === "function") { builder.setTarget(currentParent ? currentParent.firstElementChild : null); }
+        await sleep(120);
+
+        var sourceText = builder.openSourceForSelected && typeof builder.openSourceForSelected === "function"
+          ? String(builder.openSourceForSelected() || "")
+          : "";
+        await sleep(120);
+
+        var closeSource = byAction("close-source");
+        if (closeSource) { closeSource.click(); }
+        await sleep(120);
+
+        currentParent = host ? host.querySelector("#toolbar-parent") : currentParent;
+        var deleteTarget = currentParent ? currentParent.lastElementChild : null;
+        builder.setSelectedElement(deleteTarget);
+        if (typeof builder.setTarget === "function") { builder.setTarget(deleteTarget); }
+        await sleep(120);
+
+        var deleteApplied = !!(builder.removeSelected && builder.removeSelected());
+        await sleep(260);
+
+        currentParent = host ? host.querySelector("#toolbar-parent") : currentParent;
+        var afterDeleteCount = countVisibleArticleChildren(currentParent);
+        var visibleAfterDelete = countVisibleArticleChildren(currentParent);
+        var pass =
+          duplicateApplied &&
+          duplicateCount === baselineCount + 1 &&
+          parentApplied &&
+          selectedId === "toolbar-parent" &&
+          /toolbar-parent|toolbar-child|Toolbar Smoke Child|article|section/.test(sourceText) &&
+          deleteApplied &&
+          afterDeleteCount === baselineCount &&
+          visibleAfterDelete >= 1;
+
+        finish([
+          pass ? "toolbar-smoke-ok" : "toolbar-smoke-failed",
+          "baselineCount=" + baselineCount,
+          "duplicateApplied=" + duplicateApplied,
+          "duplicateCount=" + duplicateCount,
+          "parentApplied=" + parentApplied,
+          "selectedId=" + selectedId,
+          "sourceLength=" + sourceText.length,
+          "deleteApplied=" + deleteApplied,
+          "afterDeleteCount=" + afterDeleteCount
+        ]);
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", start, { once: true });
+      } else {
+        setTimeout(start, 0);
+      }
+
+      window.addEventListener("QHTMLContentLoaded", start);
+      setTimeout(start, 200);
+    })();
+  </script>
+</body>
+</html>

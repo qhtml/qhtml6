@@ -7883,6 +7883,192 @@
           return matches.length > 0 ? installQDomFactories(matches[0]) : null;
         },
       });
+      function normalizeComponentNameFilter(name) {
+        const value = String(name || "").trim().toLowerCase();
+        return value || "";
+      }
+
+      function isComponentInstanceNode(candidate) {
+        const kind = normalizedKind(candidate);
+        return kind === "component-instance" || kind === "template-instance";
+      }
+
+      function componentNodeMatchesFilter(candidate, normalizedFilter) {
+        if (!isComponentInstanceNode(candidate)) {
+          return false;
+        }
+        if (!normalizedFilter) {
+          return true;
+        }
+        const candidateName = String(candidate.componentId || candidate.tagName || "").trim().toLowerCase();
+        return !!candidateName && candidateName === normalizedFilter;
+      }
+
+      function resolveSlotHandleForMutation(slotName) {
+        const requested = String(slotName || "default").trim() || "default";
+        if (typeof node.slot === "function") {
+          const explicit = node.slot(requested);
+          if (explicit) {
+            return explicit;
+          }
+          if (requested !== "default") {
+            const fallback = node.slot("default");
+            if (fallback) {
+              return fallback;
+            }
+          }
+        }
+        if (normalizedKind(node) === "slot") {
+          return installQDomFactories(node);
+        }
+        return null;
+      }
+
+      function requestScopedSlotMutationUpdate(sourceTarget, options, sourceName) {
+        const opts = options && typeof options === "object" ? options : {};
+        if (opts.update === false || opts.autoUpdate === false) {
+          return false;
+        }
+        const sourceNode = sourceNodeOf(sourceTarget) || sourceNodeOf(node) || node;
+        const sourceMeta = sourceNode && sourceNode.meta && typeof sourceNode.meta === "object" ? sourceNode.meta : null;
+        const uuid = normalizeQDomUuidValue(sourceMeta && sourceMeta.uuid ? sourceMeta.uuid : "");
+        if (uuid && dispatchScopedNodeUpdateByUuid(binding, uuid, { source: sourceName || "qdom.slotMutation" })) {
+          return true;
+        }
+        const componentElement = node.component && node.component.nodeType === 1 ? node.component : null;
+        if (componentElement) {
+          return updateQHtmlElement(host, { scopeElement: componentElement });
+        }
+        if (uuid) {
+          return updateQHtmlElement(host, { uuid: uuid });
+        }
+        return updateQHtmlElement(host, null);
+      }
+
+      Object.defineProperty(node, "hasSlots", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function hasSlots() {
+          const source = sourceNodeOf(node) || node;
+          const kind = normalizedKind(source);
+          if (kind === "slot") {
+            return true;
+          }
+          if (isInstanceKind(kind)) {
+            const declared = getDeclaredSlotNamesForInstance(source);
+            if (declared && declared.size > 0) {
+              return true;
+            }
+            const explicit = readInstanceSlotNodes(source);
+            if (Array.isArray(explicit) && explicit.length > 0) {
+              return true;
+            }
+          }
+          return listSlots(source, "").length > 0;
+        },
+      });
+
+      Object.defineProperty(node, "hasChildComponent", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function hasChildComponent(componentName) {
+          const source = sourceNodeOf(node) || node;
+          const filter = normalizeComponentNameFilter(componentName);
+          let found = false;
+          walkTree(source, function findComponent(candidate) {
+            if (!candidate || candidate === source) {
+              return false;
+            }
+            if (componentNodeMatchesFilter(candidate, filter)) {
+              found = true;
+              return true;
+            }
+            return false;
+          });
+          return found;
+        },
+      });
+
+      Object.defineProperty(node, "hasChildComponentInSlot", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function hasChildComponentInSlot(slotName, componentName) {
+          const requested = String(slotName || "default").trim() || "default";
+          const filter = normalizeComponentNameFilter(componentName);
+          const handles = typeof node.slots === "function" ? node.slots() : [];
+          let targetHandle = null;
+          for (let i = 0; i < handles.length; i += 1) {
+            const handle = handles[i];
+            if (!handle || String(handle.name || "default").trim() !== requested) {
+              continue;
+            }
+            targetHandle = handle;
+            break;
+          }
+          if (!targetHandle && requested === "default" && normalizedKind(node) === "slot") {
+            targetHandle = installQDomFactories(node);
+          }
+          if (!targetHandle) {
+            return false;
+          }
+          const slotSource = sourceNodeOf(targetHandle) || targetHandle;
+          let found = false;
+          walkTree(slotSource, function findSlotComponent(candidate) {
+            if (!candidate || candidate === slotSource) {
+              return false;
+            }
+            if (componentNodeMatchesFilter(candidate, filter)) {
+              found = true;
+              return true;
+            }
+            return false;
+          });
+          return found;
+        },
+      });
+
+      Object.defineProperty(node, "appendToSlot", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function appendToSlot(slotName, input, options) {
+          const targetHandle = resolveSlotHandleForMutation(slotName);
+          const targetNode = targetHandle && typeof targetHandle.appendNode === "function"
+            ? targetHandle
+            : installQDomFactories(node);
+          if (!targetNode || typeof targetNode.appendNode !== "function") {
+            return null;
+          }
+          const appended = targetNode.appendNode(input);
+          requestScopedSlotMutationUpdate(targetNode, options, "qdom.appendToSlot");
+          return appended;
+        },
+      });
+
+      Object.defineProperty(node, "replaceSlotContent", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function replaceSlotContent(slotName, input, options) {
+          const targetHandle = resolveSlotHandleForMutation(slotName);
+          const targetNode = targetHandle && typeof targetHandle.appendNode === "function"
+            ? targetHandle
+            : installQDomFactories(node);
+          if (!targetNode || typeof targetNode.appendNode !== "function") {
+            return null;
+          }
+          const children = typeof targetNode.children === "function" ? targetNode.children() : [];
+          if (children && typeof children.splice === "function" && typeof children.length === "number" && children.length > 0) {
+            children.splice(0, children.length);
+          }
+          const appended = targetNode.appendNode(input);
+          requestScopedSlotMutationUpdate(targetNode, options, "qdom.replaceSlotContent");
+          return appended == null ? targetNode : appended;
+        },
+      });
       Object.defineProperty(node, "appendNode", {
         configurable: true,
         enumerable: false,
@@ -7958,6 +8144,7 @@
           for (let i = 0; i < nodesToAppend.length; i += 1) {
             targetList.push(nodesToAppend[i]);
           }
+          markRuntimeQDomDirty(binding, node);
           return nodesToAppend.length === 1
             ? installQDomFactories(nodesToAppend[0])
             : nodesToAppend.map(function mapNode(appended) {
@@ -7978,6 +8165,7 @@
             node.attributes = {};
           }
           node.attributes[key] = String(value);
+          markRuntimeQDomDirty(binding, node);
           return installQDomFactories(node);
         },
       });
@@ -7991,6 +8179,7 @@
             return installQDomFactories(node);
           }
           delete node.attributes[key];
+          markRuntimeQDomDirty(binding, node);
           return installQDomFactories(node);
         },
       });
@@ -8030,6 +8219,7 @@
               value: value,
             });
           }
+          markRuntimeQDomDirty(binding, node);
           return installQDomFactories(node);
         },
       });
@@ -8098,6 +8288,7 @@
               return String(entry && entry.name ? entry.name : "").trim() !== key;
             });
           }
+          markRuntimeQDomDirty(binding, node);
           return installQDomFactories(node);
         },
       });
@@ -8782,6 +8973,112 @@
       }
     }
 
+    function setBuilderNodeAccessor(element) {
+      if (!element || element.nodeType !== 1) {
+        return;
+      }
+      const highlightClassName = "qbuilder-node-highlight";
+
+      function normalizeSlotName(slotName) {
+        return String(slotName || "default").trim() || "default";
+      }
+
+      function createFacadeForElement(targetElement) {
+        return {
+          element: targetElement,
+          qdom: function facadeQdomAccessor() {
+            return typeof targetElement.qdom === "function" ? targetElement.qdom() : null;
+          },
+          highlight: function facadeHighlight(shouldHighlight) {
+            if (targetElement.classList) {
+              if (shouldHighlight) {
+                targetElement.classList.add(highlightClassName);
+              } else {
+                targetElement.classList.remove(highlightClassName);
+              }
+            }
+            return this;
+          },
+          isMouseWithin: function facadeIsMouseWithin(x, y) {
+            if (typeof targetElement.getBoundingClientRect !== "function") {
+              return false;
+            }
+            const rect = targetElement.getBoundingClientRect();
+            const px = Number(x);
+            const py = Number(y);
+            if (!Number.isFinite(px) || !Number.isFinite(py)) {
+              return false;
+            }
+            return px >= rect.left && px <= rect.right && py >= rect.top && py <= rect.bottom;
+          },
+          hasSlots: function facadeHasSlots() {
+            const qdomNode = this.qdom();
+            return !!(qdomNode && typeof qdomNode.hasSlots === "function" && qdomNode.hasSlots());
+          },
+          hasChildComponent: function facadeHasChildComponent(componentName) {
+            const qdomNode = this.qdom();
+            return !!(qdomNode && typeof qdomNode.hasChildComponent === "function" && qdomNode.hasChildComponent(componentName));
+          },
+          hasChildComponentInSlot: function facadeHasChildComponentInSlot(slotName, componentName) {
+            const qdomNode = this.qdom();
+            return !!(
+              qdomNode &&
+              typeof qdomNode.hasChildComponentInSlot === "function" &&
+              qdomNode.hasChildComponentInSlot(normalizeSlotName(slotName), componentName)
+            );
+          },
+          appendToSlot: function facadeAppendToSlot(slotName, input, options) {
+            const qdomNode = this.qdom();
+            if (!qdomNode || typeof qdomNode.appendToSlot !== "function") {
+              return null;
+            }
+            return qdomNode.appendToSlot(normalizeSlotName(slotName), input, options);
+          },
+          replaceSlotContent: function facadeReplaceSlotContent(slotName, input, options) {
+            const qdomNode = this.qdom();
+            if (!qdomNode || typeof qdomNode.replaceSlotContent !== "function") {
+              return null;
+            }
+            return qdomNode.replaceSlotContent(normalizeSlotName(slotName), input, options);
+          },
+        };
+      }
+
+      try {
+        if (!Object.prototype.hasOwnProperty.call(element, "__qhtmlBuilderNodeAccessorInstalled")) {
+          Object.defineProperty(element, "builderNode", {
+            configurable: true,
+            enumerable: false,
+            writable: true,
+            value: function builderNodeAccessor() {
+              if (this.__qhtmlBuilderNodeFacade && this.__qhtmlBuilderNodeFacade.element === this) {
+                return this.__qhtmlBuilderNodeFacade;
+              }
+              const facade = createFacadeForElement(this);
+              this.__qhtmlBuilderNodeFacade = facade;
+              return facade;
+            },
+          });
+          Object.defineProperty(element, "__qhtmlBuilderNodeAccessorInstalled", {
+            value: true,
+            configurable: true,
+            enumerable: false,
+            writable: true,
+          });
+        }
+      } catch (error) {
+        element.builderNode = function builderNodeAccessorFallback() {
+          if (this.__qhtmlBuilderNodeFacade && this.__qhtmlBuilderNodeFacade.element === this) {
+            return this.__qhtmlBuilderNodeFacade;
+          }
+          const facade = createFacadeForElement(this);
+          this.__qhtmlBuilderNodeFacade = facade;
+          return facade;
+        };
+        element.__qhtmlBuilderNodeAccessorInstalled = true;
+      }
+    }
+
     function setComponentUpdateAccessor(componentHost) {
       if (!componentHost || componentHost.nodeType !== 1) {
         return;
@@ -9022,6 +9319,7 @@
         return host;
       };
       setRootContextAccessor(element);
+      setBuilderNodeAccessor(element);
 
       const componentHost = binding.componentMap && binding.componentMap.get(element);
       const resolvedComponentHost = componentHost || resolveNearestComponentHost(element) || null;
@@ -9558,6 +9856,71 @@
     return parser.qdomToQHtml(binding.qdom, options);
   }
 
+  function listRegisteredComponentIds(options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const includeTemplates = opts.includeTemplates === true;
+    const includeSignals = opts.includeSignals === true;
+    const ids = [];
+    definitionRegistry.forEach(function eachDefinition(definitionNode, definitionId) {
+      const id = String(definitionId || "").trim().toLowerCase();
+      if (!id) {
+        return;
+      }
+      const definitionType = String(
+        definitionNode && definitionNode.definitionType ? definitionNode.definitionType : "component"
+      ).trim().toLowerCase();
+      if (definitionType === "template" && !includeTemplates) {
+        return;
+      }
+      if (definitionType === "signal" && !includeSignals) {
+        return;
+      }
+      ids.push(id);
+    });
+    ids.sort();
+    return ids;
+  }
+
+  function collectDefinitionSlotNames(node, output, seen) {
+    if (!node || typeof node !== "object") {
+      return;
+    }
+    const kind = String(node.kind || "").trim().toLowerCase();
+    if (kind === "slot") {
+      const name = String(node.name || "default").trim() || "default";
+      const key = name.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        output.push(name);
+      }
+    }
+    const lists = [node.nodes, node.children, node.templateNodes, node.slots];
+    for (let li = 0; li < lists.length; li += 1) {
+      const list = lists[li];
+      if (!Array.isArray(list)) {
+        continue;
+      }
+      for (let i = 0; i < list.length; i += 1) {
+        collectDefinitionSlotNames(list[i], output, seen);
+      }
+    }
+  }
+
+  function listRegisteredComponentSlots(componentId) {
+    const id = String(componentId || "").trim().toLowerCase();
+    if (!id) {
+      return [];
+    }
+    const definitionNode = definitionRegistry.get(id);
+    if (!definitionNode || inferDefinitionType(definitionNode) !== "component") {
+      return [];
+    }
+    const output = [];
+    const seen = new Set();
+    collectDefinitionSlotNames(definitionNode, output, seen);
+    return output;
+  }
+
   function initAll(root, options) {
     const scope = root || global.document;
     if (!scope || typeof scope.querySelectorAll !== "function") {
@@ -9589,6 +9952,8 @@
     getQDomForElement: getQDomForElement,
     updateQHtmlElement: updateQHtmlElement,
     toQHtmlSource: toQHtmlSource,
+    listRegisteredComponentIds: listRegisteredComponentIds,
+    listRegisteredComponentSlots: listRegisteredComponentSlots,
     createQSignalEvent: createQSignalEvent,
     emitQSignal: emitQSignal,
     hydrateComponentElement: hydrateComponentElement,

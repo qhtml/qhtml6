@@ -171,6 +171,23 @@
       const opts = options || {};
       super(NODE_TYPES.component, opts.meta);
       this.componentId = String(opts.componentId || "").trim();
+      const inheritedList = [];
+      const rawInheritedList = Array.isArray(opts.extendsComponentIds) ? opts.extendsComponentIds : [];
+      for (let i = 0; i < rawInheritedList.length; i += 1) {
+        const inheritedId = String(rawInheritedList[i] || "").trim();
+        if (!inheritedId) {
+          continue;
+        }
+        inheritedList.push(inheritedId);
+      }
+      if (inheritedList.length === 0) {
+        const legacyInheritedId = String(opts.extendsComponentId || "").trim();
+        if (legacyInheritedId) {
+          inheritedList.push(legacyInheritedId);
+        }
+      }
+      this.extendsComponentIds = inheritedList;
+      this.extendsComponentId = inheritedList.length > 0 ? inheritedList[0] : "";
       this.definitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
       this.templateNodes = Array.isArray(opts.templateNodes) ? opts.templateNodes : [];
       this.propertyDefinitions = Array.isArray(opts.propertyDefinitions) ? opts.propertyDefinitions : [];
@@ -901,6 +918,8 @@
     if (kind === NODE_TYPES.component) {
       return createComponentNode({
         componentId: value.componentId,
+        extendsComponentIds: reviveQDomTree(Array.isArray(value.extendsComponentIds) ? value.extendsComponentIds : []),
+        extendsComponentId: value.extendsComponentId,
         definitionType: value.definitionType,
         templateNodes: reviveQDomTree(Array.isArray(value.templateNodes) ? value.templateNodes : []),
         propertyDefinitions: reviveQDomTree(Array.isArray(value.propertyDefinitions) ? value.propertyDefinitions : []),

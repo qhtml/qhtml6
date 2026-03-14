@@ -28,12 +28,18 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 ## Component host assignment behavior
 - `component-instance.attributes` map to DOM attributes.
 - `component-instance.props` map to direct host element property assignment (`host[propName] = value`).
+- `q-component ... extends ... extends ...` chains are resolved at render time:
+  - inherited properties/methods/signals/aliases/lifecycle hooks are merged base→child.
+  - multiple bases are merged in declaration order (`extends baseA extends baseB`, then child).
+  - child definitions override inherited entries with the same name.
+  - template nodes/children from all inherited components are included (base declarations first, child last).
 - Declared `q-property` host setters:
   - treat `host.qdom()` props as source-of-truth for reads/writes when available.
   - sync value writes back to mapped QDom props when available.
   - skip re-render when value is unchanged (`Object.is`).
   - prefer scoped targeted updates via runtime property-reference index (`__qhtmlComponentPropertyRefIndex`) using `host.update({ uuid, scopeElement: host, forceBindings: true })`.
   - fallback to `host.invalidate({ forceBindings: true })` / `host.update({ forceBindings: true })` if targeted dispatch is unavailable.
+  - `property someName { ... }` fallback values resolve to literal text when no bound element exists for that property definition.
  - Component method calls resolve detached/stale element references to live DOM instances by UUID/id before execution.
 
 ## Lifecycle and side effects

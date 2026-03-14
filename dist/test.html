@@ -1829,6 +1829,172 @@ Each test logs independent timers and metrics.</pre>
           </section>
         </div>
       </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>42. builderNode() Slot APIs (Framework-level)</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-import { page-builder/page-builder.qhtml }
+onReady {
+  var status = "buildernode-fail";
+  try {
+    var root = this.querySelector("#api-root");
+    var child = this.querySelector("#api-child");
+    var node = root && typeof root.builderNode === "function" ? root.builderNode() : null;
+    if (node && typeof node.appendToSlot === "function" && typeof node.replaceSlotContent === "function") {
+      node.appendToSlot("default", "q-component-wrapper#api-added { span { text { added } } }", { autoUpdate: true });
+      var hasChild = node.hasChildComponent("q-component-wrapper");
+      var slotHas = node.hasChildComponentInSlot("default", "q-component-wrapper");
+      var childNode = child && typeof child.builderNode === "function" ? child.builderNode() : null;
+      if (childNode && typeof childNode.replaceSlotContent === "function") {
+        childNode.replaceSlotContent("default", "span { text { replaced } }", { autoUpdate: true });
+      }
+      var replacedEl = this.querySelector("#api-child");
+      var replacedText = replacedEl ? String(replacedEl.textContent || "") : "";
+      if (hasChild && slotHas && replacedText.indexOf("replaced") >= 0) {
+        status = "buildernode-ok";
+      }
+    }
+  } catch (err) { }
+  var statusNode = this.querySelector("#buildernode-status");
+  if (statusNode) { statusNode.textContent = status; }
+}
+q-component-wrapper#api-root {
+  q-component-wrapper#api-child {
+    span { text { seed } }
+  }
+}
+div#buildernode-status { text { pending } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: buildernode-ok</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t42" data-mode="contains" data-contains="buildernode-ok">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t42" data-qtest-host="1">
+q-import { page-builder/page-builder.qhtml }
+onReady {
+  var status = "buildernode-fail";
+  try {
+    var root = this.querySelector("#api-root");
+    var child = this.querySelector("#api-child");
+    var node = root && typeof root.builderNode === "function" ? root.builderNode() : null;
+    if (node && typeof node.appendToSlot === "function" && typeof node.replaceSlotContent === "function") {
+      node.appendToSlot("default", "q-component-wrapper#api-added { span { text { added } } }", { autoUpdate: true });
+      var hasChild = node.hasChildComponent("q-component-wrapper");
+      var slotHas = node.hasChildComponentInSlot("default", "q-component-wrapper");
+      var childNode = child && typeof child.builderNode === "function" ? child.builderNode() : null;
+      if (childNode && typeof childNode.replaceSlotContent === "function") {
+        childNode.replaceSlotContent("default", "span { text { replaced } }", { autoUpdate: true });
+      }
+      var replacedEl = this.querySelector("#api-child");
+      var replacedText = replacedEl ? String(replacedEl.textContent || "") : "";
+      if (hasChild && slotHas && replacedText.indexOf("replaced") >= 0) {
+        status = "buildernode-ok";
+      }
+    }
+  } catch (err) { }
+  var statusNode = this.querySelector("#buildernode-status");
+  if (statusNode) { statusNode.textContent = status; }
+}
+q-component-wrapper#api-root {
+  q-component-wrapper#api-child {
+    span { text { seed } }
+  }
+}
+div#buildernode-status { text { pending } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>43. q-component Multiple Inheritance</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-component base-a {
+  q-property alpha: "A"
+  function alphaFn() { return this.component && this.component.alpha ? this.component.alpha : this.alpha; }
+  div.base-a-marker { text { base-a } }
+}
+q-component base-b {
+  q-property beta: "B"
+  function betaFn() { return this.component && this.component.beta ? this.component.beta : this.beta; }
+  div.base-b-marker { text { base-b } }
+}
+q-component multi-inherit extends base-a extends base-b {
+  button#mi-btn { type: "button" text { hi } onclick { this.component.alphaFn(); this.component.betaFn(); } }
+}
+onReady {
+  var status = "multi-extends-fail";
+  try {
+    var host = this.querySelector("#mi");
+    if (host && typeof host.alphaFn === "function" && typeof host.betaFn === "function") {
+      var alphaValue = String(host.alphaFn() || "");
+      var betaValue = String(host.betaFn() || "");
+      var text = String(host.textContent || "");
+      if (alphaValue.indexOf("A") >= 0 && betaValue.indexOf("B") >= 0 && text.indexOf("base-a") >= 0 && text.indexOf("base-b") >= 0) {
+        status = "multi-extends-ok";
+      }
+    }
+  } catch (err) { }
+  var statusNode = this.querySelector("#multi-extends-status");
+  if (statusNode) { statusNode.textContent = status; }
+}
+multi-inherit#mi { }
+div#multi-extends-status { text { pending } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: multi-extends-ok</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t43" data-mode="contains" data-contains="multi-extends-ok">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t43" data-qtest-host="1">
+q-component base-a {
+  q-property alpha: "A"
+  function alphaFn() { return this.component && this.component.alpha ? this.component.alpha : this.alpha; }
+  div.base-a-marker { text { base-a } }
+}
+q-component base-b {
+  q-property beta: "B"
+  function betaFn() { return this.component && this.component.beta ? this.component.beta : this.beta; }
+  div.base-b-marker { text { base-b } }
+}
+q-component multi-inherit extends base-a extends base-b {
+  button#mi-btn { type: "button" text { hi } onclick { this.component.alphaFn(); this.component.betaFn(); } }
+}
+onReady {
+  var status = "multi-extends-fail";
+  try {
+    var host = this.querySelector("#mi");
+    if (host && typeof host.alphaFn === "function" && typeof host.betaFn === "function") {
+      var alphaValue = String(host.alphaFn() || "");
+      var betaValue = String(host.betaFn() || "");
+      var text = String(host.textContent || "");
+      if (alphaValue.indexOf("A") >= 0 && betaValue.indexOf("B") >= 0 && text.indexOf("base-a") >= 0 && text.indexOf("base-b") >= 0) {
+        status = "multi-extends-ok";
+      }
+    }
+  } catch (err) { }
+  var statusNode = this.querySelector("#multi-extends-status");
+  if (statusNode) { statusNode.textContent = status; }
+}
+multi-inherit#mi { }
+div#multi-extends-status { text { pending } }
+          </q-html>
+        </section>
+      </article>
     </section>
   </div>
 

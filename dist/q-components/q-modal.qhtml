@@ -42,18 +42,25 @@ q-default-theme q-modal-theme {
 }
 
 q-component q-modal {
-
-  q-property { isOpen }
-  isOpen: false
+  function ensureOpenState() {
+    if (typeof this.__isOpen !== "boolean") {
+      this.__isOpen = false;
+    }
+    return this.__isOpen;
+  }
 
   function modalRoot() {
     return this.querySelector("[q-modal-root='1']");
   }
 
   function setOpen(nextState) {
-    this.isOpen = !!nextState;
+    this.__isOpen = !!nextState;
+    this.isOpen = this.__isOpen;
     var root = this.modalRoot();
-    root.style.display = this.isOpen ? "block" : "none";
+    if (root && root.style) {
+      root.style.display = this.__isOpen ? "block" : "none";
+    }
+    return this.__isOpen;
   }
 
   function show() {
@@ -65,10 +72,11 @@ q-component q-modal {
   }
 
   function toggle() {
-    this.setOpen(!this.isOpen);
+    this.setOpen(!this.ensureOpenState());
   }
 
   onReady {
+    this.ensureOpenState();
     this.hide();
   }
 

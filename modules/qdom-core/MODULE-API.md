@@ -25,6 +25,7 @@ Exports via `globalThis.QHtmlModules.qdomCore`.
   - Creates `q-repeater`/`q-foreach` runtime nodes with `model` + `templateNodes`.
 - `createComponentNode(options?)`
   - Normalizes `properties` as an array for declared `q-component` property names.
+  - Supports `extendsComponentIds` (and legacy `extendsComponentId`) for component inheritance chains (`q-component child extends baseA extends baseB { ... }`).
   - Supports `signalDeclarations` array for component-local callable signal definitions.
   - Supports `aliasDeclarations` array for component-local computed alias getters (`q-alias`).
 - `createComponentInstanceNode(options?)`

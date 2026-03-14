@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QBuilder Drop Smoke</title>
+  <link rel="stylesheet" href="w3.css" />
+  <script src="qhtml.js"></script>
+  <script src="q-editor.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: #dbe7f4;
+      color: #0f172a;
+      font-family: "Avenir Next", "Segoe UI", "Trebuchet MS", sans-serif;
+    }
+
+    #status {
+      position: sticky;
+      top: 0;
+      z-index: 5000;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #c7d8ef;
+      background: rgba(248, 250, 252, 0.96);
+      white-space: pre-wrap;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">pending</div>
+  <q-html id="drop-host">
+    q-import { q-components.qhtml }
+    q-import { page-builder/page-builder-starter.qhtml }
+
+    q-page-builder-frame {
+      header {
+        h2 { text { Smoke Header } }
+      }
+      body {
+        p { text { Body content } }
+      }
+      footer {
+        p { text { Footer content } }
+      }
+    }
+
+    q-builder {
+      q-builder-runtime: "1"
+      style { display: none; }
+    }
+
+    onReady {
+      var builder = this.querySelector("q-builder[q-builder-runtime='1']");
+      if (builder && typeof builder.setInspectMode === "function") {
+        builder.setInspectMode(true, this);
+      }
+    }
+  </q-html>
+  <script>
+    (function () {
+      function directChildrenByTag(parent, tagName) {
+        if (!parent || !parent.children) { return []; }
+        var wanted = String(tagName || "").trim().toUpperCase();
+        var out = [];
+        for (var i = 0; i < parent.children.length; i += 1) {
+          var child = parent.children[i];
+          if (String(child.tagName || "").toUpperCase() === wanted) {
+            out.push(child);
+          }
+        }
+        return out;
+      }
+
+      function rootQdomNode(host) {
+        if (!host || typeof host.qdom !== "function") { return null; }
+        var qdom = host.qdom();
+        if (!qdom || typeof qdom !== "object") { return null; }
+        if (String(qdom.kind || "").toLowerCase() === "document") { return qdom; }
+        return qdom && typeof qdom.root === "function" ? (qdom.root({ qdom: true }) || qdom) : qdom;
+      }
+
+      function resolveFrameComponentNode(frame) {
+        var componentElement = frame && frame.component && frame.component.nodeType === 1 ? frame.component : null;
+        var qnode = componentElement && typeof componentElement.qdom === "function"
+          ? componentElement.qdom()
+          : (frame && typeof frame.qdom === "function" ? frame.qdom() : null);
+        return qnode && qnode.component ? qnode.component : qnode;
+      }
+
+      function countSlotComponentInstances(frame, slotName, componentId) {
+        var frameNode = resolveFrameComponentNode(frame);
+        var slotNode = frameNode && typeof frameNode.slot === "function" ? frameNode.slot(slotName) : null;
+        var children = slotNode && Array.isArray(slotNode.children) ? slotNode.children : [];
+        var wanted = String(componentId || "").trim().toLowerCase();
+        var count = 0;
+        for (var i = 0; i < children.length; i += 1) {
+          var child = children[i];
+          var kind = String(child && child.kind || "").toLowerCase();
+          var id = String(child && (child.componentId || child.tagName) || "").trim().toLowerCase();
+          if (kind === "component-instance" && id === wanted) {
+            count += 1;
+          }
+        }
+        return count;
+      }
+
+      function finish(lines) {
+        document.getElementById("status").textContent = lines.join("\n");
+        setTimeout(function () {
+          try {
+            window.close();
+          } catch (error) { }
+        }, 0);
+      }
+
+      function waitForBuilder(deadline) {
+        var host = document.getElementById("drop-host");
+        var builder = host ? host.querySelector("q-builder[q-builder-runtime='1']") : null;
+        var frame = host ? host.querySelector("q-page-builder-frame") : null;
+        if ((!host || !builder || !frame) && Date.now() < deadline) {
+          setTimeout(function () { waitForBuilder(deadline); }, 120);
+          return;
+        }
+        if (!host || !builder || !frame) {
+          finish([
+            "drop-smoke-failed",
+            "reason=missing-prereq",
+            "host=" + !!host,
+            "builder=" + !!builder,
+            "frame=" + !!frame
+          ]);
+          return;
+        }
+        runSmoke(host, builder, frame);
+      }
+
+      function runSmoke(host, builder, frame) {
+        var slotNames = [];
+        try {
+          slotNames = (builder.listDropTargets(host, frame) || []).map(function (entry) {
+            return String(entry.slotName || "").trim();
+          }).filter(Boolean).sort();
+        } catch (error) {
+          finish([
+            "drop-smoke-failed",
+            "reason=listDropTargets-error",
+            String(error && error.message || error)
+          ]);
+          return;
+        }
+
+        var rootBefore = directChildrenByTag(host, "q-tabs").length;
+        var rootApplied = false;
+        try {
+          rootApplied = !!builder.commitPaletteDrop("q-tabs", host, -1, -1);
+        } catch (error) {
+          finish([
+            "drop-smoke-failed",
+            "reason=root-drop-error",
+            String(error && error.message || error)
+          ]);
+          return;
+        }
+
+        setTimeout(function () {
+          var rootAfter = directChildrenByTag(host, "q-tabs").length;
+          var footer = frame.querySelector("footer");
+          var footerBefore = directChildrenByTag(footer, "q-tabs").length;
+          var slotApplied = false;
+          try {
+            slotApplied = !!builder.commitPaletteDropToSlot("q-tabs", host, "footer", {
+              target: frame
+            });
+          } catch (error) {
+            finish([
+              "drop-smoke-failed",
+              "reason=slot-drop-error",
+              String(error && error.message || error)
+            ]);
+            return;
+          }
+
+          setTimeout(function () {
+            var currentFrame = host.querySelector("q-page-builder-frame");
+            var currentFooter = currentFrame ? currentFrame.querySelector("footer") : null;
+            var footerAfter = directChildrenByTag(currentFooter, "q-tabs").length;
+            var pass =
+              rootApplied &&
+              slotApplied &&
+              slotNames.join(",") === "body,footer,header" &&
+              footerAfter === footerBefore + 1;
+
+            finish([
+              pass ? "drop-smoke-ok" : "drop-smoke-failed",
+              "slotNames=" + slotNames.join(","),
+              "rootApplied=" + rootApplied,
+              "rootBefore=" + rootBefore,
+              "rootAfter=" + rootAfter,
+              "slotApplied=" + slotApplied,
+              "footerBefore=" + footerBefore,
+              "footerAfter=" + footerAfter
+            ]);
+          }, 260);
+        }, 260);
+      }
+
+      window.addEventListener("QHTMLContentLoaded", function () {
+        waitForBuilder(Date.now() + 12000);
+      });
+    })();
+  </script>
+</body>
+</html>

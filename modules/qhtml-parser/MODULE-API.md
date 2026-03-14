@@ -23,7 +23,11 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - `scriptRules` preparsed q-script rules
   - Language outputs include:
     - `component.properties` from `q-property { ... }` blocks
+    - component inheritance metadata:
+      - `q-component child extends baseA extends baseB { ... }`
+      - emitted as `component.extendsComponentIds` (plus legacy first entry in `component.extendsComponentId`)
     - instance-level `q-property` declarations are retained in node metadata (`meta.__qhtmlDeclaredProperties`) and used when mapping invocation assignments/bindings into `component-instance.props`
+    - inherited `q-property` declarations from multi-`extends` chains are included when mapping invocation assignments into `component-instance.props`
     - `component-instance.props` populated when invocation keys match declared component properties
     - `meta.qBindings` entries for assignment expressions (`q-bind` / assignment-form `q-script`)
     - definition kind preservation for `q-component`, `q-template`, and `q-signal`

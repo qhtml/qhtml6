@@ -922,6 +922,193 @@
     return "component";
   }
 
+  function normalizeComponentKey(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function readInheritedComponentIds(definitionNode) {
+    const out = [];
+    if (!definitionNode || typeof definitionNode !== "object") {
+      return out;
+    }
+    const rawList = Array.isArray(definitionNode.extendsComponentIds) ? definitionNode.extendsComponentIds : [];
+    for (let i = 0; i < rawList.length; i += 1) {
+      const inheritedId = String(rawList[i] || "").trim();
+      if (!inheritedId) {
+        continue;
+      }
+      out.push(inheritedId);
+    }
+    if (out.length === 0) {
+      const legacyInheritedId = String(definitionNode.extendsComponentId || "").trim();
+      if (legacyInheritedId) {
+        out.push(legacyInheritedId);
+      }
+    }
+    return out;
+  }
+
+  function resolveInheritedComponentDefinition(componentNode, componentRegistry, cache) {
+    if (!componentNode || typeof componentNode !== "object" || componentNode.kind !== core.NODE_TYPES.component) {
+      return componentNode;
+    }
+    const cacheMap = cache instanceof Map ? cache : null;
+    const cacheKey = normalizeComponentKey(componentNode.componentId) || componentNode;
+    if (cacheMap && cacheMap.has(cacheKey)) {
+      return cacheMap.get(cacheKey);
+    }
+
+    const chain = [];
+    const emittedNodes = new Set();
+    const emittedKeys = new Set();
+
+    function visitInheritance(node, pathNodes, pathKeys) {
+      if (!node || typeof node !== "object" || node.kind !== core.NODE_TYPES.component) {
+        return;
+      }
+      const nodeKey = normalizeComponentKey(node.componentId);
+      if (pathNodes.has(node) || (nodeKey && pathKeys.has(nodeKey))) {
+        const recursiveKey = nodeKey || normalizeComponentKey(componentNode.componentId) || "component";
+        throw new Error("Recursive q-component extends chain detected for '" + recursiveKey + "'.");
+      }
+      const nextPathNodes = new Set(pathNodes);
+      nextPathNodes.add(node);
+      const nextPathKeys = new Set(pathKeys);
+      if (nodeKey) {
+        nextPathKeys.add(nodeKey);
+      }
+
+      const inheritedIds = readInheritedComponentIds(node);
+      for (let i = 0; i < inheritedIds.length; i += 1) {
+        const inheritedKey = normalizeComponentKey(inheritedIds[i]);
+        if (!inheritedKey || !(componentRegistry instanceof Map) || !componentRegistry.has(inheritedKey)) {
+          continue;
+        }
+        visitInheritance(componentRegistry.get(inheritedKey), nextPathNodes, nextPathKeys);
+      }
+
+      if (nodeKey && emittedKeys.has(nodeKey)) {
+        return;
+      }
+      if (emittedNodes.has(node)) {
+        return;
+      }
+      emittedNodes.add(node);
+      if (nodeKey) {
+        emittedKeys.add(nodeKey);
+      }
+      chain.push(node);
+    }
+
+    visitInheritance(componentNode, new Set(), new Set());
+
+    if (chain.length <= 1) {
+      if (cacheMap) {
+        cacheMap.set(cacheKey, componentNode);
+      }
+      return componentNode;
+    }
+
+    const leaf = chain[chain.length - 1];
+    const leafInheritedIds = readInheritedComponentIds(leaf);
+    const merged = {
+      kind: core.NODE_TYPES.component,
+      componentId: String(leaf.componentId || "").trim(),
+      extendsComponentIds: leafInheritedIds.slice(),
+      extendsComponentId: leafInheritedIds.length > 0 ? leafInheritedIds[0] : "",
+      definitionType: String(leaf.definitionType || "component").trim().toLowerCase() || "component",
+      templateNodes: [],
+      propertyDefinitions: [],
+      methods: [],
+      signalDeclarations: [],
+      aliasDeclarations: [],
+      wasmConfig: null,
+      lifecycleScripts: [],
+      attributes: {},
+      properties: [],
+      meta: leaf.meta && typeof leaf.meta === "object" ? Object.assign({}, leaf.meta) : {},
+    };
+
+    const seenProperties = new Set();
+    const propertyDefinitionIndex = new Map();
+    const methodIndex = new Map();
+    const signalIndex = new Map();
+    const aliasIndex = new Map();
+
+    function mergeNamedEntries(target, sourceEntries, indexMap) {
+      const list = Array.isArray(sourceEntries) ? sourceEntries : [];
+      for (let i = 0; i < list.length; i += 1) {
+        const entry = list[i];
+        if (!entry || typeof entry !== "object") {
+          continue;
+        }
+        const entryName = normalizeComponentKey(entry.name);
+        if (!entryName) {
+          target.push(Object.assign({}, entry));
+          continue;
+        }
+        if (indexMap.has(entryName)) {
+          target[indexMap.get(entryName)] = Object.assign({}, entry);
+        } else {
+          indexMap.set(entryName, target.length);
+          target.push(Object.assign({}, entry));
+        }
+      }
+    }
+
+    for (let i = 0; i < chain.length; i += 1) {
+      const node = chain[i];
+      if (!node || typeof node !== "object") {
+        continue;
+      }
+      const attrs = node.attributes && typeof node.attributes === "object" ? node.attributes : null;
+      if (attrs) {
+        Object.assign(merged.attributes, attrs);
+      }
+
+      const properties = Array.isArray(node.properties) ? node.properties : [];
+      for (let pi = 0; pi < properties.length; pi += 1) {
+        const propertyName = String(properties[pi] || "").trim();
+        const propertyKey = normalizeComponentKey(propertyName);
+        if (!propertyName || !propertyKey || seenProperties.has(propertyKey)) {
+          continue;
+        }
+        seenProperties.add(propertyKey);
+        merged.properties.push(propertyName);
+      }
+
+      mergeNamedEntries(merged.propertyDefinitions, node.propertyDefinitions, propertyDefinitionIndex);
+      mergeNamedEntries(merged.methods, node.methods, methodIndex);
+      mergeNamedEntries(merged.signalDeclarations, node.signalDeclarations, signalIndex);
+      mergeNamedEntries(merged.aliasDeclarations, node.aliasDeclarations, aliasIndex);
+
+      if (Array.isArray(node.lifecycleScripts) && node.lifecycleScripts.length > 0) {
+        for (let li = 0; li < node.lifecycleScripts.length; li += 1) {
+          const hook = node.lifecycleScripts[li];
+          if (!hook || typeof hook !== "object") {
+            continue;
+          }
+          merged.lifecycleScripts.push(Object.assign({}, hook));
+        }
+      }
+
+      if (node.wasmConfig && typeof node.wasmConfig === "object" && !Array.isArray(node.wasmConfig)) {
+        merged.wasmConfig = Object.assign({}, node.wasmConfig);
+      }
+
+      if (Array.isArray(node.templateNodes) && node.templateNodes.length > 0) {
+        for (let ti = 0; ti < node.templateNodes.length; ti += 1) {
+          merged.templateNodes.push(node.templateNodes[ti]);
+        }
+      }
+    }
+
+    if (cacheMap) {
+      cacheMap.set(cacheKey, merged);
+    }
+    return merged;
+  }
+
   function collectComponentDefinitionsInNodes(nodes, registry) {
     const items = Array.isArray(nodes) ? nodes : [];
     for (let i = 0; i < items.length; i += 1) {
@@ -3128,6 +3315,34 @@
     if (propertyDefinitions.length === 0) {
       return;
     }
+
+    function readStaticPropertyDefinitionValue(entry) {
+      const nodes = entry && Array.isArray(entry.nodes) ? entry.nodes : [];
+      if (nodes.length === 0) {
+        return null;
+      }
+      let out = "";
+      let hasValue = false;
+      for (let i = 0; i < nodes.length; i += 1) {
+        const node = nodes[i];
+        if (!node || typeof node !== "object") {
+          continue;
+        }
+        if (core.NODE_TYPES.text && node.kind === core.NODE_TYPES.text) {
+          out += String(node.value || "");
+          hasValue = true;
+          continue;
+        }
+        if (node.kind === core.NODE_TYPES.element && typeof node.textContent === "string" && (!Array.isArray(node.children) || node.children.length === 0)) {
+          out += String(node.textContent || "");
+          hasValue = true;
+          continue;
+        }
+        return null;
+      }
+      return hasValue ? out : null;
+    }
+
     const nodeMap =
       context &&
       context.capture &&
@@ -3136,6 +3351,7 @@
         ? context.capture.nodeMap
         : null;
     const resolvedByName = {};
+    const fallbackByName = {};
     for (let i = 0; i < propertyDefinitions.length; i += 1) {
       const entry = propertyDefinitions[i] || {};
       const propertyName = String(entry.name || "").trim();
@@ -3143,11 +3359,15 @@
         continue;
       }
       resolvedByName[propertyName] = null;
+      fallbackByName[propertyName] = readStaticPropertyDefinitionValue(entry);
     }
     const propertyNames = Object.keys(resolvedByName);
     if (propertyNames.length === 0 || !nodeMap) {
       for (let i = 0; i < propertyNames.length; i += 1) {
-        hostElement[propertyNames[i]] = null;
+        const propertyName = propertyNames[i];
+        hostElement[propertyName] = Object.prototype.hasOwnProperty.call(fallbackByName, propertyName)
+          ? fallbackByName[propertyName]
+          : null;
       }
       return;
     }
@@ -3183,7 +3403,7 @@
 
     for (let i = 0; i < propertyNames.length; i += 1) {
       const propertyName = propertyNames[i];
-      hostElement[propertyName] = resolvedByName[propertyName];
+      hostElement[propertyName] = resolvedByName[propertyName] || fallbackByName[propertyName];
     }
   }
 
@@ -3329,16 +3549,21 @@
   }
 
   function renderComponentInstance(componentNode, instanceNode, parent, targetDocument, context) {
-    const definitionType = inferDefinitionType(componentNode);
+    const effectiveComponentNode = resolveInheritedComponentDefinition(
+      componentNode,
+      context && context.componentRegistry,
+      context && context.resolvedComponentRegistry
+    );
+    const definitionType = inferDefinitionType(effectiveComponentNode);
     if (definitionType === "template") {
-      renderComponentTemplateInstance(componentNode, instanceNode, parent, targetDocument, context);
+      renderComponentTemplateInstance(effectiveComponentNode, instanceNode, parent, targetDocument, context);
       return;
     }
     if (definitionType === "signal") {
-      dispatchSignalInstance(componentNode, instanceNode, parent, targetDocument, context);
+      dispatchSignalInstance(effectiveComponentNode, instanceNode, parent, targetDocument, context);
       return;
     }
-    renderComponentHostInstance(componentNode, instanceNode, parent, targetDocument, context);
+    renderComponentHostInstance(effectiveComponentNode, instanceNode, parent, targetDocument, context);
   }
 
   function renderDocumentToFragment(documentNode, targetDocument, options) {
@@ -3365,6 +3590,7 @@
     });
     const context = {
       componentRegistry: componentRegistry,
+      resolvedComponentRegistry: new Map(),
       componentStack: [],
       componentHostStack: [],
       componentQdomStack: [],
@@ -3506,14 +3732,20 @@
 
     const context = {
       componentRegistry: registry,
+      resolvedComponentRegistry: new Map(),
       componentStack: Array.isArray(opts.componentStack) ? opts.componentStack : [],
       componentHostStack: Array.isArray(opts.componentHostStack) ? opts.componentHostStack : [],
       componentQdomStack: Array.isArray(opts.componentQdomStack) ? opts.componentQdomStack : [],
       disableLifecycleHooks: !!opts.disableLifecycleHooks,
     };
+    const effectiveComponentNode = resolveInheritedComponentDefinition(
+      componentNode,
+      context.componentRegistry,
+      context.resolvedComponentRegistry
+    );
 
     const instanceNode = domElementToInstanceNode(hostElement);
-    const key = String(componentNode.componentId || instanceNode.tagName || "").toLowerCase();
+    const key = String(effectiveComponentNode.componentId || instanceNode.tagName || "").toLowerCase();
 
     if (key) {
       hostElement.setAttribute("q-component", key);
@@ -3523,7 +3755,7 @@
       }
     }
 
-    bindComponentMethods(componentNode, hostElement, instanceNode);
+    bindComponentMethods(effectiveComponentNode, hostElement, instanceNode);
 
     if (context.componentStack.indexOf(key) !== -1) {
       throw new Error("Recursive q-component usage detected for '" + key + "'.");
@@ -3533,7 +3765,7 @@
     context.componentHostStack.push(hostElement);
     context.componentQdomStack.push(instanceNode);
     try {
-      renderComponentContentIntoHost(componentNode, instanceNode, hostElement, doc, context);
+      renderComponentContentIntoHost(effectiveComponentNode, instanceNode, hostElement, doc, context);
     } finally {
       context.componentQdomStack.pop();
       context.componentHostStack.pop();
@@ -3542,7 +3774,7 @@
     stripRenderedSlotElements(hostElement);
 
     if (!context.disableLifecycleHooks) {
-      runComponentLifecycleHooks(componentNode, hostElement, doc);
+      runComponentLifecycleHooks(effectiveComponentNode, hostElement, doc);
     }
     return hostElement;
   }

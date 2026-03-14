@@ -4,9 +4,13 @@ q-template q-builder-icon-edit { svg { viewBox: "0 0 24 24"; width: "16"; height
 q-template q-builder-icon-save { svg { viewBox: "0 0 24 24"; width: "16"; height: "16"; fill: "none"; stroke: "currentColor"; path { d: "M5 3h12l2 2v16H5z" } path { d: "M9 3v6h6V3" } } }
 q-template q-builder-icon-close { svg { viewBox: "0 0 24 24"; width: "16"; height: "16"; fill: "none"; stroke: "currentColor"; path { d: "M6 6l12 12" } path { d: "M18 6L6 18" } } }
 q-template q-builder-icon-colors { svg { viewBox: "0 0 24 24"; width: "16"; height: "16"; fill: "none"; stroke: "currentColor"; stroke-width: "2"; stroke-linecap: "round"; stroke-linejoin: "round"; path { d: "M12 3a9 9 0 1 0 0 18h1.1a2.6 2.6 0 0 0 0-5.2h-.8a2.1 2.1 0 0 1 0-4.2h2.2A3.5 3.5 0 0 0 18.2 8 5.2 5.2 0 0 0 13 3z" } circle { cx: "7.4"; cy: "9"; r: "1.2"; fill: "currentColor"; stroke: "none" } circle { cx: "10.4"; cy: "6.8"; r: "1.2"; fill: "currentColor"; stroke: "none" } circle { cx: "14.3"; cy: "7.4"; r: "1.2"; fill: "currentColor"; stroke: "none" } circle { cx: "16.1"; cy: "11"; r: "1.2"; fill: "currentColor"; stroke: "none" } } }
+q-template q-builder-icon-parent { svg { viewBox: "0 0 24 24"; width: "16"; height: "16"; fill: "none"; stroke: "currentColor"; stroke-width: "2"; stroke-linecap: "round"; stroke-linejoin: "round"; path { d: "M9 8l-4 4 4 4" } path { d: "M5 12h9a5 5 0 0 1 5 5" } } }
+q-template q-builder-icon-duplicate { svg { viewBox: "0 0 24 24"; width: "16"; height: "16"; fill: "none"; stroke: "currentColor"; stroke-width: "2"; stroke-linecap: "round"; stroke-linejoin: "round"; rect { x: "9"; y: "9"; width: "10"; height: "10"; rx: "2" } path { d: "M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" } } }
+q-template q-builder-icon-delete { svg { viewBox: "0 0 24 24"; width: "16"; height: "16"; fill: "none"; stroke: "currentColor"; stroke-width: "2"; stroke-linecap: "round"; stroke-linejoin: "round"; path { d: "M4 7h16" } path { d: "M10 11v6" } path { d: "M14 11v6" } path { d: "M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" } path { d: "M9 7V4h6v3" } } }
+q-template q-builder-icon-source { svg { viewBox: "0 0 24 24"; width: "16"; height: "16"; fill: "none"; stroke: "currentColor"; stroke-width: "2"; stroke-linecap: "round"; stroke-linejoin: "round"; path { d: "M8 8L4 12l4 4" } path { d: "M16 8l4 4-4 4" } } }
 
 q-component q-builder-toolbar {
-  div.w3-bar.w3-half.w3-theme-l2.w3-round-large.w3-padding-small { q-builder-toolbar: "1"
+  div.w3-bar.w3-theme-l2.w3-round-large.w3-padding-small { q-builder-toolbar: "1"
     style {
       position: fixed;
       left: 0;
@@ -15,13 +19,43 @@ q-component q-builder-toolbar {
       z-index: 1001;
       transform: translate(-50%, -100%);
       margin-top: -8px;
+      align-items: center;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+      max-width: min(92vw, 56rem);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
     }
-    button.w3-button.w3-small.w3-theme-l3.w3-round-large { type: "button" q-builder-action: "open" q-builder-icon-edit { } span.w3-margin-left { text { Edit } } }
-    button.w3-button.w3-small.w3-theme-l3.w3-round-large.w3-margin-left { type: "button" q-builder-action: "open-colors" q-builder-icon-colors { } span.w3-margin-left { text { Colors } } }
+    button.w3-button.w3-small.w3-theme-l3.w3-round-large { type: "button" q-builder-action: "open" onclick { this.closest("q-builder").showSelectedEditor(); } q-builder-icon-edit { } span.w3-margin-left { text { Edit } } }
+    button.w3-button.w3-small.w3-theme-l3.w3-round-large { type: "button" q-builder-action: "open-colors" onclick { this.closest("q-builder").showColorsEditor(); } q-builder-icon-colors { } span.w3-margin-left { text { Colors } } }
+    button.w3-button.w3-small.w3-theme-l3.w3-round-large { type: "button" q-builder-action: "select-parent" onclick { this.closest("q-builder").selectParentElement(); } q-builder-icon-parent { } span.w3-margin-left { text { Parent } } }
+    button.w3-button.w3-small.w3-theme-l3.w3-round-large { type: "button" q-builder-action: "duplicate-selected" onclick { this.closest("q-builder").duplicateSelected(); } q-builder-icon-duplicate { } span.w3-margin-left { text { Duplicate } } }
+    button.w3-button.w3-small.w3-theme-l3.w3-round-large { type: "button" q-builder-action: "open-source-selected" onclick { this.closest("q-builder").showSourceDialogForSelected(); } q-builder-icon-source { } span.w3-margin-left { text { Source } } }
+    button.w3-button.w3-small.w3-red.w3-round-large { type: "button" q-builder-action: "remove-selected" onclick { this.closest("q-builder").removeSelected(); } q-builder-icon-delete { } span.w3-margin-left { text { Delete } } }
   }
 }
 
 q-component q-builder-palette {
+  q-property mode: "floating"
+  q-property catalogMode: "auto"
+
+  function excludedPaletteNames() {
+    return {
+      "q-builder": true,
+      "q-builder-palette": true,
+      "q-builder-toolbar": true,
+      "q-builder-shell": true,
+      "q-builder-modal-shell": true,
+      "q-builder-colors-modal-shell": true,
+      "q-builder-source-modal-shell": true,
+      "q-builder-slot-picker-modal-shell": true
+    };
+  }
+
+  function isExcludedPaletteName(name) {
+    var value = String(name || "").trim().toLowerCase();
+    return !!this.excludedPaletteNames()[value];
+  }
+
   function getGlobalRef() {
     return typeof globalThis !== "undefined" ? globalThis : Function("return this")();
   }
@@ -62,19 +96,156 @@ q-component q-builder-palette {
     return this.querySelector("[q-builder-palette-grid='1']");
   }
 
+  function currentMode() {
+    var raw = null;
+    if (this.getAttribute) {
+      raw = this.getAttribute("mode");
+    }
+    if (raw == null || raw === "") {
+      raw = this.mode;
+    }
+    raw = String(raw || "floating").trim().toLowerCase();
+    if (raw === "embedded" || raw === "hidden") { return raw; }
+    return "floating";
+  }
+
+  function currentCatalogMode() {
+    var raw = null;
+    if (this.getAttribute) {
+      raw = this.getAttribute("catalogMode");
+    }
+    if (raw == null || raw === "") {
+      raw = this.catalogMode;
+    }
+    raw = String(raw || "auto").trim().toLowerCase();
+    if (raw === "catalog" || raw === "mixed") { return raw; }
+    return "auto";
+  }
+
+  function isEmbeddedMode() {
+    return this.currentMode() === "embedded";
+  }
+
+  function isHiddenMode() {
+    return this.currentMode() === "hidden";
+  }
+
+  function applyLayoutMode() {
+    try {
+      var panel = this.panel();
+      var handle = this.querySelector("[q-builder-palette-handle='1']");
+      if (!panel || !panel.style) { return; }
+      var mode = this.currentMode();
+      if (mode === "hidden") {
+        panel.style.display = "none";
+        return;
+      }
+      panel.style.display = "flex";
+      if (mode === "embedded") {
+        panel.style.position = "relative";
+        panel.style.left = "0";
+        panel.style.top = "0";
+        panel.style.right = "auto";
+        panel.style.width = "100%";
+        panel.style.height = "100%";
+        panel.style.minWidth = "0";
+        panel.style.minHeight = "0";
+        panel.style.maxWidth = "none";
+        panel.style.maxHeight = "none";
+        panel.style.resize = "none";
+        panel.style.zIndex = "1";
+        panel.style.boxShadow = "none";
+        panel.style.borderRadius = "0";
+      } else {
+        panel.style.position = "fixed";
+        panel.style.left = "auto";
+        panel.style.top = "8vh";
+        panel.style.right = "1vw";
+        panel.style.width = "42vw";
+        panel.style.height = "42vh";
+        panel.style.minWidth = "22rem";
+        panel.style.minHeight = "16rem";
+        panel.style.maxWidth = "90vw";
+        panel.style.maxHeight = "90vh";
+        panel.style.resize = "both";
+        panel.style.zIndex = "1200";
+        panel.style.boxShadow = "0 12px 30px rgba(0, 0, 0, 0.35)";
+        panel.style.borderRadius = "";
+      }
+      if (handle && handle.style) {
+        handle.style.cursor = mode === "floating" ? "move" : "default";
+      }
+    } catch (error) {
+      this.logIssue("applyLayoutMode failed", error);
+    }
+  }
+
   function sanitizeName(name) {
     var value = String(name || "").trim().toLowerCase();
     if (!value || value.indexOf("q-") !== 0) { return ""; }
     if (value === "q-html" || value === "q-script" || value === "slot") { return ""; }
+    if (this.isExcludedPaletteName(value)) { return ""; }
     return value;
+  }
+
+  function normalizeCatalogEntry(entry) {
+    try {
+      var raw = entry && typeof entry === "object" ? entry : null;
+      if (!raw) { return null; }
+      var componentName = this.sanitizeName(raw.componentName || raw.name || raw.component || "");
+      var insertQhtml = raw.insertQhtml != null ? String(raw.insertQhtml || "").trim() : "";
+      if (!componentName && !insertQhtml) { return null; }
+      var label = String(raw.label || componentName || raw.id || "widget").trim() || "widget";
+      var key = String(raw.id || componentName || label || "").trim().toLowerCase();
+      key = key.replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+      if (!key) { key = componentName || "widget"; }
+      return {
+        id: key,
+        label: label,
+        componentName: componentName,
+        insertQhtml: insertQhtml,
+        previewHtml: String(raw.previewHtml || "").trim(),
+        description: String(raw.description || "").trim()
+      };
+    } catch (error) {
+      this.logIssue("normalizeCatalogEntry failed", error);
+      return null;
+    }
+  }
+
+  function currentCatalog() {
+    return Array.isArray(this.__qBuilderPaletteCatalog) ? this.__qBuilderPaletteCatalog.slice() : [];
+  }
+
+  function setCatalog(entries) {
+    try {
+      var list = Array.isArray(entries) ? entries : [];
+      var out = [];
+      var seen = {};
+      for (var i = 0; i < list.length; i += 1) {
+        var normalized = this.normalizeCatalogEntry(list[i]);
+        if (!normalized) { continue; }
+        var key = String(normalized.id || "").trim().toLowerCase();
+        if (!key || seen[key]) { continue; }
+        seen[key] = true;
+        out.push(normalized);
+      }
+      this.__qBuilderPaletteCatalog = out;
+      return this.refresh(this.findHost());
+    } catch (error) {
+      this.logIssue("setCatalog failed", error);
+      return Promise.resolve([]);
+    }
   }
 
   function buildScanWorkerScript() {
     return [
+      "const EXCLUDED = new Set(['q-builder','q-builder-palette','q-builder-toolbar','q-builder-shell','q-builder-modal-shell','q-builder-colors-modal-shell','q-builder-source-modal-shell','q-builder-slot-picker-modal-shell']);",
       "function sanitizeName(name) {",
       "  var value = String(name || '').trim().toLowerCase();",
       "  if (!value || value.indexOf('q-') !== 0) { return ''; }",
       "  if (value === 'q-html' || value === 'q-script' || value === 'slot') { return ''; }",
+      "  if (EXCLUDED.has(value)) { return ''; }",
       "  return value;",
       "}",
       "",
@@ -255,6 +426,15 @@ q-component q-builder-palette {
   function collectComponentNames() {
     var names = new Set();
     try {
+      var root = this.getGlobalRef();
+      var runtime = root && root.QHtml ? root.QHtml : (root && root.QHtmlModules ? root.QHtmlModules.qhtmlRuntime : null);
+      if (runtime && typeof runtime.listRegisteredComponentIds === "function") {
+        var registered = runtime.listRegisteredComponentIds();
+        for (var ri = 0; ri < registered.length; ri += 1) {
+          var registeredName = this.sanitizeName(registered[ri]);
+          if (registeredName) { names.add(registeredName); }
+        }
+      }
       var doc = this.ownerDocument || (typeof document !== "undefined" ? document : null);
       var hosts = [];
       var preferredHost = this.findHost();
@@ -307,10 +487,24 @@ q-component q-builder-palette {
     }
   }
 
-  function emitItemDragEvent(eventName, name, event) {
+  function emitItemDragEvent(eventName, item, event) {
     try {
+      var normalized = this.normalizeCatalogEntry(item);
+      if (!normalized) {
+        var componentName = this.sanitizeName(item);
+        normalized = componentName ? {
+          id: componentName,
+          label: componentName,
+          componentName: componentName,
+          insertQhtml: "",
+          previewHtml: "",
+          description: ""
+        } : null;
+      }
+      if (!normalized) { return; }
       var payload = {
-        name: String(name || "").trim().toLowerCase(),
+        name: String(normalized.componentName || normalized.id || "").trim().toLowerCase(),
+        item: normalized,
         clientX: event && typeof event.clientX === "number" ? Number(event.clientX) : 0,
         clientY: event && typeof event.clientY === "number" ? Number(event.clientY) : 0
       };
@@ -326,11 +520,16 @@ q-component q-builder-palette {
     }
   }
 
-  function createItemDragGhost(name) {
+  function createItemDragGhost(item) {
     try {
       var doc = this.ownerDocument || document;
       var ghost = doc.createElement("div");
-      ghost.textContent = String(name || "").trim().toLowerCase() || "q-component";
+      var normalized = this.normalizeCatalogEntry(item);
+      if (!normalized) {
+        var componentName = this.sanitizeName(item);
+        normalized = componentName ? { label: componentName, componentName: componentName } : null;
+      }
+      ghost.textContent = String(normalized && (normalized.label || normalized.componentName) || "").trim() || "widget";
       ghost.style.position = "fixed";
       ghost.style.left = "0";
       ghost.style.top = "0";
@@ -364,22 +563,34 @@ q-component q-builder-palette {
     }
   }
 
-  function startItemDrag(name, cell, event) {
+  function startItemDrag(item, cell, event) {
     try {
-      var componentName = this.sanitizeName(name);
-      if (!componentName || !event || Number(event.button) !== 0) { return; }
+      var normalized = this.normalizeCatalogEntry(item);
+      if (!normalized) {
+        var componentName = this.sanitizeName(item);
+        normalized = componentName ? {
+          id: componentName,
+          label: componentName,
+          componentName: componentName,
+          insertQhtml: "",
+          previewHtml: "",
+          description: ""
+        } : null;
+      }
+      if (!normalized || !event || Number(event.button) !== 0) { return; }
       var s = this.state();
-      this.setActiveCell(cell || null, componentName);
+      this.setActiveCell(cell || null, normalized.id || normalized.componentName || normalized.label);
       s.itemDrag.active = true;
       s.itemDrag.moved = false;
-      s.itemDrag.name = componentName;
-      var ghost = this.createItemDragGhost(componentName);
+      s.itemDrag.name = String(normalized.id || normalized.componentName || "").trim().toLowerCase();
+      s.itemDrag.item = normalized;
+      var ghost = this.createItemDragGhost(normalized);
       s.itemDrag.ghost = ghost;
       if (ghost && ghost.ownerDocument && ghost.ownerDocument.body) {
         ghost.ownerDocument.body.appendChild(ghost);
       }
       this.positionItemDragGhost(event);
-      this.emitItemDragEvent("q-builder-palette:itemdragstart", componentName, event);
+      this.emitItemDragEvent("q-builder-palette:itemdragstart", normalized, event);
       event.preventDefault();
       event.stopPropagation();
     } catch (error) {
@@ -393,7 +604,7 @@ q-component q-builder-palette {
       if (!s.itemDrag.active) { return; }
       s.itemDrag.moved = true;
       this.positionItemDragGhost(event);
-      this.emitItemDragEvent("q-builder-palette:itemdragmove", s.itemDrag.name, event);
+      this.emitItemDragEvent("q-builder-palette:itemdragmove", s.itemDrag.item || s.itemDrag.name, event);
     } catch (error) {
       this.logIssue("moveItemDrag failed", error);
     }
@@ -403,8 +614,7 @@ q-component q-builder-palette {
     try {
       var s = this.state();
       if (!s.itemDrag.active) { return; }
-      var dragName = String(s.itemDrag.name || "").trim().toLowerCase();
-      this.emitItemDragEvent("q-builder-palette:itemdragend", dragName, event || {});
+      this.emitItemDragEvent("q-builder-palette:itemdragend", s.itemDrag.item || s.itemDrag.name, event || {});
       var ghost = s.itemDrag.ghost;
       if (ghost && ghost.parentNode && typeof ghost.parentNode.removeChild === "function") {
         ghost.parentNode.removeChild(ghost);
@@ -412,6 +622,7 @@ q-component q-builder-palette {
       s.itemDrag.active = false;
       s.itemDrag.moved = false;
       s.itemDrag.name = "";
+      s.itemDrag.item = null;
       s.itemDrag.ghost = null;
     } catch (error) {
       this.logIssue("endItemDrag failed", error);
@@ -555,6 +766,54 @@ q-component q-builder-palette {
     return previewLayer;
   }
 
+  function buildCatalogPreviewNode(entry, host) {
+    try {
+      var normalized = this.normalizeCatalogEntry(entry);
+      if (!normalized) { return this.buildPreviewNode("", host); }
+      if (!normalized.previewHtml) {
+        return this.buildPreviewNode(normalized.componentName || normalized.label, host);
+      }
+      var doc = this.ownerDocument || document;
+      var previewLayer = doc.createElement("div");
+      previewLayer.setAttribute("q-builder-palette-preview-layer", "1");
+      previewLayer.style.position = "absolute";
+      previewLayer.style.left = "0";
+      previewLayer.style.top = "0";
+      previewLayer.style.right = "0";
+      previewLayer.style.bottom = "0";
+      previewLayer.style.overflow = "hidden";
+      previewLayer.style.background = "#111827";
+      var scale = doc.createElement("div");
+      scale.style.position = "absolute";
+      scale.style.left = "0";
+      scale.style.top = "0";
+      scale.style.width = "400%";
+      scale.style.height = "400%";
+      scale.style.transform = "scale(0.25)";
+      scale.style.transformOrigin = "0 0";
+      scale.style.pointerEvents = "none";
+      var wrapper = doc.createElement("div");
+      wrapper.style.width = "100%";
+      wrapper.style.height = "100%";
+      wrapper.innerHTML = normalized.previewHtml;
+      var controls = wrapper.querySelectorAll ? wrapper.querySelectorAll("input,textarea,select,button") : [];
+      for (var i = 0; i < controls.length; i += 1) {
+        controls[i].disabled = true;
+        controls[i].setAttribute("tabindex", "-1");
+        controls[i].setAttribute("aria-hidden", "true");
+      }
+      var previewNode = wrapper;
+      previewNode.setAttribute("q-builder-palette-preview-node", "1");
+      previewNode.style.pointerEvents = "none";
+      scale.appendChild(previewNode);
+      previewLayer.appendChild(scale);
+      return previewLayer;
+    } catch (error) {
+      this.logIssue("buildCatalogPreviewNode failed", error);
+      return this.buildPreviewNode("", host);
+    }
+  }
+
   function clearGrid() {
     try {
       var grid = this.grid();
@@ -565,19 +824,20 @@ q-component q-builder-palette {
     }
   }
 
-  function renderPaletteFromNames(names, host) {
+  function renderPaletteEntries(entries, host) {
     try {
       var s = this.state();
       var grid = this.grid();
       if (!grid) { return []; }
-      s.names = names.slice();
+      s.names = entries.slice();
       this.clearGrid();
-      for (var i = 0; i < names.length; i += 1) {
-        var componentName = names[i];
+      for (var i = 0; i < entries.length; i += 1) {
+        var entry = this.normalizeCatalogEntry(entries[i]);
+        if (!entry) { continue; }
         var cell = (this.ownerDocument || document).createElement("button");
         cell.type = "button";
         cell.setAttribute("q-builder-palette-cell", "1");
-        cell.setAttribute("q-builder-palette-component", componentName);
+        cell.setAttribute("q-builder-palette-component", entry.id);
         cell.style.position = "relative";
         cell.style.display = "block";
         cell.style.width = "100%";
@@ -589,10 +849,10 @@ q-component q-builder-palette {
         cell.style.background = "#0f172a";
         cell.style.overflow = "hidden";
         cell.style.cursor = "pointer";
-        var previewNode = this.buildPreviewNode(componentName, host);
+        var previewNode = this.buildCatalogPreviewNode(entry, host);
         var label = (this.ownerDocument || document).createElement("div");
         label.setAttribute("q-builder-palette-label", "1");
-        label.textContent = componentName;
+        label.textContent = entry.label;
         label.style.position = "absolute";
         label.style.left = "0";
         label.style.right = "0";
@@ -607,33 +867,33 @@ q-component q-builder-palette {
         cell.appendChild(previewNode);
         cell.appendChild(label);
         var self = this;
-        (function attachSelect(targetCell, targetName) {
+        (function attachSelect(targetCell, targetEntry) {
           targetCell.addEventListener("click", function(event) {
             try {
               event.preventDefault();
               event.stopPropagation();
-              self.setActiveCell(targetCell, targetName);
+              self.setActiveCell(targetCell, targetEntry.id || targetEntry.componentName || targetEntry.label);
             } catch (error) {
               self.logIssue("palette cell click failed", error);
             }
           });
           targetCell.addEventListener("mousedown", function(event) {
             try {
-              self.startItemDrag(targetName, targetCell, event);
+              self.startItemDrag(targetEntry, targetCell, event);
             } catch (error) {
               self.logIssue("palette cell mousedown failed", error);
             }
           });
-        })(cell, componentName);
+        })(cell, entry);
         grid.appendChild(cell);
       }
       if (s.activeName) {
         var activeCell = grid.querySelector("[q-builder-palette-component='" + s.activeName + "']");
         if (activeCell) { this.setActiveCell(activeCell, s.activeName); }
       }
-      return names;
+      return entries;
     } catch (error) {
-      this.logIssue("renderPaletteFromNames failed", error);
+      this.logIssue("renderPaletteEntries failed", error);
       return [];
     }
   }
@@ -648,16 +908,46 @@ q-component q-builder-palette {
       var requestId = s.scanRequestId;
       this.clearGrid();
       var loading = (this.ownerDocument || document).createElement("div");
-      loading.textContent = "Scanning components...";
+      loading.textContent = this.isHiddenMode() ? "" : "Scanning components...";
       loading.style.color = "#cbd5e1";
       loading.style.fontSize = "0.8rem";
       loading.style.padding = "0.35rem 0.5rem";
       grid.appendChild(loading);
       var self = this;
+      var catalogMode = this.currentCatalogMode();
+      var explicitCatalog = this.currentCatalog();
+      if (catalogMode === "catalog") {
+        return Promise.resolve(this.renderPaletteEntries(explicitCatalog, host));
+      }
       return this.collectComponentNamesAsync(host, requestId).then(function(names) {
         var latestState = self.state();
         if (Number(latestState.scanRequestId || 0) !== Number(requestId || 0)) { return []; }
-        return self.renderPaletteFromNames(Array.isArray(names) ? names : [], host);
+        var list = [];
+        var seen = {};
+        if (catalogMode === "mixed") {
+          for (var ci = 0; ci < explicitCatalog.length; ci += 1) {
+            var catalogEntry = self.normalizeCatalogEntry(explicitCatalog[ci]);
+            var catalogKey = catalogEntry ? String(catalogEntry.id || "").trim().toLowerCase() : "";
+            if (!catalogEntry || !catalogKey || seen[catalogKey]) { continue; }
+            seen[catalogKey] = true;
+            list.push(catalogEntry);
+          }
+        }
+        var rawNames = Array.isArray(names) ? names : [];
+        for (var ni = 0; ni < rawNames.length; ni += 1) {
+          var componentName = self.sanitizeName(rawNames[ni]);
+          if (!componentName || seen[componentName]) { continue; }
+          seen[componentName] = true;
+          list.push({
+            id: componentName,
+            label: componentName,
+            componentName: componentName,
+            insertQhtml: "",
+            previewHtml: "",
+            description: ""
+          });
+        }
+        return self.renderPaletteEntries(list, host);
       }).catch(function(error) {
         self.logIssue("rebuildPalette failed", error);
         return [];
@@ -701,6 +991,7 @@ q-component q-builder-palette {
       if (!handle || !panel || !doc) { return; }
       handle.addEventListener("mousedown", function(event) {
         try {
+          if (!self || typeof self.currentMode !== "function" || self.currentMode() !== "floating") { return; }
           if (event.button !== 0) { return; }
           if (event.target && event.target.closest && event.target.closest("[q-builder-palette-action]")) { return; }
           var rect = panel.getBoundingClientRect();
@@ -743,18 +1034,17 @@ q-component q-builder-palette {
     if (this.__qBuilderPaletteReady) { return; }
     this.__qBuilderPaletteReady = true;
     this.bindDrag();
+    this.applyLayoutMode();
     var self = this;
-    this.addEventListener("click", function(event) {
+    this.addEventListener("dblclick", function(event) {
       try {
-        var actionNode = event.target && event.target.closest ? event.target.closest("[q-builder-palette-action]") : null;
-        var action = actionNode ? String(actionNode.getAttribute("q-builder-palette-action") || "") : "";
-        if (action === "refresh") {
-          self.refresh();
-        }
+        if (self.currentMode() !== "embedded") { return; }
+        event.preventDefault();
+        event.stopPropagation();
       } catch (error) {
-        self.logIssue("palette action click failed", error);
+        self.logIssue("palette dblclick failed", error);
       }
-    });
+    }, true);
     this.setHost(this.findHost());
     var doc = this.ownerDocument || document;
     if (doc && typeof doc.addEventListener === "function" && !this.__qBuilderPaletteContentSignalBound) {
@@ -812,7 +1102,7 @@ q-component q-builder-palette {
         flex: 0 0 auto;
       }
       span.w3-bar-item.w3-small { text { palette } }
-      button.w3-button.w3-small.w3-right { type: "button" q-builder-palette-action: "refresh" text { refresh } }
+      button.w3-button.w3-small.w3-right { type: "button" q-builder-palette-action: "refresh" onclick { this.closest("q-builder-palette").refresh(); } text { refresh } }
     }
     div { q-builder-palette-grid: "1"
       style {
@@ -820,8 +1110,8 @@ q-component q-builder-palette {
         overflow: auto;
         padding: 0.35rem;
         display: grid;
-        grid-template-columns: repeat(auto-fill, 10vw);
-        grid-auto-rows: 10vw;
+        grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+        grid-auto-rows: 8.5rem;
         gap: 0.35rem;
         justify-content: start;
         align-content: start;
@@ -833,6 +1123,7 @@ q-component q-builder-palette {
 
 q-component q-builder-modal-shell {
   q-modal {
+    id: "q-builder-edit-modal"
     q-builder-modal: "1"
     title { text { QBuilder } }
     content {
@@ -840,8 +1131,8 @@ q-component q-builder-modal-shell {
     }
     footer {
       div.w3-right-align {
-        button.w3-button.w3-small.w3-theme-l3.w3-round-large.w3-margin-right { type: "button" q-builder-action: "save" q-builder-icon-save { } span.w3-margin-left { text { Save } } }
-        button.w3-button.w3-small.w3-grey.w3-round-large { type: "button" q-builder-action: "close" q-builder-icon-close { } span.w3-margin-left { text { Close } } }
+        button.w3-button.w3-small.w3-theme-l3.w3-round-large.w3-margin-right { type: "button" q-builder-action: "save" onclick { this.closest("q-builder").save(); } q-builder-icon-save { } span.w3-margin-left { text { Save } } }
+        button.w3-button.w3-small.w3-grey.w3-round-large { type: "button" q-builder-action: "close" onclick { this.component.hide(); this.closest("q-builder").markEditModalClosed(); } q-builder-icon-close { } span.w3-margin-left { text { Close } } }
       }
     }
   }
@@ -849,6 +1140,7 @@ q-component q-builder-modal-shell {
 
 q-component q-builder-colors-modal-shell {
   q-modal {
+    id: "q-builder-colors-modal-host"
     q-builder-colors-modal: "1"
     title { text { QBuilder Styles } }
     content {
@@ -863,7 +1155,7 @@ q-component q-builder-colors-modal-shell {
             div.w3-small.w3-margin-bottom.w3-text-blue-grey { text { Computed q-style snapshot for the selected element. } }
             pre.w3-small.w3-padding-small.w3-border.w3-round { q-builder-colors-computed: "q-style" text { q-style selected-style { } } }
             div.w3-margin-top.w3-margin-bottom {
-              button.w3-button.w3-small.w3-theme-l3.w3-round-large { type: "button" q-builder-action: "customize-style" text { Capture Local Style } }
+              button.w3-button.w3-small.w3-theme-l3.w3-round-large { type: "button" q-builder-action: "customize-style" onclick { this.closest("q-builder").customizeStyleForSelected(); } text { Capture Local Style } }
             }
             div.w3-small.w3-margin-top.w3-margin-bottom.w3-text-blue-grey { q-builder-colors-status: "q-style" text { Local q-style block (editable only when defined on selected element). } }
             q-editor { q-builder-colors-editor: "q-style" initial-qhtml: "q-style selected-style { }" }
@@ -879,11 +1171,11 @@ q-component q-builder-colors-modal-shell {
                 select.w3-select.w3-border.w3-round { q-builder-colors-style-select: "1" }
               }
               div.w3-quarter {
-                button.w3-button.w3-small.w3-theme-l3.w3-round-large.w3-block { type: "button" q-builder-action: "add-theme-style" text { Add Style } }
+                button.w3-button.w3-small.w3-theme-l3.w3-round-large.w3-block { type: "button" q-builder-action: "add-theme-style" onclick { this.closest("q-builder").addThemeStyleToEditor(); } text { Add Style } }
               }
             }
             div.w3-margin-top.w3-margin-bottom {
-              button.w3-button.w3-small.w3-theme-l3.w3-round-large { type: "button" q-builder-action: "customize-theme" q-builder-colors-theme-customize: "1" text { Customize Theme } }
+              button.w3-button.w3-small.w3-theme-l3.w3-round-large { type: "button" q-builder-action: "customize-theme" q-builder-colors-theme-customize: "1" onclick { this.closest("q-builder").customizeThemeForSelected(); } text { Customize Theme } }
             }
             div.w3-small.w3-margin-top.w3-margin-bottom.w3-text-blue-grey { q-builder-colors-status: "q-theme" text { Local q-theme block (editable only when defined on selected element). } }
             q-editor { q-builder-colors-editor: "q-theme" initial-qhtml: "q-theme selected-theme { }" }
@@ -893,8 +1185,61 @@ q-component q-builder-colors-modal-shell {
     }
     footer {
       div.w3-right-align {
-        button.w3-button.w3-small.w3-theme-l3.w3-round-large.w3-margin-right { type: "button" q-builder-action: "save-colors" q-builder-icon-save { } span.w3-margin-left { text { Save Colors } } }
-        button.w3-button.w3-small.w3-grey.w3-round-large { type: "button" q-builder-action: "close-colors" q-builder-icon-close { } span.w3-margin-left { text { Close } } }
+        button.w3-button.w3-small.w3-theme-l3.w3-round-large.w3-margin-right { type: "button" q-builder-action: "save-colors" onclick { this.closest("q-builder").saveColors(); } q-builder-icon-save { } span.w3-margin-left { text { Save Colors } } }
+        button.w3-button.w3-small.w3-grey.w3-round-large { type: "button" q-builder-action: "close-colors" onclick { this.component.hide(); this.closest("q-builder").markColorsModalClosed(); } q-builder-icon-close { } span.w3-margin-left { text { Close } } }
+      }
+    }
+  }
+}
+
+q-component q-builder-source-modal-shell {
+  q-modal {
+    id: "q-builder-source-modal-host"
+    q-builder-source-modal: "1"
+    title { text { QBuilder Source } }
+    content {
+      div.w3-small.w3-margin-bottom.w3-text-blue-grey {
+        text { Generated QHTML source for the active host. }
+      }
+      textarea.w3-input.w3-border.w3-round {
+        q-builder-source-output: "1"
+        readonly: "readonly"
+        style {
+          min-height: 52vh;
+          resize: vertical;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+          white-space: pre;
+        }
+      }
+    }
+    footer {
+      div.w3-right-align {
+        button.w3-button.w3-small.w3-theme-l3.w3-round-large.w3-margin-right { type: "button" q-builder-action: "copy-source" onclick { this.closest("q-builder").copySource(); } text { Copy } }
+        button.w3-button.w3-small.w3-theme-l3.w3-round-large.w3-margin-right { type: "button" q-builder-action: "download-source" onclick { this.closest("q-builder").downloadSource(); } text { Download } }
+        button.w3-button.w3-small.w3-grey.w3-round-large { type: "button" q-builder-action: "close-source" onclick { this.component.hide(); this.closest("q-builder").markSourceModalClosed(); } q-builder-icon-close { } span.w3-margin-left { text { Close } } }
+      }
+    }
+  }
+}
+
+q-component q-builder-slot-picker-modal-shell {
+  q-modal {
+    id: "q-builder-slot-picker-modal-host"
+    q-builder-slot-picker-modal: "1"
+    title { text { Choose Slot } }
+    content {
+      div.w3-small.w3-margin-bottom.w3-text-blue-grey {
+        q-builder-slot-picker-message: "1"
+        text { Choose a target slot for the dropped component. }
+      }
+      div {
+        q-builder-slot-picker-list: "1"
+        div.w3-small.w3-text-grey { text { No slots available. } }
+      }
+    }
+    footer {
+      div.w3-right-align {
+        button.w3-button.w3-small.w3-grey.w3-round-large { type: "button" q-builder-action: "close-slot-picker" onclick { this.component.hide(); this.closest("q-builder").markSlotPickerClosed(); } q-builder-icon-close { } span.w3-margin-left { text { Close } } }
       }
     }
   }
@@ -940,6 +1285,8 @@ q-template q-builder-shell {
     q-builder-palette { }
     q-builder-modal-shell { }
     q-builder-colors-modal-shell { }
+    q-builder-source-modal-shell { }
+    q-builder-slot-picker-modal-shell { }
   }
 }
 
@@ -951,13 +1298,21 @@ q-component q-builder {
         target: null,
         inspect: false,
         host: null,
+        scopeRoot: null,
         hoverEl: null,
         selectedEl: null,
         modalOpen: false,
         colorsModalOpen: false,
+        sourceModalOpen: false,
+        slotPickerOpen: false,
         colorsEditContext: null,
         dropTarget: null,
-        paletteDragName: ""
+        paletteDragName: "",
+        paletteMode: "floating",
+        sourceText: "",
+        stagedDrop: null,
+        slotChoices: [],
+        paletteConnections: []
       };
     }
     return this.__qbuilderState;
@@ -1036,9 +1391,213 @@ q-component q-builder {
     }
   }
 
+  function setPaletteMode(mode) {
+    try {
+      var s = this.state();
+      var normalized = String(mode || "floating").trim().toLowerCase() || "floating";
+      if (normalized !== "embedded" && normalized !== "hidden") {
+        normalized = "floating";
+      }
+      s.paletteMode = normalized;
+      if (this.setAttribute) {
+        this.setAttribute("q-builder-palette-mode", normalized);
+      }
+      var palette = this.querySelector("q-builder-palette");
+      if (!palette) { return true; }
+      palette.mode = normalized;
+      if (palette.setAttribute) {
+        palette.setAttribute("mode", normalized);
+      }
+      if (typeof palette.applyLayoutMode === "function") {
+        palette.applyLayoutMode();
+      }
+      return true;
+    } catch (error) {
+      this.logIssue("setPaletteMode failed", error);
+      return false;
+    }
+  }
+
+  function scopeRootElement(host) {
+    try {
+      var s = this.state();
+      var targetHost = host && host.nodeType === 1 ? host : (s.host && s.host.nodeType === 1 ? s.host : null);
+      var scoped = s.scopeRoot && s.scopeRoot.nodeType === 1 ? s.scopeRoot : null;
+      if (targetHost && scoped && targetHost.contains && targetHost.contains(scoped)) {
+        return scoped;
+      }
+      return targetHost;
+    } catch (error) {
+      this.logIssue("scopeRootElement failed", error);
+      return host && host.nodeType === 1 ? host : null;
+    }
+  }
+
+  function setScopeRoot(rootElement) {
+    try {
+      var s = this.state();
+      var host = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
+      if (rootElement && rootElement.nodeType === 1 && host && host.contains && host.contains(rootElement)) {
+        s.scopeRoot = rootElement;
+        return rootElement;
+      }
+      s.scopeRoot = host || null;
+      return s.scopeRoot;
+    } catch (error) {
+      this.logIssue("setScopeRoot failed", error);
+      return null;
+    }
+  }
+
+  function stableSelectorForElement(element) {
+    try {
+      var lookup = this.stableLookupForElement(element);
+      if (!lookup) { return ""; }
+      if (lookup.id) {
+        return "#" + lookup.id;
+      }
+      if (lookup.attrName && lookup.attrValue) {
+        return "[" + lookup.attrName + "='" + lookup.attrValue.split("'").join("\\'") + "']";
+      }
+      return "";
+    } catch (error) {
+      this.logIssue("stableSelectorForElement failed", error);
+      return "";
+    }
+  }
+
+  function stableLookupForElement(element) {
+    try {
+      if (!element || element.nodeType !== 1) { return ""; }
+      if (element.id) {
+        return {
+          id: String(element.id || "").trim(),
+          attrName: "",
+          attrValue: ""
+        };
+      }
+      if (typeof element.getAttributeNames !== "function") { return ""; }
+      var attrNames = element.getAttributeNames();
+      for (var i = 0; i < attrNames.length; i += 1) {
+        var attrName = String(attrNames[i] || "").trim();
+        if (!attrName || attrName.indexOf("data-") !== 0) { continue; }
+        var attrValue = String(element.getAttribute(attrName) || "").trim();
+        if (!attrValue) { continue; }
+        return {
+          id: "",
+          attrName: attrName,
+          attrValue: attrValue
+        };
+      }
+      return null;
+    } catch (error) {
+      this.logIssue("stableLookupForElement failed", error);
+      return null;
+    }
+  }
+
+  function nodeAttributeValue(node, attrName) {
+    try {
+      if (!node || typeof node !== "object" || !attrName) { return ""; }
+      if (typeof node.getAttribute === "function") {
+        return String(node.getAttribute(attrName) || "").trim();
+      }
+      var attrs = node.attributes && typeof node.attributes === "object" ? node.attributes : null;
+      if (!attrs) { return ""; }
+      return String(attrs[attrName] || "").trim();
+    } catch (error) {
+      this.logIssue("nodeAttributeValue failed", error);
+      return "";
+    }
+  }
+
+  function findSourceNodeForElement(rootNode, element) {
+    try {
+      var lookup = this.stableLookupForElement(element);
+      if (!lookup || !rootNode || typeof rootNode !== "object") { return null; }
+      var initial = [];
+      if (Array.isArray(rootNode.nodes)) { initial = rootNode.nodes.slice(); }
+      else if (Array.isArray(rootNode.children)) { initial = rootNode.children.slice(); }
+      var stack = initial;
+      while (stack.length > 0) {
+        var current = stack.shift();
+        if (!current || typeof current !== "object") { continue; }
+        if (String(current.kind || "").toLowerCase() === "element") {
+          if (lookup.id && this.nodeAttributeValue(current, "id") === lookup.id) {
+            return current;
+          }
+          if (!lookup.id && lookup.attrName && lookup.attrValue && this.nodeAttributeValue(current, lookup.attrName) === lookup.attrValue) {
+            return current;
+          }
+        }
+        if (Array.isArray(current.children) && current.children.length > 0) {
+          stack = current.children.concat(stack);
+        }
+        if (Array.isArray(current.nodes) && current.nodes.length > 0) {
+          stack = current.nodes.concat(stack);
+        }
+      }
+      return null;
+    } catch (error) {
+      this.logIssue("findSourceNodeForElement failed", error);
+      return null;
+    }
+  }
+
+  function qdomNodeForElement(element, host) {
+    try {
+      var targetHost = host && host.nodeType === 1 ? host : (this.state().host && this.state().host.nodeType === 1 ? this.state().host : (this.closest ? this.closest("q-html") : null));
+      if (!element || element.nodeType !== 1) { return null; }
+      if (targetHost && typeof targetHost.uuidFor === "function" && typeof targetHost.qdomForUuid === "function") {
+        var uuid = String(targetHost.uuidFor(element) || "").trim();
+        if (uuid) {
+          var mapped = targetHost.qdomForUuid(uuid);
+          if (mapped && typeof mapped === "object") {
+            return mapped;
+          }
+        }
+      }
+      if (targetHost && typeof targetHost.qdom === "function") {
+        var hostRoot = targetHost.qdom();
+        var sourceFound = this.findSourceNodeForElement(hostRoot, element);
+        if (sourceFound && typeof sourceFound === "object") {
+          return sourceFound;
+        }
+      }
+      var selector = this.stableSelectorForElement(element);
+      if (selector && targetHost && typeof targetHost.qdom === "function") {
+        var root = targetHost.qdom();
+        if (root && typeof root.find === "function") {
+          var found = root.find(selector);
+          if (found && typeof found === "object") {
+            return found;
+          }
+        }
+      }
+      if (selector && element.component && typeof element.component.qdom === "function") {
+        var componentRoot = element.component.qdom();
+        var componentFound = this.findSourceNodeForElement(componentRoot, element);
+        if (componentFound && typeof componentFound === "object") {
+          return componentFound;
+        }
+        if (componentRoot && typeof componentRoot.find === "function") {
+          componentFound = componentRoot.find(selector);
+          if (componentFound && typeof componentFound === "object") {
+            return componentFound;
+          }
+        }
+      }
+      return typeof element.qdom === "function" ? element.qdom() : null;
+    } catch (error) {
+      this.logIssue("qdomNodeForElement failed", error);
+      return element && typeof element.qdom === "function" ? element.qdom() : null;
+    }
+  }
+
   function setTarget(target) {
     var s = this.state();
-    var node = target && target.nodeType === 1 && typeof target.qdom === "function" ? target.qdom() : target;
+    var targetHost = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
+    var node = target && target.nodeType === 1 ? this.qdomNodeForElement(target, targetHost) : target;
     if (!node || typeof node !== "object" || typeof node.kind !== "string") { s.target = null; return null; }
     s.target = node;
     var source = node && node.__qhtmlSourceNode && typeof node.__qhtmlSourceNode === "object" ? node.__qhtmlSourceNode : node;
@@ -1130,7 +1689,12 @@ q-component q-builder {
         this.clearDropOverlay();
         return;
       }
-      var rect = target.insertRect || target.rect;
+      var componentElement = target && target.element && target.element.component && target.kind !== "root"
+        ? target.element.component
+        : null;
+      var rect = componentElement && typeof componentElement.getBoundingClientRect === "function"
+        ? componentElement.getBoundingClientRect()
+        : (target.insertRect || target.rect);
       var left = Number(rect.left || 0);
       var top = Number(rect.top || 0);
       var width = Number(rect.width || 0);
@@ -1180,11 +1744,13 @@ q-component q-builder {
 
   function resolveEditableElementAtPoint(host, clientX, clientY) {
     try {
+      var scopeRoot = this.scopeRootElement(host);
       var doc = host && host.ownerDocument ? host.ownerDocument : (typeof document !== "undefined" ? document : null);
       if (!doc || typeof doc.elementFromPoint !== "function") { return null; }
       var element = doc.elementFromPoint(Number(clientX || 0), Number(clientY || 0));
       if (!element || element.nodeType !== 1) { return null; }
       if (!host.contains || !host.contains(element)) { return null; }
+      if (scopeRoot && scopeRoot.nodeType === 1 && scopeRoot.contains && !scopeRoot.contains(element)) { return null; }
       if (this.isWithinBuilderRuntime(element)) { return null; }
       return element;
     } catch (error) {
@@ -1195,6 +1761,7 @@ q-component q-builder {
 
   function resolveSlotDropTarget(host, clientX, clientY) {
     try {
+      var scopeRoot = this.scopeRootElement(host) || host;
       var element = this.resolveEditableElementAtPoint(host, clientX, clientY);
       var x = Number(clientX || 0);
       var y = Number(clientY || 0);
@@ -1236,6 +1803,7 @@ q-component q-builder {
             };
           }
         }
+        if (cursor === scopeRoot) { break; }
         cursor = cursor.parentElement;
       }
     } catch (error) {
@@ -1281,8 +1849,9 @@ q-component q-builder {
 
   function resolveComponentBoundaryTarget(host, clientX, clientY) {
     try {
-      if (!host || typeof host.querySelectorAll !== "function") { return null; }
-      var nodes = host.querySelectorAll("*");
+      var scopeRoot = this.scopeRootElement(host) || host;
+      if (!scopeRoot || typeof scopeRoot.querySelectorAll !== "function") { return null; }
+      var nodes = scopeRoot.querySelectorAll("*");
       var x = Number(clientX || 0);
       var y = Number(clientY || 0);
       var best = null;
@@ -1329,16 +1898,18 @@ q-component q-builder {
   function resolvePaletteDropTarget(host, clientX, clientY) {
     try {
       if (!host || host.nodeType !== 1) { return null; }
+      var scopeRoot = this.scopeRootElement(host) || host;
       var slotTarget = this.resolveSlotDropTarget(host, clientX, clientY);
       if (slotTarget) { return slotTarget; }
       var boundaryTarget = this.resolveComponentBoundaryTarget(host, clientX, clientY);
       if (boundaryTarget) { return boundaryTarget; }
-      if (typeof host.getBoundingClientRect === "function") {
+      if (scopeRoot && typeof scopeRoot.getBoundingClientRect === "function") {
         return {
           kind: "root",
           host: host,
-          rect: host.getBoundingClientRect(),
-          insertRect: host.getBoundingClientRect()
+          element: scopeRoot,
+          rect: scopeRoot.getBoundingClientRect(),
+          insertRect: scopeRoot.getBoundingClientRect()
         };
       }
     } catch (error) {
@@ -1366,6 +1937,229 @@ q-component q-builder {
     }
   }
 
+  function resolveComponentQNode(candidate) {
+    try {
+      var qnode = candidate && typeof candidate === "object" ? candidate : null;
+      if (!qnode) { return null; }
+      if ((typeof qnode.listSlots === "function" || typeof qnode.slot === "function") && String(qnode.kind || "").toLowerCase() !== "element") {
+        return qnode;
+      }
+      var owner = qnode.component && typeof qnode.component === "object" ? qnode.component : null;
+      if (owner && (typeof owner.listSlots === "function" || typeof owner.slot === "function")) {
+        return owner;
+      }
+    } catch (error) {
+      this.logIssue("resolveComponentQNode failed", error);
+    }
+    return candidate && typeof candidate === "object" ? candidate : null;
+  }
+
+  function componentIdForTarget(target, qnode) {
+    var fromNode = qnode && (qnode.componentId || qnode.tagName) ? String(qnode.componentId || qnode.tagName || "").trim().toLowerCase() : "";
+    if (fromNode.indexOf("q-") === 0) { return fromNode; }
+    var element = target && target.element && target.element.nodeType === 1 ? target.element : null;
+    var fromElement = element && element.tagName ? String(element.tagName || "").trim().toLowerCase() : "";
+    if (fromElement.indexOf("q-") === 0) { return fromElement; }
+    return "";
+  }
+
+  function registeredComponentSlotNames(componentId) {
+    try {
+      var runtime = this.getGlobalRef().QHtml;
+      if (!runtime || typeof runtime.listRegisteredComponentSlots !== "function") { return []; }
+      var names = runtime.listRegisteredComponentSlots(componentId);
+      return Array.isArray(names) ? names : [];
+    } catch (error) {
+      this.logIssue("registeredComponentSlotNames failed", error);
+      return [];
+    }
+  }
+
+  function normalizeDropTargetInput(host, targetLike) {
+    try {
+      if (!targetLike) { return null; }
+      if (targetLike.nodeType === 1) {
+        if (targetLike.slot && typeof targetLike.slot.qdom === "function") {
+          return {
+            kind: "slot",
+            host: host,
+            element: targetLike,
+            slotCtx: targetLike.slot
+          };
+        }
+        var componentElement = targetLike.component && targetLike.component.nodeType === 1 ? targetLike.component : null;
+        var qnode = componentElement && typeof componentElement.qdom === "function" ? componentElement.qdom() : null;
+        if ((!qnode || String(qnode.kind || "").toLowerCase() === "element") && typeof targetLike.qdom === "function") {
+          qnode = targetLike.qdom();
+        }
+        qnode = this.resolveComponentQNode(qnode);
+        return {
+          kind: "component",
+          host: host,
+          element: componentElement || targetLike,
+          qnode: qnode
+        };
+      }
+      if (typeof targetLike !== "object") { return null; }
+      if (!targetLike.host && host) {
+        targetLike.host = host;
+      }
+      return targetLike;
+    } catch (error) {
+      this.logIssue("normalizeDropTargetInput failed", error);
+      return null;
+    }
+  }
+
+  function listDropTargets(host, targetLike) {
+    try {
+      var target = this.normalizeDropTargetInput(host, targetLike);
+      if (!target) { return []; }
+      if (String(target.kind || "") === "slot") {
+        var directSlotName = "default";
+        try {
+          var directSlotNode = target.slotCtx && typeof target.slotCtx.qdom === "function" ? target.slotCtx.qdom() : null;
+          directSlotName = directSlotNode && directSlotNode.name ? String(directSlotNode.name || "default").trim() || "default" : "default";
+        } catch (ignoredDirect) { }
+        return [{
+          kind: "slot",
+          host: host,
+          element: target.element || null,
+          slotName: directSlotName,
+          slotNode: target.slotCtx && typeof target.slotCtx.qdom === "function" ? target.slotCtx.qdom() : null,
+          target: target,
+          label: directSlotName === "default" ? "default" : directSlotName
+        }];
+      }
+      if (String(target.kind || "") !== "component") { return []; }
+      var qnode = this.resolveComponentQNode(target.qnode);
+      if ((!qnode || typeof qnode !== "object") && target.element && typeof target.element.qdom === "function") {
+        var componentElement = target.element.component && target.element.component.nodeType === 1 ? target.element.component : null;
+        qnode = this.resolveComponentQNode(componentElement && typeof componentElement.qdom === "function" ? componentElement.qdom() : target.element.qdom());
+        target.qnode = qnode;
+      }
+      if (!qnode || typeof qnode.listSlots !== "function") { return []; }
+      var rawSlots = qnode.listSlots() || [];
+      var out = [];
+      var seen = {};
+      for (var i = 0; i < rawSlots.length; i += 1) {
+        var slotNode = rawSlots[i];
+        if (!slotNode || typeof slotNode !== "object") { continue; }
+        var slotName = String(slotNode.name || "default").trim() || "default";
+        var key = slotName.toLowerCase();
+        if (seen[key]) { continue; }
+        seen[key] = true;
+        out.push({
+          kind: "slot-choice",
+          host: host,
+          element: target.element || null,
+          slotName: slotName,
+          slotNode: slotNode,
+          target: target,
+          label: slotName === "default" ? "default" : slotName
+        });
+      }
+      if (!out.length) {
+        var componentId = this.componentIdForTarget(target, qnode);
+        var registeredSlots = this.registeredComponentSlotNames(componentId);
+        for (var ri = 0; ri < registeredSlots.length; ri += 1) {
+          var registeredName = String(registeredSlots[ri] || "").trim() || "default";
+          var registeredKey = registeredName.toLowerCase();
+          if (seen[registeredKey]) { continue; }
+          seen[registeredKey] = true;
+          out.push({
+            kind: "slot-choice",
+            host: host,
+            element: target.element || null,
+            slotName: registeredName,
+            slotNode: null,
+            target: target,
+            label: registeredName === "default" ? "default" : registeredName
+          });
+        }
+      }
+      if (!out.length) {
+        var sourceSlotNames = this.topLevelSimpleBlockNames(this.serializeNodeToQhtml(qnode));
+        for (var si = 0; si < sourceSlotNames.length; si += 1) {
+          var sourceSlotName = String(sourceSlotNames[si] || "").trim() || "default";
+          var sourceSlotKey = sourceSlotName.toLowerCase();
+          if (seen[sourceSlotKey]) { continue; }
+          seen[sourceSlotKey] = true;
+          out.push({
+            kind: "slot-choice",
+            host: host,
+            element: target.element || null,
+            slotName: sourceSlotName,
+            slotNode: null,
+            target: target,
+            label: sourceSlotName === "default" ? "default" : sourceSlotName
+          });
+        }
+      }
+      return out;
+    } catch (error) {
+      this.logIssue("listDropTargets failed", error);
+      return [];
+    }
+  }
+
+  function normalizePaletteItemSpec(item) {
+    try {
+      if (item && typeof item === "object") {
+        var componentName = this.sanitizePaletteComponentName(item.componentName || item.name || item.component || "");
+        var source = item.insertQhtml != null ? String(item.insertQhtml || "").trim() : "";
+        if (!componentName && !source) { return null; }
+        var key = String(item.id || componentName || item.label || "").trim().toLowerCase();
+        key = key.replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+        if (!key) { key = componentName || "widget"; }
+        return {
+          key: key,
+          label: String(item.label || componentName || key).trim() || key,
+          componentName: componentName,
+          insertQhtml: source
+        };
+      }
+      var normalized = this.sanitizePaletteComponentName(item);
+      if (!normalized) { return null; }
+      return {
+        key: normalized,
+        label: normalized,
+        componentName: normalized,
+        insertQhtml: ""
+      };
+    } catch (error) {
+      this.logIssue("normalizePaletteItemSpec failed", error);
+      return null;
+    }
+  }
+
+  function stagePaletteDrop(componentName, host, clientX, clientY) {
+    try {
+      var item = this.normalizePaletteItemSpec(componentName);
+      if (!item || !host || host.nodeType !== 1) {
+        this.state().stagedDrop = null;
+        return null;
+      }
+      var target = this.resolvePaletteDropTarget(host, clientX, clientY);
+      var slotChoices = this.listDropTargets(host, target);
+      var stage = {
+        paletteItem: item,
+        componentName: item.componentName,
+        itemKey: item.key,
+        host: host,
+        target: target || null,
+        slotChoices: slotChoices,
+        requiresChoice: slotChoices.length > 1 && String(target && target.kind || "") === "component"
+      };
+      this.state().stagedDrop = stage;
+      return stage;
+    } catch (error) {
+      this.logIssue("stagePaletteDrop failed", error);
+      this.state().stagedDrop = null;
+      return null;
+    }
+  }
+
   function sanitizePaletteComponentName(name) {
     var value = String(name || "").trim().toLowerCase();
     if (!value || value.indexOf("q-") !== 0) { return ""; }
@@ -1376,9 +2170,27 @@ q-component q-builder {
   }
 
   function paletteInstanceSource(name) {
-    var normalized = this.sanitizePaletteComponentName(name);
-    if (!normalized) { return ""; }
-    return normalized + " { }";
+    var item = this.normalizePaletteItemSpec(name);
+    if (!item) { return ""; }
+    if (item.insertQhtml) { return String(item.insertQhtml || "").trim(); }
+    return item.componentName ? item.componentName + " { }" : "";
+  }
+
+  function paletteInstanceNode(host, name) {
+    try {
+      var item = this.normalizePaletteItemSpec(name);
+      if (!item || !host || typeof host.qdom !== "function") { return null; }
+      var root = host.qdom();
+      if (!root) { return null; }
+      if (item.insertQhtml && typeof root.createInstanceFromQHTML === "function") {
+        return root.createInstanceFromQHTML(item.insertQhtml);
+      }
+      if (!item.componentName || typeof root.createQComponentInstance !== "function") { return null; }
+      return root.createQComponentInstance(item.componentName);
+    } catch (error) {
+      this.logIssue("paletteInstanceNode failed", error);
+      return null;
+    }
   }
 
   function sourceNodeOf(candidate) {
@@ -1591,6 +2403,120 @@ q-component q-builder {
     return outer.prefix + nextBody + outer.suffix;
   }
 
+  function appendToTopLevelKeywordBlock(source, keyword, childSource) {
+    var current = String(source || "");
+    var child = String(childSource || "").trim();
+    var name = String(keyword || "").trim();
+    if (!current || !child || !name) { return current; }
+    var outer = this.extractOuterBracedBlock(current);
+    if (outer.openIndex < 0) { return current; }
+    var blocks = this.findTopLevelKeywordBlocksInBody(outer.body, name);
+    if (!blocks.length) {
+      return this.insertTopLevelKeywordBlock(current, name + " {\n" + child + "\n}");
+    }
+    var block = blocks[0];
+    var blockOuter = this.extractOuterBracedBlock(block.text);
+    if (blockOuter.openIndex < 0) { return current; }
+    var blockBody = String(blockOuter.body || "");
+    var trimmedBody = blockBody.replace(/\s+$/, "");
+    var nextBlockText = blockOuter.prefix + trimmedBody + (trimmedBody ? "\n" : "") + child + "\n" + blockOuter.suffix;
+    var nextBody = outer.body.slice(0, block.start) + nextBlockText + outer.body.slice(block.end);
+    return outer.prefix + nextBody + outer.suffix;
+  }
+
+  function topLevelSimpleBlockNames(source) {
+    var outer = this.extractOuterBracedBlock(source);
+    if (outer.openIndex < 0) { return []; }
+    var text = String(outer.body || "");
+    var names = [];
+    var seen = {};
+    var reserved = {
+      "style": true,
+      "text": true,
+      "html": true,
+      "script": true,
+      "slot": true,
+      "content": true,
+      "name": true,
+      "model": true,
+      "onready": true,
+      "onmount": true,
+      "onrender": true,
+      "function": true
+    };
+    var depth = 0;
+    var quote = "";
+    var escaped = false;
+    var i = 0;
+    while (i < text.length) {
+      var ch = text.charAt(i);
+      var next = i + 1 < text.length ? text.charAt(i + 1) : "";
+      if (quote) {
+        if (escaped) {
+          escaped = false;
+          i += 1;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          i += 1;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        i += 1;
+        continue;
+      }
+      if (ch === "'" || ch === "\"" || ch === "`") {
+        quote = ch;
+        i += 1;
+        continue;
+      }
+      if (ch === "/" && next === "/") {
+        i += 2;
+        while (i < text.length && text.charAt(i) !== "\n") { i += 1; }
+        continue;
+      }
+      if (ch === "/" && next === "*") {
+        i += 2;
+        while (i + 1 < text.length && !(text.charAt(i) === "*" && text.charAt(i + 1) === "/")) { i += 1; }
+        i += 2;
+        continue;
+      }
+      if (ch === "{") {
+        depth += 1;
+        i += 1;
+        continue;
+      }
+      if (ch === "}") {
+        depth = Math.max(0, depth - 1);
+        i += 1;
+        continue;
+      }
+      if (depth === 0 && /[A-Za-z_]/.test(ch)) {
+        var start = i;
+        var end = i + 1;
+        while (end < text.length && /[A-Za-z0-9_-]/.test(text.charAt(end))) { end += 1; }
+        var name = String(text.slice(start, end) || "").trim();
+        var lower = name.toLowerCase();
+        var cursor = end;
+        while (cursor < text.length && /\s/.test(text.charAt(cursor))) { cursor += 1; }
+        if (name && !reserved[lower] && text.charAt(cursor) === "{") {
+          if (!seen[lower]) {
+            seen[lower] = true;
+            names.push(name);
+          }
+          var closeIndex = this.findMatchingBrace(text, cursor);
+          i = closeIndex > cursor ? closeIndex + 1 : cursor + 1;
+          continue;
+        }
+      }
+      i += 1;
+    }
+    return names;
+  }
+
   function upsertTopLevelKeywordBlock(source, keyword, replacementSource) {
     var current = String(source || "");
     var blocks = this.extractTopLevelKeywordBlocks(current, keyword);
@@ -1763,8 +2689,7 @@ q-component q-builder {
 
     var docSourceText = "";
     try {
-      var docRoot = host && typeof host.qdom === "function" ? host.qdom() : null;
-      if (docRoot && typeof docRoot.root === "function") { docRoot = docRoot.root({ qdom: true }); }
+      var docRoot = this.documentRootNode(host);
       var docSourceNode = this.sourceNodeOf(docRoot);
       var docMeta = docSourceNode && docSourceNode.meta && typeof docSourceNode.meta === "object" ? docSourceNode.meta : {};
       docSourceText = String(docMeta.source || docMeta.resolvedSource || "").trim();
@@ -1834,13 +2759,46 @@ q-component q-builder {
     }
   }
 
+  function markNodeDirty(node) {
+    try {
+      var source = this.sourceNodeOf(node);
+      if (!source || typeof source !== "object") { return; }
+      if (!source.meta || typeof source.meta !== "object") {
+        source.meta = {};
+      }
+      source.meta.dirty = true;
+    } catch (error) {
+      this.logIssue("markNodeDirty failed", error);
+    }
+  }
+
+  function documentRootNode(host) {
+    try {
+      if (!host || typeof host.qdom !== "function") { return null; }
+      var root = host.qdom();
+      if (!root || typeof root !== "object") { return null; }
+      if (String(root.kind || "").toLowerCase() === "document") {
+        return root;
+      }
+      if (typeof root.root === "function") {
+        var resolved = root.root({ qdom: true });
+        if (resolved && typeof resolved === "object") {
+          return resolved;
+        }
+      }
+      return root;
+    } catch (error) {
+      this.logIssue("documentRootNode failed", error);
+      return null;
+    }
+  }
+
   function touchMutationNonce(host, primaryNode) {
     try {
+      this.markNodeDirty(primaryNode);
       this.touchNodeNonce(primaryNode);
-      if (!host || typeof host.qdom !== "function") { return; }
-      var root = host.qdom();
-      if (!root || typeof root.root !== "function") { return; }
-      var docRoot = root.root({ qdom: true });
+      var docRoot = this.documentRootNode(host);
+      this.markNodeDirty(docRoot);
       this.touchNodeNonce(docRoot);
     } catch (error) {
       this.logIssue("touchMutationNonce failed", error);
@@ -1884,6 +2842,39 @@ q-component q-builder {
     return false;
   }
 
+  function remountHostFromSource(host, sourceText) {
+    try {
+      if (!host || host.nodeType !== 1 || !host.parentNode) { return host; }
+      var source = String(sourceText || "").trim();
+      if (!source) { return host; }
+      var globalRef = this.getGlobalRef();
+      var runtime = globalRef && globalRef.QHtml ? globalRef.QHtml : null;
+      var doc = host.ownerDocument || (typeof document !== "undefined" ? document : null);
+      if (!doc || !doc.createElement) { return host; }
+      var replacementHost = doc.createElement("q-html");
+      if (host.attributes && typeof host.attributes.length === "number") {
+        for (var i = 0; i < host.attributes.length; i += 1) {
+          var attr = host.attributes[i];
+          var attrName = attr && attr.name ? String(attr.name || "") : "";
+          if (!attrName || attrName === "style") { continue; }
+          replacementHost.setAttribute(attrName, String(attr.value || ""));
+        }
+      }
+      replacementHost.textContent = source;
+      if (runtime && typeof runtime.unmountQHtmlElement === "function") {
+        try { runtime.unmountQHtmlElement(host); } catch (ignoredUnmount) { }
+      }
+      host.parentNode.replaceChild(replacementHost, host);
+      if (runtime && typeof runtime.mountQHtmlElement === "function") {
+        try { runtime.mountQHtmlElement(replacementHost); } catch (ignoredMount) { }
+      }
+      return replacementHost;
+    } catch (error) {
+      this.logIssue("remountHostFromSource failed", error);
+      return host;
+    }
+  }
+
   function createSingleNodeFromQhtml(host, source) {
     try {
       if (!host || typeof host.qdom !== "function") { return null; }
@@ -1901,15 +2892,70 @@ q-component q-builder {
     }
   }
 
+  function normalizeIncomingSourceNodes(input) {
+    try {
+      var out = [];
+      var self = this;
+      function pushValue(value) {
+        if (!value) { return; }
+        if (Array.isArray(value)) {
+          for (var i = 0; i < value.length; i += 1) {
+            pushValue(value[i]);
+          }
+          return;
+        }
+        var source = self.sourceNodeOf(value);
+        if (source && typeof source === "object") {
+          out.push(source);
+        }
+      }
+      pushValue(input);
+      return out;
+    } catch (error) {
+      this.logIssue("normalizeIncomingSourceNodes failed", error);
+      return [];
+    }
+  }
+
+  function appendSourceNodesToContainer(containerNode, incomingNodes) {
+    try {
+      var container = this.sourceNodeOf(containerNode);
+      if (!container || typeof container !== "object") { return null; }
+      var kind = String(container.kind || "").toLowerCase();
+      var list = null;
+      if (kind === "document") {
+        if (!Array.isArray(container.nodes)) { container.nodes = []; }
+        list = container.nodes;
+      } else if (kind === "component") {
+        if (!Array.isArray(container.templateNodes)) { container.templateNodes = []; }
+        list = container.templateNodes;
+      } else if (kind === "element" || kind === "slot" || kind === "component-instance" || kind === "template-instance") {
+        if (!Array.isArray(container.children)) { container.children = []; }
+        list = container.children;
+      }
+      if (!list) { return null; }
+      var nodes = this.normalizeIncomingSourceNodes(incomingNodes);
+      if (!nodes.length) { return null; }
+      for (var i = 0; i < nodes.length; i += 1) {
+        list.push(nodes[i]);
+        this.touchNodeNonce(nodes[i]);
+      }
+      this.touchNodeNonce(list);
+      this.touchNodeNonce(container);
+      return nodes.length === 1 ? nodes[0] : nodes;
+    } catch (error) {
+      this.logIssue("appendSourceNodesToContainer failed", error);
+      return null;
+    }
+  }
+
   function replaceSourceNodeInHostTree(host, targetNode, replacementNode) {
     try {
       if (!host || typeof host.qdom !== "function") { return false; }
       var targetSource = this.sourceNodeOf(targetNode);
       var replacementSource = this.sourceNodeOf(replacementNode);
       if (!targetSource || !replacementSource) { return false; }
-      var docRoot = host.qdom();
-      if (!docRoot || typeof docRoot.root !== "function") { return false; }
-      var rootNode = docRoot.root({ qdom: true });
+      var rootNode = this.documentRootNode(host);
       var rootSource = this.sourceNodeOf(rootNode);
       if (!rootSource || typeof rootSource !== "object") { return false; }
       var stack = [rootSource];
@@ -1943,6 +2989,135 @@ q-component q-builder {
     return false;
   }
 
+  function serializeNodeToQhtml(node) {
+    try {
+      var source = this.sourceNodeOf(node);
+      var globalRef = this.getGlobalRef();
+      var modules = globalRef && globalRef.QHtmlModules ? globalRef.QHtmlModules : null;
+      var parser = modules && modules.qhtmlParser ? modules.qhtmlParser : null;
+      var core = modules && modules.qdomCore ? modules.qdomCore : null;
+      if (parser && core && typeof parser.qdomToQHtml === "function" && typeof core.createDocument === "function" && source) {
+        var tempDoc = core.createDocument({ source: "" });
+        if (Array.isArray(tempDoc.nodes)) {
+          tempDoc.nodes.push(source);
+        }
+        var serialized = String(parser.qdomToQHtml(tempDoc, { preserveOriginal: false }) || "").trim();
+        if (serialized) { return serialized; }
+      }
+      if (node && typeof node.qhtml === "function") {
+        var fromNode = String(node.qhtml({ preserveOriginal: false }) || "").trim();
+        if (fromNode) { return fromNode; }
+      }
+      if (source && typeof source.qhtml === "function") {
+        var fromSource = String(source.qhtml({ preserveOriginal: false }) || "").trim();
+        if (fromSource) { return fromSource; }
+      }
+      if (source && source.meta && typeof source.meta.originalSource === "string" && String(source.meta.originalSource || "").trim()) {
+        return String(source.meta.originalSource || "").trim();
+      }
+    } catch (error) {
+      this.logIssue("serializeNodeToQhtml failed", error);
+    }
+    return "";
+  }
+
+  function createClonedNodeForHost(host, node) {
+    try {
+      var source = this.serializeNodeToQhtml(node);
+      if (!source) { return null; }
+      return this.createSingleNodeFromQhtml(host, source);
+    } catch (error) {
+      this.logIssue("createClonedNodeForHost failed", error);
+      return null;
+    }
+  }
+
+  function findSourceNodeLocationInHostTree(host, targetNode) {
+    try {
+      if (!host || typeof host.qdom !== "function") { return null; }
+      var targetSource = this.sourceNodeOf(targetNode);
+      if (!targetSource) { return null; }
+      var rootNode = this.documentRootNode(host);
+      var rootSource = this.sourceNodeOf(rootNode);
+      if (!rootSource || typeof rootSource !== "object") { return null; }
+      var stack = [{ node: rootSource }];
+      while (stack.length > 0) {
+        var entry = stack.pop();
+        var current = entry && entry.node ? entry.node : null;
+        if (!current || typeof current !== "object") { continue; }
+        var lists = [current.nodes, current.templateNodes, current.children, current.slots];
+        for (var li = 0; li < lists.length; li += 1) {
+          var list = lists[li];
+          if (!Array.isArray(list)) { continue; }
+          for (var i = list.length - 1; i >= 0; i -= 1) {
+            var child = this.sourceNodeOf(list[i]);
+            if (child === targetSource) {
+              return {
+                root: rootSource,
+                parent: current,
+                list: list,
+                index: i,
+                node: child
+              };
+            }
+            if (child && typeof child === "object") {
+              stack.push({ node: child });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      this.logIssue("findSourceNodeLocationInHostTree failed", error);
+    }
+    return null;
+  }
+
+  function insertSourceNodeAdjacentInHostTree(host, targetNode, incomingNode, position) {
+    try {
+      var location = this.findSourceNodeLocationInHostTree(host, targetNode);
+      var source = this.sourceNodeOf(incomingNode);
+      if (!location || !Array.isArray(location.list) || !source) { return null; }
+      var mode = String(position || "after").toLowerCase();
+      var insertAt = mode === "before" ? location.index : location.index + 1;
+      location.list.splice(insertAt, 0, source);
+      this.touchNodeNonce(location.list);
+      this.touchNodeNonce(location.parent);
+      this.touchNodeNonce(source);
+      this.touchMutationNonce(host, source);
+      return {
+        parent: location.parent,
+        list: location.list,
+        index: insertAt,
+        node: source
+      };
+    } catch (error) {
+      this.logIssue("insertSourceNodeAdjacentInHostTree failed", error);
+      return null;
+    }
+  }
+
+  function removeSourceNodeFromHostTree(host, targetNode) {
+    try {
+      var location = this.findSourceNodeLocationInHostTree(host, targetNode);
+      if (!location || !Array.isArray(location.list)) { return null; }
+      var removed = location.list.splice(location.index, 1);
+      var removedNode = removed && removed.length ? this.sourceNodeOf(removed[0]) : null;
+      this.touchNodeNonce(location.list);
+      this.touchNodeNonce(location.parent);
+      this.touchNodeNonce(removedNode);
+      this.touchMutationNonce(host, location.parent || removedNode);
+      return {
+        parent: location.parent,
+        list: location.list,
+        index: location.index,
+        node: removedNode
+      };
+    } catch (error) {
+      this.logIssue("removeSourceNodeFromHostTree failed", error);
+      return null;
+    }
+  }
+
   function appendPaletteIntoSlot(target, componentName) {
     try {
       if (!target || String(target.kind || "") !== "slot") { return false; }
@@ -1961,8 +3136,8 @@ q-component q-builder {
       }
       var mode = String(target.slotMode || "replace").toLowerCase();
       var side = String(target.side || "right").toLowerCase();
-      var source = this.paletteInstanceSource(componentName);
-      if (!slotNode || typeof slotNode.appendNode !== "function" || !source) { return false; }
+      var payload = this.paletteInstanceNode(target.host, componentName) || this.paletteInstanceSource(componentName);
+      if (!slotNode || typeof slotNode.appendNode !== "function" || !payload) { return false; }
       function clearSlotChildren() {
         if (!slotNode) { return; }
         if (slotNode.children && typeof slotNode.children.splice === "function") {
@@ -1993,16 +3168,17 @@ q-component q-builder {
           var styleBlock = orientation === "columns"
             ? "display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; align-items: stretch;"
             : "display: grid; grid-template-rows: 1fr 1fr; gap: 0.5rem; align-items: stretch;";
+          var source = this.paletteInstanceSource(componentName);
           var first = side === "left" || side === "top" ? source : current;
           var second = side === "left" || side === "top" ? current : source;
           clearSlotChildren();
           slotNode.appendNode("div { style { " + styleBlock + " } " + first + " " + second + " }");
         } else {
-          slotNode.appendNode(source);
+          slotNode.appendNode(payload);
         }
       } else {
         clearSlotChildren();
-        slotNode.appendNode(source);
+        slotNode.appendNode(payload);
       }
       this.touchMutationNonce(target.host, slotNode);
       this.requestHostUpdate(target.host, target.element);
@@ -2013,13 +3189,59 @@ q-component q-builder {
     }
   }
 
+  function commitPaletteDropToSlot(componentName, host, slotName, context) {
+    try {
+      var item = this.normalizePaletteItemSpec(componentName);
+      var wantedSlot = String(slotName || "default").trim() || "default";
+      var ctx = context && typeof context === "object" ? context : {};
+      var target = this.normalizeDropTargetInput(host, ctx.target && typeof ctx.target === "object" ? ctx.target : null);
+      if (!item || !host || host.nodeType !== 1 || !target) { return false; }
+      var slotNode = ctx.slotNode && typeof ctx.slotNode === "object" ? ctx.slotNode : null;
+      var anchorElement = target.element && target.element.nodeType === 1 ? target.element : null;
+      var qnode = this.resolveComponentQNode(target.qnode);
+      if ((!qnode || typeof qnode !== "object") && anchorElement && typeof anchorElement.qdom === "function") {
+        var componentElement = anchorElement.component && anchorElement.component.nodeType === 1 ? anchorElement.component : null;
+        qnode = this.resolveComponentQNode(componentElement && typeof componentElement.qdom === "function" ? componentElement.qdom() : anchorElement.qdom());
+        target.qnode = qnode;
+      }
+      if (!slotNode && qnode && typeof qnode.slot === "function") {
+        slotNode = qnode.slot(wantedSlot);
+      }
+      var payload = this.paletteInstanceNode(host, item) || this.paletteInstanceSource(item);
+      if (!payload) { return false; }
+      if (!slotNode || typeof slotNode.appendNode !== "function") {
+        var currentSource = this.serializeNodeToQhtml(qnode);
+        var payloadSource = this.paletteInstanceSource(item);
+        if (!currentSource || !payloadSource) { return false; }
+        var nextSource = this.appendToTopLevelKeywordBlock(currentSource, wantedSlot, payloadSource);
+        if (!nextSource || String(nextSource).trim() === String(currentSource).trim()) { return false; }
+        var replacementNode = this.createSingleNodeFromQhtml(host, nextSource);
+        if (!replacementNode) { return false; }
+        if (!this.replaceSourceNodeInHostTree(host, qnode, replacementNode)) { return false; }
+        this.touchMutationNonce(host, replacementNode);
+        this.requestHostUpdate(host, anchorElement);
+        this.refreshPalette(host);
+        return true;
+      }
+      slotNode.appendNode(payload);
+      this.touchMutationNonce(host, slotNode);
+      this.requestHostUpdate(host, anchorElement);
+      this.refreshPalette(host);
+      return true;
+    } catch (error) {
+      this.logIssue("commitPaletteDropToSlot failed", error);
+      return false;
+    }
+  }
+
   function wrapComponentWithPalette(target, componentName) {
     try {
       if (!target || String(target.kind || "") !== "component") { return false; }
-      var qnode = target.qnode;
+      var qnode = this.resolveComponentQNode(target.qnode);
       var host = target.host;
       if ((!qnode || typeof qnode !== "object") && target.element && typeof target.element.qdom === "function") {
-        qnode = this.sourceNodeOf(target.element.qdom());
+        var componentElement = target.element.component && target.element.component.nodeType === 1 ? target.element.component : null;
+        qnode = this.resolveComponentQNode(componentElement && typeof componentElement.qdom === "function" ? componentElement.qdom() : target.element.qdom());
         target.qnode = qnode;
       }
       var source = this.paletteInstanceSource(componentName);
@@ -2054,32 +3276,38 @@ q-component q-builder {
     }
   }
 
-  function appendPaletteToRoot(host, componentName) {
-    try {
-      var source = this.paletteInstanceSource(componentName);
-      if (!source || !host || typeof host.qdom !== "function") { return false; }
-      var root = host.qdom();
-      if (!root || typeof root.appendNode !== "function") { return false; }
-      root.appendNode(source);
-      this.touchMutationNonce(host, root);
-      this.requestHostUpdate(host, host);
-      return true;
-    } catch (error) {
-      this.logIssue("appendPaletteToRoot failed", error);
-      return false;
-    }
+	  function appendPaletteToRoot(host, componentName) {
+	    try {
+	      var rootElement = this.scopeRootElement(host);
+	      var payload = this.paletteInstanceNode(host, componentName) || this.paletteInstanceSource(componentName);
+	      if (!payload || !rootElement) { return false; }
+	      var root = rootElement === host && typeof host.qdom === "function"
+	        ? host.qdom()
+	        : this.qdomNodeForElement(rootElement, host);
+	      var appended = this.appendSourceNodesToContainer(root, payload);
+	      if (!appended) { return false; }
+	      var primaryNode = Array.isArray(appended) && appended.length > 0 ? appended[appended.length - 1] : appended;
+	      this.touchMutationNonce(host, primaryNode && typeof primaryNode === "object" ? primaryNode : root);
+	      this.requestHostUpdate(host, rootElement);
+	      this.refreshPalette(host);
+	      return true;
+	    } catch (error) {
+	      this.logIssue("appendPaletteToRoot failed", error);
+	      return false;
+	    }
   }
 
   function updatePaletteDropTarget(componentName, host, clientX, clientY) {
     try {
-      var normalized = this.sanitizePaletteComponentName(componentName);
-      if (!normalized || !host || host.nodeType !== 1) {
+      var item = this.normalizePaletteItemSpec(componentName);
+      if (!item || !host || host.nodeType !== 1) {
         this.clearPaletteDropTarget();
         return null;
       }
-      var target = this.resolvePaletteDropTarget(host, clientX, clientY);
+      var stage = this.stagePaletteDrop(item, host, clientX, clientY);
+      var target = stage && stage.target ? stage.target : null;
       this.setPaletteDropTarget(target);
-      this.state().paletteDragName = normalized;
+      this.state().paletteDragName = item.key;
       return target;
     } catch (error) {
       this.logIssue("updatePaletteDropTarget failed", error);
@@ -2090,26 +3318,41 @@ q-component q-builder {
 
   function commitPaletteDrop(componentName, host, clientX, clientY) {
     try {
-      var normalized = this.sanitizePaletteComponentName(componentName);
-      if (!normalized || !host || host.nodeType !== 1) {
+      var item = this.normalizePaletteItemSpec(componentName);
+      if (!item || !host || host.nodeType !== 1) {
         this.clearPaletteDropTarget();
         return false;
       }
       var s = this.state();
-      var target = s.dropTarget && s.dropTarget.host === host ? s.dropTarget : this.resolvePaletteDropTarget(host, clientX, clientY);
+      var stage = s.stagedDrop && s.stagedDrop.host === host && s.stagedDrop.itemKey === item.key
+        ? s.stagedDrop
+        : this.stagePaletteDrop(item, host, clientX, clientY);
+      var target = stage && stage.target ? stage.target : (s.dropTarget && s.dropTarget.host === host ? s.dropTarget : null);
       var applied = false;
+      if (stage && stage.requiresChoice) {
+        this.openSlotPicker(stage);
+        this.clearPaletteDropTarget();
+        this.state().paletteDragName = "";
+        return true;
+      }
       if (target && String(target.kind || "") === "slot") {
-        applied = this.appendPaletteIntoSlot(target, normalized);
+        applied = this.appendPaletteIntoSlot(target, item);
+      } else if (stage && stage.slotChoices && stage.slotChoices.length === 1 && target && String(target.kind || "") === "component") {
+        applied = this.commitPaletteDropToSlot(item, host, stage.slotChoices[0].slotName, {
+          target: target,
+          slotNode: stage.slotChoices[0].slotNode
+        });
       } else if (target && String(target.kind || "") === "component") {
-        applied = this.wrapComponentWithPalette(target, normalized);
+        applied = this.wrapComponentWithPalette(target, item);
       } else {
-        applied = this.appendPaletteToRoot(host, normalized);
+        applied = this.appendPaletteToRoot(host, item);
       }
       if (!applied) {
-        applied = this.appendPaletteToRoot(host, normalized);
+        applied = this.appendPaletteToRoot(host, item);
       }
       this.clearPaletteDropTarget();
       this.state().paletteDragName = "";
+      this.state().stagedDrop = null;
       if (applied) {
         this.refreshPalette(host);
       }
@@ -2117,6 +3360,47 @@ q-component q-builder {
     } catch (error) {
       this.logIssue("commitPaletteDrop failed", error);
       this.clearPaletteDropTarget();
+      this.state().stagedDrop = null;
+      return false;
+    }
+  }
+
+  function positionFloatingUi(node, preferredRect, options) {
+    try {
+      if (!node || !node.style || !preferredRect) { return false; }
+      var opts = options && typeof options === "object" ? options : {};
+      var margin = Number(opts.margin || 12);
+      var display = String(opts.display || "block");
+      this.applyStyles(node, {
+        display: display,
+        visibility: "hidden",
+        left: Math.round(Number(preferredRect.left || 0)) + "px",
+        top: Math.round(Number(preferredRect.top || 0)) + "px"
+      }, "positionFloatingUi pre-measure failed");
+      var rect = node.getBoundingClientRect();
+      var width = Math.max(0, Math.round(rect.width || node.offsetWidth || 0));
+      var height = Math.max(0, Math.round(rect.height || node.offsetHeight || 0));
+      var viewWidth = Math.max(0, Math.round((typeof window !== "undefined" && window.innerWidth) || 0));
+      var viewHeight = Math.max(0, Math.round((typeof window !== "undefined" && window.innerHeight) || 0));
+      var left = Number(preferredRect.left || 0);
+      var top = Number(preferredRect.top || 0);
+      if (left + width > viewWidth - margin) {
+        left = Math.max(margin, viewWidth - width - margin);
+      }
+      if (top + height > viewHeight - margin) {
+        top = Math.max(margin, viewHeight - height - margin);
+      }
+      left = Math.max(margin, left);
+      top = Math.max(margin, top);
+      this.applyStyles(node, {
+        left: Math.round(left) + "px",
+        top: Math.round(top) + "px",
+        display: display,
+        visibility: "visible"
+      }, "positionFloatingUi final failed");
+      return true;
+    } catch (error) {
+      this.logIssue("positionFloatingUi failed", error);
       return false;
     }
   }
@@ -2130,20 +3414,24 @@ q-component q-builder {
         return;
       }
       var rect = s.selectedEl.getBoundingClientRect();
-      this.applyStyles(toolbar, {
-        left: (rect.left + rect.width / 2) + "px",
-        top: Math.max(12, rect.top) + "px",
-        display: "flex"
-      }, "positionToolbar styles failed");
+      this.positionFloatingUi(toolbar, {
+        left: rect.left + rect.width / 2,
+        top: Math.max(12, rect.top)
+      }, {
+        display: "flex",
+        margin: 8
+      });
     } catch (error) {
       this.hideToolbar();
       this.logIssue("positionToolbar failed", error);
     }
   }
 
-  function isModalVisible() {
+  function isNamedModalVisible(attributeName) {
     try {
-      var modal = this.querySelector("q-modal[q-builder-modal='1']");
+      var attr = String(attributeName || "").trim();
+      if (!attr) { return false; }
+      var modal = this.querySelector("q-modal[" + attr + "='1']");
       var root = modal ? modal.querySelector("[q-modal-root='1'], .w3-modal") : null;
       if (!root) { return false; }
       var inlineDisplay = String((root.style && root.style.display) || "").toLowerCase();
@@ -2151,28 +3439,55 @@ q-component q-builder {
       var css = typeof getComputedStyle === "function" ? getComputedStyle(root) : null;
       return !!css && String(css.display || "").toLowerCase() !== "none";
     } catch (error) {
-      this.logIssue("isModalVisible failed", error);
+      this.logIssue("isNamedModalVisible failed", error);
       return false;
     }
+  }
+
+  function isModalVisible() {
+    return this.isNamedModalVisible("q-builder-modal");
   }
 
   function isColorsModalVisible() {
-    try {
-      var modal = this.querySelector("q-modal[q-builder-colors-modal='1']");
-      var root = modal ? modal.querySelector("[q-modal-root='1'], .w3-modal") : null;
-      if (!root) { return false; }
-      var inlineDisplay = String((root.style && root.style.display) || "").toLowerCase();
-      if (inlineDisplay) { return inlineDisplay !== "none"; }
-      var css = typeof getComputedStyle === "function" ? getComputedStyle(root) : null;
-      return !!css && String(css.display || "").toLowerCase() !== "none";
-    } catch (error) {
-      this.logIssue("isColorsModalVisible failed", error);
-      return false;
-    }
+    return this.isNamedModalVisible("q-builder-colors-modal");
+  }
+
+  function isSourceModalVisible() {
+    return this.isNamedModalVisible("q-builder-source-modal");
+  }
+
+  function isSlotPickerVisible() {
+    return this.isNamedModalVisible("q-builder-slot-picker-modal");
   }
 
   function isAnyModalVisible() {
-    return this.isModalVisible() || this.isColorsModalVisible();
+    return this.isModalVisible() || this.isColorsModalVisible() || this.isSourceModalVisible() || this.isSlotPickerVisible();
+  }
+
+  function exportSource(host, options) {
+    try {
+      var explicitTarget = host && host.nodeType === 1 ? host : null;
+      var s = this.state();
+      var targetHost = explicitTarget && String(explicitTarget.tagName || "").toLowerCase() === "q-html"
+        ? explicitTarget
+        : (s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null));
+      var targetNode = explicitTarget && String(explicitTarget.tagName || "").toLowerCase() !== "q-html"
+        ? explicitTarget
+        : this.scopeRootElement(targetHost);
+      var globalRef = this.getGlobalRef();
+      var runtime = globalRef && globalRef.QHtml ? globalRef.QHtml : null;
+      if (targetNode && targetNode !== targetHost) {
+        var qnode = this.qdomNodeForElement(targetNode, targetHost);
+        if (qnode && typeof qnode.qhtml === "function") {
+          return String(qnode.qhtml(options || { preserveOriginal: false }) || "");
+        }
+      }
+      if (!runtime || typeof runtime.toQHtmlSource !== "function" || !targetHost) { return ""; }
+      return String(runtime.toQHtmlSource(targetHost, options || { preserveOriginal: false }) || "");
+    } catch (error) {
+      this.logIssue("exportSource failed", error);
+      return "";
+    }
   }
 
   function hideQEditorNonColorTabs(editor) {
@@ -2551,21 +3866,20 @@ q-component q-builder {
         this.fitColorsModalToContent();
         var self = this;
         setTimeout(function() { self.ensureColorsModalLayout(); self.fitColorsModalToContent(); }, 0);
-        return;
-      }
-      if (!openFlag && typeof modal.hide === "function") {
+      } else if (!openFlag && typeof modal.hide === "function") {
         modal.hide();
         this.positionToolbar();
-        return;
-      }
-      var root = modal.querySelector ? modal.querySelector("[q-modal-root='1'], .w3-modal") : null;
-      this.applyStyles(root, { display: openFlag ? "block" : "none" }, "setColorsOpen root fallback failed");
-      if (openFlag) {
-        this.ensureColorsModalLayout();
-        this.fitColorsModalToContent();
       } else {
-        this.positionToolbar();
+        var root = modal.querySelector ? modal.querySelector("[q-modal-root='1'], .w3-modal") : null;
+        this.applyStyles(root, { display: openFlag ? "block" : "none" }, "setColorsOpen root fallback failed");
+        if (openFlag) {
+          this.ensureColorsModalLayout();
+          this.fitColorsModalToContent();
+        } else {
+          this.positionToolbar();
+        }
       }
+      return;
     } catch (error) {
       this.logIssue("setColorsOpen failed", error);
     }
@@ -2575,15 +3889,23 @@ q-component q-builder {
     try {
       var s = this.state();
       if (s.selectedEl) { this.setTarget(s.selectedEl); }
-      if (!s.target) { return; }
+      if (!s.target) { return null; }
       var host = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
       var editContext = this.buildColorsEditContext(s.source, s.target, host, s.selectedEl);
       s.colorsEditContext = editContext;
       this.setColorsTabContent(editContext);
-      this.setOpen(false);
-      this.setColorsOpen(true);
+      s.modalOpen = false;
+      s.colorsModalOpen = true;
+      s.sourceModalOpen = false;
+      s.slotPickerOpen = false;
+      this.hideModalHost(this.editModalHost());
+      this.hideModalHost(this.sourceModalHost());
+      this.hideModalHost(this.slotPickerModalHost());
+      this.hideToolbar();
+      return this.colorsModalHost();
     } catch (error) {
       this.logIssue("openColors failed", error);
+      return null;
     }
   }
 
@@ -2645,6 +3967,276 @@ q-component q-builder {
     }
   }
 
+  function ensureSourceModalLayout() {
+    try {
+      var modal = this.querySelector("q-modal[q-builder-source-modal='1']");
+      if (!modal) { return; }
+      var root = modal.querySelector("[q-modal-root='1'], .w3-modal");
+      var content = modal.querySelector(".w3-modal-content");
+      var body = modal.querySelector(".w3-container.w3-section");
+      var footer = modal.querySelector(".w3-container.w3-border-top");
+      var output = modal.querySelector("[q-builder-source-output='1']");
+      this.applyStyles(root, { zIndex: "6200", overflow: "auto", paddingTop: "3vh" }, "source modal root layout failed");
+      this.applyStyles(content, {
+        display: "flex",
+        flexDirection: "column",
+        width: "min(92vw, 960px)",
+        height: "min(82vh, 760px)",
+        overflow: "hidden",
+        margin: "0 auto"
+      }, "source modal content layout failed");
+      this.applyStyles(body, { flex: "1 1 auto", overflow: "auto", padding: "12px" }, "source modal body layout failed");
+      this.applyStyles(footer, { flex: "0 0 auto" }, "source modal footer layout failed");
+      this.applyStyles(output, { width: "100%", height: "100%" }, "source modal output layout failed");
+    } catch (error) {
+      this.logIssue("ensureSourceModalLayout failed", error);
+    }
+  }
+
+  function setSourceOutput(sourceText) {
+    try {
+      var text = String(sourceText || "");
+      this.state().sourceText = text;
+      var output = this.querySelector("[q-builder-source-output='1']");
+      if (output) {
+        output.value = text;
+      }
+    } catch (error) {
+      this.logIssue("setSourceOutput failed", error);
+    }
+  }
+
+  function setSourceOpen(openFlag) {
+    try {
+      var s = this.state();
+      s.sourceModalOpen = !!openFlag;
+      if (openFlag) {
+        this.hideToolbar();
+        this.setOpen(false);
+        this.setColorsOpen(false);
+      }
+      var modal = this.querySelector("q-modal[q-builder-source-modal='1']");
+      if (!modal) {
+        if (!openFlag) { this.positionToolbar(); }
+        return;
+      }
+      if (openFlag && typeof modal.show === "function") {
+        modal.show();
+        this.ensureSourceModalLayout();
+      } else if (!openFlag && typeof modal.hide === "function") {
+        modal.hide();
+        this.positionToolbar();
+      } else {
+        var root = modal.querySelector ? modal.querySelector("[q-modal-root='1'], .w3-modal") : null;
+        this.applyStyles(root, { display: openFlag ? "block" : "none" }, "setSourceOpen root fallback failed");
+        if (openFlag) {
+          this.ensureSourceModalLayout();
+        } else {
+          this.positionToolbar();
+        }
+      }
+      return;
+    } catch (error) {
+      this.logIssue("setSourceOpen failed", error);
+    }
+  }
+
+  function openSource(host) {
+    try {
+      var text = this.exportSource(host, { preserveOriginal: false });
+      this.setSourceOutput(text);
+      var s = this.state();
+      s.modalOpen = false;
+      s.colorsModalOpen = false;
+      s.sourceModalOpen = true;
+      s.slotPickerOpen = false;
+      this.hideModalHost(this.editModalHost());
+      this.hideModalHost(this.colorsModalHost());
+      this.hideModalHost(this.slotPickerModalHost());
+      this.hideToolbar();
+      return this.sourceModalHost();
+    } catch (error) {
+      this.logIssue("openSource failed", error);
+      return null;
+    }
+  }
+
+  function copySource() {
+    try {
+      var output = this.querySelector("[q-builder-source-output='1']");
+      var text = output && typeof output.value === "string" ? output.value : String(this.state().sourceText || "");
+      var globalRef = this.getGlobalRef();
+      if (globalRef && globalRef.navigator && globalRef.navigator.clipboard && typeof globalRef.navigator.clipboard.writeText === "function") {
+        globalRef.navigator.clipboard.writeText(text);
+        return true;
+      }
+      if (output && typeof output.select === "function") {
+        output.focus();
+        output.select();
+        if (typeof document !== "undefined" && typeof document.execCommand === "function") {
+          document.execCommand("copy");
+          return true;
+        }
+      }
+    } catch (error) {
+      this.logIssue("copySource failed", error);
+    }
+    return false;
+  }
+
+  function downloadSource() {
+    try {
+      var text = String(this.state().sourceText || "");
+      if (!text) { return false; }
+      var globalRef = this.getGlobalRef();
+      if (!globalRef || typeof globalRef.Blob !== "function" || !globalRef.URL || typeof globalRef.URL.createObjectURL !== "function") {
+        return false;
+      }
+      var blob = new globalRef.Blob([text], { type: "text/plain;charset=utf-8" });
+      var url = globalRef.URL.createObjectURL(blob);
+      var doc = this.ownerDocument || document;
+      var link = doc.createElement("a");
+      link.href = url;
+      link.download = "page-builder-output.qhtml";
+      if (doc.body) { doc.body.appendChild(link); }
+      if (typeof link.click === "function") { link.click(); }
+      if (link.parentNode && typeof link.parentNode.removeChild === "function") {
+        link.parentNode.removeChild(link);
+      }
+      globalRef.URL.revokeObjectURL(url);
+      return true;
+    } catch (error) {
+      this.logIssue("downloadSource failed", error);
+      return false;
+    }
+  }
+
+  function ensureSlotPickerLayout() {
+    try {
+      var modal = this.querySelector("q-modal[q-builder-slot-picker-modal='1']");
+      if (!modal) { return; }
+      var root = modal.querySelector("[q-modal-root='1'], .w3-modal");
+      var content = modal.querySelector(".w3-modal-content");
+      var body = modal.querySelector(".w3-container.w3-section");
+      this.applyStyles(root, { zIndex: "6250", overflow: "auto", paddingTop: "12vh" }, "slot picker root layout failed");
+      this.applyStyles(content, {
+        width: "min(92vw, 420px)",
+        margin: "0 auto"
+      }, "slot picker content layout failed");
+      this.applyStyles(body, { maxHeight: "48vh", overflow: "auto" }, "slot picker body layout failed");
+    } catch (error) {
+      this.logIssue("ensureSlotPickerLayout failed", error);
+    }
+  }
+
+  function renderSlotPickerChoices(choices) {
+    try {
+      var listNode = this.querySelector("[q-builder-slot-picker-list='1']");
+      var list = Array.isArray(choices) ? choices : [];
+      var lines = ["div { q-builder-slot-picker-list: \"1\""];
+      if (!list.length) {
+        lines.push("  div.w3-small.w3-text-grey { text { No slots available. } }");
+      } else {
+        for (var i = 0; i < list.length; i += 1) {
+          var choice = list[i] || {};
+          var slotName = String(choice.slotName || "default").trim() || "default";
+          var label = String(choice.label || slotName).trim() || slotName;
+          lines.push("  button.w3-button.w3-block.w3-left-align.w3-theme-l3.w3-round.w3-margin-bottom { type: \"button\" q-builder-action: \"choose-slot\" q-builder-slot-choice: \"" + slotName + "\" onclick { this.closest(\"q-builder\").chooseSlot(\"" + slotName + "\"); } text { " + label + " } }");
+        }
+      }
+      lines.push("}");
+      var source = lines.join("\n");
+      if (listNode && typeof listNode.qdom === "function" && listNode.qdom() && typeof listNode.qdom().replaceWithQHTML === "function") {
+        listNode.qdom().replaceWithQHTML(source);
+      } else if (listNode) {
+        listNode.innerHTML = "";
+      }
+    } catch (error) {
+      this.logIssue("renderSlotPickerChoices failed", error);
+    }
+  }
+
+  function setSlotPickerOpen(openFlag) {
+    try {
+      var s = this.state();
+      s.slotPickerOpen = !!openFlag;
+      if (!openFlag) {
+        s.stagedDrop = null;
+        s.slotChoices = [];
+      }
+      if (openFlag) {
+        this.hideToolbar();
+      }
+      var modal = this.querySelector("q-modal[q-builder-slot-picker-modal='1']");
+      if (!modal) {
+        if (!openFlag) { this.positionToolbar(); }
+        return;
+      }
+      if (openFlag && typeof modal.show === "function") {
+        modal.show();
+        this.ensureSlotPickerLayout();
+      } else if (!openFlag && typeof modal.hide === "function") {
+        modal.hide();
+        this.positionToolbar();
+      } else {
+        var root = modal.querySelector ? modal.querySelector("[q-modal-root='1'], .w3-modal") : null;
+        this.applyStyles(root, { display: openFlag ? "block" : "none" }, "setSlotPickerOpen root fallback failed");
+        if (openFlag) {
+          this.ensureSlotPickerLayout();
+        } else {
+          this.positionToolbar();
+        }
+      }
+      return;
+    } catch (error) {
+      this.logIssue("setSlotPickerOpen failed", error);
+    }
+  }
+
+  function openSlotPicker(stage) {
+    try {
+      var s = this.state();
+      var nextStage = stage && typeof stage === "object" ? stage : null;
+      s.stagedDrop = nextStage;
+      s.slotChoices = nextStage && Array.isArray(nextStage.slotChoices) ? nextStage.slotChoices.slice() : [];
+      var messageNode = this.querySelector("[q-builder-slot-picker-message='1']");
+      if (messageNode) {
+        var paletteLabel = nextStage && nextStage.paletteItem && nextStage.paletteItem.label
+          ? String(nextStage.paletteItem.label || "").trim()
+          : "";
+        messageNode.textContent = nextStage
+          ? "Choose a target slot for " + String(paletteLabel || nextStage.componentName || "component") + "."
+          : "Choose a target slot for the dropped component.";
+      }
+      this.renderSlotPickerChoices(s.slotChoices);
+      this.setSlotPickerOpen(true);
+    } catch (error) {
+      this.logIssue("openSlotPicker failed", error);
+    }
+  }
+
+  function chooseSlot(slotName) {
+    try {
+      var s = this.state();
+      var stage = s.stagedDrop && typeof s.stagedDrop === "object" ? s.stagedDrop : null;
+      if (!stage || !stage.host || !stage.target) {
+        this.setSlotPickerOpen(false);
+        return false;
+      }
+      var applied = this.commitPaletteDropToSlot(stage.paletteItem || stage.componentName, stage.host, slotName, { target: stage.target });
+      s.stagedDrop = null;
+      s.slotChoices = [];
+      this.setSlotPickerOpen(false);
+      this.clearPaletteDropTarget();
+      this.state().paletteDragName = "";
+      return applied;
+    } catch (error) {
+      this.logIssue("chooseSlot failed", error);
+      this.setSlotPickerOpen(false);
+      return false;
+    }
+  }
+
   function setHoverElement(element) {
     var s = this.state();
     var next = element || null;
@@ -2677,6 +4269,8 @@ q-component q-builder {
       if (openFlag) {
         this.hideToolbar();
         this.setColorsOpen(false);
+        this.setSourceOpen(false);
+        this.setSlotPickerOpen(false);
       }
       var modal = this.querySelector("q-modal[q-builder-modal='1']");
       if (!modal) {
@@ -2689,39 +4283,44 @@ q-component q-builder {
         this.fitModalToContent();
         var self = this;
         setTimeout(function() { self.ensureModalLayout(); self.fitModalToContent(); }, 0);
-        return;
-      }
-      if (!openFlag && typeof modal.hide === "function") {
+      } else if (!openFlag && typeof modal.hide === "function") {
         modal.hide();
         this.positionToolbar();
-        return;
-      }
-      var root = modal.querySelector ? modal.querySelector("[q-modal-root='1'], .w3-modal") : null;
-      this.applyStyles(root, { display: openFlag ? "block" : "none" }, "setOpen root fallback failed");
-      if (openFlag) {
-        this.ensureModalLayout();
-        this.fitModalToContent();
       } else {
-        this.positionToolbar();
+        var root = modal.querySelector ? modal.querySelector("[q-modal-root='1'], .w3-modal") : null;
+        this.applyStyles(root, { display: openFlag ? "block" : "none" }, "setOpen root fallback failed");
+        if (openFlag) {
+          this.ensureModalLayout();
+          this.fitModalToContent();
+        } else {
+          this.positionToolbar();
+        }
       }
+      return;
     } catch (error) {
       this.logIssue("setOpen failed", error);
     }
   }
 
-  function setInspectMode(enabled, host) {
+  function setInspectMode(enabled, host, scopeRoot) {
     try {
       var s = this.state();
       s.inspect = !!enabled;
       s.host = host && host.nodeType === 1 ? host : null;
+      s.scopeRoot = scopeRoot && scopeRoot.nodeType === 1 ? scopeRoot : (s.host || null);
       this.refreshPalette(s.host);
       if (!s.inspect) {
         this.setOpen(false);
         this.setColorsOpen(false);
+        this.setSourceOpen(false);
+        this.setSlotPickerOpen(false);
         this.setHoverElement(null);
         this.setSelectedElement(null);
+        s.scopeRoot = s.host || null;
         this.clearPaletteDropTarget();
         s.paletteDragName = "";
+        s.stagedDrop = null;
+        s.slotChoices = [];
         this.hideToolbar();
       }
     } catch (error) {
@@ -2740,13 +4339,242 @@ q-component q-builder {
     }
   }
 
+  function editModalHost() {
+    return this.querySelector("#q-builder-edit-modal");
+  }
+
+  function colorsModalHost() {
+    return this.querySelector("#q-builder-colors-modal-host");
+  }
+
+  function sourceModalHost() {
+    return this.querySelector("#q-builder-source-modal-host");
+  }
+
+  function slotPickerModalHost() {
+    return this.querySelector("#q-builder-slot-picker-modal-host");
+  }
+
+  function hideModalHost(modal) {
+    try {
+      if (modal && typeof modal.hide === "function") {
+        modal.hide();
+        return true;
+      }
+    } catch (error) {
+      this.logIssue("hideModalHost failed", error);
+    }
+    return false;
+  }
+
+  function markEditModalClosed() {
+    try {
+      this.state().modalOpen = false;
+      this.positionToolbar();
+      return true;
+    } catch (error) {
+      this.logIssue("markEditModalClosed failed", error);
+      return false;
+    }
+  }
+
+  function markColorsModalClosed() {
+    try {
+      var s = this.state();
+      s.colorsModalOpen = false;
+      s.colorsEditContext = null;
+      this.positionToolbar();
+      return true;
+    } catch (error) {
+      this.logIssue("markColorsModalClosed failed", error);
+      return false;
+    }
+  }
+
+  function markSourceModalClosed() {
+    try {
+      this.state().sourceModalOpen = false;
+      this.positionToolbar();
+      return true;
+    } catch (error) {
+      this.logIssue("markSourceModalClosed failed", error);
+      return false;
+    }
+  }
+
+  function markSlotPickerClosed() {
+    try {
+      var s = this.state();
+      s.slotPickerOpen = false;
+      s.stagedDrop = null;
+      s.slotChoices = [];
+      this.positionToolbar();
+      return true;
+    } catch (error) {
+      this.logIssue("markSlotPickerClosed failed", error);
+      return false;
+    }
+  }
+
+  function markAllDialogsClosed() {
+    this.markEditModalClosed();
+    this.markColorsModalClosed();
+    this.markSourceModalClosed();
+    this.markSlotPickerClosed();
+  }
+
+  function showSelectedEditor() {
+    try {
+      this.openSelected();
+      var self = this;
+      setTimeout(function() {
+        var modal = self.editModalHost();
+        if (modal && typeof modal.show === "function") {
+          modal.show();
+        }
+      }, 0);
+      return this.editModalHost();
+    } catch (error) {
+      this.logIssue("showSelectedEditor failed", error);
+    }
+    return null;
+  }
+
+  function showColorsEditor() {
+    try {
+      this.openColors();
+      var self = this;
+      setTimeout(function() {
+        var modal = self.colorsModalHost();
+        if (modal && typeof modal.show === "function") {
+          modal.show();
+        }
+      }, 0);
+      return this.colorsModalHost();
+    } catch (error) {
+      this.logIssue("showColorsEditor failed", error);
+    }
+    return null;
+  }
+
+  function showSourceDialog(host) {
+    try {
+      this.openSource(host);
+      var self = this;
+      setTimeout(function() {
+        var modal = self.sourceModalHost();
+        if (modal && typeof modal.show === "function") {
+          modal.show();
+        }
+      }, 0);
+      return this.sourceModalHost();
+    } catch (error) {
+      this.logIssue("showSourceDialog failed", error);
+    }
+    return null;
+  }
+
+  function showSourceDialogForSelected() {
+    try {
+      var s = this.state();
+      var host = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
+      if (!host) { return null; }
+      return this.showSourceDialog(host);
+    } catch (error) {
+      this.logIssue("showSourceDialogForSelected failed", error);
+      return null;
+    }
+  }
+
   function openSelected() {
     var s = this.state();
     if (s.selectedEl) { this.setTarget(s.selectedEl); }
     var editor = this.querySelector("[q-builder-editor='1']");
     if (editor && typeof editor.setQhtmlSource === "function") { editor.setQhtmlSource(s.source); }
-    this.setColorsOpen(false);
-    this.setOpen(true);
+    s.modalOpen = true;
+    s.colorsModalOpen = false;
+    s.sourceModalOpen = false;
+    s.slotPickerOpen = false;
+    this.hideModalHost(this.colorsModalHost());
+    this.hideModalHost(this.sourceModalHost());
+    this.hideModalHost(this.slotPickerModalHost());
+    this.hideToolbar();
+    return this.editModalHost();
+  }
+
+  function openSourceForSelected() {
+    try {
+      var s = this.state();
+      var host = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
+      if (!host) { return null; }
+      return this.openSource(host);
+    } catch (error) {
+      this.logIssue("openSourceForSelected failed", error);
+      return null;
+    }
+  }
+
+  function selectParentElement() {
+    try {
+      var s = this.state();
+      var host = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
+      var current = s.selectedEl && s.selectedEl.nodeType === 1 ? s.selectedEl : null;
+      if (!current || !host) { return false; }
+      var cursor = current.parentElement;
+      while (cursor && cursor.nodeType === 1) {
+        if (cursor === host) { break; }
+        if (!this.isWithinBuilderRuntime(cursor)) {
+          this.setSelectedElement(cursor);
+          return true;
+        }
+        cursor = cursor.parentElement;
+      }
+    } catch (error) {
+      this.logIssue("selectParentElement failed", error);
+    }
+    return false;
+  }
+
+  function duplicateSelected() {
+    try {
+      var s = this.state();
+      var host = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
+      var selectedEl = s.selectedEl && s.selectedEl.nodeType === 1 ? s.selectedEl : null;
+      if (!host || !selectedEl) { return false; }
+      this.setTarget(selectedEl);
+      var cloneNode = this.createClonedNodeForHost(host, s.target);
+      if (!cloneNode) { return false; }
+      var anchorParent = selectedEl.parentElement && selectedEl.parentElement.nodeType === 1 ? selectedEl.parentElement : host;
+      var inserted = this.insertSourceNodeAdjacentInHostTree(host, s.target, cloneNode, "after");
+      if (!inserted) { return false; }
+      this.requestHostUpdate(host, anchorParent);
+      this.refreshPalette(host);
+      this.setSelectedElement(null);
+      return true;
+    } catch (error) {
+      this.logIssue("duplicateSelected failed", error);
+      return false;
+    }
+  }
+
+  function removeSelected() {
+    try {
+      var s = this.state();
+      var host = s.host && s.host.nodeType === 1 ? s.host : (this.closest ? this.closest("q-html") : null);
+      var selectedEl = s.selectedEl && s.selectedEl.nodeType === 1 ? s.selectedEl : null;
+      if (!host || !selectedEl) { return false; }
+      this.setTarget(selectedEl);
+      var anchorParent = selectedEl.parentElement && selectedEl.parentElement.nodeType === 1 ? selectedEl.parentElement : host;
+      var removed = this.removeSourceNodeFromHostTree(host, s.target);
+      if (!removed) { return false; }
+      this.requestHostUpdate(host, anchorParent);
+      this.refreshPalette(host);
+      this.setSelectedElement(null);
+      return true;
+    } catch (error) {
+      this.logIssue("removeSelected failed", error);
+      return false;
+    }
   }
 
   function save() {
@@ -2821,6 +4649,14 @@ q-component q-builder {
       var doc = host.ownerDocument;
       var parent = host.parentNode;
       var replacementHost = doc.createElement("q-html");
+      if (host.attributes && typeof host.attributes.length === "number") {
+        for (var ai = 0; ai < host.attributes.length; ai += 1) {
+          var attr = host.attributes[ai];
+          var attrName = attr && attr.name ? String(attr.name || "") : "";
+          if (!attrName || attrName === "style") { continue; }
+          replacementHost.setAttribute(attrName, String(attr.value || ""));
+        }
+      }
       replacementHost.textContent = exported;
       if (runtime && typeof runtime.unmountQHtmlElement === "function") {
         try { runtime.unmountQHtmlElement(host); } catch (error2) { }
@@ -2872,25 +4708,18 @@ q-component q-builder {
     this.ensureUi();
     this.ensureModalLayout();
     this.ensureColorsModalLayout();
+    this.ensureSourceModalLayout();
+    this.ensureSlotPickerLayout();
+    this.setPaletteMode(this.getAttribute("q-builder-palette-mode") || this.state().paletteMode);
     this.refreshPalette();
-    var self = this;
-
     this.addEventListener("click", function(event) {
       var closeTrigger = event.target && event.target.closest ? event.target.closest("[q-modal-close-trigger='1']") : null;
-      if (closeTrigger) { self.setOpen(false); self.setColorsOpen(false); }
-      var node = event.target && event.target.closest ? event.target.closest("[q-builder-action]") : null;
-      var action = node ? String(node.getAttribute("q-builder-action") || "") : "";
-      if (action === "open") { self.openSelected(); }
-      if (action === "open-colors") { self.openColors(); }
-      if (action === "save") { self.save(); }
-      if (action === "close") { self.setOpen(false); }
-      if (action === "save-colors") { self.saveColors(); }
-      if (action === "close-colors") { self.setColorsOpen(false); }
-      if (action === "customize-style") { self.customizeStyleForSelected(); }
-      if (action === "customize-theme") { self.customizeThemeForSelected(); }
-      if (action === "add-theme-style") { self.addThemeStyleToEditor(); }
+      if (!closeTrigger) { return; }
+      var builder = event.currentTarget && event.currentTarget.nodeType === 1 ? event.currentTarget : null;
+      if (builder && typeof builder.markAllDialogsClosed === "function") {
+        builder.markAllDialogsClosed();
+      }
     });
-
     var globalRef = this.getGlobalRef();
     function resolveBuilderHost(builder, fallbackHost) {
       if (fallbackHost && fallbackHost.nodeType === 1) { return fallbackHost; }
@@ -2953,6 +4782,7 @@ q-component q-builder {
     if (globalRef.__qbuilderApiInstalled) { return; }
     globalRef.__qbuilderApiInstalled = true;
     var inspectStateByHost = new WeakMap();
+    var paletteDisconnectByElement = new WeakMap();
 
     function resolveHost(target) {
       if (!target || target.nodeType !== 1) { return null; }
@@ -2960,13 +4790,22 @@ q-component q-builder {
       return target.closest ? target.closest("q-html") : null;
     }
 
-    function resolveCandidate(rawTarget, host) {
+    function resolveInspectRoot(target, host) {
+      if (!host || host.nodeType !== 1) { return null; }
+      if (!target || target.nodeType !== 1) { return host; }
+      if (target === host) { return host; }
+      return host.contains && host.contains(target) ? target : host;
+    }
+
+    function resolveCandidate(rawTarget, host, scopeRoot) {
       var cursor = rawTarget && rawTarget.nodeType === 1 ? rawTarget : (rawTarget && rawTarget.parentElement ? rawTarget.parentElement : null);
       if (!cursor || cursor.nodeType !== 1) { return null; }
-      if (cursor === host) { return null; }
+      var root = scopeRoot && scopeRoot.nodeType === 1 ? scopeRoot : host;
+      if (cursor === host && root === host) { return null; }
       if (cursor.closest && cursor.closest("q-builder[q-builder-runtime='1']")) { return null; }
       if (cursor.closest && cursor.closest("[data-page-edit-toggle='1']")) { return null; }
       if (host.contains && !host.contains(cursor)) { return null; }
+      if (root && root.contains && !root.contains(cursor)) { return null; }
       return cursor;
     }
 
@@ -2976,14 +4815,17 @@ q-component q-builder {
       return candidate;
     }
 
-  function normalizeEditableTarget(candidate, host) {
+  function normalizeEditableTarget(candidate, host, scopeRoot) {
     if (!candidate || candidate.nodeType !== 1) { return null; }
     var cursor = candidate;
+    var root = scopeRoot && scopeRoot.nodeType === 1 ? scopeRoot : host;
     var trail = [];
     while (cursor && cursor.nodeType === 1 && cursor !== host) {
+      if (root && root.contains && !root.contains(cursor) && cursor !== root) { return null; }
       if (cursor.closest && cursor.closest("q-builder[q-builder-runtime='1']")) { return null; }
       var isInstance = String(cursor.getAttribute ? cursor.getAttribute("qhtml-component-instance") || "" : "") === "1";
       trail.push({ element: cursor, kind: isInstance ? "component-instance" : "element" });
+      if (cursor === root) { break; }
       cursor = cursor.parentElement;
     }
     if (trail.length === 0) { return null; }
@@ -3015,13 +4857,44 @@ q-component q-builder {
     return trail[0].element;
   }
 
-    function ensureRuntime(host) {
-      if (!host || typeof host.qdom !== "function") { return null; }
+	    function ensureRuntime(host) {
+	      if (!host || typeof host.qdom !== "function") { return null; }
+	      var preferredPaletteMode = "";
+	      try {
+	        preferredPaletteMode = host.getAttribute ? String(host.getAttribute("data-q-builder-palette-mode") || "").trim().toLowerCase() : "";
+	      } catch (ignoredPaletteModeRead) {
+	        preferredPaletteMode = "";
+	      }
+	      var instances = host.querySelectorAll ? host.querySelectorAll("q-builder[q-builder-runtime='1']") : [];
+	      if (instances && typeof instances.length === "number" && instances.length > 1) {
+	        for (var ri = 1; ri < instances.length; ri += 1) {
+	          if (instances[ri] && instances[ri].parentNode) {
+	            try { instances[ri].parentNode.removeChild(instances[ri]); } catch (ignoredRuntimeRemove) { }
+          }
+        }
+      }
       var instance = host.querySelector("q-builder[q-builder-runtime='1']");
-      if (!instance) {
-        var qdomHost = host.qdom();
-        qdomHost.appendNode(qdomHost.createQComponentInstance("q-builder", { "q-builder-runtime": "1" }));
-        instance = host.querySelector("q-builder[q-builder-runtime='1']");
+	      if (!instance) {
+	        var qdomHost = host.qdom();
+	        if (!qdomHost || typeof qdomHost.appendNode !== "function" || typeof qdomHost.createQComponentInstance !== "function") {
+	          return null;
+	        }
+	        var builderAttrs = { "q-builder-runtime": "1" };
+	        if (preferredPaletteMode) {
+	          builderAttrs["q-builder-palette-mode"] = preferredPaletteMode;
+	        }
+	        qdomHost.appendNode(qdomHost.createQComponentInstance("q-builder", builderAttrs));
+	        instance = host.querySelector("q-builder[q-builder-runtime='1']");
+	      }
+	      if (instance && preferredPaletteMode) {
+	        try {
+	          if (instance.setAttribute) {
+	            instance.setAttribute("q-builder-palette-mode", preferredPaletteMode);
+	          }
+          if (typeof instance.setPaletteMode === "function") {
+            instance.setPaletteMode(preferredPaletteMode);
+          }
+        } catch (ignoredPaletteApply) { }
       }
       installBuilderEnabledProperty(instance, host);
       return instance || null;
@@ -3029,12 +4902,15 @@ q-component q-builder {
 
     function bindInspectHost(host) {
       if (!host || inspectStateByHost.has(host)) { return; }
-      var state = { enabled: false, builder: null, hovered: null, paletteDragging: false, paletteName: "" };
+      var state = { enabled: false, builder: null, hovered: null, paletteDragging: false, paletteName: "", paletteItem: null, scopeRoot: host };
       inspectStateByHost.set(host, state);
 
       function getBuilder() {
         if (state.builder && state.builder.isConnected) { return state.builder; }
         state.builder = ensureRuntime(host);
+        if (state.builder && typeof state.builder.setScopeRoot === "function") {
+          state.builder.setScopeRoot(state.scopeRoot);
+        }
         return state.builder;
       }
 
@@ -3043,7 +4919,7 @@ q-component q-builder {
         if (state.paletteDragging) { return; }
         var builder = getBuilder();
         if (!builder || typeof builder.setHoverElement !== "function") { return; }
-        var candidate = normalizeEditableTarget(resolveCandidate(rawTarget, host), host);
+        var candidate = normalizeEditableTarget(resolveCandidate(rawTarget, host, state.scopeRoot), host, state.scopeRoot);
         if (candidate === state.hovered) { return; }
         state.hovered = candidate;
         builder.setHoverElement(candidate);
@@ -3058,7 +4934,7 @@ q-component q-builder {
         if (state.paletteDragging) { return; }
         var builder = getBuilder();
         if (!builder || typeof builder.setSelectedElement !== "function") { return; }
-        var candidate = normalizeEditableTarget(resolveCandidate(event.target, host), host);
+        var candidate = normalizeEditableTarget(resolveCandidate(event.target, host, state.scopeRoot), host, state.scopeRoot);
         if (!candidate) { return; }
         event.preventDefault();
         event.stopPropagation();
@@ -3082,12 +4958,13 @@ q-component q-builder {
         var builder = getBuilder();
         state.paletteDragging = !!name;
         state.paletteName = name;
+        state.paletteItem = detail.item && typeof detail.item === "object" ? detail.item : (name || "");
         state.hovered = null;
         if (builder && typeof builder.setHoverElement === "function") {
           builder.setHoverElement(null);
         }
         if (!builder || !state.paletteDragging || typeof builder.updatePaletteDropTarget !== "function") { return; }
-        builder.updatePaletteDropTarget(name, host, Number(detail.clientX || 0), Number(detail.clientY || 0));
+        builder.updatePaletteDropTarget(state.paletteItem, host, Number(detail.clientX || 0), Number(detail.clientY || 0));
       }, true);
 
       host.addEventListener("q-builder-palette:itemdragmove", function(event) {
@@ -3095,7 +4972,7 @@ q-component q-builder {
         var detail = event && event.detail ? event.detail : {};
         var builder = getBuilder();
         if (!builder || typeof builder.updatePaletteDropTarget !== "function") { return; }
-        builder.updatePaletteDropTarget(state.paletteName, host, Number(detail.clientX || 0), Number(detail.clientY || 0));
+        builder.updatePaletteDropTarget(state.paletteItem || state.paletteName, host, Number(detail.clientX || 0), Number(detail.clientY || 0));
       }, true);
 
       host.addEventListener("q-builder-palette:itemdragend", function(event) {
@@ -3103,12 +4980,13 @@ q-component q-builder {
         var detail = event && event.detail ? event.detail : {};
         var builder = getBuilder();
         if (builder && typeof builder.commitPaletteDrop === "function") {
-          builder.commitPaletteDrop(state.paletteName || detail.name, host, Number(detail.clientX || 0), Number(detail.clientY || 0));
+          builder.commitPaletteDrop(state.paletteItem || detail.item || state.paletteName || detail.name, host, Number(detail.clientX || 0), Number(detail.clientY || 0));
         } else if (builder && typeof builder.clearPaletteDropTarget === "function") {
           builder.clearPaletteDropTarget();
         }
         state.paletteDragging = false;
         state.paletteName = "";
+        state.paletteItem = null;
       }, true);
 
       if (typeof window !== "undefined" && window && typeof window.addEventListener === "function") {
@@ -3125,6 +5003,109 @@ q-component q-builder {
       }
     }
 
+    function connectExternalPalette(palette, host, scopeRoot) {
+      if (!palette || palette.nodeType !== 1 || !host || host.nodeType !== 1) { return function noop() {}; }
+      bindInspectHost(host);
+      var previousPaletteMode = "";
+      try {
+        previousPaletteMode = host.getAttribute ? String(host.getAttribute("data-q-builder-palette-mode") || "") : "";
+      } catch (ignoredPreviousPaletteMode) {
+        previousPaletteMode = "";
+      }
+      var restorePaletteMode = String(previousPaletteMode || "floating").trim().toLowerCase() || "floating";
+      if (restorePaletteMode !== "embedded" && restorePaletteMode !== "hidden") {
+        restorePaletteMode = "floating";
+      }
+      if (host.setAttribute) {
+        host.setAttribute("data-q-builder-palette-mode", "hidden");
+      }
+      var state = inspectStateByHost.get(host);
+      state.scopeRoot = resolveInspectRoot(scopeRoot || host, host);
+      var builder = ensureRuntime(host);
+      if (builder && typeof builder.setScopeRoot === "function") {
+        builder.setScopeRoot(state.scopeRoot);
+      }
+      if (builder && typeof builder.setPaletteMode === "function") {
+        builder.setPaletteMode("hidden");
+      }
+      if (paletteDisconnectByElement.has(palette)) {
+        try { paletteDisconnectByElement.get(palette)(); } catch (ignoredDisconnect) { }
+      }
+      if (typeof palette.setHost === "function") {
+        palette.setHost(host);
+      }
+      palette.mode = "embedded";
+      if (typeof palette.applyLayoutMode === "function") {
+        palette.applyLayoutMode();
+      }
+
+      function getBuilder() {
+        var current = ensureRuntime(host);
+        installBuilderEnabledProperty(current, host);
+        if (current && typeof current.setScopeRoot === "function") {
+          current.setScopeRoot(state.scopeRoot);
+        }
+        return current;
+      }
+
+      function onStart(event) {
+        if (!state || !state.enabled) { return; }
+        var detail = event && event.detail ? event.detail : {};
+        var name = String(detail.name || "").trim().toLowerCase();
+        var currentBuilder = getBuilder();
+        state.paletteDragging = !!name;
+        state.paletteName = name;
+        state.paletteItem = detail.item && typeof detail.item === "object" ? detail.item : (name || "");
+        state.hovered = null;
+        if (currentBuilder && typeof currentBuilder.setHoverElement === "function") {
+          currentBuilder.setHoverElement(null);
+        }
+        if (!currentBuilder || !state.paletteDragging || typeof currentBuilder.updatePaletteDropTarget !== "function") { return; }
+        currentBuilder.updatePaletteDropTarget(state.paletteItem, host, Number(detail.clientX || 0), Number(detail.clientY || 0));
+      }
+
+      function onMove(event) {
+        if (!state || !state.enabled || !state.paletteDragging) { return; }
+        var detail = event && event.detail ? event.detail : {};
+        var currentBuilder = getBuilder();
+        if (!currentBuilder || typeof currentBuilder.updatePaletteDropTarget !== "function") { return; }
+        currentBuilder.updatePaletteDropTarget(state.paletteItem || state.paletteName, host, Number(detail.clientX || 0), Number(detail.clientY || 0));
+      }
+
+      function onEnd(event) {
+        if (!state || !state.enabled) { return; }
+        var detail = event && event.detail ? event.detail : {};
+        var currentBuilder = getBuilder();
+        if (currentBuilder && typeof currentBuilder.commitPaletteDrop === "function") {
+          currentBuilder.commitPaletteDrop(state.paletteItem || detail.item || state.paletteName || detail.name, host, Number(detail.clientX || 0), Number(detail.clientY || 0));
+        } else if (currentBuilder && typeof currentBuilder.clearPaletteDropTarget === "function") {
+          currentBuilder.clearPaletteDropTarget();
+        }
+        state.paletteDragging = false;
+        state.paletteName = "";
+        state.paletteItem = null;
+      }
+
+      palette.addEventListener("q-builder-palette:itemdragstart", onStart, true);
+      palette.addEventListener("q-builder-palette:itemdragmove", onMove, true);
+      palette.addEventListener("q-builder-palette:itemdragend", onEnd, true);
+
+      var disconnect = function disconnectExternalPalette() {
+        try { palette.removeEventListener("q-builder-palette:itemdragstart", onStart, true); } catch (ignoredStart) { }
+        try { palette.removeEventListener("q-builder-palette:itemdragmove", onMove, true); } catch (ignoredMove) { }
+        try { palette.removeEventListener("q-builder-palette:itemdragend", onEnd, true); } catch (ignoredEnd) { }
+        if (host.setAttribute) {
+          host.setAttribute("data-q-builder-palette-mode", restorePaletteMode);
+        }
+        var liveBuilder = ensureRuntime(host);
+        if (liveBuilder && typeof liveBuilder.setPaletteMode === "function") {
+          liveBuilder.setPaletteMode(restorePaletteMode);
+        }
+      };
+      paletteDisconnectByElement.set(palette, disconnect);
+      return disconnect;
+    }
+
     globalRef.qbuilder = {
       create: function(target) {
         var host = resolveHost(target) || (typeof document !== "undefined" ? document.querySelector("q-html") : null);
@@ -3134,6 +5115,7 @@ q-component q-builder {
       },
       inspect: function(target, enabled) {
         var host = resolveHost(target) || (typeof document !== "undefined" ? document.querySelector("q-html") : null);
+        var scopeRoot = resolveInspectRoot(target, host);
         var builder = ensureRuntime(host);
         if (!host || !builder || typeof builder.setInspectMode !== "function") { return builder; }
         installBuilderEnabledProperty(builder, host);
@@ -3141,15 +5123,44 @@ q-component q-builder {
         var state = inspectStateByHost.get(host);
         if (state) {
           state.enabled = enabled !== false;
+          state.scopeRoot = scopeRoot;
           if (!state.enabled) { state.hovered = null; }
         }
-        builder.setInspectMode(enabled !== false, host);
+        if (typeof builder.setScopeRoot === "function") {
+          builder.setScopeRoot(scopeRoot);
+        }
+        builder.setInspectMode(enabled !== false, host, scopeRoot);
+        return builder;
+      },
+      connectPalette: function(palette, target) {
+        var host = resolveHost(target) || (typeof document !== "undefined" ? document.querySelector("q-html") : null);
+        return connectExternalPalette(palette, host, resolveInspectRoot(target, host));
+      },
+      export: function(target, options) {
+        var host = resolveHost(target) || (typeof document !== "undefined" ? document.querySelector("q-html") : null);
+        var builder = ensureRuntime(host);
+        if (!builder || typeof builder.exportSource !== "function") {
+          if (host && globalRef.QHtml && typeof globalRef.QHtml.toQHtmlSource === "function") {
+            return String(globalRef.QHtml.toQHtmlSource(host, options || { preserveOriginal: false }) || "");
+          }
+          return "";
+        }
+        return builder.exportSource(target && target.nodeType === 1 ? target : host, options || { preserveOriginal: false });
+      },
+      source: function(target) {
+        var host = resolveHost(target) || (typeof document !== "undefined" ? document.querySelector("q-html") : null);
+        var builder = ensureRuntime(host);
+        if (builder && typeof builder.showSourceDialog === "function") {
+          builder.showSourceDialog(target && target.nodeType === 1 ? target : host);
+        }
         return builder;
       },
       edit: function(target) {
         var builder = this.create(target);
         if (builder && typeof builder.setSelectedElement === "function") { builder.setSelectedElement(target && target.nodeType === 1 ? target : null); }
-        if (builder && typeof builder.openSelected === "function") { builder.openSelected(); }
+        if (builder && typeof builder.showSelectedEditor === "function") {
+          builder.showSelectedEditor();
+        }
         return builder;
       },
       show: function(target) { return this.edit(target); }

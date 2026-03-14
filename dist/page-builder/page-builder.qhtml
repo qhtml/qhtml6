@@ -1,0 +1,571 @@
+q-component q-component-wrapper {
+  function node() {
+    return typeof this.builderNode === "function" ? this.builderNode() : null;
+  }
+
+  function highlight(shouldHighlight) {
+    var facade = this.node();
+    if (facade && typeof facade.highlight === "function") {
+      facade.highlight(!!shouldHighlight);
+    }
+    return !!shouldHighlight;
+  }
+
+  function isMouseWithin(x, y) {
+    var facade = this.node();
+    return !!(facade && typeof facade.isMouseWithin === "function" && facade.isMouseWithin(x, y));
+  }
+
+  function hasSlots() {
+    var facade = this.node();
+    return !!(facade && typeof facade.hasSlots === "function" && facade.hasSlots());
+  }
+
+  function hasChildComponent(componentName) {
+    var facade = this.node();
+    return !!(facade && typeof facade.hasChildComponent === "function" && facade.hasChildComponent(componentName));
+  }
+
+  function hasChildComponentInSlot(slotName, componentName) {
+    var facade = this.node();
+    return !!(
+      facade &&
+      typeof facade.hasChildComponentInSlot === "function" &&
+      facade.hasChildComponentInSlot(slotName, componentName)
+    );
+  }
+
+  function appendToSlot(slotName, qdomNodeOrSource, options) {
+    var facade = this.node();
+    if (!facade || typeof facade.appendToSlot !== "function") {
+      return null;
+    }
+    return facade.appendToSlot(slotName, qdomNodeOrSource, options || { autoUpdate: true });
+  }
+
+  function replaceSlotContent(slotName, qdomNodeOrSource, options) {
+    var facade = this.node();
+    if (!facade || typeof facade.replaceSlotContent !== "function") {
+      return null;
+    }
+    return facade.replaceSlotContent(slotName, qdomNodeOrSource, options || { autoUpdate: true });
+  }
+
+  div.q-component-wrapper {
+    data-page-builder-wrapper: "1"
+    style {
+      display: block;
+      min-height: 2.4rem;
+      min-width: 2.4rem;
+      padding: 0.45rem;
+      border: 1px dashed #d6e2f2;
+      border-radius: 0.65rem;
+      background: #ffffff;
+      transition: border-color 140ms ease, box-shadow 140ms ease;
+    }
+    slot { default }
+  }
+}
+
+q-component page-builder-runtime {
+  function state() {
+    if (!this.__pageBuilderRuntimeState || typeof this.__pageBuilderRuntimeState !== "object") {
+      this.__pageBuilderRuntimeState = {
+        dragging: false,
+        dragWidgetId: "",
+        dragSource: "",
+        pointerX: 0,
+        pointerY: 0,
+        hoverTarget: null
+      };
+    }
+    return this.__pageBuilderRuntimeState;
+  }
+
+  function canvasHost() {
+    return document.querySelector("#page-builder-canvas");
+  }
+
+  function canvasDropzone() {
+    return document.querySelector("#page-builder-dropzone");
+  }
+
+  function paletteEntries() {
+    return [
+      { id: "title", label: "Title" },
+      { id: "text", label: "Text Block" },
+      { id: "button", label: "Button" },
+      { id: "input", label: "Input" },
+      { id: "card", label: "Card" },
+      { id: "group", label: "Group Box" },
+      { id: "form", label: "Form" },
+      { id: "grid", label: "Grid" },
+      { id: "frame", label: "Frame" }
+    ];
+  }
+
+  function widgetSource(widgetId) {
+    var key = String(widgetId || "").trim().toLowerCase();
+    if (key === "title") {
+      return "h2.w3-margin-0 { style { min-width: 200px; min-height: 52px; display: block; } text { Section Title } }";
+    }
+    if (key === "text") {
+      return "p { style { min-width: 220px; min-height: 70px; display: block; } text { Replace with your text. } }";
+    }
+    if (key === "button") {
+      return "button.w3-button.w3-blue.w3-round-large { type: \"button\" style { min-width: 160px; min-height: 44px; } text { Action } }";
+    }
+    if (key === "input") {
+      return "input.w3-input.w3-border.w3-round-large { type: \"text\" placeholder: \"Input\" style { min-width: 220px; min-height: 40px; } }";
+    }
+    if (key === "card") {
+      return "div.w3-card.w3-round-large.w3-padding { style { min-width: 220px; min-height: 140px; } h3 { text { Card } } p { text { Card body text. } } }";
+    }
+    if (key === "group") {
+      return "fieldset.w3-border.w3-round-large.w3-padding { style { min-width: 240px; min-height: 140px; } legend { text { Group } } p { text { Group content } } }";
+    }
+    if (key === "form") {
+      return "form { style { min-width: 260px; min-height: 180px; display: flex; flex-direction: column; gap: 0.5rem; } input { type: \"text\" placeholder: \"Name\" } input { type: \"email\" placeholder: \"Email\" } button.w3-button.w3-dark-grey.w3-round-large { type: \"submit\" text { Submit } } }";
+    }
+    if (key === "grid") {
+      return "div { style { min-width: 280px; min-height: 160px; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; } q-component-wrapper { p { text { A } } } q-component-wrapper { p { text { B } } } }";
+    }
+    if (key === "frame") {
+      return "q-page-builder-frame { header { q-component-wrapper { h3 { text { Header Slot } } } } body { q-component-wrapper { p { text { Body Slot } } } } footer { q-component-wrapper { p { text { Footer Slot } } } } }";
+    }
+    return "p { text { New element } }";
+  }
+
+  function wrappedWidgetSource(widgetId) {
+    return "q-component-wrapper { " + this.widgetSource(widgetId) + " }";
+  }
+
+  function targetCandidates() {
+    var host = this.canvasHost();
+    if (!host || !host.querySelectorAll) {
+      return [];
+    }
+    var nodes = host.querySelectorAll("#page-builder-dropzone, #page-builder-dropzone q-component-wrapper, #page-builder-dropzone [qhtml-component-instance='1']");
+    var out = [];
+    for (var i = 0; i < nodes.length; i += 1) {
+      var candidate = nodes[i];
+      if (!candidate || candidate.nodeType !== 1) {
+        continue;
+      }
+      if (candidate.id === "page-builder-runtime") {
+        continue;
+      }
+      if (typeof candidate.builderNode !== "function") {
+        continue;
+      }
+      out.push(candidate);
+    }
+    return out;
+  }
+
+  function clearHighlights() {
+    var nodes = this.targetCandidates();
+    for (var i = 0; i < nodes.length; i += 1) {
+      var facade = nodes[i] && typeof nodes[i].builderNode === "function" ? nodes[i].builderNode() : null;
+      if (facade && typeof facade.highlight === "function") {
+        facade.highlight(false);
+      }
+    }
+    this.state().hoverTarget = null;
+  }
+
+  function areaOf(element) {
+    if (!element || typeof element.getBoundingClientRect !== "function") {
+      return Number.MAX_SAFE_INTEGER;
+    }
+    var rect = element.getBoundingClientRect();
+    return Math.max(1, Math.round(rect.width * rect.height));
+  }
+
+  function deepestTargetAt(x, y) {
+    var nodes = this.targetCandidates();
+    var matches = [];
+    for (var i = 0; i < nodes.length; i += 1) {
+      var candidate = nodes[i];
+      var facade = candidate && typeof candidate.builderNode === "function" ? candidate.builderNode() : null;
+      if (!facade || typeof facade.isMouseWithin !== "function") {
+        continue;
+      }
+      if (!facade.isMouseWithin(x, y)) {
+        continue;
+      }
+      matches.push(candidate);
+    }
+    if (matches.length === 0) {
+      return null;
+    }
+    matches.sort(function byAreaAsc(a, b) {
+      return this.areaOf(a) - this.areaOf(b);
+    }.bind(this));
+    return matches[0] || null;
+  }
+
+  function setHoverTarget(target) {
+    var s = this.state();
+    if (s.hoverTarget === target) {
+      return;
+    }
+    this.clearHighlights();
+    s.hoverTarget = target || null;
+    if (!s.hoverTarget || typeof s.hoverTarget.builderNode !== "function") {
+      return;
+    }
+    var facade = s.hoverTarget.builderNode();
+    if (facade && typeof facade.highlight === "function") {
+      facade.highlight(true);
+    }
+  }
+
+  function pointerFromEvent(event) {
+    var e = event || {};
+    return {
+      x: Number(e.clientX || 0),
+      y: Number(e.clientY || 0)
+    };
+  }
+
+  function trackPointer(event) {
+    var s = this.state();
+    var pos = this.pointerFromEvent(event);
+    s.pointerX = pos.x;
+    s.pointerY = pos.y;
+    if (!s.dragging) {
+      return;
+    }
+    var target = this.deepestTargetAt(pos.x, pos.y);
+    this.setHoverTarget(target);
+  }
+
+  function startDrag(widgetId, event) {
+    var s = this.state();
+    s.dragging = true;
+    s.dragWidgetId = String(widgetId || "");
+    s.dragSource = this.wrappedWidgetSource(s.dragWidgetId);
+    this.trackPointer(event);
+    var transfer = event && event.dataTransfer ? event.dataTransfer : null;
+    if (transfer) {
+      transfer.effectAllowed = "copy";
+      transfer.dropEffect = "copy";
+      transfer.setData("text/plain", s.dragWidgetId);
+    }
+  }
+
+  function stopDrag() {
+    var s = this.state();
+    s.dragging = false;
+    s.dragWidgetId = "";
+    s.dragSource = "";
+    this.clearHighlights();
+  }
+
+  function preferredSlotName(target) {
+    if (!target || typeof target.qdom !== "function") {
+      return "default";
+    }
+    var qdomNode = target.qdom();
+    if (!qdomNode || typeof qdomNode.slots !== "function") {
+      return "default";
+    }
+    var slots = qdomNode.slots();
+    var names = [];
+    for (var i = 0; i < slots.length; i += 1) {
+      var slotName = String(slots[i] && slots[i].name ? slots[i].name : "default").trim() || "default";
+      if (names.indexOf(slotName) < 0) {
+        names.push(slotName);
+      }
+    }
+    if (names.length === 0) {
+      return "default";
+    }
+    if (names.indexOf("body") >= 0) {
+      return "body";
+    }
+    if (names.indexOf("default") >= 0) {
+      return "default";
+    }
+    return names[0];
+  }
+
+  function dropAtCurrentPointer(event) {
+    var s = this.state();
+    if (!s.dragging) {
+      return false;
+    }
+    var pos = this.pointerFromEvent(event);
+    var target = this.deepestTargetAt(pos.x, pos.y) || s.hoverTarget || this.canvasDropzone();
+    if (!target || typeof target.builderNode !== "function") {
+      this.stopDrag();
+      return false;
+    }
+    var facade = target.builderNode();
+    var slotName = this.preferredSlotName(target);
+    if (facade && typeof facade.appendToSlot === "function") {
+      facade.appendToSlot(slotName, s.dragSource, { autoUpdate: true });
+    }
+    this.stopDrag();
+    return true;
+  }
+
+  function allowDrop(event) {
+    if (event && typeof event.preventDefault === "function") {
+      event.preventDefault();
+    }
+    this.trackPointer(event);
+  }
+
+  function handleDrop(event) {
+    if (event && typeof event.preventDefault === "function") {
+      event.preventDefault();
+    }
+    this.dropAtCurrentPointer(event);
+  }
+
+  function sourceText() {
+    var host = this.canvasHost();
+    if (!host || !globalThis.QHtml || typeof globalThis.QHtml.toQHtmlSource !== "function") {
+      return "";
+    }
+    return String(globalThis.QHtml.toQHtmlSource(host, { preserveOriginal: false }) || "");
+  }
+
+  function openSource() {
+    var modal = this.querySelector("#page-builder-source-modal");
+    var output = this.querySelector("#page-builder-source-output");
+    if (output) {
+      output.value = this.sourceText();
+    }
+    if (modal && modal.style) {
+      modal.style.display = "block";
+    }
+  }
+
+  function closeSource() {
+    var modal = this.querySelector("#page-builder-source-modal");
+    if (modal && modal.style) {
+      modal.style.display = "none";
+    }
+  }
+
+  onReady {
+    if (this.__pageBuilderRuntimeReady) {
+      return;
+    }
+    this.__pageBuilderRuntimeReady = true;
+    var runtime = this;
+    document.addEventListener("dragover", function(event) {
+      runtime.trackPointer(event);
+    });
+    document.addEventListener("dragend", function() {
+      runtime.stopDrag();
+    });
+    document.addEventListener("drop", function(event) {
+      if (!runtime.state().dragging) {
+        return;
+      }
+      var insideCanvas = event.target && event.target.closest && event.target.closest("#page-builder-canvas");
+      if (!insideCanvas) {
+        runtime.stopDrag();
+      }
+    });
+  }
+
+  div {
+    id: "page-builder-runtime-state"
+    style { display: none; }
+    div {
+      id: "page-builder-source-modal"
+      style {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.42);
+        z-index: 2200;
+      }
+      div {
+        style {
+          width: min(92vw, 980px);
+          height: min(84vh, 760px);
+          margin: 4vh auto;
+          background: #ffffff;
+          border-radius: 1rem;
+          border: 1px solid #cbd5e1;
+          box-shadow: 0 18px 50px rgba(15, 23, 42, 0.28);
+          display: flex;
+          flex-direction: column;
+        }
+        div.w3-padding.w3-border-bottom {
+          h3.w3-margin-0 { text { QHTML Source } }
+        }
+        div.w3-padding {
+          style { flex: 1 1 auto; min-height: 0; }
+          textarea.w3-input.w3-border.w3-round {
+            id: "page-builder-source-output"
+            style { width: 100%; height: 100%; min-height: 240px; font-family: "Consolas", "Monaco", monospace; }
+          }
+        }
+        div.w3-padding.w3-border-top {
+          button.w3-button.w3-round-large.w3-blue {
+            type: "button"
+            onclick { this.closest("page-builder-runtime").closeSource(); }
+            text { Close }
+          }
+        }
+      }
+    }
+  }
+}
+
+q-component page-builder-toolbar-actions {
+  function runtime() {
+    return document.querySelector("#page-builder-runtime");
+  }
+
+  function openSource() {
+    var runtime = this.runtime();
+    if (runtime && typeof runtime.openSource === "function") {
+      runtime.openSource();
+    }
+  }
+
+  function clearHighlight() {
+    var runtime = this.runtime();
+    if (runtime && typeof runtime.clearHighlights === "function") {
+      runtime.clearHighlights();
+    }
+  }
+
+  div.page-builder-actions {
+    button.w3-button.w3-round-large.w3-blue { type: "button" onclick { this.closest("page-builder-toolbar-actions").openSource(); } text { Source } }
+    button.w3-button.w3-round-large.w3-dark-grey { type: "button" onclick { this.closest("page-builder-toolbar-actions").clearHighlight(); } text { Clear Highlight } }
+  }
+}
+
+q-component page-builder-sidebar {
+  function runtime() {
+    return document.querySelector("#page-builder-runtime");
+  }
+
+  function beginDragFromButton(button, event) {
+    var runtime = this.runtime();
+    if (!runtime || typeof runtime.startDrag !== "function") {
+      return;
+    }
+    var widgetId = button && button.getAttribute ? String(button.getAttribute("data-widget") || "") : "";
+    runtime.startDrag(widgetId, event || {});
+  }
+
+  div {
+    style {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: linear-gradient(180deg, #0f172a 0%, #16233a 100%);
+      color: #e2e8f0;
+      border-right: 1px solid #213455;
+    }
+    div.w3-padding {
+      h3.w3-margin-top { text { Palette } }
+      p.w3-small.w3-text-blue-grey { text { Drag widgets into the canvas. Targeting and insertion are powered by framework slot APIs. } }
+    }
+    div.w3-padding {
+      style { display: grid; gap: 0.5rem; grid-template-columns: 1fr; overflow: auto; }
+      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "title" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Title } }
+      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "text" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Text Block } }
+      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "button" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Button } }
+      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "input" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Input } }
+      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "card" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Card } }
+      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "group" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Group Box } }
+      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "form" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Form } }
+      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "grid" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Grid } }
+      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "frame" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Frame } }
+    }
+  }
+}
+
+q-component page-builder-app {
+  div.page-builder-app {
+    style {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      background: linear-gradient(180deg, #dbe7f4 0%, #f6f9fc 35%, #eef4fb 100%);
+    }
+
+    aside {
+      page-builder-sidebar { }
+    }
+
+    main {
+      style {
+        min-width: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      div.page-builder-toolbar {
+        style {
+          position: sticky;
+          top: 0;
+          z-index: 30;
+          padding: 0.85rem 1rem;
+          background: rgba(248, 250, 252, 0.92);
+          backdrop-filter: blur(10px);
+          border-bottom: 1px solid #d7e2f0;
+        }
+        div {
+          style { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+          div {
+            h1 { text { QHTML Page Builder Harness } }
+            p { text { Framework capability probe: drag-and-drop is powered by generic builderNode()/slot APIs. } }
+          }
+          page-builder-toolbar-actions { }
+        }
+      }
+
+      div.page-builder-canvas-shell {
+        style { flex: 1 1 auto; min-height: 0; padding: 1rem; }
+        div.page-builder-canvas-card {
+          style {
+            height: calc(100vh - 6.25rem);
+            overflow: auto;
+            border: 1px solid #d7e2f0;
+            border-radius: 1.1rem;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+            box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
+          }
+          div {
+            id: "page-builder-canvas"
+            style {
+              min-height: 100%;
+              padding: 1rem;
+              outline: 1px dashed #c7d8ef;
+              outline-offset: -1px;
+            }
+            ondragover { document.querySelector("#page-builder-runtime").allowDrop(event); }
+            ondrop { document.querySelector("#page-builder-runtime").handleDrop(event); }
+
+            div.w3-container.w3-padding-large {
+              id: "page-builder-dropzone"
+              style {
+                min-height: 100%;
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+                background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+                border-radius: 0.8rem;
+              }
+              page-builder-starter-canvas { }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  page-builder-runtime { id: "page-builder-runtime" }
+}
