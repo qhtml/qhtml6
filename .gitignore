@@ -11,3 +11,8 @@ wiki/*
 *~
 ..
 .*
+/node_modules/
+/package.json
+/package-lock.json
+/tmp-page-builder*.spec.js
+/dist/Text File.txt
