@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.1.0
+# QHTML.js v6.1.1
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,11 +12,12 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.1.0
+## Whats New in v6.1.1
 
-- Added `q-component ... extends ...` inheritance support.
-- Added multiple inheritance support with ordered merge behavior: `q-component child extends baseA extends baseB { ... }`.
-- Extended components now inherit properties, methods, signals, aliases, lifecycle hooks, slots, and template children from all parent components.
+- Added typed `q-array` and `q-map` property values, including nested anonymous container declarations on the right-hand side of property assignments.
+- Named `q-array ... { }` and `q-map ... { }` declarations still work and can be assigned to component properties by name.
+- Added `property <name>: <value>` shorthand inside `q-component`, while preserving `property <name> { ... }` as child-node binding syntax.
+- Updated README examples for typed property containers and JavaScript access on mounted component instances.
 
 
 ## 1. Quick Start
@@ -452,6 +453,75 @@ q-component my-comp {
   q-property selected: true
 }
 ```
+
+### `q-array` and `q-map` as property values
+
+You can assign typed array and map values directly to component properties. `q-array` becomes a JavaScript array and `q-map` becomes a plain JavaScript object on the mounted component instance.
+
+#### Inline property assignment
+
+```qhtml
+q-component my-comp {
+  q-property mydivs: q-array { "hello world", 5, q-array { "multi-dimensional", 4 } }
+  q-property settings: q-map {
+    title: "Example"
+    count: 2
+    flags: q-array { true, false }
+    nested: q-map { enabled: true }
+  }
+}
+
+my-comp { }
+```
+
+At runtime:
+
+- `document.querySelector("my-comp").mydivs[0]` returns `"hello world"`
+- `document.querySelector("my-comp").mydivs[2]` returns `["multi-dimensional", 4]`
+- `document.querySelector("my-comp").settings.nested.enabled` returns `true`
+
+#### Named declarations and reuse
+
+Named `q-array` and `q-map` declarations still work, and you can assign them to declared component properties by name.
+
+```qhtml
+q-array shared-items { "hello world", 5, q-array { "multi-dimensional", 4 } }
+q-map shared-settings {
+  title: "Shared config"
+  count: 2
+  nested: q-map { enabled: true }
+}
+
+q-component my-comp {
+  q-property mydivs: shared-items
+  q-property settings: shared-settings
+}
+
+my-comp { }
+```
+
+#### Accessing them from JavaScript
+
+```qhtml
+q-component my-comp {
+  q-property mydivs: q-array { "hello world", 5, q-array { "multi-dimensional", 4 } }
+  q-property settings: q-map { title: "Example", nested: q-map { enabled: true } }
+}
+
+my-comp { }
+
+button {
+  text { Show values }
+  onclick {
+    const comp = document.querySelector("my-comp");
+    alert(comp.mydivs[0]);
+    console.log(comp.mydivs[2]);
+    console.log(comp.settings.nested.enabled);
+  }
+}
+```
+
+`property <name>: ...` also works as shorthand inside `q-component`, while `property <name> { ... }` still means "bind this child node to a component property".
 
 ### `extends` syntax
 
@@ -1046,6 +1116,12 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 - `modules/release-bundle/README.md`
 
 # Past Changes
+## Whats New in v6.1.0
+
+- Added `q-component ... extends ...` inheritance support.
+- Added multiple inheritance support with ordered merge behavior: `q-component child extends baseA extends baseB { ... }`.
+- Extended components now inherit properties, methods, signals, aliases, lifecycle hooks, slots, and template children from all parent components.
+
 ## Whats New in v6.0.9
 
 - Fixed q-editor QDom tab lag for large 40+ KB fragments by removing heavy JSON formatting from the display path and using lightweight raw output handling.
