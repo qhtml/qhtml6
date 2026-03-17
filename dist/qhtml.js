@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-03-14T22:03:19Z */
+/* generated: 2026-03-17T06:00:46Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -1339,7 +1339,7 @@
   const LIFECYCLE_BLOCKS = new Set(["onready", "onload", "onloaded"]);
   const BINDING_EXPRESSION_KEYWORDS = new Set(["q-bind", "q-script"]);
   const REPEATER_KEYWORDS = new Set(["q-repeater", "q-foreach"]);
-  const ITERATIVE_MODEL_KEYWORDS = new Set(["q-array", "q-object"]);
+  const ITERATIVE_MODEL_KEYWORDS = new Set(["q-array", "q-object", "q-map"]);
   const DEPRECATED_FEATURE_WARNED = new Set();
   const CANONICAL_KEYWORD_TARGETS = new Set([
     "q-component",
@@ -1361,6 +1361,7 @@
     "q-color-theme",
     "q-array",
     "q-object",
+    "q-map",
     "q-repeater",
     "q-foreach",
     "q-import",
@@ -1379,6 +1380,15 @@
       return "worker";
     }
     return "";
+  }
+
+  function isQObjectKeyword(name) {
+    const normalized = String(name || "").trim().toLowerCase();
+    return normalized === "q-object" || normalized === "q-map";
+  }
+
+  function normalizeQObjectKeyword(name) {
+    return String(name || "").trim().toLowerCase() === "q-map" ? "q-map" : "q-object";
   }
 
   function parseWasmBoolean(value) {
@@ -1842,7 +1852,7 @@
       nameLower === "q-rewrite" ||
       nameLower === "q-macro" ||
       nameLower === "q-array" ||
-      nameLower === "q-object" ||
+      isQObjectKeyword(nameLower) ||
       REPEATER_KEYWORDS.has(nameLower) ||
       nameLower === "q-style" ||
       nameLower === "q-theme" ||
@@ -3046,11 +3056,11 @@
           });
           continue;
         }
-        if (nameLower === "q-object" && nextChar !== "{" && nextChar !== ",") {
+        if (isQObjectKeyword(nameLower) && nextChar !== "{" && nextChar !== ",") {
           const objectName = parseIdentifier(parser);
           skipWhitespace(parser);
           if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after q-object name", parser.index);
+            throw ParseError("Expected '{' after " + nameBase + " name", parser.index);
           }
           consume(parser);
           const objectItems = parseBlockItems(parser, scopedKeywordAliases);
@@ -3058,6 +3068,7 @@
           items.push({
             type: "QObjectDefinition",
             name: String(objectName || "").trim(),
+            keyword: normalizeQObjectKeyword(nameLower),
             items: objectItems,
             keywords: keywordSnapshot,
             start: itemStart,
@@ -3410,13 +3421,14 @@
             continue;
           }
 
-          if (nameLower === "q-object") {
+          if (isQObjectKeyword(nameLower)) {
             consume(parser);
             const objectItems = parseBlockItems(parser, scopedKeywordAliases);
             expect(parser, "}");
             items.push({
               type: "QObjectDefinition",
               name: "",
+              keyword: normalizeQObjectKeyword(nameLower),
               items: objectItems,
               keywords: keywordSnapshot,
               start: itemStart,
@@ -3832,11 +3844,11 @@
           continue;
         }
 
-        if (firstLower === "q-object" && peek(parser) !== "{" && peek(parser) !== ",") {
+        if (isQObjectKeyword(firstLower) && peek(parser) !== "{" && peek(parser) !== ",") {
           const objectName = parseIdentifier(parser);
           skipWhitespace(parser);
           if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after q-object name", parser.index);
+            throw ParseError("Expected '{' after " + firstSelectorBase + " name", parser.index);
           }
           consume(parser);
           const objectItems = parseBlockItems(parser, scopedKeywordAliases);
@@ -3844,6 +3856,7 @@
           body.push({
             type: "QObjectDefinition",
             name: String(objectName || "").trim(),
+            keyword: normalizeQObjectKeyword(firstLower),
             items: objectItems,
             keywords: keywordSnapshot,
             start: start,
@@ -3853,13 +3866,14 @@
           continue;
         }
 
-        if (firstLower === "q-object" && peek(parser) === "{") {
+        if (isQObjectKeyword(firstLower) && peek(parser) === "{") {
           consume(parser);
           const objectItems = parseBlockItems(parser, scopedKeywordAliases);
           expect(parser, "}");
           body.push({
             type: "QObjectDefinition",
             name: "",
+            keyword: normalizeQObjectKeyword(firstLower),
             items: objectItems,
             keywords: keywordSnapshot,
             start: start,
@@ -8773,7 +8787,7 @@
     };
   }
 
-  function createRepeaterObjectEntry(items, sourceText) {
+  function createRepeaterObjectEntry(items, sourceText, keyword) {
     const clonedItems = deepClonePlainValue(Array.isArray(items) ? items : []);
     const rawSource = String(sourceText || "").trim();
     let resolvedSource = rawSource;
@@ -8791,6 +8805,7 @@
       kind: "qobject",
       items: clonedItems,
       source: resolvedSource,
+      objectKeyword: normalizeQObjectKeyword(keyword),
     };
   }
 
@@ -8888,7 +8903,7 @@
       }
       if (qObjects.has(key)) {
         const objectSpec = qObjects.get(key);
-        entries.push(createRepeaterObjectEntry(objectSpec && objectSpec.items, objectSpec && objectSpec.source));
+        entries.push(createRepeaterObjectEntry(objectSpec && objectSpec.items, objectSpec && objectSpec.source, objectSpec && objectSpec.keyword));
         continue;
       }
       if (Object.prototype.hasOwnProperty.call(repeaterScope, key)) {
@@ -8923,6 +8938,7 @@
       qObjects.set(objectName, {
         items: deepClonePlainValue(Array.isArray(item.items) ? item.items : []),
         source: String(item.raw || "").trim(),
+        keyword: normalizeQObjectKeyword(item.keyword),
       });
     }
     return true;
@@ -8982,7 +8998,7 @@
         continue;
       }
       if (registerQObjectDefinitionItem(scopedContext, item)) {
-        entries.push(createRepeaterObjectEntry(item.items, item.raw));
+        entries.push(createRepeaterObjectEntry(item.items, item.raw, item.keyword));
         continue;
       }
       if (item.type === "BareWord") {
@@ -8997,7 +9013,7 @@
         }
         if (qObjects.has(key)) {
           const objectEntry = qObjects.get(key) || {};
-          entries.push(createRepeaterObjectEntry(objectEntry.items, objectEntry.source));
+          entries.push(createRepeaterObjectEntry(objectEntry.items, objectEntry.source, objectEntry.keyword));
           continue;
         }
         entries.push(createRepeaterPrimitiveEntry(token));
@@ -9007,7 +9023,7 @@
         hasInvalidContainer = true;
         continue;
       }
-      entries.push(createRepeaterObjectEntry([item], item.raw));
+      entries.push(createRepeaterObjectEntry([item], item.raw, item && item.keyword));
     }
 
     if (hasInvalidContainer) {
@@ -9042,6 +9058,7 @@
       return {
         kind: "qobject",
         source: String(entry.source || "").trim(),
+        objectKeyword: normalizeQObjectKeyword(entry.objectKeyword || entry.keyword),
         nodes: convertRepeaterObjectItemsToNodes(entry.items, source, context),
       };
     }
@@ -10532,7 +10549,7 @@
           lines.push(indent + source);
           continue;
         }
-        lines.push(indent + "q-object {");
+        lines.push(indent + normalizeQObjectKeyword(entry.objectKeyword || entry.keyword) + " {");
         const nodes = Array.isArray(entry.nodes) ? entry.nodes : [];
         for (let j = 0; j < nodes.length; j += 1) {
           lines.push(serializeNode(nodes[j], indentLevel + 1));

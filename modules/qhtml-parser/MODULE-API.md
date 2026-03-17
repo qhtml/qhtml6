@@ -29,6 +29,9 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - instance-level `q-property` declarations are retained in node metadata (`meta.__qhtmlDeclaredProperties`) and used when mapping invocation assignments/bindings into `component-instance.props`
     - inherited `q-property` declarations from multi-`extends` chains are included when mapping invocation assignments into `component-instance.props`
     - `component-instance.props` populated when invocation keys match declared component properties
+    - declared properties can be authored with either:
+      - `q-property name: value`
+      - `property name: value` (shorthand alias)
     - `meta.qBindings` entries for assignment expressions (`q-bind` / assignment-form `q-script`)
     - definition kind preservation for `q-component`, `q-template`, and `q-signal`
     - scoped keyword alias parsing via `q-keyword name { replacement-head }`
@@ -51,7 +54,11 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - applying the style merges classes into `class` and declarations into `style`
     - repeater and iterable model support:
       - `q-repeater` and `q-foreach` blocks
-      - model containers `q-array` and `q-object`
+      - model containers `q-array`, `q-object`, and `q-map`
+      - property assignments accept typed anonymous container values:
+        - `propName: q-array { "a", 1, q-array { "b", 2 } }`
+        - `propName: q-map { key: "v", nested: q-map { ok: true } }`
+      - typed property values are emitted in QDom as native JavaScript arrays/objects
       - `model { ... }` and `slot { itemName }` syntax compiled into runtime-ready repeater QDom:
         - `repeater.kind === "repeater"`
         - `repeater.model.kind === "model"` (`QDomModel`) with `entries`
@@ -71,6 +78,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
 - `qdomToQHtml(documentNode, options?)`
   - Converts QDom document to canonical QHTML source.
   - `preserveOriginal` defaults to true.
+  - Serializes array/object assignment values using typed container syntax (`q-array { ... }` / `q-map { ... }`) instead of stringifying them.
 - `parseQScript(source)`
   - Parses q-script rules of form `selector.on("event"): { ... }`.
 - `serializeQScript(rules)`

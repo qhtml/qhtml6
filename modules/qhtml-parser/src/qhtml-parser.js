@@ -22,7 +22,7 @@
   const LIFECYCLE_BLOCKS = new Set(["onready", "onload", "onloaded"]);
   const BINDING_EXPRESSION_KEYWORDS = new Set(["q-bind", "q-script"]);
   const REPEATER_KEYWORDS = new Set(["q-repeater", "q-foreach"]);
-  const ITERATIVE_MODEL_KEYWORDS = new Set(["q-array", "q-object"]);
+  const ITERATIVE_MODEL_KEYWORDS = new Set(["q-array", "q-object", "q-map"]);
   const DEPRECATED_FEATURE_WARNED = new Set();
   const CANONICAL_KEYWORD_TARGETS = new Set([
     "q-component",
@@ -44,6 +44,7 @@
     "q-color-theme",
     "q-array",
     "q-object",
+    "q-map",
     "q-repeater",
     "q-foreach",
     "q-import",
@@ -62,6 +63,15 @@
       return "worker";
     }
     return "";
+  }
+
+  function isQObjectKeyword(name) {
+    const normalized = String(name || "").trim().toLowerCase();
+    return normalized === "q-object" || normalized === "q-map";
+  }
+
+  function normalizeQObjectKeyword(name) {
+    return String(name || "").trim().toLowerCase() === "q-map" ? "q-map" : "q-object";
   }
 
   function parseWasmBoolean(value) {
@@ -525,7 +535,7 @@
       nameLower === "q-rewrite" ||
       nameLower === "q-macro" ||
       nameLower === "q-array" ||
-      nameLower === "q-object" ||
+      isQObjectKeyword(nameLower) ||
       REPEATER_KEYWORDS.has(nameLower) ||
       nameLower === "q-style" ||
       nameLower === "q-theme" ||
@@ -618,6 +628,279 @@
     return parser.source.slice(start, parser.index).trim();
   }
 
+  function tryParseLooseLiteral(rawText) {
+    const text = String(rawText || "").trim();
+    if (!text) {
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+    try {
+      return {
+        matched: true,
+        value: JSON.parse(text),
+      };
+    } catch (jsonError) {
+      try {
+        return {
+          matched: true,
+          value: new Function("return (" + text + ");")(),
+        };
+      } catch (scriptError) {
+        return {
+          matched: false,
+          value: null,
+        };
+      }
+    }
+  }
+
+  function parseTypedNumericLiteral(parser) {
+    const remainder = parser.source.slice(parser.index);
+    const match = remainder.match(/^-?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][+-]?\d+)?/);
+    if (!match) {
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+    const token = String(match[0] || "");
+    if (!token) {
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+    const nextChar = remainder.charAt(token.length);
+    if (nextChar && /[A-Za-z_#.]/.test(nextChar)) {
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+    const value = Number(token);
+    if (!Number.isFinite(value)) {
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+    parser.index += token.length;
+    return {
+      matched: true,
+      value: value,
+    };
+  }
+
+  function parseTypedArrayBodyToValue(rawBody, keywordAliases) {
+    const body = String(rawBody || "");
+    const trimmedBody = body.trim();
+    if (!trimmedBody) {
+      return [];
+    }
+    if (trimmedBody.charAt(0) === "[" && trimmedBody.charAt(trimmedBody.length - 1) === "]") {
+      const parsedLiteral = tryParseLooseLiteral(trimmedBody);
+      if (parsedLiteral.matched) {
+        if (Array.isArray(parsedLiteral.value)) {
+          return parsedLiteral.value;
+        }
+        return [parsedLiteral.value];
+      }
+    }
+
+    const parser = parserFor(body);
+    const out = [];
+    while (!eof(parser)) {
+      skipWhitespace(parser);
+      while (peek(parser) === "," || peek(parser) === ";") {
+        consume(parser);
+        skipWhitespace(parser);
+      }
+      if (eof(parser)) {
+        break;
+      }
+      const valueStart = parser.index;
+      out.push(parseTypedValueLiteral(parser, keywordAliases));
+      if (parser.index === valueStart) {
+        parser.index += 1;
+      }
+      skipWhitespace(parser);
+      if (peek(parser) === "," || peek(parser) === ";") {
+        consume(parser);
+      }
+    }
+    return out;
+  }
+
+  function parseTypedMapBodyToValue(rawBody, keywordAliases) {
+    const parser = parserFor(String(rawBody || ""));
+    const out = {};
+
+    while (!eof(parser)) {
+      skipWhitespace(parser);
+      while (peek(parser) === "," || peek(parser) === ";") {
+        consume(parser);
+        skipWhitespace(parser);
+      }
+      if (eof(parser)) {
+        break;
+      }
+
+      let key = "";
+      const keyFirst = peek(parser);
+      if (keyFirst === '"' || keyFirst === "'") {
+        key = parseQuotedString(parser);
+      } else if (isIdentifierStartChar(keyFirst)) {
+        key = parseIdentifier(parser);
+      } else {
+        const keyStart = parser.index;
+        while (!eof(parser)) {
+          const ch = peek(parser);
+          if (ch === ":" || ch === "," || ch === ";" || ch === "\n" || ch === "\r" || ch === " " || ch === "\t") {
+            break;
+          }
+          parser.index += 1;
+        }
+        key = parser.source.slice(keyStart, parser.index).trim();
+      }
+
+      const normalizedKey = String(key || "").trim();
+      if (!normalizedKey) {
+        const fallbackStart = parser.index;
+        parseTypedValueLiteral(parser, keywordAliases);
+        if (parser.index === fallbackStart) {
+          parser.index += 1;
+        }
+        continue;
+      }
+
+      skipWhitespace(parser);
+      if (peek(parser) !== ":") {
+        out[normalizedKey] = true;
+        continue;
+      }
+      consume(parser);
+      out[normalizedKey] = parseTypedValueLiteral(parser, keywordAliases);
+
+      skipWhitespace(parser);
+      if (peek(parser) === "," || peek(parser) === ";") {
+        consume(parser);
+      }
+    }
+
+    return out;
+  }
+
+  function parseTypedContainerValue(parser, keywordAliases) {
+    const snapshot = parser.index;
+    if (!isIdentifierStartChar(peek(parser))) {
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+    const keyword = parseIdentifier(parser);
+    const lowerKeyword = String(keyword || "").trim().toLowerCase();
+    const isQArray = lowerKeyword === "q-array";
+    const isQMap = isQObjectKeyword(lowerKeyword);
+    if (!isQArray && !isQMap) {
+      parser.index = snapshot;
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+
+    skipWhitespace(parser);
+    if (peek(parser) !== "{") {
+      if (isIdentifierStartChar(peek(parser))) {
+        parseIdentifier(parser);
+        skipWhitespace(parser);
+      }
+    }
+    if (peek(parser) !== "{") {
+      parser.index = snapshot;
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+
+    consume(parser);
+    const body = readBalancedBlockContent(parser);
+    return {
+      matched: true,
+      value: isQArray
+        ? parseTypedArrayBodyToValue(body, keywordAliases)
+        : parseTypedMapBodyToValue(body, keywordAliases),
+    };
+  }
+
+  function parseTypedValueLiteral(parser, keywordAliases) {
+    skipWhitespace(parser);
+    if (eof(parser)) {
+      return "";
+    }
+
+    const first = peek(parser);
+    if (first === '"' || first === "'") {
+      return parseQuotedString(parser);
+    }
+
+    const nestedContainer = parseTypedContainerValue(parser, keywordAliases);
+    if (nestedContainer.matched) {
+      return nestedContainer.value;
+    }
+
+    const numeric = parseTypedNumericLiteral(parser);
+    if (numeric.matched) {
+      return numeric.value;
+    }
+
+    if (isIdentifierStartChar(first)) {
+      const token = parseIdentifier(parser);
+      const lower = String(token || "").trim().toLowerCase();
+      if (lower === "true") {
+        return true;
+      }
+      if (lower === "false") {
+        return false;
+      }
+      if (lower === "null") {
+        return null;
+      }
+      return token;
+    }
+
+    const tokenStart = parser.index;
+    while (!eof(parser)) {
+      const ch = peek(parser);
+      if (ch === "," || ch === ";" || ch === "\n" || ch === "\r" || ch === " " || ch === "\t") {
+        break;
+      }
+      parser.index += 1;
+    }
+    const token = parser.source.slice(tokenStart, parser.index).trim();
+    if (!token) {
+      return "";
+    }
+    if (token === "true") {
+      return true;
+    }
+    if (token === "false") {
+      return false;
+    }
+    if (token === "null") {
+      return null;
+    }
+    const numericToken = Number(token);
+    if (Number.isFinite(numericToken)) {
+      return numericToken;
+    }
+    return token;
+  }
+
   function resolveBindingExpressionKeyword(lowerKeyword, keywordAliases) {
     const normalized = String(lowerKeyword || "").trim().toLowerCase();
     if (BINDING_EXPRESSION_KEYWORDS.has(normalized)) {
@@ -679,6 +962,10 @@
     const expression = parseExpressionValue(parser, keywordAliases);
     if (expression) {
       return expression;
+    }
+    const typedContainer = parseTypedContainerValue(parser, keywordAliases);
+    if (typedContainer.matched) {
+      return typedContainer.value;
     }
     return parseBareValue(parser);
   }
@@ -1729,11 +2016,11 @@
           });
           continue;
         }
-        if (nameLower === "q-object" && nextChar !== "{" && nextChar !== ",") {
+        if (isQObjectKeyword(nameLower) && nextChar !== "{" && nextChar !== ",") {
           const objectName = parseIdentifier(parser);
           skipWhitespace(parser);
           if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after q-object name", parser.index);
+            throw ParseError("Expected '{' after " + nameBase + " name", parser.index);
           }
           consume(parser);
           const objectItems = parseBlockItems(parser, scopedKeywordAliases);
@@ -1741,6 +2028,7 @@
           items.push({
             type: "QObjectDefinition",
             name: String(objectName || "").trim(),
+            keyword: normalizeQObjectKeyword(nameLower),
             items: objectItems,
             keywords: keywordSnapshot,
             start: itemStart,
@@ -2016,12 +2304,36 @@
           continue;
         }
         if (nameLower === "property" && nextChar !== "{") {
+          const propertyNameStart = parser.index;
           const propertyName = parseIdentifier(parser);
+          const propertyNameEnd = parser.index;
           const normalizedPropertyName = String(propertyName || "").trim();
           if (!normalizedPropertyName) {
             throw ParseError("Expected property name after property", parser.index);
           }
           skipWhitespace(parser);
+          if (peek(parser) === ":") {
+            items.push({
+              type: "QPropertyBlock",
+              properties: [normalizedPropertyName],
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: propertyNameEnd,
+              raw: parser.source.slice(itemStart, propertyNameEnd),
+            });
+            consume(parser);
+            const value = parseValue(parser, scopedKeywordAliases);
+            items.push({
+              type: "Property",
+              name: normalizedPropertyName,
+              value: value,
+              keywords: keywordSnapshot,
+              start: propertyNameStart,
+              end: parser.index,
+              raw: parser.source.slice(propertyNameStart, parser.index),
+            });
+            continue;
+          }
           if (peek(parser) !== "{") {
             throw ParseError("Expected '{' after property name", parser.index);
           }
@@ -2093,13 +2405,14 @@
             continue;
           }
 
-          if (nameLower === "q-object") {
+          if (isQObjectKeyword(nameLower)) {
             consume(parser);
             const objectItems = parseBlockItems(parser, scopedKeywordAliases);
             expect(parser, "}");
             items.push({
               type: "QObjectDefinition",
               name: "",
+              keyword: normalizeQObjectKeyword(nameLower),
               items: objectItems,
               keywords: keywordSnapshot,
               start: itemStart,
@@ -2515,11 +2828,11 @@
           continue;
         }
 
-        if (firstLower === "q-object" && peek(parser) !== "{" && peek(parser) !== ",") {
+        if (isQObjectKeyword(firstLower) && peek(parser) !== "{" && peek(parser) !== ",") {
           const objectName = parseIdentifier(parser);
           skipWhitespace(parser);
           if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after q-object name", parser.index);
+            throw ParseError("Expected '{' after " + firstSelectorBase + " name", parser.index);
           }
           consume(parser);
           const objectItems = parseBlockItems(parser, scopedKeywordAliases);
@@ -2527,6 +2840,7 @@
           body.push({
             type: "QObjectDefinition",
             name: String(objectName || "").trim(),
+            keyword: normalizeQObjectKeyword(firstLower),
             items: objectItems,
             keywords: keywordSnapshot,
             start: start,
@@ -2536,13 +2850,14 @@
           continue;
         }
 
-        if (firstLower === "q-object" && peek(parser) === "{") {
+        if (isQObjectKeyword(firstLower) && peek(parser) === "{") {
           consume(parser);
           const objectItems = parseBlockItems(parser, scopedKeywordAliases);
           expect(parser, "}");
           body.push({
             type: "QObjectDefinition",
             name: "",
+            keyword: normalizeQObjectKeyword(firstLower),
             items: objectItems,
             keywords: keywordSnapshot,
             start: start,
@@ -7456,7 +7771,7 @@
     };
   }
 
-  function createRepeaterObjectEntry(items, sourceText) {
+  function createRepeaterObjectEntry(items, sourceText, keyword) {
     const clonedItems = deepClonePlainValue(Array.isArray(items) ? items : []);
     const rawSource = String(sourceText || "").trim();
     let resolvedSource = rawSource;
@@ -7474,6 +7789,7 @@
       kind: "qobject",
       items: clonedItems,
       source: resolvedSource,
+      objectKeyword: normalizeQObjectKeyword(keyword),
     };
   }
 
@@ -7571,7 +7887,7 @@
       }
       if (qObjects.has(key)) {
         const objectSpec = qObjects.get(key);
-        entries.push(createRepeaterObjectEntry(objectSpec && objectSpec.items, objectSpec && objectSpec.source));
+        entries.push(createRepeaterObjectEntry(objectSpec && objectSpec.items, objectSpec && objectSpec.source, objectSpec && objectSpec.keyword));
         continue;
       }
       if (Object.prototype.hasOwnProperty.call(repeaterScope, key)) {
@@ -7606,6 +7922,7 @@
       qObjects.set(objectName, {
         items: deepClonePlainValue(Array.isArray(item.items) ? item.items : []),
         source: String(item.raw || "").trim(),
+        keyword: normalizeQObjectKeyword(item.keyword),
       });
     }
     return true;
@@ -7665,7 +7982,7 @@
         continue;
       }
       if (registerQObjectDefinitionItem(scopedContext, item)) {
-        entries.push(createRepeaterObjectEntry(item.items, item.raw));
+        entries.push(createRepeaterObjectEntry(item.items, item.raw, item.keyword));
         continue;
       }
       if (item.type === "BareWord") {
@@ -7680,7 +7997,7 @@
         }
         if (qObjects.has(key)) {
           const objectEntry = qObjects.get(key) || {};
-          entries.push(createRepeaterObjectEntry(objectEntry.items, objectEntry.source));
+          entries.push(createRepeaterObjectEntry(objectEntry.items, objectEntry.source, objectEntry.keyword));
           continue;
         }
         entries.push(createRepeaterPrimitiveEntry(token));
@@ -7690,7 +8007,7 @@
         hasInvalidContainer = true;
         continue;
       }
-      entries.push(createRepeaterObjectEntry([item], item.raw));
+      entries.push(createRepeaterObjectEntry([item], item.raw, item && item.keyword));
     }
 
     if (hasInvalidContainer) {
@@ -7725,6 +8042,7 @@
       return {
         kind: "qobject",
         source: String(entry.source || "").trim(),
+        objectKeyword: normalizeQObjectKeyword(entry.objectKeyword || entry.keyword),
         nodes: convertRepeaterObjectItemsToNodes(entry.items, source, context),
       };
     }
@@ -9215,7 +9533,7 @@
           lines.push(indent + source);
           continue;
         }
-        lines.push(indent + "q-object {");
+        lines.push(indent + normalizeQObjectKeyword(entry.objectKeyword || entry.keyword) + " {");
         const nodes = Array.isArray(entry.nodes) ? entry.nodes : [];
         for (let j = 0; j < nodes.length; j += 1) {
           lines.push(serializeNode(nodes[j], indentLevel + 1));
@@ -9284,6 +9602,52 @@
     }
     lines.push(indent + "}");
     return lines.join("\n");
+  }
+
+  function isPlainSerializableObject(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return false;
+    }
+    const proto = Object.getPrototypeOf(value);
+    return proto === Object.prototype || proto === null;
+  }
+
+  function serializeTypedAssignmentLiteral(value) {
+    if (Array.isArray(value)) {
+      const parts = [];
+      for (let i = 0; i < value.length; i += 1) {
+        parts.push(serializeTypedAssignmentLiteral(value[i]));
+      }
+      return "q-array { " + parts.join(", ") + " }";
+    }
+    if (isPlainSerializableObject(value)) {
+      const keys = Object.keys(value);
+      const pairs = [];
+      for (let i = 0; i < keys.length; i += 1) {
+        const rawKey = String(keys[i] || "");
+        if (!rawKey) {
+          continue;
+        }
+        const key = /^[A-Za-z_][A-Za-z0-9_.#-]*$/.test(rawKey) ? rawKey : JSON.stringify(rawKey);
+        pairs.push(key + ": " + serializeTypedAssignmentLiteral(value[rawKey]));
+      }
+      return "q-map { " + pairs.join(", ") + " }";
+    }
+    if (value === null) {
+      return "null";
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value);
+    }
+    return '"' + escapeQuoted(value == null ? "" : value) + '"';
+  }
+
+  function serializeAssignmentValue(value) {
+    const normalized = coercePropertyValue(value);
+    if (Array.isArray(normalized) || isPlainSerializableObject(normalized)) {
+      return serializeTypedAssignmentLiteral(normalized);
+    }
+    return '"' + escapeQuoted(normalized == null ? "" : normalized) + '"';
   }
 
   function serializeNode(node, indentLevel) {
@@ -9370,7 +9734,7 @@
       const attrKeys = Object.keys(attrs);
       for (let i = 0; i < attrKeys.length; i += 1) {
         const key = attrKeys[i];
-        lines.push(indent + "  " + key + ": \"" + escapeQuoted(coercePropertyValue(attrs[key])) + "\"");
+        lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
       }
       if (definitionType === "component" && Array.isArray(node.propertyDefinitions)) {
         for (let i = 0; i < node.propertyDefinitions.length; i += 1) {
@@ -9437,7 +9801,7 @@
           lines.push(serializeBindingAssignment(key, binding, indentLevel + 1));
           serializedAttrBindings.add(key);
         } else {
-          lines.push(indent + "  " + key + ": \"" + escapeQuoted(coercePropertyValue(attrs[key])) + "\"");
+          lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
         }
       }
       attrBindings.forEach(function serializeRemainingAttrBinding(binding, key) {
@@ -9458,7 +9822,7 @@
           lines.push(serializeBindingAssignment(key, binding, indentLevel + 1));
           serializedPropBindings.add(key);
         } else {
-          lines.push(indent + "  " + key + ": \"" + escapeQuoted(coercePropertyValue(props[key])) + "\"");
+          lines.push(indent + "  " + key + ": " + serializeAssignmentValue(props[key]));
         }
       }
       propBindings.forEach(function serializeRemainingPropBinding(binding, key) {
@@ -9538,7 +9902,7 @@
         lines.push(serializeBindingAssignment(key, binding, indentLevel + 1));
         serializedAttrBindings.add(key);
       } else {
-        lines.push(indent + "  " + key + ": \"" + escapeQuoted(coercePropertyValue(attrs[key])) + "\"");
+        lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
       }
     }
     attrBindings.forEach(function serializeRemainingAttrBinding(binding, key) {
