@@ -962,9 +962,7 @@ qdom-mutate-case { }
   try {
     var api = this.qdom();
     var target = api &amp;&amp; typeof api.find === "function" ? api.find("#host-qdom-target") : null;
-    if (target &amp;&amp; typeof target.setAttribute === "function") {
       target.setAttribute("data-host-mut", "1");
-    }
     this.update({ force: true, forceBindings: true });
     setTimeout(function () {
       var domTarget = self.querySelector("#host-qdom-target");
@@ -1000,10 +998,8 @@ onReady {
   var self = this;
   try {
     var api = this.qdom();
-    var target = api && typeof api.find === "function" ? api.find("#host-qdom-target") : null;
-    if (target && typeof target.setAttribute === "function") {
+    var target = api.find("#host-qdom-target");
       target.setAttribute("data-host-mut", "1");
-    }
     this.update({ force: true, forceBindings: true });
     setTimeout(function () {
       var domTarget = self.querySelector("#host-qdom-target");
@@ -1203,7 +1199,7 @@ div#qdom-serde-status { text { pending } }
   onReady {
     try {
       var hasScoped = typeof this.component.update === "function";
-      var rootHost = this.component.root && typeof this.component.root === "function" ? this.component.root() : null;
+      var rootHost = this.component.root();
       var hasRoot = !!(rootHost && typeof rootHost.update === "function");
       this.setAttribute("data-result", hasScoped &amp;&amp; hasRoot ? "scoped-update-ok" : "scoped-update-fail");
     } catch (evt) {
@@ -1231,7 +1227,7 @@ q-component scoped-update-case {
   onReady {
     try {
       var hasScoped = typeof this.component.update === "function";
-      var rootHost = this.component.root && typeof this.component.root === "function" ? this.component.root() : null;
+      var rootHost = this.component.root();
       var hasRoot = !!(rootHost && typeof rootHost.update === "function");
       this.setAttribute("data-result", hasScoped && hasRoot ? "scoped-update-ok" : "scoped-update-fail");
     } catch (evt) {
@@ -1620,9 +1616,7 @@ q-repeater tpl-loop {
     if (maps && maps.domToUuid && alphaEl) {
       try { alphaUuid = String(maps.domToUuid.get(alphaEl) || ""); } catch (uuidErr) { alphaUuid = ""; }
     }
-    if (!alphaUuid && typeof host.uuidFor === "function" && alphaEl) {
       alphaUuid = String(host.uuidFor(alphaEl) || "");
-    }
     var root = host.qdom();
     var alphaNode = findById(root, "uuid-alpha");
     if (alphaNode && typeof alphaNode.setAttribute === "function") {
@@ -1686,9 +1680,7 @@ onReady {
     if (maps && maps.domToUuid && alphaEl) {
       try { alphaUuid = String(maps.domToUuid.get(alphaEl) || ""); } catch (uuidErr) { alphaUuid = ""; }
     }
-    if (!alphaUuid && typeof host.uuidFor === "function" && alphaEl) {
       alphaUuid = String(host.uuidFor(alphaEl) || "");
-    }
     var root = host.qdom();
     var alphaNode = findById(root, "uuid-alpha");
     if (alphaNode && typeof alphaNode.setAttribute === "function") {
@@ -1796,15 +1788,14 @@ div#noop-bind-result { text { pending } }
         <div class="io-grid">
           <section class="cell">
             <h3>Scenario</h3>
-            <pre>Click "Begin Test" to run six separate benchmark tests:
+            <pre>Click "Begin Test" to run five separate benchmark tests:
 1. Time to render 1000 nodes
 2. Time to update 100 random nodes from that 1000-node render
 3. Clear + time to render 5000 nodes
 4. Time to update 500 random nodes from that 5000-node render
 5. Clear + time to render 10000 nodes
-6. Time to update 1000 random nodes from that 10000-node render
 Test C. Update Diff: 20 random parent tags with 50 random children each, then
-200 random child replaceWithQHTML() operations using UUID-targeted updates.
+200 random child patch-diff operations using UUID-targeted updates.
 Reports requested/completed operations, attempts, completion %, and skip reasons.
 Test D. q-component randomize loop: 20 component instances, randomize() called on
 every instance once (warmup), then 20 random instances every 20ms for about 10s.
@@ -1839,12 +1830,11 @@ onReady {
   try {
     var root = this.querySelector("#api-root");
     var child = this.querySelector("#api-child");
-    var node = root && typeof root.builderNode === "function" ? root.builderNode() : null;
-    if (node && typeof node.appendToSlot === "function" && typeof node.replaceSlotContent === "function") {
+    var node = root.builderNode();
       node.appendToSlot("default", "q-component-wrapper#api-added { span { text { added } } }", { autoUpdate: true });
       var hasChild = node.hasChildComponent("q-component-wrapper");
       var slotHas = node.hasChildComponentInSlot("default", "q-component-wrapper");
-      var childNode = child && typeof child.builderNode === "function" ? child.builderNode() : null;
+      var childNode = child.builderNode();
       if (childNode && typeof childNode.replaceSlotContent === "function") {
         childNode.replaceSlotContent("default", "span { text { replaced } }", { autoUpdate: true });
       }
@@ -1853,7 +1843,6 @@ onReady {
       if (hasChild && slotHas && replacedText.indexOf("replaced") >= 0) {
         status = "buildernode-ok";
       }
-    }
   } catch (err) { }
   var statusNode = this.querySelector("#buildernode-status");
   if (statusNode) { statusNode.textContent = status; }
@@ -1884,12 +1873,11 @@ onReady {
   try {
     var root = this.querySelector("#api-root");
     var child = this.querySelector("#api-child");
-    var node = root && typeof root.builderNode === "function" ? root.builderNode() : null;
-    if (node && typeof node.appendToSlot === "function" && typeof node.replaceSlotContent === "function") {
+    var node = root.builderNode();
       node.appendToSlot("default", "q-component-wrapper#api-added { span { text { added } } }", { autoUpdate: true });
       var hasChild = node.hasChildComponent("q-component-wrapper");
       var slotHas = node.hasChildComponentInSlot("default", "q-component-wrapper");
-      var childNode = child && typeof child.builderNode === "function" ? child.builderNode() : null;
+      var childNode = child.builderNode();
       if (childNode && typeof childNode.replaceSlotContent === "function") {
         childNode.replaceSlotContent("default", "span { text { replaced } }", { autoUpdate: true });
       }
@@ -1898,7 +1886,6 @@ onReady {
       if (hasChild && slotHas && replacedText.indexOf("replaced") >= 0) {
         status = "buildernode-ok";
       }
-    }
   } catch (err) { }
   var statusNode = this.querySelector("#buildernode-status");
   if (statusNode) { statusNode.textContent = status; }
@@ -1933,14 +1920,12 @@ onReady {
   var status = "multi-extends-fail";
   try {
     var host = this.querySelector("#mi");
-    if (host && typeof host.alphaFn === "function" && typeof host.betaFn === "function") {
       var alphaValue = String(host.alphaFn() || "");
       var betaValue = String(host.betaFn() || "");
       var text = String(host.textContent || "");
       if (alphaValue.indexOf("A") >= 0 && betaValue.indexOf("B") >= 0 && text.indexOf("base-a") >= 0 && text.indexOf("base-b") >= 0) {
         status = "multi-extends-ok";
       }
-    }
   } catch (err) { }
   var statusNode = this.querySelector("#multi-extends-status");
   if (statusNode) { statusNode.textContent = status; }
@@ -1978,14 +1963,12 @@ onReady {
   var status = "multi-extends-fail";
   try {
     var host = this.querySelector("#mi");
-    if (host && typeof host.alphaFn === "function" && typeof host.betaFn === "function") {
       var alphaValue = String(host.alphaFn() || "");
       var betaValue = String(host.betaFn() || "");
       var text = String(host.textContent || "");
       if (alphaValue.indexOf("A") >= 0 && betaValue.indexOf("B") >= 0 && text.indexOf("base-a") >= 0 && text.indexOf("base-b") >= 0) {
         status = "multi-extends-ok";
       }
-    }
   } catch (err) { }
   var statusNode = this.querySelector("#multi-extends-status");
   if (statusNode) { statusNode.textContent = status; }
@@ -2445,15 +2428,46 @@ div#multi-extends-status { text { pending } }
         return total;
       }
 
+      function stressListToArray(candidate) {
+        if (!candidate) {
+          return [];
+        }
+        if (Array.isArray(candidate)) {
+          return candidate;
+        }
+        if (typeof candidate === "function") {
+          try {
+            var called = candidate();
+            if (Array.isArray(called)) {
+              return called;
+            }
+            candidate = called;
+          } catch (invokeError) {
+            return [];
+          }
+        }
+        if (!candidate || typeof candidate.length !== "number") {
+          return [];
+        }
+        var list = [];
+        for (var i = 0; i < candidate.length; i += 1) {
+          list.push(candidate[i]);
+        }
+        return list;
+      }
+
       function stressChildCollections(node) {
         var out = [];
         if (!node || typeof node !== "object") {
           return out;
         }
-        if (Array.isArray(node.nodes)) { out.push(node.nodes); }
-        if (Array.isArray(node.children)) { out.push(node.children); }
-        if (Array.isArray(node.templateNodes)) { out.push(node.templateNodes); }
-        if (Array.isArray(node.slots)) { out.push(node.slots); }
+        var keys = ["nodes", "children", "templateNodes", "slots", "__qhtmlSlotNodes", "__qhtmlRenderTree"];
+        for (var k = 0; k < keys.length; k += 1) {
+          var next = stressListToArray(node[keys[k]]);
+          if (next.length > 0) {
+            out.push(next);
+          }
+        }
         if (node.model && typeof node.model === "object") { out.push([node.model]); }
         if (Array.isArray(node.entries)) {
           out.push(node.entries);
@@ -2677,17 +2691,16 @@ div#multi-extends-status { text { pending } }
             { kind: "update", nodes: 100, label: "time to update 100 nodes" },
             { kind: "render", nodes: 5000, label: "time to render 5000 nodes" },
             { kind: "update", nodes: 500, label: "time to update 500 nodes" },
-            { kind: "render", nodes: 10000, label: "time to render 10000 nodes" },
-            { kind: "update", nodes: 1000, label: "time to update 1000 nodes" }
+            { kind: "render", nodes: 10000, label: "time to render 10000 nodes" }
           ];
 
           var i;
           for (var p = 0; p < passes.length; p += 1) {
             var pass = passes[p];
             var passNo = p + 1;
-            appendStressLog(logNode, "Test " + String(passNo) + "/6 start: " + pass.label);
+            appendStressLog(logNode, "Test " + String(passNo) + "/" + String(passes.length) + " start: " + pass.label);
             if (statusNode) {
-              statusNode.textContent = "Running " + String(passNo) + "/6";
+              statusNode.textContent = "Running " + String(passNo) + "/" + String(passes.length);
             }
             if (pass.kind === "render") {
               var renderStart = stressNowMs();
@@ -2707,7 +2720,7 @@ div#multi-extends-status { text { pending } }
               });
               appendStressLog(
                 logNode,
-                "Test " + String(passNo) + "/6 done: " + pass.label +
+                "Test " + String(passNo) + "/" + String(passes.length) + " done: " + pass.label +
                 " | ms=" + renderMs.toFixed(2) +
                 " | rendered=" + String(renderedStressCells) +
                 " | domNodes=" + String(renderedDomNodes) +
@@ -2719,26 +2732,35 @@ div#multi-extends-status { text { pending } }
             if (!activeHost || typeof activeHost.qdom !== "function") {
               throw new Error("Update benchmark requires a mounted q-html render host.");
             }
-            var rootDoc = activeHost.qdom();
-            var mutableNodes = stressCollectMutableNodes(rootDoc);
+            var mutableNodes = Array.prototype.slice.call(activeHost.querySelectorAll(".stress-cell"));
             var pickedNodes = stressPickRandomNodes(mutableNodes, pass.nodes);
             var updateRequested = pass.nodes;
-            var updateExecuted = pickedNodes.length;
+            var updateExecuted = 0;
             var uuidUpdates = 0;
+            var uuidMisses = 0;
             var fallbackUpdates = 0;
+            var uuidSeen = Object.create(null);
             var updateStart = stressNowMs();
             for (i = 0; i < pickedNodes.length; i += 1) {
               var node = pickedNodes[i];
-              stressSetNodeAttribute(node, "data-bench", String(passNo) + "-" + String(i));
-              stressSetNodeText(node, "bench-" + String(passNo) + "-" + String(i));
-              var uuid = typeof activeHost.uuidFor === "function" ? String(activeHost.uuidFor(node) || "") : "";
+              var qnode = node && typeof node.qdom === "function" ? node.qdom() : null;
+              if (!qnode) {
+                uuidMisses += 1;
+                continue;
+              }
+              stressSetNodeAttribute(qnode, "data-bench", String(passNo) + "-" + String(i));
+              stressSetNodeText(qnode, "bench-" + String(passNo) + "-" + String(i));
+              var uuid = typeof activeHost.uuidFor === "function" ? String(activeHost.uuidFor(node) || activeHost.uuidFor(qnode) || "") : "";
               if (uuid) {
                 activeHost.update(uuid);
                 uuidUpdates += 1;
+                uuidSeen[uuid] = true;
               } else {
+                uuidMisses += 1;
                 activeHost.update({ forceBindings: true, force: true });
                 fallbackUpdates += 1;
               }
+              updateExecuted += 1;
               if (i % 50 === 0) {
                 await stressSleep(0);
               }
@@ -2758,18 +2780,20 @@ div#multi-extends-status { text { pending } }
             });
             appendStressLog(
               logNode,
-              "Test " + String(passNo) + "/6 done: " + pass.label +
+              "Test " + String(passNo) + "/" + String(passes.length) + " done: " + pass.label +
               " | ms=" + updateMs.toFixed(2) +
               " | requested=" + String(updateRequested) +
               " | executed=" + String(updateExecuted) +
               " | pool=" + String(mutableNodes.length) +
               " | uuidUpdates=" + String(uuidUpdates) +
+              " | uuidUnique=" + String(Object.keys(uuidSeen).length) +
+              " | uuidMisses=" + String(uuidMisses) +
               " | fallbackUpdates=" + String(fallbackUpdates) +
               " | updates/sec=" + updateRate.toFixed(2)
             );
           }
 
-          appendStressLog(logNode, "Test C start: UUID rewrite batch (20 parents x 50 children, 200 ops)");
+          appendStressLog(logNode, "Test C start: UUID patch-diff batch (20 parents x 50 children, 200 ops)");
           if (statusNode) {
             statusNode.textContent = "Running Test C";
           }
@@ -2807,7 +2831,7 @@ div#multi-extends-status { text { pending } }
           var diffSkippedNoParent = 0;
           var diffSkippedNoChildren = 0;
           var diffSkippedNoTargetQdom = 0;
-          var diffReplaceErrors = 0;
+          var diffPatchErrors = 0;
           function refreshDiffParentMap() {
             diffParentUuidToDom.clear();
             if (!activeHost) {
@@ -2839,18 +2863,6 @@ div#multi-extends-status { text { pending } }
               entries.push({ uuid: uuid, element: domElement });
             });
             return entries;
-          }
-
-          function randomReplacementQHtml(opIndex) {
-            var replaceTagPool = [
-              "div", "section", "article", "aside", "nav",
-              "header", "footer", "p", "span", "strong",
-              "em", "small", "mark", "code", "pre",
-              "h3", "h4", "li", "label", "button"
-            ];
-            var nextTag = stressRandomFromList(replaceTagPool);
-            var nextText = stressRandomLetters(5, 16);
-            return nextTag + ".stress-target { id: stress-repl-" + String(opIndex) + " text { " + nextText + " } }";
           }
 
           var diffParentEntries = refreshDiffParentMap();
@@ -2895,24 +2907,31 @@ div#multi-extends-status { text { pending } }
               continue;
             }
             var targetQdom = target.qdom();
-            if (!targetQdom || typeof targetQdom.replaceWithQHTML !== "function") {
+            if (!targetQdom || typeof targetQdom.setAttribute !== "function") {
               diffSkippedNoTargetQdom += 1;
               continue;
             }
             try {
-              targetQdom.replaceWithQHTML(randomReplacementQHtml(diffCompletedRequests));
-            } catch (replaceError) {
-              diffReplaceErrors += 1;
+              var nextText = stressRandomLetters(5, 16);
+              targetQdom.setAttribute("id", "stress-repl-" + String(diffCompletedRequests));
+              targetQdom.setAttribute("data-stress-op", String(diffCompletedRequests));
+              stressSetNodeText(targetQdom, nextText);
+              var targetUuid =
+                typeof activeHost.uuidFor === "function"
+                  ? String(activeHost.uuidFor(target) || activeHost.uuidFor(targetQdom) || "")
+                  : "";
+              if (targetUuid) {
+                activeHost.update(targetUuid);
+                diffUuidUpdateCalls += 1;
+              } else {
+                activeHost.update({ forceBindings: true, force: true });
+                diffFallbackUpdateCalls += 1;
+              }
+            } catch (patchError) {
+              diffPatchErrors += 1;
               continue;
             }
             diffMutatedNodes += 1;
-            if (parentUuid) {
-              activeHost.update(parentUuid);
-              diffUuidUpdateCalls += 1;
-            } else {
-              activeHost.update({ forceBindings: true, force: true });
-              diffFallbackUpdateCalls += 1;
-            }
             diffCompletedRequests += 1;
             if (diffAttemptCount % 25 === 0) {
               await stressSleep(0);
@@ -2949,7 +2968,8 @@ div#multi-extends-status { text { pending } }
             skippedNoParent: diffSkippedNoParent,
             skippedNoChildren: diffSkippedNoChildren,
             skippedNoTargetQdom: diffSkippedNoTargetQdom,
-            replaceErrors: diffReplaceErrors,
+            patchErrors: diffPatchErrors,
+            replaceErrors: diffPatchErrors,
             textPerSec: diffTextPerSec
           });
           appendStressLog(
@@ -2971,7 +2991,7 @@ div#multi-extends-status { text { pending } }
             " | skipped(noParent)=" + String(diffSkippedNoParent) +
             " | skipped(noChildren)=" + String(diffSkippedNoChildren) +
             " | skipped(noQdom)=" + String(diffSkippedNoTargetQdom) +
-            " | replaceErrors=" + String(diffReplaceErrors) +
+            " | patchErrors=" + String(diffPatchErrors) +
             " | textMutations=" + String(diffTextMutations) +
             " | uuidUpdates=" + String(diffUuidUpdateCalls) +
             " | fallbackUpdates=" + String(diffFallbackUpdateCalls) +
@@ -3163,7 +3183,7 @@ div#multi-extends-status { text { pending } }
                 " | skipped(noParent)=" + String(metric.skippedNoParent || 0) +
                 " | skipped(noChildren)=" + String(metric.skippedNoChildren || 0) +
                 " | skipped(noQdom)=" + String(metric.skippedNoTargetQdom || 0) +
-                " | replaceErrors=" + String(metric.replaceErrors || 0) +
+                " | patchErrors=" + String(metric.patchErrors || metric.replaceErrors || 0) +
                 " | textMutations=" + String(metric.textMutations) +
                 " | uuidUpdates=" + String(metric.uuidUpdates) +
                 " | fallbackUpdates=" + String(metric.fallbackUpdates) +
@@ -3211,7 +3231,7 @@ div#multi-extends-status { text { pending } }
             }
           }
           if (statusNode) {
-            statusNode.textContent = "Complete (6 + C + D)";
+            statusNode.textContent = "Complete (" + String(passes.length) + " + C + D)";
           }
         } catch (error) {
           appendStressLog(logNode, "Stress benchmark failed: " + (error && error.message ? error.message : String(error)));

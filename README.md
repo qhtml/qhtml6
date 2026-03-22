@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.1.1
+# QHTML.js v6.1.2
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,7 +12,7 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.1.1
+## Whats New in v6.1.2
 
 - Added typed `q-array` and `q-map` property values, including nested anonymous container declarations on the right-hand side of property assignments.
 - Named `q-array ... { }` and `q-map ... { }` declarations still work and can be assigned to component properties by name.

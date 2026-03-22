@@ -11,6 +11,7 @@
   const bindings = new WeakMap();
   const importSourceCache = new Map();
   const importDocumentCache = new Map();
+  const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
   let elementPrototypeQdomAccessorInstalled = false;
@@ -60,6 +61,7 @@
   const DEFAULT_TEMPLATE_PERSIST_DEBOUNCE_MS = 180;
   const INLINE_REFERENCE_PATTERN = /\$\{\s*([^}]+?)\s*\}/g;
   const INLINE_REFERENCE_ESCAPE_TOKEN = "__QHTML_ESCAPED_INLINE_REF__";
+  const SDML_SCOPED_DEFINITIONS_KEY = "__qhtmlSdmlScopedDefinitions";
   const DOM_MUTATION_SYNC_OBSERVER_OPTIONS = {
     attributes: true,
     characterData: true,
@@ -1547,14 +1549,18 @@
     return requested;
   }
 
-  function evaluateAllNodeQColors(binding) {
+  function evaluateNodeQColorsInTree(binding, rootNode) {
     if (!binding || !binding.qdom || !core || typeof core.walkQDom !== "function") {
+      return false;
+    }
+    const sourceRoot = sourceNodeOf(rootNode) || rootNode;
+    if (!sourceRoot || typeof sourceRoot !== "object") {
       return false;
     }
     const colorContext = readDocumentQColorContext(binding);
     let changed = false;
     const changedNodes = [];
-    core.walkQDom(binding.rawQdom || binding.qdom, function walkQColor(node) {
+    core.walkQDom(sourceRoot, function walkQColor(node) {
       const didChange = applyQColorAssignmentsToNode(node, colorContext);
       changed = didChange || changed;
       if (didChange) {
@@ -1567,6 +1573,10 @@
       }
     }
     return changed;
+  }
+
+  function evaluateAllNodeQColors(binding) {
+    return evaluateNodeQColorsInTree(binding, binding && (binding.rawQdom || binding.qdom));
   }
 
   function createQColorNodeFromEntry(name, entry, colorContext) {
@@ -3021,6 +3031,690 @@
     return value;
   }
 
+  function warnSdml(message, details) {
+    if (!global.console) {
+      return;
+    }
+    if (typeof global.console.warn === "function") {
+      if (typeof details !== "undefined") {
+        global.console.warn(message, details);
+      } else {
+        global.console.warn(message);
+      }
+      return;
+    }
+    if (typeof global.console.error === "function") {
+      if (typeof details !== "undefined") {
+        global.console.error(message, details);
+      } else {
+        global.console.error(message);
+      }
+    }
+  }
+
+  function ensureSdmlDocumentState(targetDocument) {
+    const doc = targetDocument || global.document;
+    if (!doc || (doc.nodeType !== 9 && doc.nodeType !== 1)) {
+      return null;
+    }
+    const stateDoc = doc.nodeType === 9 ? doc : doc.ownerDocument || global.document;
+    if (!stateDoc || stateDoc.nodeType !== 9) {
+      return null;
+    }
+    if (!sdmlStateByDocument.has(stateDoc)) {
+      sdmlStateByDocument.set(stateDoc, {
+        endpoints: new Map(),
+        declarations: new Map(),
+        urlCache: new Map(),
+        aliasLoads: new Map(),
+      });
+    }
+    return sdmlStateByDocument.get(stateDoc);
+  }
+
+  function readDefinitionScopedSdmlRegistry(definitionNode) {
+    if (!definitionNode || typeof definitionNode !== "object") {
+      return null;
+    }
+    const direct = definitionNode[SDML_SCOPED_DEFINITIONS_KEY];
+    if (direct instanceof Map) {
+      return direct;
+    }
+    if (definitionNode.meta && definitionNode.meta[SDML_SCOPED_DEFINITIONS_KEY] instanceof Map) {
+      return definitionNode.meta[SDML_SCOPED_DEFINITIONS_KEY];
+    }
+    return null;
+  }
+
+  function createRuntimeRenderRegistry(baseRegistry) {
+    const sourceRegistry = baseRegistry instanceof Map ? baseRegistry : definitionRegistry;
+    const runtimeRegistry = new Map();
+    sourceRegistry.forEach(function copyDefinition(definitionNode, definitionId) {
+      runtimeRegistry.set(definitionId, definitionNode);
+    });
+    sourceRegistry.forEach(function addScopedDefinitions(definitionNode) {
+      const scoped = readDefinitionScopedSdmlRegistry(definitionNode);
+      if (!(scoped instanceof Map)) {
+        return;
+      }
+      scoped.forEach(function copyScopedDefinition(scopedNode, scopedId) {
+        const normalizedId = String(scopedId || "").trim().toLowerCase();
+        if (!normalizedId || runtimeRegistry.has(normalizedId)) {
+          return;
+        }
+        runtimeRegistry.set(normalizedId, scopedNode);
+      });
+    });
+    return runtimeRegistry;
+  }
+
+  function normalizeSdmlAlias(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function isLikelySdmlEndpointReference(value) {
+    return /^[A-Za-z_][A-Za-z0-9_.#-]*$/.test(String(value || "").trim());
+  }
+
+  function sanitizeSdmlIdentifier(value) {
+    const text = String(value || "").trim().toLowerCase();
+    if (!text) {
+      return "component";
+    }
+    const sanitized = text.replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+    return sanitized || "component";
+  }
+
+  function cloneSdmlValue(value, seen) {
+    if (value == null || typeof value !== "object") {
+      return value;
+    }
+    const cache = seen instanceof Map ? seen : new Map();
+    if (cache.has(value)) {
+      return cache.get(value);
+    }
+    if (Array.isArray(value)) {
+      const arr = [];
+      cache.set(value, arr);
+      for (let i = 0; i < value.length; i += 1) {
+        arr.push(cloneSdmlValue(value[i], cache));
+      }
+      return arr;
+    }
+    const out = {};
+    cache.set(value, out);
+    const keys = Object.keys(value);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      out[key] = cloneSdmlValue(value[key], cache);
+    }
+    return out;
+  }
+
+  function remapSdmlReferenceName(name, idMap) {
+    const key = String(name || "").trim().toLowerCase();
+    if (!key || !(idMap instanceof Map) || !idMap.has(key)) {
+      return String(name || "");
+    }
+    return idMap.get(key);
+  }
+
+  function remapSdmlDefinitionReferences(node, idMap) {
+    if (!node || typeof node !== "object") {
+      return;
+    }
+    if (typeof node.componentId === "string") {
+      node.componentId = remapSdmlReferenceName(node.componentId, idMap);
+    }
+    if (typeof node.tagName === "string") {
+      node.tagName = remapSdmlReferenceName(node.tagName, idMap);
+    }
+    if (typeof node.extendsComponentId === "string") {
+      node.extendsComponentId = remapSdmlReferenceName(node.extendsComponentId, idMap);
+    }
+    if (Array.isArray(node.extendsComponentIds)) {
+      for (let i = 0; i < node.extendsComponentIds.length; i += 1) {
+        node.extendsComponentIds[i] = remapSdmlReferenceName(node.extendsComponentIds[i], idMap);
+      }
+    }
+    const childKeys = ["nodes", "children", "templateNodes", "slots", "__qhtmlSlotNodes", "__qhtmlRenderTree"];
+    for (let k = 0; k < childKeys.length; k += 1) {
+      const key = childKeys[k];
+      const list = node[key];
+      if (!Array.isArray(list)) {
+        continue;
+      }
+      for (let i = 0; i < list.length; i += 1) {
+        remapSdmlDefinitionReferences(list[i], idMap);
+      }
+    }
+  }
+
+  function collectElementsByTagNameFallback(rootNode, tagName) {
+    const normalized = String(tagName || "").trim().toLowerCase();
+    if (!normalized) {
+      return [];
+    }
+    const out = [];
+    const stack = [];
+    if (rootNode) {
+      stack.push(rootNode.nodeType === 9 ? rootNode.documentElement : rootNode);
+    }
+    while (stack.length > 0) {
+      const node = stack.pop();
+      if (!node || typeof node !== "object") {
+        continue;
+      }
+      if (node.nodeType === 1 && String(node.tagName || "").toLowerCase() === normalized) {
+        out.push(node);
+      }
+      const children = node.childNodes && typeof node.childNodes.length === "number" ? node.childNodes : [];
+      for (let i = children.length - 1; i >= 0; i -= 1) {
+        stack.push(children[i]);
+      }
+      if (node.content && node.content.childNodes && typeof node.content.childNodes.length === "number") {
+        const contentChildren = node.content.childNodes;
+        for (let i = contentChildren.length - 1; i >= 0; i -= 1) {
+          stack.push(contentChildren[i]);
+        }
+      }
+    }
+    return out;
+  }
+
+  function findTagMatchesInScope(scope, tagName) {
+    const normalized = String(tagName || "").trim().toLowerCase();
+    if (!normalized || !scope) {
+      return [];
+    }
+    if (scope.nodeType === 1 && String(scope.tagName || "").toLowerCase() === normalized) {
+      return [scope];
+    }
+    if (typeof scope.querySelectorAll === "function") {
+      try {
+        const result = scope.querySelectorAll(normalized);
+        if (Array.isArray(result)) {
+          return result;
+        }
+        if (result && typeof result.length === "number") {
+          const out = [];
+          for (let i = 0; i < result.length; i += 1) {
+            out.push(result[i]);
+          }
+          return out;
+        }
+      } catch (queryError) {
+        // fall through to manual fallback
+      }
+    }
+    return collectElementsByTagNameFallback(scope, normalized);
+  }
+
+  function registerSdmlDeclarationsForDocument(targetDocument, declarations, baseUrl) {
+    const state = ensureSdmlDocumentState(targetDocument);
+    if (!state) {
+      return [];
+    }
+
+    function resolveDeclarationUrl(entry) {
+      const explicitUrl = String(entry && entry.url ? entry.url : "").trim();
+      if (explicitUrl) {
+        return {
+          url: explicitUrl,
+          endpointId: "",
+          unresolvedEndpointId: "",
+        };
+      }
+      const rawPath = normalizeImportDeclarationPath(entry && (entry.path || entry.url));
+      const endpointId = normalizeSdmlAlias(rawPath);
+      if (endpointId && state.endpoints instanceof Map && state.endpoints.has(endpointId)) {
+        const endpointRecord = state.endpoints.get(endpointId);
+        return {
+          url: String(endpointRecord && endpointRecord.url ? endpointRecord.url : "").trim(),
+          endpointId: endpointId,
+          unresolvedEndpointId: "",
+        };
+      }
+      if (isLikelySdmlEndpointReference(rawPath)) {
+        return {
+          url: "",
+          endpointId: "",
+          unresolvedEndpointId: endpointId,
+        };
+      }
+      return {
+        url: resolveImportUrlForRuntime(rawPath, baseUrl),
+        endpointId: "",
+        unresolvedEndpointId: "",
+      };
+    }
+
+    const list = Array.isArray(declarations) ? declarations : [];
+    const normalized = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const entry = list[i];
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const alias = normalizeSdmlAlias(entry.componentId || entry.alias);
+      const rawPath = normalizeImportDeclarationPath(entry.path || entry.url);
+      const resolved = resolveDeclarationUrl(entry);
+      const resolvedUrl = String(resolved.url || "").trim();
+      if (!alias || !resolvedUrl) {
+        if (alias && resolved.unresolvedEndpointId) {
+          warnSdml(
+            "q-sdml-component '" + alias + "' references unknown sdml-endpoint '" + resolved.unresolvedEndpointId + "'.",
+            {
+              componentId: alias,
+              endpointId: resolved.unresolvedEndpointId,
+            }
+          );
+        }
+        continue;
+      }
+      const declaration = {
+        componentId: alias,
+        path: rawPath || resolvedUrl,
+        url: resolvedUrl,
+        endpointId: resolved.endpointId || "",
+      };
+      const existing = state.declarations.get(alias);
+      if (existing && existing.url !== declaration.url) {
+        warnSdml(
+          "q-sdml-component '" + alias + "' was re-declared with a different URL; using latest declaration.",
+          {
+            previousUrl: existing.url,
+            nextUrl: declaration.url,
+          }
+        );
+      }
+      state.declarations.set(alias, declaration);
+      registerCustomElementDefinition(alias);
+      normalized.push(declaration);
+    }
+    return normalized;
+  }
+
+  function registerSdmlEndpointsForDocument(targetDocument, endpoints, baseUrl) {
+    const state = ensureSdmlDocumentState(targetDocument);
+    if (!state || !(state.endpoints instanceof Map)) {
+      return [];
+    }
+    const list = Array.isArray(endpoints) ? endpoints : [];
+    const normalized = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const entry = list[i];
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const endpointId = normalizeSdmlAlias(entry.endpointId || entry.name || entry.id);
+      const rawUrl = normalizeImportDeclarationPath(entry.url || entry.path);
+      const resolvedUrl = resolveImportUrlForRuntime(rawUrl, baseUrl);
+      if (!endpointId || !resolvedUrl) {
+        continue;
+      }
+      const existing = state.endpoints.get(endpointId);
+      if (existing && existing.url !== resolvedUrl) {
+        warnSdml(
+          "sdml-endpoint '" + endpointId + "' was re-declared with a different URL; using latest declaration.",
+          {
+            previousUrl: existing.url,
+            nextUrl: resolvedUrl,
+          }
+        );
+      }
+      const record = {
+        endpointId: endpointId,
+        url: resolvedUrl,
+      };
+      state.endpoints.set(endpointId, record);
+      normalized.push(record);
+    }
+    return normalized;
+  }
+
+  function extractSdmlPayload(text, url) {
+    let parsed;
+    try {
+      parsed = JSON.parse(String(text || ""));
+    } catch (error) {
+      throw new Error("q-sdml-component invalid JSON from '" + url + "': " + error.message);
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("q-sdml-component response from '" + url + "' must be a JSON object.");
+    }
+    const block = typeof parsed.block === "string" ? parsed.block : "";
+    if (!block.trim()) {
+      throw new Error("q-sdml-component response from '" + url + "' must include a non-empty 'block' string.");
+    }
+    return parsed;
+  }
+
+  function findBalancedBlockClose(source, openIndex) {
+    const text = String(source || "");
+    const start = Number(openIndex);
+    if (!Number.isFinite(start) || start < 0 || start >= text.length || text.charAt(start) !== "{") {
+      return -1;
+    }
+    let depth = 0;
+    let quote = "";
+    let escaped = false;
+    for (let i = start; i < text.length; i += 1) {
+      const ch = text.charAt(i);
+      if (quote) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === "`") {
+        quote = ch;
+        continue;
+      }
+      if (ch === "{") {
+        depth += 1;
+      } else if (ch === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          return i;
+        }
+      }
+    }
+    return -1;
+  }
+
+  function stripLeadingRemoteObjectUrlBlock(bodyText) {
+    const body = String(bodyText || "");
+    const match = body.match(/^\s*url\s*\{/i);
+    if (!match) {
+      return body;
+    }
+    const openIndex = body.indexOf("{", match.index);
+    if (openIndex < 0) {
+      return body;
+    }
+    const closeIndex = findBalancedBlockClose(body, openIndex);
+    if (closeIndex < 0) {
+      return body;
+    }
+    return body.slice(0, match.index) + body.slice(closeIndex + 1);
+  }
+
+  function convertRemoteObjectBlockToQComponent(blockText) {
+    const source = String(blockText || "");
+    const remoteMatch = source.match(/^\s*remote-object\s+([A-Za-z_][A-Za-z0-9_.#-]*)\s*\{/i);
+    if (!remoteMatch) {
+      return "";
+    }
+    const name = String(remoteMatch[1] || "").trim();
+    if (!name) {
+      return "";
+    }
+    const openIndex = source.indexOf("{", remoteMatch.index);
+    if (openIndex < 0) {
+      return "";
+    }
+    const closeIndex = findBalancedBlockClose(source, openIndex);
+    if (closeIndex < 0) {
+      return "";
+    }
+    const body = stripLeadingRemoteObjectUrlBlock(source.slice(openIndex + 1, closeIndex));
+    return "q-component " + name + " {\n" + body + "\n}";
+  }
+
+  function hasAnyComponentDefinition(registry) {
+    if (!(registry instanceof Map)) {
+      return false;
+    }
+    let found = false;
+    registry.forEach(function scanDefinition(definitionNode) {
+      if (found) {
+        return;
+      }
+      if (inferDefinitionType(definitionNode) === "component") {
+        found = true;
+      }
+    });
+    return found;
+  }
+
+  async function loadSdmlBundleForUrl(url, state) {
+    const cacheState = state && state.urlCache instanceof Map ? state.urlCache : new Map();
+    const key = String(url || "").trim();
+    if (!key) {
+      throw new Error("q-sdml-component URL cannot be empty.");
+    }
+    if (cacheState.has(key)) {
+      return cacheState.get(key);
+    }
+    const pending = (async function fetchSdmlBundle() {
+      if (typeof global.fetch !== "function") {
+        throw new Error("q-sdml-component requires fetch() support.");
+      }
+      let response;
+      try {
+        response = await global.fetch(key);
+      } catch (error) {
+        throw new Error("q-sdml-component failed to load '" + key + "': " + error.message);
+      }
+      const status = Number(response && typeof response.status !== "undefined" ? response.status : 200);
+      const ok = !!response && (response.ok === true || (status >= 200 && status < 300) || status === 0);
+      if (!ok) {
+        throw new Error("q-sdml-component failed to load '" + key + "' (status " + status + ").");
+      }
+      const text =
+        response && typeof response.text === "function"
+          ? await response.text()
+          : String(response && typeof response.body !== "undefined" ? response.body : "");
+      const payload = extractSdmlPayload(text, key);
+      const block = String(payload.block || "");
+      let parsedDoc = parser.parseQHtmlToQDom(block, {
+        resolveImportsBeforeParse: false,
+      });
+      let registry = renderer.collectComponentRegistry(parsedDoc);
+      if (!hasAnyComponentDefinition(registry)) {
+        const converted = convertRemoteObjectBlockToQComponent(block);
+        if (converted) {
+          parsedDoc = parser.parseQHtmlToQDom(converted, {
+            resolveImportsBeforeParse: false,
+          });
+          registry = renderer.collectComponentRegistry(parsedDoc);
+        }
+      }
+      return {
+        url: key,
+        payload: payload,
+        registry: registry,
+      };
+    })();
+    cacheState.set(key, pending);
+    if (!(state && state.urlCache instanceof Map)) {
+      return pending;
+    }
+    try {
+      const loaded = await pending;
+      state.urlCache.set(key, Promise.resolve(loaded));
+      return loaded;
+    } catch (error) {
+      state.urlCache.delete(key);
+      throw error;
+    }
+  }
+
+  function resolveSdmlTargetDefinition(bundle, alias, declaration) {
+    const registry = bundle && bundle.registry instanceof Map ? bundle.registry : new Map();
+    const normalizedAlias = normalizeSdmlAlias(alias);
+    const remoteName = normalizeSdmlAlias(bundle && bundle.payload ? bundle.payload.name : "");
+    const declarationName = normalizeSdmlAlias(declaration && declaration.name ? declaration.name : "");
+    const componentEntries = [];
+    registry.forEach(function collectComponentEntries(definitionNode, definitionId) {
+      if (inferDefinitionType(definitionNode) !== "component") {
+        return;
+      }
+      componentEntries.push({
+        id: normalizeSdmlAlias(definitionId),
+        node: definitionNode,
+      });
+    });
+    if (componentEntries.length === 0) {
+      throw new Error("q-sdml-component '" + normalizedAlias + "' block does not define a q-component.");
+    }
+    let targetId = "";
+    if (normalizedAlias && registry.has(normalizedAlias) && inferDefinitionType(registry.get(normalizedAlias)) === "component") {
+      targetId = normalizedAlias;
+    } else if (remoteName && registry.has(remoteName) && inferDefinitionType(registry.get(remoteName)) === "component") {
+      targetId = remoteName;
+    } else if (declarationName && registry.has(declarationName) && inferDefinitionType(registry.get(declarationName)) === "component") {
+      targetId = declarationName;
+    } else if (componentEntries.length === 1) {
+      targetId = componentEntries[0].id;
+    } else {
+      throw new Error(
+        "q-sdml-component '" + normalizedAlias + "' is ambiguous: block contains multiple q-component definitions."
+      );
+    }
+    if (!targetId || !registry.has(targetId)) {
+      throw new Error("q-sdml-component '" + normalizedAlias + "' target component could not be resolved.");
+    }
+    return {
+      targetId: targetId,
+      targetNode: registry.get(targetId),
+    };
+  }
+
+  function materializeSdmlComponentDefinition(alias, declaration, bundle) {
+    const normalizedAlias = normalizeSdmlAlias(alias);
+    if (!normalizedAlias) {
+      return null;
+    }
+    const resolved = resolveSdmlTargetDefinition(bundle, normalizedAlias, declaration);
+    const registry = bundle && bundle.registry instanceof Map ? bundle.registry : new Map();
+    const targetId = resolved.targetId;
+    const idMap = new Map();
+    idMap.set(targetId, normalizedAlias);
+
+    const scopedDefinitions = new Map();
+    const helperPrefix = "__sdml_" + sanitizeSdmlIdentifier(normalizedAlias) + "__";
+    registry.forEach(function mapHelperDefinitionIds(definitionNode, definitionId) {
+      const key = normalizeSdmlAlias(definitionId);
+      if (!key || key === targetId) {
+        return;
+      }
+      const mappedId = helperPrefix + sanitizeSdmlIdentifier(key);
+      idMap.set(key, mappedId);
+    });
+    registry.forEach(function cloneHelperDefinition(definitionNode, definitionId) {
+      const key = normalizeSdmlAlias(definitionId);
+      if (!key || key === targetId || !idMap.has(key)) {
+        return;
+      }
+      const clone = cloneSdmlValue(definitionNode);
+      clone.componentId = idMap.get(key);
+      remapSdmlDefinitionReferences(clone, idMap);
+      scopedDefinitions.set(idMap.get(key), clone);
+    });
+
+    const targetClone = cloneSdmlValue(resolved.targetNode);
+    targetClone.componentId = normalizedAlias;
+    remapSdmlDefinitionReferences(targetClone, idMap);
+    if (!targetClone.meta || typeof targetClone.meta !== "object") {
+      targetClone.meta = {};
+    }
+    targetClone.meta.sdml = {
+      alias: normalizedAlias,
+      url: String(declaration && declaration.url ? declaration.url : bundle && bundle.url ? bundle.url : ""),
+      sourceType: "q-sdml-component",
+    };
+    targetClone.meta[SDML_SCOPED_DEFINITIONS_KEY] = scopedDefinitions;
+    try {
+      Object.defineProperty(targetClone, SDML_SCOPED_DEFINITIONS_KEY, {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: scopedDefinitions,
+      });
+    } catch (error) {
+      targetClone[SDML_SCOPED_DEFINITIONS_KEY] = scopedDefinitions;
+    }
+    return targetClone;
+  }
+
+  async function ensureSdmlComponentDefinitionForAlias(alias, targetDocument) {
+    const normalizedAlias = normalizeSdmlAlias(alias);
+    if (!normalizedAlias) {
+      return false;
+    }
+    const existing = definitionRegistry.get(normalizedAlias);
+    if (existing && inferDefinitionType(existing) === "component") {
+      return true;
+    }
+    const state = ensureSdmlDocumentState(targetDocument);
+    if (!state || !state.declarations.has(normalizedAlias)) {
+      return false;
+    }
+    if (state.aliasLoads.has(normalizedAlias)) {
+      return state.aliasLoads.get(normalizedAlias);
+    }
+    const declaration = state.declarations.get(normalizedAlias);
+    const pending = (async function loadSdmlComponentAlias() {
+      try {
+        const bundle = await loadSdmlBundleForUrl(declaration.url, state);
+        const definitionNode = materializeSdmlComponentDefinition(normalizedAlias, declaration, bundle);
+        if (!definitionNode) {
+          return false;
+        }
+        definitionRegistry.set(normalizedAlias, definitionNode);
+        registerCustomElementDefinition(normalizedAlias);
+        const doc = targetDocument || global.document;
+        if (doc) {
+          hydrateRegisteredComponentHostsInNode(doc, doc.nodeType === 9 ? doc : doc.ownerDocument || global.document);
+        }
+        return true;
+      } catch (error) {
+        warnSdml("q-sdml-component '" + normalizedAlias + "' failed to register.", {
+          url: declaration.url,
+          error: error && error.message ? error.message : String(error || ""),
+        });
+        return false;
+      } finally {
+        state.aliasLoads.delete(normalizedAlias);
+      }
+    })();
+    state.aliasLoads.set(normalizedAlias, pending);
+    return pending;
+  }
+
+  function requestSdmlLoadsForNode(rootNode, targetDocument) {
+    const doc = targetDocument || (rootNode && rootNode.ownerDocument) || global.document;
+    const state = ensureSdmlDocumentState(doc);
+    if (!state || !(state.declarations instanceof Map) || state.declarations.size === 0) {
+      return;
+    }
+    const scope = rootNode && typeof rootNode.querySelectorAll === "function" ? rootNode : doc;
+    state.declarations.forEach(function maybeLoadDeclaration(declaration, alias) {
+      if (!alias) {
+        return;
+      }
+      const existing = definitionRegistry.get(alias);
+      if (existing && inferDefinitionType(existing) === "component") {
+        return;
+      }
+      const matches = findTagMatchesInScope(scope, alias);
+      if (matches.length === 0) {
+        return;
+      }
+      void ensureSdmlComponentDefinitionForAlias(alias, doc);
+    });
+  }
+
   function createImportTraversalState(options) {
     const opts = options || {};
     const maxImports = typeof opts.maxImports === "number" && opts.maxImports > 0 ? opts.maxImports : 200;
@@ -3147,7 +3841,7 @@
 
     try {
       renderer.renderComponentElement(definitionNode, hostElement, targetDocument, {
-        componentRegistry: definitionRegistry,
+        componentRegistry: createRuntimeRenderRegistry(definitionRegistry),
         externalInstance: true,
       });
     } catch (error) {
@@ -3167,8 +3861,27 @@
     }
     const definitionNode = definitionRegistry.get(definitionId);
     if (!definitionNode || inferDefinitionType(definitionNode) !== "component") {
+      void ensureSdmlComponentDefinitionForAlias(definitionId, targetDocument || hostElement.ownerDocument || global.document).then(
+        function onSdmlLoaded(loaded) {
+          if (!loaded) {
+            return;
+          }
+          const loadedDefinition = definitionRegistry.get(definitionId);
+          if (!loadedDefinition || inferDefinitionType(loadedDefinition) !== "component") {
+            return;
+          }
+          applyComponentDefinitionDefaults(hostElement, loadedDefinition);
+          hydrateHostElementIfNeeded(
+            hostElement,
+            definitionId,
+            loadedDefinition,
+            targetDocument || hostElement.ownerDocument || global.document
+          );
+        }
+      );
       return false;
     }
+    applyComponentDefinitionDefaults(hostElement, definitionNode);
     hydrateHostElementIfNeeded(hostElement, definitionId, definitionNode, targetDocument);
     return true;
   }
@@ -3287,31 +4000,34 @@
 
   function hydrateRegisteredComponentHostsInNode(rootNode, targetDocument) {
     const doc = targetDocument || (rootNode && rootNode.ownerDocument) || global.document;
-    if (!doc || definitionRegistry.size === 0) {
+    if (!doc) {
       return;
     }
 
-    definitionRegistry.forEach(function eachDefinition(definitionNode, definitionId) {
-      if (inferDefinitionType(definitionNode) !== "component") {
-        return;
-      }
-      if (!definitionId) {
-        return;
-      }
+    if (definitionRegistry.size > 0) {
+      definitionRegistry.forEach(function eachDefinition(definitionNode, definitionId) {
+        if (inferDefinitionType(definitionNode) !== "component") {
+          return;
+        }
+        if (!definitionId) {
+          return;
+        }
 
-      if (rootNode && rootNode.nodeType === 1) {
-        hydrateHostElementIfNeeded(rootNode, definitionId, definitionNode, doc);
-      }
+        if (rootNode && rootNode.nodeType === 1) {
+          hydrateHostElementIfNeeded(rootNode, definitionId, definitionNode, doc);
+        }
 
-      const scope = rootNode && typeof rootNode.querySelectorAll === "function" ? rootNode : doc;
-      if (!scope || typeof scope.querySelectorAll !== "function") {
-        return;
-      }
-      const matches = scope.querySelectorAll(definitionId);
-      for (let i = 0; i < matches.length; i += 1) {
-        hydrateHostElementIfNeeded(matches[i], definitionId, definitionNode, doc);
-      }
-    });
+        const scope = rootNode && typeof rootNode.querySelectorAll === "function" ? rootNode : doc;
+        if (!scope) {
+          return;
+        }
+        const matches = findTagMatchesInScope(scope, definitionId);
+        for (let i = 0; i < matches.length; i += 1) {
+          hydrateHostElementIfNeeded(matches[i], definitionId, definitionNode, doc);
+        }
+      });
+    }
+    requestSdmlLoadsForNode(rootNode, doc);
   }
 
   function detachAllScriptListeners(binding) {
@@ -3764,6 +4480,144 @@
       }
       return true;
     });
+  }
+
+  function readDirectTextValueFromQDomNode(qdomNode) {
+    const source = sourceNodeOf(qdomNode) || qdomNode;
+    if (!source || typeof source !== "object") {
+      return null;
+    }
+    if (typeof source.textContent === "string") {
+      return source.textContent;
+    }
+    const children = Array.isArray(source.children) ? source.children : [];
+    if (children.length === 0) {
+      return "";
+    }
+    if (children.length === 1) {
+      const onlyChild = sourceNodeOf(children[0]) || children[0];
+      if (!onlyChild || typeof onlyChild !== "object") {
+        return null;
+      }
+      const childKind = String(onlyChild.kind || "").trim().toLowerCase();
+      if (childKind === "text") {
+        return onlyChild.value == null ? "" : String(onlyChild.value);
+      }
+    }
+    return null;
+  }
+
+  function patchScopedElementFromQDomFast(binding, scopeElement, scopeNode) {
+    if (!binding || !scopeElement || scopeElement.nodeType !== 1 || !scopeNode || typeof scopeNode !== "object") {
+      return false;
+    }
+    const source = sourceNodeOf(scopeNode) || scopeNode;
+    if (!source || typeof source !== "object") {
+      return false;
+    }
+    const kind = String(source.kind || "").trim().toLowerCase();
+    if (kind !== "element") {
+      return false;
+    }
+    const sourceMeta = source.meta && typeof source.meta === "object" ? source.meta : null;
+    const sourceTagName = String(source.tagName || "").trim().toLowerCase();
+    const domTagName = String(scopeElement.tagName || "").trim().toLowerCase();
+    if (!sourceTagName || sourceTagName !== domTagName) {
+      return false;
+    }
+    const nextText = readDirectTextValueFromQDomNode(source);
+    if (nextText === null) {
+      return false;
+    }
+    const attributes = source.attributes && typeof source.attributes === "object" ? source.attributes : {};
+    const attributeNames = Object.keys(attributes);
+
+    return withDomMutationSyncSuppressed(binding, function fastPatchScopeElement() {
+      const domAttributes =
+        scopeElement && scopeElement.attributes && typeof scopeElement.attributes.length === "number"
+          ? scopeElement.attributes
+          : [];
+      const toRemove = [];
+      for (let i = 0; i < domAttributes.length; i += 1) {
+        const attr = domAttributes[i];
+        if (!attr || typeof attr.name !== "string") {
+          continue;
+        }
+        const name = attr.name;
+        if (isInternalRuntimeAttributeName(name)) {
+          continue;
+        }
+        if (!Object.prototype.hasOwnProperty.call(attributes, name)) {
+          toRemove.push(name);
+        }
+      }
+      for (let i = 0; i < toRemove.length; i += 1) {
+        const name = toRemove[i];
+        scopeElement.removeAttribute(name);
+        if (name === "checked" && domTagName === "input") {
+          scopeElement.checked = false;
+        }
+      }
+      for (let i = 0; i < attributeNames.length; i += 1) {
+        const name = attributeNames[i];
+        const value = attributes[name];
+        if (value === null || typeof value === "undefined" || value === false) {
+          scopeElement.removeAttribute(name);
+          if (name === "checked" && domTagName === "input") {
+            scopeElement.checked = false;
+          }
+          continue;
+        }
+        const normalizedValue = String(value);
+        if (scopeElement.getAttribute(name) !== normalizedValue) {
+          scopeElement.setAttribute(name, normalizedValue);
+        }
+        if (name === "value" && isFormControlElement(scopeElement) && scopeElement.value !== normalizedValue) {
+          scopeElement.value = normalizedValue;
+        }
+        if (name === "checked" && domTagName === "input") {
+          scopeElement.checked = normalizedValue !== "false" && normalizedValue !== "0" && normalizedValue !== "";
+        }
+      }
+      if (scopeElement.textContent !== nextText) {
+        scopeElement.textContent = nextText;
+      }
+      if (sourceMeta) {
+        sourceMeta.dirty = false;
+      }
+      return true;
+    });
+  }
+
+  function overwriteQDomNodeInPlace(targetNode, replacementNode) {
+    const target = sourceNodeOf(targetNode) || targetNode;
+    const replacement = sourceNodeOf(replacementNode) || replacementNode;
+    if (!target || typeof target !== "object" || !replacement || typeof replacement !== "object") {
+      return false;
+    }
+    const preservedUuid = normalizeQDomUuidValue(
+      target.meta && typeof target.meta === "object" ? target.meta[QDOM_UUID_META_KEY] : ""
+    );
+    const clonedReplacement = cloneSdmlValue(replacement);
+    if (!clonedReplacement || typeof clonedReplacement !== "object") {
+      return false;
+    }
+    const currentKeys = Object.keys(target);
+    for (let i = 0; i < currentKeys.length; i += 1) {
+      delete target[currentKeys[i]];
+    }
+    const nextKeys = Object.keys(clonedReplacement);
+    for (let i = 0; i < nextKeys.length; i += 1) {
+      const key = nextKeys[i];
+      target[key] = clonedReplacement[key];
+    }
+    if (!target.meta || typeof target.meta !== "object") {
+      target.meta = {};
+    }
+    if (preservedUuid) {
+      target.meta[QDOM_UUID_META_KEY] = preservedUuid;
+    }
+    return true;
   }
 
   function readRestorableDomProperties(element) {
@@ -5806,14 +6660,25 @@
     const opts = options || {};
     const state = ensureBindingEvaluationState(binding);
     const forceAll = opts.forceAll === true;
+    const scopedElement = opts.scopeElement && opts.scopeElement.nodeType === 1 ? opts.scopeElement : null;
+    let evaluationRoot = root;
+    if (scopedElement) {
+      const scopedNode =
+        (binding.nodeMap && typeof binding.nodeMap.get === "function"
+          ? sourceNodeOf(binding.nodeMap.get(scopedElement))
+          : null) || resolveDomElementQDomNode(binding, scopedElement);
+      if (scopedNode && typeof scopedNode === "object") {
+        evaluationRoot = scopedNode;
+      }
+    }
     state.tick += 1;
     const allowQBindEvaluation = forceAll || state.tick % state.interval === 0;
-    const result = evaluateNodeBindingsInTree(root, {
+    const result = evaluateNodeBindingsInTree(evaluationRoot, {
       forceAll: forceAll,
       allowQBindEvaluation: allowQBindEvaluation,
       evaluationTick: state.tick,
       patchDom: opts.patchDom === true,
-      scopeElement: opts.scopeElement && opts.scopeElement.nodeType === 1 ? opts.scopeElement : null,
+      scopeElement: scopedElement,
       binding: binding,
     });
     if (result.changed) {
@@ -6099,7 +6964,7 @@
         componentMap: capturedComponentMap,
         slotMap: capturedSlotMap,
       },
-      componentRegistry: definitionRegistry,
+      componentRegistry: createRuntimeRenderRegistry(definitionRegistry),
     });
 
     const children =
@@ -6179,7 +7044,7 @@
             componentMap: binding.componentMap,
             slotMap: binding.slotMap,
           },
-          componentRegistry: definitionRegistry,
+          componentRegistry: createRuntimeRenderRegistry(definitionRegistry),
         });
         hydrateRegisteredComponentHostsInNode(binding.doc, binding.doc);
         attachDomQDomAccessors(binding);
@@ -6316,7 +7181,7 @@
         htmldom: function htmldom(targetDocument) {
           const docNode = createTransientDocumentFromNodes(list, true);
           return renderer.renderDocumentToFragment(docNode, targetDocument || binding.doc || global.document, {
-            componentRegistry: definitionRegistry,
+            componentRegistry: createRuntimeRenderRegistry(definitionRegistry),
           });
         },
         html: function html(targetDocument) {
@@ -8341,8 +9206,44 @@
           if (!parser || typeof parser.parseQHtmlToQDom !== "function") {
             throw new Error("createInstanceFromQHTML requires parser.parseQHtmlToQDom");
           }
-          const parsed = parser.parseQHtmlToQDom(qhtmlSource, Object.assign({ resolveImportsBeforeParse: false }, options || {}));
-          const nodes = parsed && Array.isArray(parsed.nodes) ? parsed.nodes : [];
+          const parsedOptions = Object.assign({ resolveImportsBeforeParse: false }, options || {});
+          const optionKeys = Object.keys(parsedOptions).filter(function filterCacheOption(key) {
+            if (key === "resolveImportsBeforeParse" && parsedOptions[key] === false) {
+              return false;
+            }
+            return true;
+          });
+          const canUseAstCache = optionKeys.length === 0;
+          let cache = null;
+          let cachedNodes = null;
+          if (canUseAstCache && binding && typeof binding === "object") {
+            if (!(binding.replaceWithQHtmlAstCache instanceof Map)) {
+              binding.replaceWithQHtmlAstCache = new Map();
+            }
+            cache = binding.replaceWithQHtmlAstCache;
+            const cachedEntry = cache.get(qhtmlSource);
+            if (cachedEntry && Array.isArray(cachedEntry.nodes)) {
+              cachedNodes = cloneSdmlValue(cachedEntry.nodes);
+              cache.delete(qhtmlSource);
+              cache.set(qhtmlSource, cachedEntry);
+            }
+          }
+          let nodes = Array.isArray(cachedNodes) ? cachedNodes : null;
+          if (!nodes) {
+            const parsed = parser.parseQHtmlToQDom(qhtmlSource, parsedOptions);
+            nodes = parsed && Array.isArray(parsed.nodes) ? parsed.nodes : [];
+            if (cache) {
+              cache.set(qhtmlSource, {
+                nodes: cloneSdmlValue(nodes),
+              });
+              if (cache.size > 128) {
+                const oldestKey = cache.keys().next().value;
+                if (typeof oldestKey !== "undefined") {
+                  cache.delete(oldestKey);
+                }
+              }
+            }
+          }
           if (nodes.length === 0) {
             return null;
           }
@@ -8386,32 +9287,52 @@
           }
 
           const targetSource = sourceNodeOf(node);
+          const targetUuid = normalizeQDomUuidValue(ensureQDomNodeUuid(targetSource));
+          const mappedTargetElements =
+            binding && targetSource && typeof targetSource === "object"
+              ? collectMappedDomElements(binding, targetSource)
+              : [];
+          let ownerNode = null;
           let replaced = false;
 
-          const stack = [rootCandidate];
-          while (stack.length > 0 && !replaced) {
-            const current = stack.pop();
-            if (!current || typeof current !== "object") {
-              continue;
+          if (inserted.length === 1 && targetSource && typeof targetSource === "object") {
+            const replacementSource = sourceNodeOf(inserted[0]) || inserted[0];
+            if (replacementSource && typeof replacementSource === "object") {
+              replaced = overwriteQDomNodeInPlace(targetSource, replacementSource);
+              if (replaced) {
+                inserted[0] = targetSource;
+                ownerNode = targetSource;
+              }
             }
+          }
 
-            const lists = [current.nodes, current.templateNodes, current.children];
-            for (let li = 0; li < lists.length && !replaced; li += 1) {
-              const list = lists[li];
-              if (!Array.isArray(list)) {
+          if (!replaced) {
+            const stack = [rootCandidate];
+            while (stack.length > 0 && !replaced) {
+              const current = stack.pop();
+              if (!current || typeof current !== "object") {
                 continue;
               }
-              for (let i = 0; i < list.length; i += 1) {
-                const child = list[i];
-                if (child && typeof child === "object") {
-                  stack.push(child);
-                }
-                if (sourceNodeOf(child) !== targetSource) {
+
+              const lists = [current.nodes, current.templateNodes, current.children];
+              for (let li = 0; li < lists.length && !replaced; li += 1) {
+                const list = lists[li];
+                if (!Array.isArray(list)) {
                   continue;
                 }
-                list.splice.apply(list, [i, 1].concat(inserted));
-                replaced = true;
-                break;
+                for (let i = 0; i < list.length; i += 1) {
+                  const child = list[i];
+                  if (child && typeof child === "object") {
+                    stack.push(child);
+                  }
+                  if (sourceNodeOf(child) !== targetSource) {
+                    continue;
+                  }
+                  list.splice.apply(list, [i, 1].concat(inserted));
+                  ownerNode = current;
+                  replaced = true;
+                  break;
+                }
               }
             }
           }
@@ -8419,8 +9340,54 @@
           if (!replaced) {
             return null;
           }
+          markRuntimeQDomDirty(binding, targetSource || node);
           if (binding && !binding.rendering) {
-            renderBinding(binding);
+            let updated = false;
+            const firstInsertedSource =
+              inserted.length === 1 && inserted[0] && typeof inserted[0] === "object"
+                ? sourceNodeOf(inserted[0]) || inserted[0]
+                : null;
+            if (firstInsertedSource && mappedTargetElements.length > 0 && binding.nodeMap && typeof binding.nodeMap.set === "function") {
+              for (let i = 0; i < mappedTargetElements.length; i += 1) {
+                const mappedElement = mappedTargetElements[i];
+                if (!mappedElement || mappedElement.nodeType !== 1 || mappedElement.isConnected === false) {
+                  continue;
+                }
+                binding.nodeMap.set(mappedElement, firstInsertedSource);
+                registerMappedDomElement(binding, firstInsertedSource, mappedElement);
+                if (
+                  binding.componentMap &&
+                  typeof binding.componentMap.get === "function" &&
+                  binding.componentHostBySourceNode &&
+                  typeof binding.componentHostBySourceNode.set === "function"
+                ) {
+                  const componentHost = binding.componentMap.get(mappedElement);
+                  if (componentHost && componentHost.nodeType === 1) {
+                    binding.componentHostBySourceNode.set(firstInsertedSource, componentHost);
+                  }
+                }
+              }
+              const insertedUuid = normalizeQDomUuidValue(ensureQDomNodeUuid(firstInsertedSource));
+              if (insertedUuid) {
+                updated = dispatchScopedNodeUpdateByUuid(binding, insertedUuid, { source: "qdom.replaceWithQHTML.direct" });
+              }
+            }
+            if (!updated && targetUuid) {
+              updated = dispatchScopedNodeUpdateByUuid(binding, targetUuid, { source: "qdom.replaceWithQHTML.target" });
+            }
+            const ownerUuid = normalizeQDomUuidValue(ensureQDomNodeUuid(ownerNode || targetSource));
+            if (!updated && ownerUuid) {
+              updated = dispatchScopedNodeUpdateByUuid(binding, ownerUuid, { source: "qdom.replaceWithQHTML" });
+            }
+            if (!updated) {
+              const componentElement = node && node.component && node.component.nodeType === 1 ? node.component : null;
+              if (componentElement) {
+                updated = !!updateQHtmlElement(host, { scopeElement: componentElement, sourceSignal: "qdom.replaceWithQHTML" });
+              }
+            }
+            if (!updated) {
+              renderBinding(binding);
+            }
           }
           return inserted.length === 1
             ? installQDomFactories(inserted[0])
@@ -8687,7 +9654,7 @@
         value: function htmldom(targetDocument) {
           const docNode = createTransientDocumentFromNodes([node], true);
           return renderer.renderDocumentToFragment(docNode, targetDocument || binding.doc || global.document, {
-            componentRegistry: definitionRegistry,
+            componentRegistry: createRuntimeRenderRegistry(definitionRegistry),
           });
         },
       });
@@ -8722,6 +9689,12 @@
         const uuid = normalizeQDomUuidValue(optionsOrUuid);
         if (!uuid) {
           return false;
+        }
+        const scopeElement = resolveScopeElementByUuid(binding, uuid);
+        const scopeNode = resolveScopeSourceNodeFromElement(binding, scopeElement);
+        if (scopeElement && scopeNode && patchScopedElementFromQDomFast(binding, scopeElement, scopeNode)) {
+          scheduleTemplatePersistence(binding);
+          return true;
         }
         if (dispatchScopedNodeUpdateByUuid(binding, uuid, { source: "host.update(uuid)" })) {
           return true;
@@ -9347,9 +10320,25 @@
 
   async function loadOrParseDocument(qHtmlElement, options) {
     const opts = options || {};
+    const importBaseUrl = resolveImportBaseUrl(qHtmlElement, opts);
     if (opts.preferTemplate !== false) {
       const loaded = core.loadQDomTemplateBefore(qHtmlElement);
       if (loaded) {
+        if (!loaded.meta || typeof loaded.meta !== "object") {
+          loaded.meta = {};
+        }
+        const restoredEndpoints = Array.isArray(loaded.meta.sdmlEndpoints) ? loaded.meta.sdmlEndpoints : [];
+        loaded.meta.sdmlEndpoints = registerSdmlEndpointsForDocument(
+          qHtmlElement.ownerDocument || global.document,
+          restoredEndpoints,
+          importBaseUrl
+        );
+        const restoredSdml = Array.isArray(loaded.meta.sdmlComponents) ? loaded.meta.sdmlComponents : [];
+        loaded.meta.sdmlComponents = registerSdmlDeclarationsForDocument(
+          qHtmlElement.ownerDocument || global.document,
+          restoredSdml,
+          importBaseUrl
+        );
         return loaded;
       }
     }
@@ -9361,7 +10350,6 @@
       rules = parser.parseQScript(companionScript.textContent || "");
     }
 
-    const importBaseUrl = resolveImportBaseUrl(qHtmlElement, opts);
     const parsed = parser.parseQHtmlToQDom(source, {
       scriptRules: rules,
       resolveImportsBeforeParse: false,
@@ -9385,6 +10373,39 @@
         return entry.url;
       });
     }
+    const sdmlEndpoints = Array.isArray(parsed.meta.sdmlEndpoints)
+      ? parsed.meta.sdmlEndpoints.map(function normalizeSdmlEndpoint(entry) {
+          if (!entry || typeof entry !== "object") {
+            return null;
+          }
+          return {
+            endpointId: normalizeSdmlAlias(entry.endpointId || entry.name || entry.id),
+            url: normalizeImportDeclarationPath(entry.url || entry.path),
+          };
+        }).filter(Boolean)
+      : [];
+    parsed.meta.sdmlEndpoints = registerSdmlEndpointsForDocument(
+      qHtmlElement.ownerDocument || global.document,
+      sdmlEndpoints,
+      importBaseUrl
+    );
+    const sdmlDeclarations = Array.isArray(parsed.meta.sdmlComponents)
+      ? parsed.meta.sdmlComponents.map(function normalizeSdmlDeclaration(entry) {
+          if (!entry || typeof entry !== "object") {
+            return null;
+          }
+          return {
+            componentId: normalizeSdmlAlias(entry.componentId || entry.alias),
+            path: normalizeImportDeclarationPath(entry.path || entry.url),
+            url: String(entry.url || "").trim(),
+          };
+        }).filter(Boolean)
+      : [];
+    parsed.meta.sdmlComponents = registerSdmlDeclarationsForDocument(
+      qHtmlElement.ownerDocument || global.document,
+      sdmlDeclarations,
+      importBaseUrl
+    );
     parsed.meta.importBaseUrl = importBaseUrl;
     parsed.meta.resolvedSource = source;
     parsed.meta.importSourceMode = "metadata-only";
@@ -9656,6 +10677,20 @@
     return id ? tag + "#" + id : tag;
   }
 
+  function resolveScopeSourceNodeFromElement(binding, scopeElement) {
+    if (!binding || !scopeElement || scopeElement.nodeType !== 1) {
+      return null;
+    }
+    const mapped =
+      binding.nodeMap && typeof binding.nodeMap.get === "function"
+        ? sourceNodeOf(binding.nodeMap.get(scopeElement))
+        : null;
+    if (mapped && typeof mapped === "object") {
+      return mapped;
+    }
+    return resolveDomElementQDomNode(binding, scopeElement);
+  }
+
   function resolveScopedUpdateElementFromChangedNodes(binding, changedNodes) {
     const nodes = normalizeChangedNodeCollection(changedNodes);
     if (!binding || nodes.length === 0) {
@@ -9809,12 +10844,24 @@
       try {
         const activeScopeElement = state.nextScopeElement;
         state.nextScopeElement = null;
+        const activeScopeNode = resolveScopeSourceNodeFromElement(binding, activeScopeElement);
+        const canFastPatchScopedElement =
+          !!activeScopeElement &&
+          !!activeScopeNode &&
+          forceBindings !== true &&
+          forceRender !== true;
+        if (canFastPatchScopedElement && patchScopedElementFromQDomFast(binding, activeScopeElement, activeScopeNode)) {
+          scheduleTemplatePersistence(binding);
+          continue;
+        }
         const bindingResult = evaluateAllNodeBindings(binding, {
           forceAll: forceBindings,
           patchDom: true,
           scopeElement: activeScopeElement,
         });
-        const qColorChanged = evaluateAllNodeQColors(binding);
+        const qColorChanged = activeScopeNode
+          ? evaluateNodeQColorsInTree(binding, activeScopeNode)
+          : evaluateAllNodeQColors(binding);
         const inferredScopeElement =
           activeScopeElement || resolveScopedUpdateElementFromChangedNodes(binding, bindingResult.changedNodes);
         if (inferredScopeElement) {

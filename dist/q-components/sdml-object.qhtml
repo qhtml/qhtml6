@@ -1,0 +1,296 @@
+q-component sdml-object {
+  q-property url: ""
+  q-property data: ""
+  q-property method: "GET"
+
+  q-signal response(url, data)
+  q-signal error(url, error)
+  q-signal request(url, method, data)
+
+  function ensureComponentBridge() {
+    const host = this;
+    if (!host || (typeof host !== "object" && typeof host !== "function")) {
+      return null;
+    }
+    if (host.__sdmlComponentBridgeReady && host.component) {
+      return host.component;
+    }
+    if (typeof Proxy !== "function") {
+      host.component = host;
+      host.__sdmlComponentBridgeReady = true;
+      return host.component;
+    }
+
+    const bridgeCallable = function componentBridge(handler) {
+      if (typeof handler === "function") {
+        return handler.bind(host);
+      }
+      return host;
+    };
+
+    const bridge = new Proxy(bridgeCallable, {
+      get(target, property) {
+        if (property === "__host") {
+          return host;
+        }
+        if (property in host) {
+          return host[property];
+        }
+        return target[property];
+      },
+      set(target, property, value) {
+        host[property] = value;
+        return true;
+      },
+      apply(target, thisArg, args) {
+        if (Array.isArray(args) && args.length > 0 && typeof args[0] === "function") {
+          return args[0].bind(host);
+        }
+        return host;
+      },
+    });
+
+    host.component = bridge;
+    host.__sdmlComponentBridgeReady = true;
+    return bridge;
+  }
+
+  function interpolateTemplateString(source) {
+    const body = String(source || "");
+    const marker = "$" + "{";
+    if (!body || body.indexOf(marker) === -1) {
+      return body;
+    }
+    let output = "";
+    let cursor = 0;
+    while (cursor < body.length) {
+      const start = body.indexOf(marker, cursor);
+      if (start === -1) {
+        output += body.slice(cursor);
+        break;
+      }
+      output += body.slice(cursor, start);
+      const end = body.indexOf("}", start + 2);
+      if (end === -1) {
+        output += body.slice(start);
+        break;
+      }
+      const expression = body.slice(start + 2, end).trim();
+      try {
+        const evaluate = new Function(
+          "component",
+          "self",
+          "with({component: component, self: self, this: component}){ return (" + expression + "); }"
+        );
+        const value = evaluate.call(this, this, this);
+        if (typeof value === "string") {
+          output += JSON.stringify(value);
+        } else if (value && typeof value === "object") {
+          output += JSON.stringify(value);
+        } else if (value == null) {
+          output += "null";
+        } else {
+          output += String(value);
+        }
+      } catch (error) {
+        output += "null";
+      }
+      cursor = end + 1;
+    }
+    return output;
+  }
+
+  function normalizePayload(rawPayload) {
+    if (typeof rawPayload !== "string") {
+      return rawPayload;
+    }
+    const interpolated = this.interpolateTemplateString(rawPayload);
+    const text = String(interpolated || "").trim();
+    if (!text) {
+      return "";
+    }
+    if ((text.charAt(0) === "{" && text.charAt(text.length - 1) === "}") ||
+        (text.charAt(0) === "[" && text.charAt(text.length - 1) === "]")) {
+      try {
+        return JSON.parse(text);
+      } catch (jsonError) {
+        try {
+          return (new Function("return (" + text + ");"))();
+        } catch (jsObjectError) {
+          return text;
+        }
+      }
+    }
+    return text;
+  }
+
+  function normalizeMethod(rawMethod) {
+    const value = String(rawMethod || "").trim().toUpperCase();
+    return value === "POST" ? "POST" : "GET";
+  }
+
+  function resolveUrl(urlOverride) {
+    const explicit = String(urlOverride == null ? "" : urlOverride).trim();
+    if (explicit) {
+      return explicit;
+    }
+    return String(this.url || "").trim();
+  }
+
+  function resolveData(dataOverride) {
+    if (typeof dataOverride !== "undefined") {
+      return this.normalizePayload(dataOverride);
+    }
+    return this.normalizePayload(this.data);
+  }
+
+  function appendQueryParams(baseUrl, payload) {
+    const target = String(baseUrl || "").trim();
+    if (!target) {
+      return "";
+    }
+    if (typeof payload === "string") {
+      const text = String(payload || "").trim();
+      if (!text) {
+        return target;
+      }
+      if (text.indexOf("=") !== -1) {
+        return target + (target.indexOf("?") === -1 ? "?" : "&") + text.replace(/^\?/, "");
+      }
+      return target;
+    }
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      return target;
+    }
+    const query = new URLSearchParams();
+    const keys = Object.keys(payload);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim();
+      if (!key) {
+        continue;
+      }
+      const value = payload[key];
+      if (typeof value === "undefined") {
+        continue;
+      }
+      if (Array.isArray(value)) {
+        for (let j = 0; j < value.length; j += 1) {
+          query.append(key, value[j] == null ? "" : String(value[j]));
+        }
+        continue;
+      }
+      query.append(key, value == null ? "" : String(value));
+    }
+    const encoded = query.toString();
+    if (!encoded) {
+      return target;
+    }
+    return target + (target.indexOf("?") === -1 ? "?" : "&") + encoded;
+  }
+
+  function parseResponsePayload(response) {
+    if (!response || typeof response !== "object") {
+      return Promise.resolve({ result: "" });
+    }
+    const contentType = response.headers && typeof response.headers.get === "function"
+      ? String(response.headers.get("content-type") || "").toLowerCase()
+      : "";
+    if (contentType.indexOf("application/json") !== -1 && typeof response.json === "function") {
+      return response.json().catch(() => ({ result: "" }));
+    }
+    if (typeof response.text === "function") {
+      return response.text().then((text) => {
+        const raw = String(text || "");
+        if (!raw.trim()) {
+          return { result: "" };
+        }
+        try {
+          return JSON.parse(raw);
+        } catch (error) {
+          return { result: raw };
+        }
+      });
+    }
+    return Promise.resolve({ result: "" });
+  }
+
+  function get(urlOverride, dataOverride, init) {
+    this.ensureComponentBridge();
+    const targetUrl = this.resolveUrl(urlOverride);
+    if (!targetUrl) {
+      const missingUrlError = new Error("sdml-object.get requires a non-empty url.");
+      this.error("", missingUrlError);
+      return Promise.reject(missingUrlError);
+    }
+    const payload = this.resolveData(dataOverride);
+    const finalUrl = this.appendQueryParams(targetUrl, payload);
+    this.request(finalUrl, "GET", payload);
+    if (typeof fetch !== "function") {
+      const missingFetchError = new Error("sdml-object.get requires fetch() support.");
+      this.error(finalUrl, missingFetchError);
+      return Promise.reject(missingFetchError);
+    }
+    return fetch(finalUrl, Object.assign({}, init || {}, { method: "GET" }))
+      .then((response) => this.parseResponsePayload(response))
+      .then((body) => {
+        this.response(finalUrl, body);
+        return body;
+      })
+      .catch((error) => {
+        this.error(finalUrl, error);
+        throw error;
+      });
+  }
+
+  function post(urlOverride, dataOverride, init) {
+    this.ensureComponentBridge();
+    const targetUrl = this.resolveUrl(urlOverride);
+    if (!targetUrl) {
+      const missingUrlError = new Error("sdml-object.post requires a non-empty url.");
+      this.error("", missingUrlError);
+      return Promise.reject(missingUrlError);
+    }
+    const payload = this.resolveData(dataOverride);
+    if (typeof fetch !== "function") {
+      const missingFetchError = new Error("sdml-object.post requires fetch() support.");
+      this.error(targetUrl, missingFetchError);
+      return Promise.reject(missingFetchError);
+    }
+    const requestInit = Object.assign({}, init || {}, { method: "POST" });
+    if (typeof payload !== "undefined" && payload !== null) {
+      const isFormData = typeof FormData !== "undefined" && payload instanceof FormData;
+      const isUrlSearchParams = typeof URLSearchParams !== "undefined" && payload instanceof URLSearchParams;
+      const isBlob = typeof Blob !== "undefined" && payload instanceof Blob;
+      if (!isFormData && !isUrlSearchParams && !isBlob && typeof payload === "object") {
+        requestInit.headers = Object.assign({}, requestInit.headers || {}, { "Content-Type": "application/json" });
+        requestInit.body = JSON.stringify(payload);
+      } else {
+        requestInit.body = payload;
+      }
+    }
+    this.request(targetUrl, "POST", payload);
+    return fetch(targetUrl, requestInit)
+      .then((response) => this.parseResponsePayload(response))
+      .then((body) => {
+        this.response(targetUrl, body);
+        return body;
+      })
+      .catch((error) => {
+        this.error(targetUrl, error);
+        throw error;
+      });
+  }
+
+  function send(urlOverride, dataOverride, init) {
+    this.ensureComponentBridge();
+    const selectedMethod = this.normalizeMethod(this.method);
+    if (selectedMethod === "POST") {
+      return this.post(urlOverride, dataOverride, init);
+    }
+    return this.get(urlOverride, dataOverride, init);
+  }
+
+  onReady {
+    this.ensureComponentBridge();
+  }
+}

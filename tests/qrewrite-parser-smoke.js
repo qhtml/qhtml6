@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const vm = require('vm');
 
 function assert(condition, message) {
@@ -46,8 +47,8 @@ const context = {
 context.globalThis = context;
 context.window = context;
 
-const qdomCorePath = '/home/mike/build/test/modules/qdom-core/src/qdom-core.js';
-const parserPath = '/home/mike/build/test/modules/qhtml-parser/src/qhtml-parser.js';
+const qdomCorePath = path.join(__dirname, '..', 'modules', 'qdom-core', 'src', 'qdom-core.js');
+const parserPath = path.join(__dirname, '..', 'modules', 'qhtml-parser', 'src', 'qhtml-parser.js');
 loadModuleScript(context, qdomCorePath);
 loadModuleScript(context, parserPath);
 
@@ -55,6 +56,11 @@ const parser = context.QHtmlModules && context.QHtmlModules.qhtmlParser;
 assert(parser && typeof parser.parseQHtmlToQDom === 'function', 'qhtml parser module failed to load');
 
 const source = `
+sdml-endpoint search-api {
+  url { /api/search }
+}
+q-sdml-component remote-search { search-api }
+
 q-rewrite my-transformer {
   slot { main-slot }
   return {
@@ -76,6 +82,16 @@ div {
 
 const doc = parser.parseQHtmlToQDom(source, {});
 assert(doc && doc.kind === 'document', 'parseQHtmlToQDom did not return a document');
+assert(Array.isArray(doc.meta.sdmlEndpoints), 'sdml endpoint metadata missing');
+assert(
+  doc.meta.sdmlEndpoints.some((entry) => entry && entry.endpointId === 'search-api' && entry.url === '/api/search'),
+  'sdml-endpoint metadata not captured'
+);
+assert(Array.isArray(doc.meta.sdmlComponents), 'sdml component metadata missing');
+assert(
+  doc.meta.sdmlComponents.some((entry) => entry && entry.componentId === 'remote-search' && entry.path === 'search-api'),
+  'q-sdml-component declaration metadata not captured'
+);
 assert(doc.meta && typeof doc.meta.rewrittenSource === 'string', 'rewrittenSource metadata missing');
 assert(doc.meta.rewrittenSource.indexOf('q-rewrite') === -1, 'q-rewrite definitions were not stripped before parse');
 assert(

@@ -34,6 +34,12 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - `property name: value` (shorthand alias)
     - `meta.qBindings` entries for assignment expressions (`q-bind` / assignment-form `q-script`)
     - definition kind preservation for `q-component`, `q-template`, and `q-signal`
+    - top-level SDML declarations:
+      - `sdml-endpoint endpointName { url { /api/path } }`
+      - emitted as `doc.meta.sdmlEndpoints = [{ endpointId, url }]`
+      - `q-sdml-component alias { /api/path }`
+      - `q-sdml-component alias { endpointName }` (endpoint reference)
+      - emitted as `doc.meta.sdmlComponents = [{ componentId, path }]`
     - scoped keyword alias parsing via `q-keyword name { replacement-head }`
     - per-node alias metadata as `node.keywords`
     - signal declaration + invocation parsing:
@@ -73,6 +79,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
   - Both recursively inline `q-import` blocks.
   - Detect circular imports and enforce max import count.
   - When `parseQHtmlToQDom(..., { resolveImportsBeforeParse: false })` is used, `q-import` paths are preserved as metadata (`doc.meta.imports`) rather than inlined into the parsed host QDOM.
+  - `q-sdml-component` declarations are always preserved as metadata (`doc.meta.sdmlComponents`) and not expanded during parse.
 
 ### Serialization APIs
 - `qdomToQHtml(documentNode, options?)`

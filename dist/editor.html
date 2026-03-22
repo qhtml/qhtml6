@@ -224,7 +224,7 @@ q-theme tabs-demo-theme {
 tabs-demo-theme {
   div.tabs-demo-card {
     h2 { text { q-tabs addTab() demo } }
-    p { text { Click Add Tab to append a new q-tab using a qhtml string. } }
+    p { text { Click Add Tab to append a new q-tab using qdom helpers. } }
 
     q-tabs#demoTabs {
       button.tabs-demo-add-btn {
@@ -232,12 +232,28 @@ tabs-demo-theme {
         onclick {
           var host = this.closest("q-html");
           var tabs = this.closest("q-tabs");
+          var tabsQdom = tabs.qdom();
           var index = Number(host.__nextTabIndex || 3);
           var label = "Tab " + String(index);
           host.__nextTabIndex = index + 1;
 
-          var tabSource = "div.w3-padding { h4 { text { " + label + " } } p { text { Here's a brand new tab } } }";
-          tabs.addTab(label, tabSource);
+          var tabNode = tabsQdom.createQComponentInstance("q-tab", { name: label });
+          var heading = tabNode.createQElement("h4", {}, [tabNode.createQText(label)]);
+          var body = tabNode.createQElement("p", {}, [tabNode.createQText("Here's a brand new tab")]);
+          var wrapper = tabNode.createQElement("div", { class: "w3-padding" }, [heading, body]);
+          tabNode.appendNode(tabNode.createQSlot("content", [wrapper]));
+          tabsQdom.appendNode(tabNode);
+
+          if (tabsQdom.UUID) {
+            host.update(tabsQdom.UUID);
+          } else {
+            host.update();
+          }
+
+          var liveTabs = tabs.id ? host.querySelector("#" + tabs.id) || tabs : tabs;
+          var refreshed = liveTabs.refreshTabs();
+          var activeIndex = Array.isArray(refreshed) ? Math.max(0, refreshed.length - 1) : index - 1;
+          liveTabs.showTab(activeIndex);
         }
         text { Add Tab }
       }

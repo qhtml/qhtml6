@@ -35,6 +35,7 @@ Runtime mount/update engine for `<q-html>` in browser environments.
     - aborts with console error when limits are exceeded
 - `hydrateComponentElement(hostElement)`
   - Hydrate custom-element/component host from registered definitions.
+  - If a matching `q-sdml-component` declaration exists and the definition is not yet loaded, it lazily fetches and registers it, then hydrates.
 - `emitQSignal(target, payload, eventNamePrefix?)`
   - Dispatch runtime signal events (`q-signal` and optional namespaced event).
 - `createQSignalEvent(payload)`
@@ -53,6 +54,15 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - `q-import` mount behavior:
   - host QDOM keeps lightweight import metadata (`meta.imports`, `meta.importCacheRefs`, `meta.importUrls`)
   - imported definitions are preloaded/registered from cache without inlining imported source into host QDOM
+- `q-sdml-component` mount behavior:
+  - endpoint aliases can be declared with `sdml-endpoint` parser metadata (`meta.sdmlEndpoints`)
+  - `q-sdml-component alias { endpointName }` resolves endpointName to URL before loading
+  - declarations are read from parser metadata (`meta.sdmlComponents`)
+  - URLs are resolved against `importBaseUrl`/document base URI
+  - remote definitions are loaded lazily on first host usage (no eager preload)
+  - response must be strict JSON containing a non-empty `block` string
+  - failures are reported as warnings and skipped (mount continues)
+  - per-document URL cache dedupes fetch/parse during one page lifecycle
 
 ## `.qdom()` and node list helpers
 - `host.qdom()` / `element.qdom()` return facades over source QDom nodes.
@@ -124,3 +134,4 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - Maintains host-bound UUID maps (`uuid↔dom`, `uuid↔qdom`) and listens for `qhtml:update` scoped-refresh events.
 - Maintains component-host property reference indexes (`propertyName -> Set<qdomUuid>`) derived from binding scripts that reference `this.component.<prop>` / `component.<prop>` for targeted updates.
 - Custom-element registration (`customElements.define`) now applies parsed component `q-property` defaults per instance at construction/connection time (non-binding defaults only).
+- SDML helper component/template/signal definitions from remote blocks are scoped to their owning alias definition via internal prefixed ids, avoiding global definition collisions.

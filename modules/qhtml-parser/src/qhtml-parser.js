@@ -48,6 +48,8 @@
     "q-repeater",
     "q-foreach",
     "q-import",
+    "q-sdml-component",
+    "sdml-endpoint",
     "slot",
     "style",
     "text",
@@ -541,6 +543,12 @@
       nameLower === "q-theme" ||
       nameLower === "q-default-theme"
     ) {
+      return isIdentifierStartChar(next) || next === "{";
+    }
+    if (nameLower === "q-sdml-component") {
+      return isIdentifierStartChar(next) || next === "{";
+    }
+    if (nameLower === "sdml-endpoint") {
       return isIdentifierStartChar(next) || next === "{";
     }
     if (nameLower === "q-keyword") {
@@ -3014,6 +3022,69 @@
             raw: parser.source.slice(start, parser.index),
           });
           continue;
+        }
+
+        if (firstLower === "sdml-endpoint" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const endpointId = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after sdml-endpoint id", parser.index);
+          }
+          consume(parser);
+          const endpointOpenIndex = parser.index - 1;
+          const endpointCloseIndex = findMatchingBraceInText(parser.source, endpointOpenIndex);
+          if (endpointCloseIndex === -1) {
+            throw ParseError("Unterminated sdml-endpoint block.", parser.index);
+          }
+          const endpointBody = parser.source.slice(endpointOpenIndex + 1, endpointCloseIndex);
+          parser.index = endpointCloseIndex + 1;
+          const endpointUrl = extractSdmlEndpointUrlFromText(endpointBody);
+          if (!endpointUrl) {
+            throw ParseError("sdml-endpoint requires url { ... }", parser.index);
+          }
+          body.push({
+            type: "SdmlEndpointDefinition",
+            endpointId: String(endpointId || "").trim(),
+            url: endpointUrl,
+            body: endpointBody,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "sdml-endpoint" && peek(parser) === "{") {
+          throw ParseError("Anonymous sdml-endpoint is not allowed", parser.index);
+        }
+
+        if (firstLower === "q-sdml-component" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const componentId = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-sdml-component id", parser.index);
+          }
+          consume(parser);
+          const sdmlBody = readBalancedBlockContent(parser);
+          const sdmlPath = String(sdmlBody || "").trim();
+          if (!sdmlPath) {
+            throw ParseError("q-sdml-component URL cannot be empty.", parser.index);
+          }
+          body.push({
+            type: "SdmlComponentDeclaration",
+            componentId: String(componentId || "").trim(),
+            path: sdmlPath,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-sdml-component" && peek(parser) === "{") {
+          throw ParseError("Anonymous q-sdml-component is not allowed", parser.index);
         }
 
         if (firstLower === "q-color-schema" && peek(parser) !== "{" && peek(parser) !== ",") {
@@ -7477,6 +7548,26 @@
     return chunks.join(" ").trim();
   }
 
+  function extractSdmlEndpointUrlFromText(bodyText) {
+    const text = String(bodyText || "");
+    const token = /\burl\b/i.exec(text);
+    if (!token) {
+      return "";
+    }
+    let openIndex = token.index + token[0].length;
+    while (openIndex < text.length && /\s/.test(text.charAt(openIndex))) {
+      openIndex += 1;
+    }
+    if (text.charAt(openIndex) !== "{") {
+      return "";
+    }
+    const closeIndex = findMatchingBraceInText(text, openIndex);
+    if (closeIndex === -1) {
+      return "";
+    }
+    return text.slice(openIndex + 1, closeIndex).trim();
+  }
+
   function parseQColorSchemaEntriesFromAstItems(items) {
     const out = {};
     const list = Array.isArray(items) ? items : [];
@@ -9181,11 +9272,27 @@
     const conversionContext = createScopedConversionContext();
 
     const imports = [];
+    const sdmlEndpoints = [];
+    const sdmlComponents = [];
     const lifecycleScripts = [];
     for (let i = 0; i < ast.body.length; i += 1) {
       const item = ast.body[i];
       if (item.type === "ImportBlock") {
         imports.push(String(item.path || "").trim());
+        continue;
+      }
+      if (item.type === "SdmlEndpointDefinition") {
+        sdmlEndpoints.push({
+          endpointId: String(item.endpointId || "").trim(),
+          url: String(item.url || "").trim(),
+        });
+        continue;
+      }
+      if (item.type === "SdmlComponentDeclaration") {
+        sdmlComponents.push({
+          componentId: String(item.componentId || "").trim(),
+          path: String(item.path || "").trim(),
+        });
         continue;
       }
       if (item.type === "LifecycleBlock" && item.isLifecycle) {
@@ -9305,6 +9412,8 @@
       doc.meta = {};
     }
     doc.meta.imports = imports.length > 0 ? imports : importUrls;
+    doc.meta.sdmlEndpoints = sdmlEndpoints;
+    doc.meta.sdmlComponents = sdmlComponents;
     doc.meta.resolvedSource = effectiveSource;
     doc.meta.macroExpandedSource = macroExpandedSource;
     doc.meta.qMacros = macroResult.definitions;
