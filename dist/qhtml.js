@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-03-22T03:29:48Z */
+/* generated: 2026-03-22T07:52:40Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -12387,6 +12387,14 @@
     return node.__qhtmlSourceNode && typeof node.__qhtmlSourceNode === "object" ? node.__qhtmlSourceNode : node;
   }
 
+  function isProjectedSlotNode(node) {
+    return !!(node && typeof node === "object" && node[RENDER_SLOT_REF]);
+  }
+
+  function isInsideProjectedSlotContext(context) {
+    return !!(context && Array.isArray(context.slotStack) && context.slotStack.length > 0);
+  }
+
   function inferDefinitionType(definitionNode) {
     if (!definitionNode || typeof definitionNode !== "object") {
       return "component";
@@ -14716,7 +14724,7 @@
   function renderComponentTemplateInstance(componentNode, instanceNode, parent, targetDocument, context) {
     const stack = context.componentStack;
     const key = String(componentNode.componentId || "").toLowerCase();
-    if (stack.indexOf(key) !== -1) {
+    if (stack.indexOf(key) !== -1 && !isProjectedSlotNode(instanceNode) && !isInsideProjectedSlotContext(context)) {
       throw new Error("Recursive q-component usage detected for '" + key + "'.");
     }
 
@@ -14899,7 +14907,7 @@
   function renderComponentHostInstance(componentNode, instanceNode, parent, targetDocument, context) {
     const stack = context.componentStack;
     const key = String(componentNode.componentId || instanceNode.tagName || "").toLowerCase();
-    if (stack.indexOf(key) !== -1) {
+    if (stack.indexOf(key) !== -1 && !isProjectedSlotNode(instanceNode) && !isInsideProjectedSlotContext(context)) {
       throw new Error("Recursive q-component usage detected for '" + key + "'.");
     }
 
@@ -15225,6 +15233,7 @@
       componentStack: Array.isArray(opts.componentStack) ? opts.componentStack : [],
       componentHostStack: Array.isArray(opts.componentHostStack) ? opts.componentHostStack : [],
       componentQdomStack: Array.isArray(opts.componentQdomStack) ? opts.componentQdomStack : [],
+      slotStack: Array.isArray(opts.slotStack) ? opts.slotStack : [],
       disableLifecycleHooks: !!opts.disableLifecycleHooks,
     };
     const effectiveComponentNode = resolveInheritedComponentDefinition(
@@ -15246,7 +15255,11 @@
 
     bindComponentMethods(effectiveComponentNode, hostElement, instanceNode);
 
-    if (context.componentStack.indexOf(key) !== -1) {
+    if (
+      context.componentStack.indexOf(key) !== -1 &&
+      !isProjectedSlotNode(instanceNode) &&
+      !isInsideProjectedSlotContext(context)
+    ) {
       throw new Error("Recursive q-component usage detected for '" + key + "'.");
     }
 
