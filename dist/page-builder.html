@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>QHTML Framework Capability Harness</title>
   <link rel="stylesheet" href="w3.css" />
+  <script src="q-editor.js"></script>
   <script src="qhtml.js?v=6.1.2"></script>
   <style>
     html, body {
@@ -21,6 +22,8 @@
     }
 
     .qbuilder-node-highlight {
+      outline: 2px solid #f59e0b !important;
+      outline-offset: 1px;
       border-color: #f59e0b !important;
       box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35);
     }
@@ -39,6 +42,8 @@
 </head>
 <body>
   <q-html id="page-builder-host">
+q-import { q-components/q-modal.qhtml }
+q-import { q-components/q-tabs.qhtml }
 q-import { page-builder/page-builder.qhtml }
 q-import { page-builder/page-builder-starter.qhtml }
 page-builder-app { }

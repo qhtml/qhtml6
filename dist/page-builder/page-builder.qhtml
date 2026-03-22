@@ -67,6 +67,337 @@ q-component q-component-wrapper {
   }
 }
 
+q-component q-tree-view {
+  function state() {
+    if (!this.__qTreeViewState || typeof this.__qTreeViewState !== "object") {
+      this.__qTreeViewState = {
+        selectedPath: ""
+      };
+    }
+    return this.__qTreeViewState;
+  }
+
+  function body() {
+    return this.querySelector("[q-tree-view-body='1']");
+  }
+
+  function cloneValue(value) {
+    if (Array.isArray(value)) {
+      var outArray = [];
+      for (var i = 0; i < value.length; i += 1) {
+        outArray.push(this.cloneValue(value[i]));
+      }
+      return outArray;
+    }
+    if (value && typeof value === "object") {
+      var outObject = {};
+      var keys = Object.keys(value);
+      for (var j = 0; j < keys.length; j += 1) {
+        var key = keys[j];
+        outObject[key] = this.cloneValue(value[key]);
+      }
+      return outObject;
+    }
+    return value;
+  }
+
+  function modelValue() {
+    var source = this.model;
+    if (Array.isArray(source)) {
+      return source;
+    }
+    if (source && typeof source === "object") {
+      return source;
+    }
+    return [];
+  }
+
+  function import(jsValue) {
+    this.model = this.cloneValue(jsValue);
+    this.state().selectedPath = "";
+    this.renderTree();
+    return this.model;
+  }
+
+  function export() {
+    return this.cloneValue(this.modelValue());
+  }
+
+  function selectedPath() {
+    return String(this.state().selectedPath || "");
+  }
+
+  function selectedValue() {
+    return this.valueAtPath(this.selectedPath());
+  }
+
+  function select(path) {
+    this.state().selectedPath = String(path || "");
+    this.renderTree();
+    return this.state().selectedPath;
+  }
+
+  function pathParts(path) {
+    var value = String(path || "").trim();
+    if (!value) {
+      return [];
+    }
+    return value.split(".");
+  }
+
+  function valueAtPath(path) {
+    var parts = this.pathParts(path);
+    if (parts.length === 0) {
+      return this.modelValue();
+    }
+    var cursor = this.modelValue();
+    for (var i = 0; i < parts.length; i += 1) {
+      if (cursor == null) {
+        return undefined;
+      }
+      var key = parts[i];
+      if (Array.isArray(cursor)) {
+        var index = Number(key);
+        if (!Number.isFinite(index) || index < 0 || index >= cursor.length) {
+          return undefined;
+        }
+        cursor = cursor[index];
+      } else if (typeof cursor === "object") {
+        if (!Object.prototype.hasOwnProperty.call(cursor, key)) {
+          return undefined;
+        }
+        cursor = cursor[key];
+      } else {
+        return undefined;
+      }
+    }
+    return cursor;
+  }
+
+  function updateSelected(nextValue) {
+    var selected = this.selectedPath();
+    if (!selected) {
+      return false;
+    }
+    var parts = this.pathParts(selected);
+    if (parts.length === 0) {
+      return false;
+    }
+    var root = this.modelValue();
+    var parent = root;
+    for (var i = 0; i < parts.length - 1; i += 1) {
+      var key = parts[i];
+      if (Array.isArray(parent)) {
+        var index = Number(key);
+        if (!Number.isFinite(index) || index < 0 || index >= parent.length) {
+          return false;
+        }
+        parent = parent[index];
+      } else if (parent && typeof parent === "object") {
+        if (!Object.prototype.hasOwnProperty.call(parent, key)) {
+          return false;
+        }
+        parent = parent[key];
+      } else {
+        return false;
+      }
+    }
+    var tail = parts[parts.length - 1];
+    if (Array.isArray(parent)) {
+      var tailIndex = Number(tail);
+      if (!Number.isFinite(tailIndex) || tailIndex < 0 || tailIndex >= parent.length) {
+        return false;
+      }
+      parent[tailIndex] = this.cloneValue(nextValue);
+    } else if (parent && typeof parent === "object") {
+      parent[tail] = this.cloneValue(nextValue);
+    } else {
+      return false;
+    }
+    this.renderTree();
+    return true;
+  }
+
+  function removeSelected() {
+    var selected = this.selectedPath();
+    if (!selected) {
+      return false;
+    }
+    var parts = this.pathParts(selected);
+    if (parts.length === 0) {
+      return false;
+    }
+    var root = this.modelValue();
+    var parent = root;
+    for (var i = 0; i < parts.length - 1; i += 1) {
+      var key = parts[i];
+      if (Array.isArray(parent)) {
+        var index = Number(key);
+        if (!Number.isFinite(index) || index < 0 || index >= parent.length) {
+          return false;
+        }
+        parent = parent[index];
+      } else if (parent && typeof parent === "object") {
+        if (!Object.prototype.hasOwnProperty.call(parent, key)) {
+          return false;
+        }
+        parent = parent[key];
+      } else {
+        return false;
+      }
+    }
+    var tail = parts[parts.length - 1];
+    if (Array.isArray(parent)) {
+      var tailIndex = Number(tail);
+      if (!Number.isFinite(tailIndex) || tailIndex < 0 || tailIndex >= parent.length) {
+        return false;
+      }
+      parent.splice(tailIndex, 1);
+    } else if (parent && typeof parent === "object") {
+      if (!Object.prototype.hasOwnProperty.call(parent, tail)) {
+        return false;
+      }
+      delete parent[tail];
+    } else {
+      return false;
+    }
+    this.state().selectedPath = "";
+    this.renderTree();
+    return true;
+  }
+
+  function add(value) {
+    var model = this.modelValue();
+    if (Array.isArray(model)) {
+      model.push(this.cloneValue(value));
+    } else if (model && typeof model === "object") {
+      var key = "item-" + String(Date.now());
+      model[key] = this.cloneValue(value);
+    } else {
+      this.model = [this.cloneValue(value)];
+    }
+    this.renderTree();
+    return true;
+  }
+
+  function describeNode(key, value) {
+    if (typeof this.renderItem === "function") {
+      try {
+        var custom = this.renderItem(key, value);
+        if (custom != null) {
+          return String(custom);
+        }
+      } catch (error) {
+      }
+    }
+    if (Array.isArray(value)) {
+      return String(key) + ": [array]";
+    }
+    if (value && typeof value === "object") {
+      return String(key) + ": {object}";
+    }
+    return String(key) + ": " + String(value == null ? "" : value);
+  }
+
+  function renderBranch(container, value, path) {
+    var selected = this.selectedPath();
+    if (Array.isArray(value)) {
+      for (var i = 0; i < value.length; i += 1) {
+        var nextPath = path ? path + "." + String(i) : String(i);
+        var row = document.createElement("div");
+        row.className = "q-tree-view-row";
+        row.style.padding = "0.25rem 0.4rem";
+        row.style.cursor = "pointer";
+        row.style.borderRadius = "0.4rem";
+        if (selected === nextPath) {
+          row.style.background = "#dbeafe";
+          row.style.color = "#1e3a8a";
+        }
+        row.setAttribute("data-path", nextPath);
+        row.textContent = this.describeNode(i, value[i]);
+        row.addEventListener("click", function() {
+          this.closest("q-tree-view").select(this.getAttribute("data-path") || "");
+        });
+        container.appendChild(row);
+        if (Array.isArray(value[i]) || (value[i] && typeof value[i] === "object")) {
+          var nested = document.createElement("div");
+          nested.className = "q-tree-view-nested";
+          container.appendChild(nested);
+          this.renderBranch(nested, value[i], nextPath);
+        }
+      }
+      return;
+    }
+    if (value && typeof value === "object") {
+      var keys = Object.keys(value);
+      for (var j = 0; j < keys.length; j += 1) {
+        var key = keys[j];
+        var child = value[key];
+        var childPath = path ? path + "." + key : key;
+        var rowNode = document.createElement("div");
+        rowNode.className = "q-tree-view-row";
+        rowNode.style.padding = "0.25rem 0.4rem";
+        rowNode.style.cursor = "pointer";
+        rowNode.style.borderRadius = "0.4rem";
+        if (selected === childPath) {
+          rowNode.style.background = "#dbeafe";
+          rowNode.style.color = "#1e3a8a";
+        }
+        rowNode.setAttribute("data-path", childPath);
+        rowNode.textContent = this.describeNode(key, child);
+        rowNode.addEventListener("click", function() {
+          this.closest("q-tree-view").select(this.getAttribute("data-path") || "");
+        });
+        container.appendChild(rowNode);
+        if (Array.isArray(child) || (child && typeof child === "object")) {
+          var nestedNode = document.createElement("div");
+          nestedNode.className = "q-tree-view-nested";
+          container.appendChild(nestedNode);
+          this.renderBranch(nestedNode, child, childPath);
+        }
+      }
+      return;
+    }
+    var primitive = document.createElement("div");
+    primitive.className = "q-tree-view-row";
+    primitive.style.padding = "0.25rem 0.4rem";
+    primitive.textContent = String(value == null ? "" : value);
+    container.appendChild(primitive);
+  }
+
+  function renderTree() {
+    var body = this.body();
+    if (!body) {
+      return;
+    }
+    while (body.firstChild) {
+      body.removeChild(body.firstChild);
+    }
+    var value = this.modelValue();
+    this.renderBranch(body, value, "");
+  }
+
+  onReady {
+    this.renderTree();
+  }
+
+  div.q-tree-view {
+    style {
+      border: 1px solid #d0d8e4;
+      border-radius: 0.6rem;
+      background: #ffffff;
+      max-height: 16rem;
+      overflow: auto;
+      font-size: 0.85rem;
+      line-height: 1.35;
+    }
+    div {
+      q-tree-view-body: "1"
+      style { padding: 0.45rem; }
+    }
+  }
+}
+
 q-component page-builder-runtime {
   function state() {
     if (!this.__pageBuilderRuntimeState || typeof this.__pageBuilderRuntimeState !== "object") {
@@ -76,7 +407,9 @@ q-component page-builder-runtime {
         dragSource: "",
         pointerX: 0,
         pointerY: 0,
-        hoverTarget: null
+        hoverTarget: null,
+        hoverHighlightNodes: [],
+        paletteEntries: null
       };
     }
     return this.__pageBuilderRuntimeState;
@@ -90,18 +423,149 @@ q-component page-builder-runtime {
     return document.querySelector("#page-builder-dropzone");
   }
 
-  function paletteEntries() {
+  function defaultPaletteEntries() {
     return [
-      { id: "title", label: "Title" },
-      { id: "text", label: "Text Block" },
-      { id: "button", label: "Button" },
-      { id: "input", label: "Input" },
-      { id: "card", label: "Card" },
-      { id: "group", label: "Group Box" },
-      { id: "form", label: "Form" },
-      { id: "grid", label: "Grid" },
-      { id: "frame", label: "Frame" }
+      { id: "title", label: "Title", type: "q-component", canonicalName: "title", slots: ["default"], signals: [], properties: [] },
+      { id: "text", label: "Text Block", type: "q-component", canonicalName: "text-block", slots: ["default"], signals: [], properties: [] },
+      { id: "button", label: "Button", type: "q-component", canonicalName: "button", slots: ["default"], signals: [], properties: [] },
+      { id: "input", label: "Input", type: "q-component", canonicalName: "input", slots: ["default"], signals: [], properties: [] },
+      { id: "card", label: "Card", type: "q-component", canonicalName: "card", slots: ["default"], signals: [], properties: [] },
+      { id: "group", label: "Group Box", type: "q-component", canonicalName: "group-box", slots: ["default"], signals: [], properties: [] },
+      { id: "form", label: "Form", type: "q-component", canonicalName: "form", slots: ["default"], signals: [], properties: [] },
+      { id: "grid", label: "Grid", type: "q-component", canonicalName: "grid", slots: ["default"], signals: [], properties: [] },
+      { id: "frame", label: "Frame", type: "q-component", canonicalName: "frame", slots: ["header", "body", "footer"], signals: [], properties: [] }
     ];
+  }
+
+  function normalizePaletteEntry(entry, fallbackIndex) {
+    var source = entry && typeof entry === "object" ? entry : {};
+    var rawId = String(source.id || "").trim();
+    var rawLabel = String(source.label || "").trim();
+    var id = rawId || ("custom-" + String(Number(fallbackIndex || 0)));
+    var label = rawLabel || id;
+    var qhtmlSource = typeof source.source === "string" ? String(source.source || "").trim() : "";
+    var wrapWithBuilder = source.wrapWithBuilder !== false;
+    var type = String(source.type || "q-component").trim() || "q-component";
+    var canonicalName = String(source.canonicalName || "").trim();
+    var slotValues = Array.isArray(source.slots) ? source.slots : [];
+    var signalValues = Array.isArray(source.signals) ? source.signals : [];
+    var propertyValues = Array.isArray(source.properties) ? source.properties : [];
+    var slots = [];
+    for (var i = 0; i < slotValues.length; i += 1) {
+      var slotName = String(slotValues[i] || "").trim();
+      if (!slotName || slots.indexOf(slotName) >= 0) {
+        continue;
+      }
+      slots.push(slotName);
+    }
+    var signals = [];
+    for (var j = 0; j < signalValues.length; j += 1) {
+      var signalName = String(signalValues[j] || "").trim();
+      if (!signalName || signals.indexOf(signalName) >= 0) {
+        continue;
+      }
+      signals.push(signalName);
+    }
+    var properties = [];
+    for (var p = 0; p < propertyValues.length; p += 1) {
+      var propertyName = String(propertyValues[p] || "").trim();
+      if (!propertyName || properties.indexOf(propertyName) >= 0) {
+        continue;
+      }
+      properties.push(propertyName);
+    }
+    return {
+      id: id,
+      label: label,
+      source: qhtmlSource,
+      wrapWithBuilder: wrapWithBuilder,
+      type: type,
+      canonicalName: canonicalName,
+      slots: slots,
+      signals: signals,
+      properties: properties
+    };
+  }
+
+  function ensurePaletteEntries() {
+    var s = this.state();
+    if (Array.isArray(s.paletteEntries)) {
+      return s.paletteEntries;
+    }
+    var defaults = this.defaultPaletteEntries();
+    var normalized = [];
+    for (var i = 0; i < defaults.length; i += 1) {
+      normalized.push(this.normalizePaletteEntry(defaults[i], i + 1));
+    }
+    s.paletteEntries = normalized;
+    return s.paletteEntries;
+  }
+
+  function paletteEntries() {
+    var entries = this.ensurePaletteEntries();
+    var out = [];
+    for (var i = 0; i < entries.length; i += 1) {
+      var entry = entries[i] || {};
+      out.push({
+        id: String(entry.id || ""),
+        label: String(entry.label || ""),
+        source: typeof entry.source === "string" ? String(entry.source || "") : "",
+        wrapWithBuilder: entry.wrapWithBuilder !== false,
+        type: String(entry.type || "q-component"),
+        canonicalName: String(entry.canonicalName || ""),
+        slots: Array.isArray(entry.slots) ? entry.slots.slice() : [],
+        signals: Array.isArray(entry.signals) ? entry.signals.slice() : [],
+        properties: Array.isArray(entry.properties) ? entry.properties.slice() : []
+      });
+    }
+    return out;
+  }
+
+  function paletteEntryById(entryId) {
+    var key = String(entryId || "").trim();
+    if (!key) {
+      return null;
+    }
+    var entries = this.ensurePaletteEntries();
+    for (var i = 0; i < entries.length; i += 1) {
+      var entry = entries[i];
+      if (!entry) {
+        continue;
+      }
+      if (String(entry.id || "") === key) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  function notifyPaletteChanged() {
+    document.dispatchEvent(new CustomEvent("page-builder-palette-change", {
+      detail: {
+        entries: this.paletteEntries()
+      }
+    }));
+  }
+
+  function addPaletteEntry(entry) {
+    var normalized = this.normalizePaletteEntry(entry, Date.now());
+    var entries = this.ensurePaletteEntries();
+    var replaced = false;
+    for (var i = 0; i < entries.length; i += 1) {
+      if (!entries[i]) {
+        continue;
+      }
+      if (String(entries[i].id || "") === normalized.id) {
+        entries[i] = normalized;
+        replaced = true;
+        break;
+      }
+    }
+    if (!replaced) {
+      entries.push(normalized);
+    }
+    this.notifyPaletteChanged();
+    return normalized;
   }
 
   function widgetSource(widgetId) {
@@ -136,8 +600,423 @@ q-component page-builder-runtime {
     return "p { text { New element } }";
   }
 
+  function wrapWithBuilder(source) {
+    var body = String(source || "").trim();
+    if (!body) {
+      return "q-component-wrapper { }";
+    }
+    if (body.toLowerCase().indexOf("q-component-wrapper") === 0) {
+      return body;
+    }
+    return "q-component-wrapper { " + body + " }";
+  }
+
   function wrappedWidgetSource(widgetId) {
-    return "q-component-wrapper { " + this.widgetSource(widgetId) + " }";
+    var entry = this.paletteEntryById(widgetId);
+    var source = entry && typeof entry.source === "string" && String(entry.source || "").trim()
+      ? String(entry.source || "").trim()
+      : this.widgetSource(widgetId);
+    if (entry && entry.wrapWithBuilder === false) {
+      return source;
+    }
+    return this.wrapWithBuilder(source);
+  }
+
+  function paletteCreatorModal() {
+    return this.querySelector("q-modal[q-page-builder-create-modal='1']");
+  }
+
+  function paletteCreatorEditor() {
+    return this.querySelector("q-editor[q-page-builder-create-editor='1']");
+  }
+
+  function paletteCreatorNameInput() {
+    return this.querySelector("input[q-page-builder-create-name='1']");
+  }
+
+  function paletteCreatorTypeInput() {
+    return this.querySelector("select[q-page-builder-create-type='1']");
+  }
+
+  function paletteCreatorCanonicalInput() {
+    return this.querySelector("input[q-page-builder-create-canonical='1']");
+  }
+
+  function paletteCreatorAutoNameInput() {
+    return this.querySelector("input[q-page-builder-create-auto-name='1']");
+  }
+
+  function paletteCreatorSlotsTree() {
+    return this.querySelector("q-tree-view[q-page-builder-create-slots-tree='1']");
+  }
+
+  function paletteCreatorSlotInput() {
+    return this.querySelector("input[q-page-builder-create-slot-name='1']");
+  }
+
+  function paletteCreatorSignalsInput() {
+    return this.querySelector("textarea[q-page-builder-create-signals='1']");
+  }
+
+  function paletteCreatorPropertiesInput() {
+    return this.querySelector("textarea[q-page-builder-create-properties='1']");
+  }
+
+  function paletteCreatorStatusNode() {
+    return this.querySelector("[q-page-builder-create-status='1']");
+  }
+
+  function defaultPaletteCreatorSource() {
+    return "div.w3-card.w3-round-large.w3-padding { h3 { text { Custom Block } } p { text { Replace this with your custom content. } } }";
+  }
+
+  function autoNameStorageKey() {
+    return "qhtml.pageBuilder.palette.autoName";
+  }
+
+  function readAutoNamePreference() {
+    try {
+      var stored = localStorage.getItem(this.autoNameStorageKey());
+      if (stored === "0") {
+        return false;
+      }
+      if (stored === "1") {
+        return true;
+      }
+    } catch (error) {
+    }
+    return true;
+  }
+
+  function writeAutoNamePreference(enabled) {
+    try {
+      localStorage.setItem(this.autoNameStorageKey(), enabled ? "1" : "0");
+    } catch (error) {
+    }
+  }
+
+  function canonicalizeName(value) {
+    var text = String(value || "").trim().toLowerCase();
+    if (!text) {
+      return "";
+    }
+    return text.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  }
+
+  function setPaletteCreatorStatus(message, tone) {
+    var node = this.paletteCreatorStatusNode();
+    if (!node) {
+      return;
+    }
+    var text = String(message || "");
+    node.textContent = text;
+    if (!node.style) {
+      return;
+    }
+    if (!text) {
+      node.style.color = "#64748b";
+      return;
+    }
+    if (String(tone || "").toLowerCase() === "error") {
+      node.style.color = "#b91c1c";
+      return;
+    }
+    if (String(tone || "").toLowerCase() === "success") {
+      node.style.color = "#166534";
+      return;
+    }
+    node.style.color = "#0f172a";
+  }
+
+  function paletteEntryIdFromLabel(label) {
+    var base = this.canonicalizeName(label);
+    if (!base) {
+      return "custom-item";
+    }
+    return base || "custom-item";
+  }
+
+  function uniquePaletteEntryId(baseId) {
+    var base = String(baseId || "").trim() || "custom-item";
+    if (!this.paletteEntryById(base)) {
+      return base;
+    }
+    var index = 2;
+    while (this.paletteEntryById(base + "-" + String(index))) {
+      index += 1;
+    }
+    return base + "-" + String(index);
+  }
+
+  function readPaletteCreatorSource() {
+    var editor = this.paletteCreatorEditor();
+    if (!editor) {
+      return "";
+    }
+    if (typeof editor.getQhtmlSource === "function") {
+      return String(editor.getQhtmlSource() || "").trim();
+    }
+    return String(editor.textContent || "").trim();
+  }
+
+  function readTreeList(tree) {
+    if (!tree) {
+      return [];
+    }
+    var exported = typeof tree.export === "function" ? tree.export() : tree.model;
+    if (!Array.isArray(exported)) {
+      return [];
+    }
+    var out = [];
+    for (var i = 0; i < exported.length; i += 1) {
+      var raw = exported[i];
+      var value = "";
+      if (raw && typeof raw === "object" && typeof raw.name === "string") {
+        value = String(raw.name || "").trim();
+      } else {
+        value = String(raw || "").trim();
+      }
+      if (!value || out.indexOf(value) >= 0) {
+        continue;
+      }
+      out.push(value);
+    }
+    return out;
+  }
+
+  function setSlotsList(list) {
+    var tree = this.paletteCreatorSlotsTree();
+    if (!tree || typeof tree.import !== "function") {
+      return;
+    }
+    var values = Array.isArray(list) ? list : [];
+    var model = [];
+    for (var i = 0; i < values.length; i += 1) {
+      var slotName = String(values[i] || "").trim();
+      if (!slotName) {
+        continue;
+      }
+      model.push({ name: slotName });
+    }
+    tree.import(model);
+  }
+
+  function addSlotEntry() {
+    var input = this.paletteCreatorSlotInput();
+    var value = String(input && typeof input.value === "string" ? input.value : "").trim();
+    if (!value) {
+      this.setPaletteCreatorStatus("Slot name is required.", "error");
+      return false;
+    }
+    var tree = this.paletteCreatorSlotsTree();
+    if (!tree) {
+      return false;
+    }
+    var current = this.readTreeList(tree);
+    if (current.indexOf(value) >= 0) {
+      this.setPaletteCreatorStatus("Slot already exists.", "error");
+      return false;
+    }
+    current.push(value);
+    this.setSlotsList(current);
+    if (input) {
+      input.value = "";
+    }
+    this.setPaletteCreatorStatus("Slot added.", "success");
+    return true;
+  }
+
+  function renameSelectedSlot() {
+    var tree = this.paletteCreatorSlotsTree();
+    var input = this.paletteCreatorSlotInput();
+    var nextName = String(input && typeof input.value === "string" ? input.value : "").trim();
+    if (!tree) {
+      return false;
+    }
+    if (!nextName) {
+      this.setPaletteCreatorStatus("Enter a slot name to rename.", "error");
+      return false;
+    }
+    var selected = tree.selectedValue && typeof tree.selectedValue === "function" ? tree.selectedValue() : null;
+    if (!selected) {
+      this.setPaletteCreatorStatus("Select a slot in the tree first.", "error");
+      return false;
+    }
+    var updated = { name: nextName };
+    if (typeof tree.updateSelected === "function" && tree.updateSelected(updated)) {
+      if (input) {
+        input.value = "";
+      }
+      this.setPaletteCreatorStatus("Slot renamed.", "success");
+      return true;
+    }
+    this.setPaletteCreatorStatus("Unable to rename selected slot.", "error");
+    return false;
+  }
+
+  function removeSelectedSlot() {
+    var tree = this.paletteCreatorSlotsTree();
+    if (!tree || typeof tree.removeSelected !== "function") {
+      return false;
+    }
+    if (tree.removeSelected()) {
+      this.setPaletteCreatorStatus("Slot removed.", "success");
+      return true;
+    }
+    this.setPaletteCreatorStatus("Select a slot to remove.", "error");
+    return false;
+  }
+
+  function parseLineList(value) {
+    var text = String(value || "");
+    if (!text.trim()) {
+      return [];
+    }
+    var lines = text.split(/\r?\n|,/g);
+    var out = [];
+    for (var i = 0; i < lines.length; i += 1) {
+      var item = String(lines[i] || "").trim();
+      if (!item || out.indexOf(item) >= 0) {
+        continue;
+      }
+      out.push(item);
+    }
+    return out;
+  }
+
+  function onPaletteNameInput(rawValue) {
+    var autoInput = this.paletteCreatorAutoNameInput();
+    var canonicalInput = this.paletteCreatorCanonicalInput();
+    var autoEnabled = !!(autoInput && autoInput.checked);
+    if (!autoEnabled || !canonicalInput) {
+      return;
+    }
+    canonicalInput.value = this.canonicalizeName(rawValue);
+  }
+
+  function onPaletteAutoNameToggle(checked) {
+    var enabled = !!checked;
+    this.writeAutoNamePreference(enabled);
+    var nameInput = this.paletteCreatorNameInput();
+    this.onPaletteNameInput(nameInput && typeof nameInput.value === "string" ? nameInput.value : "");
+  }
+
+  function openPaletteCreator() {
+    var modal = this.paletteCreatorModal();
+    if (!modal || typeof modal.show !== "function") {
+      return;
+    }
+    var nameInput = this.paletteCreatorNameInput();
+    if (nameInput) {
+      nameInput.value = "Custom Block";
+    }
+    var typeInput = this.paletteCreatorTypeInput();
+    if (typeInput) {
+      typeInput.value = "q-component";
+    }
+    var autoNameInput = this.paletteCreatorAutoNameInput();
+    if (autoNameInput) {
+      autoNameInput.checked = this.readAutoNamePreference();
+    }
+    var canonicalInput = this.paletteCreatorCanonicalInput();
+    if (canonicalInput) {
+      canonicalInput.value = "";
+    }
+    this.onPaletteNameInput(nameInput && typeof nameInput.value === "string" ? nameInput.value : "");
+    var editor = this.paletteCreatorEditor();
+    if (editor && typeof editor.setQhtmlSource === "function") {
+      editor.setQhtmlSource(this.defaultPaletteCreatorSource());
+    }
+    this.setSlotsList(["default"]);
+    var slotInput = this.paletteCreatorSlotInput();
+    if (slotInput) {
+      slotInput.value = "";
+    }
+    var signalsInput = this.paletteCreatorSignalsInput();
+    if (signalsInput) {
+      signalsInput.value = "";
+    }
+    var propertiesInput = this.paletteCreatorPropertiesInput();
+    if (propertiesInput) {
+      propertiesInput.value = "";
+    }
+    this.setPaletteCreatorStatus("", "");
+    modal.show();
+    if (nameInput && typeof nameInput.focus === "function") {
+      nameInput.focus();
+      if (typeof nameInput.select === "function") {
+        nameInput.select();
+      }
+    }
+  }
+
+  function closePaletteCreator() {
+    var modal = this.paletteCreatorModal();
+    if (modal && typeof modal.hide === "function") {
+      modal.hide();
+    }
+    this.setPaletteCreatorStatus("", "");
+  }
+
+  function savePaletteCreator() {
+    var nameInput = this.paletteCreatorNameInput();
+    var label = String(nameInput && typeof nameInput.value === "string" ? nameInput.value : "").trim();
+    if (!label) {
+      this.setPaletteCreatorStatus("Name is required.", "error");
+      return false;
+    }
+    var typeInput = this.paletteCreatorTypeInput();
+    var type = String(typeInput && typeof typeInput.value === "string" ? typeInput.value : "q-component").trim() || "q-component";
+    var canonicalInput = this.paletteCreatorCanonicalInput();
+    var canonicalName = String(canonicalInput && typeof canonicalInput.value === "string" ? canonicalInput.value : "").trim();
+    var autoNameInput = this.paletteCreatorAutoNameInput();
+    if (!canonicalName && autoNameInput && autoNameInput.checked) {
+      canonicalName = this.canonicalizeName(label);
+      if (canonicalInput) {
+        canonicalInput.value = canonicalName;
+      }
+    }
+    if (!canonicalName) {
+      this.setPaletteCreatorStatus("Canonical name is required.", "error");
+      return false;
+    }
+    var source = this.readPaletteCreatorSource();
+    if (!source) {
+      this.setPaletteCreatorStatus("QHTML source is required.", "error");
+      return false;
+    }
+    if (globalThis.QHtml && typeof globalThis.QHtml.parseQHtml === "function") {
+      try {
+        globalThis.QHtml.parseQHtml(source);
+      } catch (error) {
+        var reason = error && error.message ? String(error.message) : String(error);
+        this.setPaletteCreatorStatus("Invalid QHTML: " + reason, "error");
+        return false;
+      }
+    }
+    var id = this.uniquePaletteEntryId(this.paletteEntryIdFromLabel(canonicalName));
+    var slots = [];
+    if (type === "q-component") {
+      slots = this.readTreeList(this.paletteCreatorSlotsTree());
+    }
+    var signalsInput = this.paletteCreatorSignalsInput();
+    var propertiesInput = this.paletteCreatorPropertiesInput();
+    var signals = this.parseLineList(signalsInput && typeof signalsInput.value === "string" ? signalsInput.value : "");
+    var properties = this.parseLineList(propertiesInput && typeof propertiesInput.value === "string" ? propertiesInput.value : "");
+    this.addPaletteEntry({
+      id: id,
+      label: label,
+      source: source,
+      wrapWithBuilder: true,
+      type: type,
+      canonicalName: canonicalName,
+      slots: slots,
+      signals: signals,
+      properties: properties
+    });
+    this.setPaletteCreatorStatus("Added \"" + label + "\" to palette.", "success");
+    this.closePaletteCreator();
+    return true;
   }
 
   function targetCandidates() {
@@ -163,62 +1042,181 @@ q-component page-builder-runtime {
     return out;
   }
 
+  function clearActiveHighlightNodes() {
+    var s = this.state();
+    var highlighted = Array.isArray(s.hoverHighlightNodes) ? s.hoverHighlightNodes : [];
+    for (var i = 0; i < highlighted.length; i += 1) {
+      var node = highlighted[i];
+      if (!node || !node.classList) {
+        continue;
+      }
+      node.classList.remove("qbuilder-node-highlight");
+    }
+    s.hoverHighlightNodes = [];
+  }
+
   function clearHighlights() {
-    var nodes = this.targetCandidates();
-    for (var i = 0; i < nodes.length; i += 1) {
-      var facade = nodes[i] && typeof nodes[i].builderNode === "function" ? nodes[i].builderNode() : null;
-      if (facade && typeof facade.highlight === "function") {
-        facade.highlight(false);
-      }
-    }
-    this.state().hoverTarget = null;
+    var s = this.state();
+    this.clearActiveHighlightNodes();
+    s.hoverTarget = null;
   }
 
-  function areaOf(element) {
-    if (!element || typeof element.getBoundingClientRect !== "function") {
-      return Number.MAX_SAFE_INTEGER;
-    }
-    var rect = element.getBoundingClientRect();
-    return Math.max(1, Math.round(rect.width * rect.height));
+  function qhtmlHost() {
+    return document.querySelector("#page-builder-host");
   }
 
-  function deepestTargetAt(x, y) {
-    var nodes = this.targetCandidates();
-    var matches = [];
-    for (var i = 0; i < nodes.length; i += 1) {
-      var candidate = nodes[i];
-      var facade = candidate && typeof candidate.builderNode === "function" ? candidate.builderNode() : null;
-      if (!facade || typeof facade.isMouseWithin !== "function") {
-        continue;
-      }
-      if (!facade.isMouseWithin(x, y)) {
-        continue;
-      }
-      matches.push(candidate);
-    }
-    if (matches.length === 0) {
+  function domElementForQDomNode(qdomNode) {
+    var host = this.qhtmlHost();
+    if (!host || typeof host.uuidFor !== "function" || typeof host.elementForUuid !== "function") {
       return null;
     }
-    matches.sort(function byAreaAsc(a, b) {
-      return this.areaOf(a) - this.areaOf(b);
-    }.bind(this));
-    return matches[0] || null;
+    var uuid = String(host.uuidFor(qdomNode) || "").trim();
+    if (!uuid) {
+      return null;
+    }
+    var mapped = host.elementForUuid(uuid);
+    return mapped && mapped.nodeType === 1 ? mapped : null;
+  }
+
+  function componentSlotDirectChildren(target) {
+    if (!target || typeof target.qdom !== "function") {
+      return [];
+    }
+    var qdomNode = target.qdom();
+    if (!qdomNode || typeof qdomNode.slots !== "function") {
+      return [];
+    }
+    var slots = qdomNode.slots();
+    var out = [];
+    for (var i = 0; i < slots.length; i += 1) {
+      var slotHandle = slots[i];
+      var children = slotHandle && typeof slotHandle.children === "function" ? slotHandle.children() : [];
+      for (var j = 0; j < children.length; j += 1) {
+        var childElement = this.domElementForQDomNode(children[j]);
+        if (!childElement || out.indexOf(childElement) >= 0) {
+          continue;
+        }
+        out.push(childElement);
+      }
+    }
+    return out;
+  }
+
+  function deepestLeafDescendant(root) {
+    if (!root || root.nodeType !== 1) {
+      return null;
+    }
+    var best = null;
+    var bestDepth = -1;
+
+    function walk(node, depth) {
+      if (!node || node.nodeType !== 1) {
+        return;
+      }
+      var children = node.children;
+      if (!children || children.length === 0) {
+        if (depth > bestDepth) {
+          best = node;
+          bestDepth = depth;
+        }
+        return;
+      }
+      for (var i = 0; i < children.length; i += 1) {
+        walk(children[i], depth + 1);
+      }
+    }
+
+    walk(root, 0);
+    return best || root;
+  }
+
+  function isComponentElement(target) {
+    if (!target || target.nodeType !== 1 || !target.getAttribute) {
+      return false;
+    }
+    return (
+      String(target.getAttribute("qhtml-component-instance") || "") === "1" ||
+      String(target.getAttribute("q-component") || "").trim().length > 0
+    );
+  }
+
+  function highlightNodesForTarget(target) {
+    if (!target || target.nodeType !== 1) {
+      return [];
+    }
+    if (this.isComponentElement(target)) {
+      var slotChildren = this.componentSlotDirectChildren(target);
+      if (slotChildren.length > 0) {
+        return slotChildren;
+      }
+      var leaf = this.deepestLeafDescendant(target);
+      return leaf ? [leaf] : [];
+    }
+    return [target];
+  }
+
+  function sameNodeList(a, b) {
+    var left = Array.isArray(a) ? a : [];
+    var right = Array.isArray(b) ? b : [];
+    if (left.length !== right.length) {
+      return false;
+    }
+    for (var i = 0; i < left.length; i += 1) {
+      if (left[i] !== right[i]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   function setHoverTarget(target) {
     var s = this.state();
-    if (s.hoverTarget === target) {
+    var nextTarget = target && target.nodeType === 1 ? target : null;
+    var nextNodes = this.highlightNodesForTarget(nextTarget);
+    if (s.hoverTarget === nextTarget && this.sameNodeList(s.hoverHighlightNodes, nextNodes)) {
       return;
     }
-    this.clearHighlights();
-    s.hoverTarget = target || null;
-    if (!s.hoverTarget || typeof s.hoverTarget.builderNode !== "function") {
-      return;
+    this.clearActiveHighlightNodes();
+    s.hoverTarget = nextTarget;
+    s.hoverHighlightNodes = nextNodes;
+    for (var i = 0; i < nextNodes.length; i += 1) {
+      var node = nextNodes[i];
+      if (!node || !node.classList) {
+        continue;
+      }
+      node.classList.add("qbuilder-node-highlight");
     }
-    var facade = s.hoverTarget.builderNode();
-    if (facade && typeof facade.highlight === "function") {
-      facade.highlight(true);
+  }
+
+  function leafElementAt(x, y) {
+    var canvas = this.canvasHost();
+    if (!canvas || !canvas.contains) {
+      return null;
     }
+    var leaf = document.elementFromPoint(Number(x || 0), Number(y || 0));
+    if (!leaf || leaf.nodeType !== 1) {
+      return null;
+    }
+    if (!canvas.contains(leaf)) {
+      return null;
+    }
+    return leaf;
+  }
+
+  function insertionTargetFromElement(element) {
+    if (!element || !element.closest) {
+      return null;
+    }
+    var target = element.closest("#page-builder-dropzone [qhtml-component-instance='1'], #page-builder-dropzone q-component-wrapper, #page-builder-dropzone");
+    if (!target || typeof target.builderNode !== "function") {
+      return null;
+    }
+    return target;
+  }
+
+  function deepestTargetAt(x, y) {
+    var leaf = this.leafElementAt(x, y);
+    return this.insertionTargetFromElement(leaf);
   }
 
   function pointerFromEvent(event) {
@@ -234,11 +1232,8 @@ q-component page-builder-runtime {
     var pos = this.pointerFromEvent(event);
     s.pointerX = pos.x;
     s.pointerY = pos.y;
-    if (!s.dragging) {
-      return;
-    }
-    var target = this.deepestTargetAt(pos.x, pos.y);
-    this.setHoverTarget(target);
+    var leaf = this.leafElementAt(pos.x, pos.y);
+    this.setHoverTarget(leaf);
   }
 
   function startDrag(widgetId, event) {
@@ -260,7 +1255,7 @@ q-component page-builder-runtime {
     s.dragging = false;
     s.dragWidgetId = "";
     s.dragSource = "";
-    this.clearHighlights();
+    this.setHoverTarget(this.leafElementAt(s.pointerX, s.pointerY));
   }
 
   function preferredSlotName(target) {
@@ -297,7 +1292,7 @@ q-component page-builder-runtime {
       return false;
     }
     var pos = this.pointerFromEvent(event);
-    var target = this.deepestTargetAt(pos.x, pos.y) || s.hoverTarget || this.canvasDropzone();
+    var target = this.deepestTargetAt(pos.x, pos.y) || this.insertionTargetFromElement(s.hoverTarget) || this.canvasDropzone();
     if (!target || typeof target.builderNode !== "function") {
       this.stopDrag();
       return false;
@@ -356,7 +1351,12 @@ q-component page-builder-runtime {
       return;
     }
     this.__pageBuilderRuntimeReady = true;
+    this.ensurePaletteEntries();
+    this.notifyPaletteChanged();
     var runtime = this;
+    document.addEventListener("mousemove", function(event) {
+      runtime.trackPointer(event);
+    });
     document.addEventListener("dragover", function(event) {
       runtime.trackPointer(event);
     });
@@ -418,6 +1418,128 @@ q-component page-builder-runtime {
       }
     }
   }
+
+  q-modal {
+    q-page-builder-create-modal: "1"
+    title {
+      h3.w3-margin-0 { text { Create Palette Item } }
+    }
+    content {
+      div {
+        style { display: grid; gap: 0.6rem; }
+        q-tabs {
+          q-tab {
+            name { text { General } }
+            content {
+              div {
+                style { display: grid; gap: 0.6rem; padding-top: 0.25rem; }
+                label.w3-small.w3-text-blue-grey { text { Palette Name } }
+                input.w3-input.w3-border.w3-round {
+                  q-page-builder-create-name: "1"
+                  type: "text"
+                  placeholder: "Example: Hero Card"
+                  oninput { this.closest("page-builder-runtime").onPaletteNameInput(this.value); }
+                }
+                label.w3-small.w3-text-blue-grey { text { Type } }
+                select.w3-select.w3-border.w3-round {
+                  q-page-builder-create-type: "1"
+                  option { value: "q-component" text { q-component } }
+                  option { value: "q-template" text { q-template } }
+                  option { value: "q-macro" text { q-macro } }
+                }
+                label.w3-small.w3-text-blue-grey { text { Canonical Name } }
+                input.w3-input.w3-border.w3-round {
+                  q-page-builder-create-canonical: "1"
+                  type: "text"
+                  placeholder: "hero-card"
+                }
+                label.w3-small {
+                  input {
+                    q-page-builder-create-auto-name: "1"
+                    type: "checkbox"
+                    checked: "checked"
+                    onchange { this.closest("page-builder-runtime").onPaletteAutoNameToggle(this.checked); }
+                  }
+                  span.w3-margin-left { text { Auto Name } }
+                }
+              }
+            }
+          }
+          q-tab {
+            name { text { Source Code } }
+            content {
+              q-editor {
+                q-page-builder-create-editor: "1"
+                initial-qhtml: "div.w3-card.w3-round-large.w3-padding { h3 { text { Custom Block } } p { text { Replace this with your custom content. } } }"
+              }
+            }
+          }
+          q-tab {
+            name { text { Slots } }
+            content {
+              div {
+                style { display: grid; gap: 0.55rem; padding-top: 0.25rem; }
+                q-tree-view {
+                  q-page-builder-create-slots-tree: "1"
+                  model: q-array { "default" }
+                }
+                input.w3-input.w3-border.w3-round {
+                  q-page-builder-create-slot-name: "1"
+                  type: "text"
+                  placeholder: "slot name"
+                }
+                div {
+                  style { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+                  button.w3-button.w3-small.w3-round-large.w3-indigo { type: "button" onclick { this.closest("page-builder-runtime").addSlotEntry(); } text { Add Slot } }
+                  button.w3-button.w3-small.w3-round-large.w3-blue-grey { type: "button" onclick { this.closest("page-builder-runtime").renameSelectedSlot(); } text { Rename Selected } }
+                  button.w3-button.w3-small.w3-round-large.w3-grey { type: "button" onclick { this.closest("page-builder-runtime").removeSelectedSlot(); } text { Remove Selected } }
+                }
+              }
+            }
+          }
+          q-tab {
+            name { text { Signals } }
+            content {
+              textarea.w3-input.w3-border.w3-round {
+                q-page-builder-create-signals: "1"
+                style { min-height: 10rem; font-family: "Consolas", "Monaco", monospace; }
+                placeholder: "one signal per line"
+              }
+            }
+          }
+          q-tab {
+            name { text { Properties } }
+            content {
+              textarea.w3-input.w3-border.w3-round {
+                q-page-builder-create-properties: "1"
+                style { min-height: 10rem; font-family: "Consolas", "Monaco", monospace; }
+                placeholder: "one property per line"
+              }
+            }
+          }
+        }
+        div.w3-small {
+          q-page-builder-create-status: "1"
+          style { min-height: 1.25rem; color: #64748b; }
+          text { }
+        }
+      }
+    }
+    footer {
+      div.w3-right-align {
+        button.w3-button.w3-small.w3-round-large.w3-indigo.w3-margin-right {
+          type: "button"
+          onclick { this.closest("page-builder-runtime").savePaletteCreator(); }
+          text { Add To Palette }
+        }
+        button.w3-button.w3-small.w3-round-large.w3-grey {
+          type: "button"
+          onclick { this.closest("page-builder-runtime").closePaletteCreator(); }
+          text { Cancel }
+        }
+      }
+    }
+  }
 }
 
 q-component page-builder-toolbar-actions {
@@ -450,6 +1572,14 @@ q-component page-builder-sidebar {
     return document.querySelector("#page-builder-runtime");
   }
 
+  function paletteEntries() {
+    var runtime = this.runtime();
+    if (!runtime || typeof runtime.paletteEntries !== "function") {
+      return [];
+    }
+    return runtime.paletteEntries();
+  }
+
   function beginDragFromButton(button, event) {
     var runtime = this.runtime();
     if (!runtime || typeof runtime.startDrag !== "function") {
@@ -457,6 +1587,56 @@ q-component page-builder-sidebar {
     }
     var widgetId = button && button.getAttribute ? String(button.getAttribute("data-widget") || "") : "";
     runtime.startDrag(widgetId, event || {});
+  }
+
+  function renderPaletteButtons() {
+    var container = this.querySelector("#page-builder-palette-items");
+    if (!container) {
+      return;
+    }
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
+    var entries = this.paletteEntries();
+    for (var i = 0; i < entries.length; i += 1) {
+      var entry = entries[i] || {};
+      var id = String(entry.id || "").trim();
+      var label = String(entry.label || id).trim() || id;
+      if (!id) {
+        continue;
+      }
+      var button = document.createElement("button");
+      button.className = "w3-button w3-round-large w3-left-align";
+      button.type = "button";
+      button.setAttribute("draggable", "true");
+      button.setAttribute("data-widget", id);
+      button.textContent = label;
+      button.addEventListener("dragstart", function(event) {
+        this.closest("page-builder-sidebar").beginDragFromButton(this, event);
+      });
+      container.appendChild(button);
+    }
+  }
+
+  function openCreateNew() {
+    var runtime = this.runtime();
+    if (!runtime || typeof runtime.openPaletteCreator !== "function") {
+      return;
+    }
+    runtime.openPaletteCreator();
+  }
+
+  onReady {
+    if (this.__pageBuilderSidebarReady) {
+      return;
+    }
+    this.__pageBuilderSidebarReady = true;
+    var sidebar = this;
+    this.renderPaletteButtons();
+    this.__pageBuilderPaletteRefresh = function() {
+      sidebar.renderPaletteButtons();
+    };
+    document.addEventListener("page-builder-palette-change", this.__pageBuilderPaletteRefresh);
   }
 
   div {
@@ -473,16 +1653,11 @@ q-component page-builder-sidebar {
       p.w3-small.w3-text-blue-grey { text { Drag widgets into the canvas. Targeting and insertion are powered by framework slot APIs. } }
     }
     div.w3-padding {
+      id: "page-builder-palette-items"
       style { display: grid; gap: 0.5rem; grid-template-columns: 1fr; overflow: auto; }
-      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "title" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Title } }
-      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "text" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Text Block } }
-      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "button" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Button } }
-      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "input" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Input } }
-      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "card" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Card } }
-      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "group" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Group Box } }
-      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "form" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Form } }
-      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "grid" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Grid } }
-      button.w3-button.w3-round-large.w3-left-align { type: "button" draggable: "true" data-widget: "frame" ondragstart { this.closest("page-builder-sidebar").beginDragFromButton(this, event); } text { Frame } }
+    }
+    div.w3-padding.w3-border-top {
+      button.w3-button.w3-round-large.w3-indigo { type: "button" onclick { this.closest("page-builder-sidebar").openCreateNew(); } text { Create New } }
     }
   }
 }
