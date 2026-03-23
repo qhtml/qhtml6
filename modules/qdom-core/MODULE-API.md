@@ -50,9 +50,10 @@ All constructors normalize missing fields, include `meta` objects, and produce r
 
 ### Reactivity
 - `observeQDom(documentNode, onChange)`
-  - Returns `{ qdom, disconnect }`.
+  - Returns `{ qdom, disconnect, withMutationsSuppressed }`.
   - `qdom` is a deep proxy forwarding reads/writes to underlying model.
   - Emits mutation payloads for property set/delete operations.
+  - `withMutationsSuppressed(fn)` runs `fn` while temporarily suppressing observer callbacks for internal normalization writes.
 - `createQDomUuid()`
   - Generates UUID identity for QDom nodes (prefers `crypto.randomUUID()` when available).
 - `ensureNodeUuid(node)`

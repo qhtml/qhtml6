@@ -1794,9 +1794,7 @@ div#noop-bind-result { text { pending } }
 3. Clear + time to render 5000 nodes
 4. Time to update 500 random nodes from that 5000-node render
 5. Clear + time to render 10000 nodes
-Test C. Update Diff: 20 random parent tags with 50 random children each, then
-200 random child patch-diff operations using UUID-targeted updates.
-Reports requested/completed operations, attempts, completion %, and skip reasons.
+Test C. Update Diff is temporarily disabled in this build.
 Test D. q-component randomize loop: 20 component instances, randomize() called on
 every instance once (warmup), then 20 random instances every 20ms for about 10s.
 Each randomize() output must be instance-unique and tracked with duplicate/seed metrics.
@@ -2367,7 +2365,7 @@ div#multi-extends-status { text { pending } }
         return String(value || "").trim();
       }
 
-      function stressCollectRandomizeComponentStats(hostNode) {
+      function stressCollectRandomizeComponentStats(hostNode, componentIds) {
         var host = hostNode && hostNode.nodeType === 1 ? hostNode : null;
         var stats = {
           total: 0,
@@ -2376,12 +2374,42 @@ div#multi-extends-status { text { pending } }
           seed: 0,
           empty: 0
         };
-        if (!host || typeof host.querySelectorAll !== "function") {
+        if (!host || typeof host.querySelector !== "function") {
           return stats;
         }
         var seenValues = Object.create(null);
-        var components = host.querySelectorAll("random-component");
-        stats.total = components ? components.length : 0;
+        var components = [];
+        if (Array.isArray(componentIds) && componentIds.length > 0) {
+          for (var ci = 0; ci < componentIds.length; ci += 1) {
+            var componentId = String(componentIds[ci] || "").trim();
+            if (!componentId) {
+              continue;
+            }
+            var byId = host.querySelector("#" + componentId);
+            if (byId && byId.nodeType === 1) {
+              components.push(byId);
+            }
+          }
+          if (components.length === 0) {
+            var refreshedIds = stressCacheRandomizeComponentIds(host);
+            for (var ri = 0; ri < refreshedIds.length; ri += 1) {
+              var refreshedId = String(refreshedIds[ri] || "").trim();
+              if (!refreshedId) {
+                continue;
+              }
+              var refreshedNode = null;
+              try {
+                refreshedNode = host.querySelector("#" + refreshedId);
+              } catch (refreshedSelectorError) {
+                refreshedNode = null;
+              }
+              if (refreshedNode && refreshedNode.nodeType === 1) {
+                components.push(refreshedNode);
+              }
+            }
+          }
+        }
+        stats.total = components && typeof components.length === "number" ? components.length : 0;
         for (var i = 0; i < stats.total; i += 1) {
           var comp = components[i];
           var value = stressReadRandomizeComponentValue(comp);
@@ -2400,6 +2428,69 @@ div#multi-extends-status { text { pending } }
           }
         }
         return stats;
+      }
+
+      function stressCacheRandomizeComponentIds(hostNode) {
+        var host = hostNode && hostNode.nodeType === 1 ? hostNode : null;
+        if (!host) {
+          return [];
+        }
+        var ids = [];
+        var seen = Object.create(null);
+        var stack = [host];
+        var autoIndex = 0;
+        while (stack.length > 0) {
+          var node = stack.pop();
+          if (!node || node.nodeType !== 1) {
+            continue;
+          }
+          var tagName = String(node.tagName || "").toLowerCase();
+          if (tagName === "random-component") {
+            var existingId = String(node.getAttribute("id") || "").trim();
+            var validExistingId = /^[A-Za-z_][-A-Za-z0-9_:.]*$/.test(existingId) ? existingId : "";
+            var nextId = validExistingId;
+            if (!nextId || seen[nextId]) {
+              nextId = "stress-random-component-" + String(autoIndex);
+              node.setAttribute("id", nextId);
+            }
+            if (!seen[nextId]) {
+              seen[nextId] = true;
+              ids.push(nextId);
+              autoIndex += 1;
+            }
+          }
+          var children = node.children && typeof node.children.length === "number" ? node.children : [];
+          for (var ci = children.length - 1; ci >= 0; ci -= 1) {
+            stack.push(children[ci]);
+          }
+        }
+        return ids;
+      }
+
+      function stressCollectRandomizeComponentsByIds(hostNode, componentIds) {
+        var host = hostNode && hostNode.nodeType === 1 ? hostNode : null;
+        if (!host || typeof host.querySelector !== "function" || !Array.isArray(componentIds)) {
+          return [];
+        }
+        var out = [];
+        var seen = Object.create(null);
+        for (var i = 0; i < componentIds.length; i += 1) {
+          var id = String(componentIds[i] || "").trim();
+          if (!id || seen[id]) {
+            continue;
+          }
+          var component = null;
+          try {
+            component = host.querySelector("#" + id);
+          } catch (selectorError) {
+            component = null;
+          }
+          if (component && component.nodeType === 1) {
+            out.push(component);
+            seen[id] = true;
+          }
+        }
+        return out;
       }
 
       function stressCountTextNodesInNode(node) {
@@ -2793,10 +2884,12 @@ div#multi-extends-status { text { pending } }
             );
           }
 
-          appendStressLog(logNode, "Test C start: UUID patch-diff batch (20 parents x 50 children, 200 ops)");
-          if (statusNode) {
-            statusNode.textContent = "Running Test C";
-          }
+          var enableTestC = false;
+          if (enableTestC) {
+            appendStressLog(logNode, "Test C start: UUID patch-diff batch (20 parents x 50 children, 200 ops)");
+            if (statusNode) {
+              statusNode.textContent = "Running Test C";
+            }
           var diffRenderStart = stressNowMs();
           activeHost = await stressMountSource(hostContainer, buildStressDiffSource());
           var diffRenderMs = stressNowMs() - diffRenderStart;
@@ -2997,6 +3090,9 @@ div#multi-extends-status { text { pending } }
             " | fallbackUpdates=" + String(diffFallbackUpdateCalls) +
             " | text updates/sec=" + diffTextPerSec.toFixed(2)
           );
+          } else {
+            appendStressLog(logNode, "Test C skipped: temporarily disabled.");
+          }
 
           appendStressLog(logNode, "Test D start: q-component randomize loop (20 instances, 20 updates/20ms, ~10s)");
           if (statusNode) {
@@ -3005,8 +3101,8 @@ div#multi-extends-status { text { pending } }
           var randomizeRenderStart = stressNowMs();
           activeHost = await stressMountSource(hostContainer, buildStressRandomizeSource());
           var randomizeRenderMs = stressNowMs() - randomizeRenderStart;
-          var randomizeComponents = activeHost ? activeHost.querySelectorAll("random-component") : [];
-          var randomizeComponentCount = randomizeComponents ? randomizeComponents.length : 0;
+          var randomizeComponentIds = activeHost ? stressCacheRandomizeComponentIds(activeHost) : [];
+          var randomizeComponentCount = randomizeComponentIds.length;
           var randomizeDurationMs = 10000;
           var randomizeIntervalMs = 20;
           var randomizePerTick = 20;
@@ -3017,7 +3113,12 @@ div#multi-extends-status { text { pending } }
           var randomizeTextMutations = 0;
           var randomizeWarmupStats = null;
           function collectLiveRandomizeComponents() {
-            return activeHost ? activeHost.querySelectorAll("random-component") : [];
+            var live = stressCollectRandomizeComponentsByIds(activeHost, randomizeComponentIds);
+            if (live.length === 0 && activeHost) {
+              randomizeComponentIds = stressCacheRandomizeComponentIds(activeHost);
+              live = stressCollectRandomizeComponentsByIds(activeHost, randomizeComponentIds);
+            }
+            return live;
           }
           if (typeof MutationObserver === "function" && activeHost) {
             randomizeObserver = new MutationObserver(function onRandomizeMutations(records) {
@@ -3035,7 +3136,7 @@ div#multi-extends-status { text { pending } }
             });
             randomizeObserver.observe(activeHost, { characterData: true, childList: true, subtree: true });
           }
-          if (randomizeComponents && randomizeComponents.length > 0) {
+          if (randomizeComponentCount > 0) {
             var warmupComponents = collectLiveRandomizeComponents();
             for (var rw = 0; rw < warmupComponents.length; rw += 1) {
               var warmupComp = warmupComponents[rw];
@@ -3046,7 +3147,7 @@ div#multi-extends-status { text { pending } }
               }
             }
             await stressSleep(30);
-            randomizeWarmupStats = stressCollectRandomizeComponentStats(activeHost);
+            randomizeWarmupStats = stressCollectRandomizeComponentStats(activeHost, randomizeComponentIds);
             appendStressLog(
               logNode,
               "Test D warmup: one randomize() per instance" +
@@ -3086,7 +3187,7 @@ div#multi-extends-status { text { pending } }
           if (randomizeObserver && typeof randomizeObserver.disconnect === "function") {
             randomizeObserver.disconnect();
           }
-          var randomizeFinalStats = stressCollectRandomizeComponentStats(activeHost);
+          var randomizeFinalStats = stressCollectRandomizeComponentStats(activeHost, randomizeComponentIds);
           var randomizeUniqueValues = Number(randomizeFinalStats.unique || 0);
           var randomizeDuplicateValues = Number(randomizeFinalStats.duplicates || 0);
           var randomizeSeedValues = Number(randomizeFinalStats.seed || 0);

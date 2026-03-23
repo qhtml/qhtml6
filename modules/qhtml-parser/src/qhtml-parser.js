@@ -5637,6 +5637,36 @@
       .replace(/\\\\/g, "\\");
   }
 
+  function stripQuotedScriptSegments(value) {
+    const input = String(value == null ? "" : value);
+    let out = "";
+    let quote = "";
+    for (let i = 0; i < input.length; i += 1) {
+      const ch = input[i];
+      if (quote) {
+        if (ch === "\\") {
+          i += 1;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+          out += " ";
+        }
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === "`") {
+        quote = ch;
+        out += " ";
+        continue;
+      }
+      out += ch;
+    }
+    if (quote) {
+      return "";
+    }
+    return out;
+  }
+
   function tryResolveStaticQScript(scriptBody) {
     const body = String(scriptBody || "").trim();
     const match = body.match(/^return\s+([\s\S]+?);?\s*$/);
@@ -5659,6 +5689,33 @@
 
     if (expr === "true" || expr === "false" || expr === "null") {
       return expr;
+    }
+
+    const stripped = stripQuotedScriptSegments(expr);
+    if (!stripped) {
+      return null;
+    }
+    if (/[A-Za-z_$]/.test(stripped)) {
+      return null;
+    }
+    if (/[^0-9+\-*/%().,:?<>=!&|[\]\s]/.test(stripped)) {
+      return null;
+    }
+    try {
+      const evaluated = new Function('"use strict"; return (' + expr + ");")();
+      if (evaluated === null || typeof evaluated === "undefined") {
+        return "";
+      }
+      if (
+        typeof evaluated === "string" ||
+        typeof evaluated === "number" ||
+        typeof evaluated === "boolean" ||
+        typeof evaluated === "bigint"
+      ) {
+        return String(evaluated);
+      }
+    } catch (error) {
+      return null;
     }
 
     return null;
@@ -7057,11 +7114,217 @@
     return value;
   }
 
-  function applyPropertyToElement(elementNode, prop) {
+  function convertScopedObjectItemsToPlainValue(items, scopedMaps, visitedRefs) {
+    const out = {};
+    const itemList = Array.isArray(items) ? items : [];
+    const baseArrays =
+      scopedMaps && scopedMaps.qArrays instanceof Map
+        ? scopedMaps.qArrays
+        : new Map();
+    const baseObjects =
+      scopedMaps && scopedMaps.qObjects instanceof Map
+        ? scopedMaps.qObjects
+        : new Map();
+    const scopeValues =
+      scopedMaps && scopedMaps.repeaterScope && typeof scopedMaps.repeaterScope === "object"
+        ? scopedMaps.repeaterScope
+        : {};
+    const localArrays = new Map();
+    const localObjects = new Map();
+    baseArrays.forEach(function copyScopedArray(value, key) {
+      localArrays.set(String(key || ""), deepClonePlainValue(value));
+    });
+    baseObjects.forEach(function copyScopedObject(value, key) {
+      localObjects.set(String(key || ""), deepClonePlainValue(value));
+    });
+    const localScope = Object.assign({}, scopeValues);
+
+    for (let i = 0; i < itemList.length; i += 1) {
+      const item = itemList[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+
+      if (registerQArrayDefinitionItem({ qArrays: localArrays, qObjects: localObjects, repeaterScope: localScope }, item)) {
+        continue;
+      }
+      if (registerQObjectDefinitionItem({ qArrays: localArrays, qObjects: localObjects, repeaterScope: localScope }, item)) {
+        const objectName = normalizeRepeaterSymbolName(item.name);
+        if (!objectName) {
+          const anonymousObject = convertScopedObjectItemsToPlainValue(
+            Array.isArray(item.items) ? item.items : [],
+            { qArrays: localArrays, qObjects: localObjects, repeaterScope: localScope },
+            visitedRefs
+          );
+          const keys = Object.keys(anonymousObject);
+          for (let ai = 0; ai < keys.length; ai += 1) {
+            out[keys[ai]] = anonymousObject[keys[ai]];
+          }
+        }
+        continue;
+      }
+      if (item.type !== "Property") {
+        continue;
+      }
+      const assignment = parseAssignmentName(item.name);
+      const propName = String(assignment.name || "").trim();
+      if (!propName) {
+        continue;
+      }
+      const raw = coercePropertyValue(item.value);
+      out[propName] = resolveScopedPropertyValueReferences(
+        raw,
+        {
+          qArrays: localArrays,
+          qObjects: localObjects,
+          repeaterScope: localScope,
+        },
+        visitedRefs
+      );
+    }
+
+    return out;
+  }
+
+  function convertScopedArrayEntriesToPlainValue(entries, scopedMaps, visitedRefs) {
+    const list = Array.isArray(entries) ? entries : [];
+    const out = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const entry = list[i];
+      if (entry && typeof entry === "object" && entry.kind === "qobject") {
+        out.push(
+          convertScopedObjectItemsToPlainValue(
+            Array.isArray(entry.items) ? entry.items : [],
+            scopedMaps,
+            visitedRefs
+          )
+        );
+        continue;
+      }
+      if (entry && typeof entry === "object" && entry.kind === "primitive") {
+        const primitiveValue = Object.prototype.hasOwnProperty.call(entry, "value") ? entry.value : entry.text;
+        out.push(resolveScopedPropertyValueReferences(primitiveValue, scopedMaps, visitedRefs));
+        continue;
+      }
+      out.push(resolveScopedPropertyValueReferences(entry, scopedMaps, visitedRefs));
+    }
+    return out;
+  }
+
+  function resolveScopedPropertyValueReferences(value, scopedMaps, visitedRefs) {
+    if (Array.isArray(value)) {
+      const outArray = [];
+      for (let i = 0; i < value.length; i += 1) {
+        outArray.push(resolveScopedPropertyValueReferences(value[i], scopedMaps, visitedRefs));
+      }
+      return outArray;
+    }
+    if (value && typeof value === "object") {
+      const outObject = {};
+      const keys = Object.keys(value);
+      for (let i = 0; i < keys.length; i += 1) {
+        const key = keys[i];
+        outObject[key] = resolveScopedPropertyValueReferences(value[key], scopedMaps, visitedRefs);
+      }
+      return outObject;
+    }
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const token = String(value || "").trim();
+    if (!token) {
+      return value;
+    }
+    const normalized = normalizeRepeaterSymbolName(token);
+    if (!normalized) {
+      return value;
+    }
+
+    const qArrays =
+      scopedMaps && scopedMaps.qArrays instanceof Map
+        ? scopedMaps.qArrays
+        : null;
+    const qObjects =
+      scopedMaps && scopedMaps.qObjects instanceof Map
+        ? scopedMaps.qObjects
+        : null;
+    const repeaterScope =
+      scopedMaps && scopedMaps.repeaterScope && typeof scopedMaps.repeaterScope === "object"
+        ? scopedMaps.repeaterScope
+        : null;
+    const seen = visitedRefs instanceof Set ? visitedRefs : new Set();
+
+    if (repeaterScope && Object.prototype.hasOwnProperty.call(repeaterScope, normalized)) {
+      return deepClonePlainValue(repeaterScope[normalized]);
+    }
+
+    if (qArrays && qArrays.has(normalized)) {
+      const guard = "q-array:" + normalized;
+      if (seen.has(guard)) {
+        return value;
+      }
+      seen.add(guard);
+      const resolvedArray = convertScopedArrayEntriesToPlainValue(
+        qArrays.get(normalized),
+        scopedMaps,
+        seen
+      );
+      seen.delete(guard);
+      return resolvedArray;
+    }
+
+    if (qObjects && qObjects.has(normalized)) {
+      const guard = "q-object:" + normalized;
+      if (seen.has(guard)) {
+        return value;
+      }
+      seen.add(guard);
+      const objectSpec = qObjects.get(normalized);
+      const resolvedObject = convertScopedObjectItemsToPlainValue(
+        objectSpec && Array.isArray(objectSpec.items) ? objectSpec.items : [],
+        scopedMaps,
+        seen
+      );
+      seen.delete(guard);
+      return resolvedObject;
+    }
+
+    return value;
+  }
+
+  function applyPropertyToElement(elementNode, prop, scopedMaps) {
     const assignment = parseAssignmentName(prop.name);
     const key = normalizePropertyName(assignment.name);
-    const value = coercePropertyValue(prop.value);
+    const value = resolveScopedPropertyValueReferences(
+      coercePropertyValue(prop.value),
+      scopedMaps,
+      null
+    );
     if (isBindingExpressionValue(prop.value)) {
+      const expressionType = String(prop.value.type || "").trim().toLowerCase();
+      if (expressionType === "qscriptexpression") {
+        const staticValue = tryResolveStaticQScript(prop.value.script || "");
+        if (staticValue !== null) {
+          const resolvedStaticValue = resolveScopedPropertyValueReferences(
+            staticValue,
+            scopedMaps,
+            null
+          );
+          if (core.TEXT_ALIASES.has(key)) {
+            appendTextChildNode(elementNode, resolvedStaticValue, {
+              originalSource: prop.raw || null,
+              sourceRange:
+                typeof prop.start === "number" && typeof prop.end === "number"
+                  ? [prop.start, prop.end]
+                  : null,
+            });
+          } else {
+            elementNode.attributes[assignment.name] = resolvedStaticValue;
+          }
+          return;
+        }
+      }
       registerNodeBinding(elementNode, {
         name: assignment.name,
         targetHint: assignment.hint,
@@ -8433,7 +8696,11 @@
         continue;
       }
       if (item.type === "Property") {
-        applyPropertyToElement(targetElement, item);
+        applyPropertyToElement(targetElement, item, {
+          qArrays: qArrayContext,
+          qObjects: qObjectContext,
+          repeaterScope: repeaterScope,
+        });
       } else if (item.type === "HtmlBlock") {
         targetElement.children.push(core.createRawHtmlNode({ html: item.html, meta: { originalSource: item.raw } }));
       } else if (item.type === "TextBlock") {
@@ -8780,7 +9047,15 @@
       if (item.type === "Property") {
         const assignment = parseAssignmentName(item.name);
         const key = normalizePropertyName(assignment.name);
-        const value = coercePropertyValue(item.value);
+        const value = resolveScopedPropertyValueReferences(
+          coercePropertyValue(item.value),
+          {
+            qArrays: qArrayContext,
+            qObjects: qObjectContext,
+            repeaterScope: repeaterScope,
+          },
+          null
+        );
         if (key === "id" && !componentId) {
           componentId = String(value || "").trim();
         } else {

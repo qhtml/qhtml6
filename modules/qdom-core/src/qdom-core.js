@@ -1172,12 +1172,25 @@
     const callback = typeof onChange === "function" ? onChange : function noop() {};
     const proxyCache = new WeakMap();
     let active = true;
+    let suppressDepth = 0;
     const qdomMethodKinds = new Set([
       NODE_TYPES.document,
       NODE_TYPES.componentInstance,
       NODE_TYPES.templateInstance,
       NODE_TYPES.slot,
     ]);
+
+    function withMutationsSuppressed(run) {
+      if (typeof run !== "function") {
+        return undefined;
+      }
+      suppressDepth += 1;
+      try {
+        return run();
+      } finally {
+        suppressDepth = Math.max(0, suppressDepth - 1);
+      }
+    }
 
     function proxify(target, path) {
       if (!target || typeof target !== "object") {
@@ -1207,7 +1220,7 @@
         set(obj, prop, value, receiver) {
           const previousValue = obj[prop];
           const didSet = Reflect.set(obj, prop, value, receiver);
-          if (!didSet || !active) {
+          if (!didSet || !active || suppressDepth > 0) {
             return didSet;
           }
 
@@ -1231,7 +1244,7 @@
           }
           const previousValue = obj[prop];
           const didDelete = Reflect.deleteProperty(obj, prop);
-          if (didDelete && active) {
+          if (didDelete && active && suppressDepth <= 0) {
             const mutationPath = localPath.concat(String(prop));
             markDirty(obj);
             markDirty(documentNode);
@@ -1255,6 +1268,7 @@
       disconnect: function disconnect() {
         active = false;
       },
+      withMutationsSuppressed: withMutationsSuppressed,
     };
   }
 

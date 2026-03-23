@@ -243,10 +243,19 @@ q-theme builder-demo-theme {
 
 onReady {
   var host = this;
+  if (!window.qbuilder || typeof qbuilder.inspect !== "function") {
+    return;
+  }
   qbuilder.inspect(host, true);
   var builder = host.querySelector("q-builder[q-builder-runtime='1']");
+  if (!builder) {
+    return;
+  }
   host.setAttribute("data-page-edit-mode", "1");
-  builder.querySelector("q-builder-palette").remove();
+  var palette = builder.querySelector("q-builder-palette");
+  if (palette) {
+    palette.remove();
+  }
 }
 
 builder-demo-theme {
@@ -726,6 +735,22 @@ tabs-demo-theme {
     q-tab { name { text { Logs } } content { p { text { Logs content } } } }
   }
 }
+          </q-editor>
+        </div>
+      </section>
+
+      <section class="example-class" id="q-tree-view" data-title="q-tree-view implementation example">
+        <div class="example-head">
+          <h3>q-tree-view quick usage</h3>
+          <p>Minimal setup using <code>q-object</code> + <code>QTreeNode.addNode(...)</code>.</p>
+        </div>
+        <div class="example-body">
+          <q-editor>
+q-import { q-components/q-tree-view.qhtml }
+
+q-object my-object { item1: q-array { "item 1a", "item 1b", "item 1c" }, item2: q-array { "item 2a", "item 2b", "item 2c" } }
+q-tree-view#my-view { model: my-object }
+button { text { Add Item } onclick { document.querySelector("#my-view").querySelector("QTreeNode").addNode("some special thing"); } }
           </q-editor>
         </div>
       </section>

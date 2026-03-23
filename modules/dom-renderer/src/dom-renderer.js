@@ -1858,7 +1858,6 @@
           for (let j = 0; j < fillNodes.length; j += 1) {
             const projected = cloneNodeDeep(fillNodes[j]);
             refreshQDomNodeUuidsDeep(projected);
-            stripQDomSourceRefsDeep(projected);
             if (fillEntry && fillEntry.slotNode && projected && typeof projected === "object") {
               projected[RENDER_SLOT_REF] = fillEntry.slotNode;
             }
@@ -1875,7 +1874,6 @@
 
       const clone = cloneNodeDeep(node);
       refreshQDomNodeUuidsDeep(clone);
-      stripQDomSourceRefsDeep(clone);
       if (clone.kind === core.NODE_TYPES.element && Array.isArray(clone.children) && clone.children.length > 0) {
         clone.children = materializeSlots(clone.children, slotFills);
       }
@@ -3062,7 +3060,6 @@
       const templateNode = templateNodes[i];
       const cloned = cloneNodeDeep(templateNode);
       refreshQDomNodeUuidsDeep(cloned);
-      stripQDomSourceRefsDeep(cloned);
       if (
         entry &&
         typeof entry === "object" &&
@@ -3076,7 +3073,6 @@
         for (let j = 0; j < objectNodes.length; j += 1) {
           const objectClone = cloneNodeDeep(objectNodes[j]);
           refreshQDomNodeUuidsDeep(objectClone);
-          stripQDomSourceRefsDeep(objectClone);
           out.push(objectClone);
         }
         continue;
