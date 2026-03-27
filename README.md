@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.1.2
+# QHTML.js v6.1.3
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,12 +12,14 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.1.2
+## Whats New in v6.1.3
 
 - Added typed `q-array` and `q-map` property values, including nested anonymous container declarations on the right-hand side of property assignments.
 - Named `q-array ... { }` and `q-map ... { }` declarations still work and can be assigned to component properties by name.
 - Added `property <name>: <value>` shorthand inside `q-component`, while preserving `property <name> { ... }` as child-node binding syntax.
-- Updated README examples for typed property containers and JavaScript access on mounted component instances.
+- Added `q-model` normalized model API support for `q-array`, `q-map`, and script-backed sources.
+- Added `q-model-view` delegate rendering (`q-model { ... }` + `as { item }`) for model-driven UI blocks.
+- Updated `q-tree-view` to use the model pipeline and native `details/summary` structure.
 
 
 ## 1. Quick Start
@@ -522,6 +524,40 @@ button {
 ```
 
 `property <name>: ...` also works as shorthand inside `q-component`, while `property <name> { ... }` still means "bind this child node to a component property".
+
+### `q-model` basics
+
+`q-model` normalizes model data and exposes a consistent runtime API (`count()`, `at()`, `values()`, `add()`, `insert()`, `remove()`, `subscribe()`) regardless of source shape.
+
+```qhtml
+q-model my-model { q-array { 5, 10 } }
+
+onReady {
+  var model = this["my-model"];
+  model.add(15);
+  console.log(model.count());  // 3
+  console.log(model.at(1));    // 10
+  console.log(model.values()); // [5, 10, 15]
+}
+```
+
+### `q-model-view` basics
+
+`q-model-view` renders its child template once per model entry using the alias defined by `as { ... }`.
+
+```qhtml
+q-array my-source { 5, 10, q-map { name: "tom" } }
+
+q-model-view {
+  q-model { my-source }
+  as { item }
+  div { text { ${item && item.name ? item.name : item} } }
+}
+```
+
+### `q-tree-view`
+
+`q-tree-view` consumes model data from the same `q-model` pipeline and renders nested branches/leaves with native `details/summary`. For the current end-to-end example, see `dist/demo.html`.
 
 ### `extends` syntax
 

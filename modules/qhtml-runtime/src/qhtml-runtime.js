@@ -268,6 +268,411 @@
     return generated;
   }
 
+  function cloneModelValue(value) {
+    if (Array.isArray(value)) {
+      const outArray = [];
+      for (let i = 0; i < value.length; i += 1) {
+        outArray.push(cloneModelValue(value[i]));
+      }
+      return outArray;
+    }
+    if (!value || typeof value !== "object") {
+      return value;
+    }
+    const outObject = {};
+    const keys = Object.keys(value);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      outObject[key] = cloneModelValue(value[key]);
+    }
+    return outObject;
+  }
+
+  function normalizeQModelEntries(input) {
+    const entries = [];
+    if (Array.isArray(input)) {
+      for (let i = 0; i < input.length; i += 1) {
+        entries.push({
+          key: i,
+          index: i,
+          role: "value",
+          value: cloneModelValue(input[i]),
+        });
+      }
+      return entries;
+    }
+    if (input && typeof input === "object") {
+      const keys = Object.keys(input);
+      for (let i = 0; i < keys.length; i += 1) {
+        const key = keys[i];
+        entries.push({
+          key: key,
+          index: i,
+          role: String(key),
+          value: cloneModelValue(input[key]),
+        });
+      }
+      return entries;
+    }
+    if (typeof input !== "undefined") {
+      entries.push({
+        key: 0,
+        index: 0,
+        role: "value",
+        value: cloneModelValue(input),
+      });
+    }
+    return entries;
+  }
+
+  function createQModel(input) {
+    if (input && typeof input === "object" && input.__qhtmlIsQModel === true) {
+      return input;
+    }
+
+    const sourceInput =
+      input && typeof input === "object" && typeof input.toArray === "function" && !Array.isArray(input)
+        ? input.toArray()
+        : input;
+    const mode = Array.isArray(sourceInput) ? "array" : sourceInput && typeof sourceInput === "object" ? "map" : "array";
+    const listeners = new Set();
+    const entries = normalizeQModelEntries(sourceInput);
+
+    function reindexArrayEntries() {
+      if (mode !== "array") {
+        return;
+      }
+      for (let i = 0; i < entries.length; i += 1) {
+        entries[i].key = i;
+        entries[i].index = i;
+        entries[i].role = "value";
+      }
+    }
+
+    function emit(type, details) {
+      const event = Object.assign(
+        {
+          type: String(type || "update"),
+          count: entries.length,
+          values: api.values(),
+        },
+        details || {}
+      );
+      listeners.forEach(function notify(listener) {
+        try {
+          listener(event);
+        } catch (error) {
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml q-model listener failed:", error);
+          }
+        }
+      });
+    }
+
+    function findIndexByKey(key) {
+      for (let i = 0; i < entries.length; i += 1) {
+        if (String(entries[i].key) === String(key)) {
+          return i;
+        }
+      }
+      return -1;
+    }
+
+    function cloneEntriesPublic() {
+      const out = [];
+      for (let i = 0; i < entries.length; i += 1) {
+        out.push({
+          key: entries[i].key,
+          index: i,
+          role: entries[i].role,
+          value: cloneModelValue(entries[i].value),
+        });
+      }
+      return out;
+    }
+
+    function walkModelValue(key, value, path, parent, callback, thisArg, visited) {
+      if (typeof callback === "function") {
+        callback.call(thisArg, key, cloneModelValue(value), Array.isArray(path) ? path.slice() : [], parent);
+      }
+
+      if (!value || typeof value !== "object") {
+        return;
+      }
+      if (visited.has(value)) {
+        return;
+      }
+      visited.add(value);
+
+      const sourceValue =
+        value && typeof value === "object" && value.__qhtmlIsQModel === true
+          ? typeof value.toObject === "function"
+            ? value.toObject()
+            : typeof value.toArray === "function"
+              ? value.toArray()
+              : value
+          : value;
+
+      if (!sourceValue || typeof sourceValue !== "object") {
+        return;
+      }
+
+      if (Array.isArray(sourceValue)) {
+        for (let i = 0; i < sourceValue.length; i += 1) {
+          walkModelValue(
+            i,
+            sourceValue[i],
+            (Array.isArray(path) ? path : []).concat([i]),
+            sourceValue,
+            callback,
+            thisArg,
+            visited
+          );
+        }
+        return;
+      }
+
+      const keys = Object.keys(sourceValue);
+      for (let i = 0; i < keys.length; i += 1) {
+        const childKey = keys[i];
+        walkModelValue(
+          childKey,
+          sourceValue[childKey],
+          (Array.isArray(path) ? path : []).concat([childKey]),
+          sourceValue,
+          callback,
+          thisArg,
+          visited
+        );
+      }
+    }
+
+    const api = {
+      __qhtmlIsQModel: true,
+      mode: function modeGetter() {
+        return mode;
+      },
+      count: function count() {
+        return entries.length;
+      },
+      keys: function keys() {
+        const out = [];
+        for (let i = 0; i < entries.length; i += 1) {
+          out.push(entries[i].key);
+        }
+        return out;
+      },
+      values: function values() {
+        const out = [];
+        for (let i = 0; i < entries.length; i += 1) {
+          out.push(cloneModelValue(entries[i].value));
+        }
+        return out;
+      },
+      entries: function entriesList() {
+        return cloneEntriesPublic();
+      },
+      at: function at(index) {
+        const idx = Number(index);
+        if (!Number.isFinite(idx) || idx < 0 || idx >= entries.length) {
+          return undefined;
+        }
+        return cloneModelValue(entries[idx].value);
+      },
+      value: function value(keyOrIndex) {
+        if (mode === "array") {
+          return api.at(keyOrIndex);
+        }
+        const index = findIndexByKey(keyOrIndex);
+        if (index < 0) {
+          return undefined;
+        }
+        return cloneModelValue(entries[index].value);
+      },
+      key: function key(value) {
+        for (let i = 0; i < entries.length; i += 1) {
+          if (entries[i].value === value) {
+            return entries[i].key;
+          }
+        }
+        return null;
+      },
+      indexOf: function indexOf(value) {
+        for (let i = 0; i < entries.length; i += 1) {
+          if (entries[i].value === value) {
+            return i;
+          }
+        }
+        return -1;
+      },
+      foreach: function foreach(callback, thisArg) {
+        if (typeof callback !== "function") {
+          return;
+        }
+        for (let i = 0; i < entries.length; i += 1) {
+          callback.call(thisArg, cloneModelValue(entries[i].value), entries[i].key, i);
+        }
+      },
+      forEach: function forEach(callback, thisArg) {
+        return api.foreach(callback, thisArg);
+      },
+      map: function map(callback, thisArg) {
+        if (typeof callback !== "function") {
+          return [];
+        }
+        const out = [];
+        for (let i = 0; i < entries.length; i += 1) {
+          out.push(callback.call(thisArg, entries[i].key, cloneModelValue(entries[i].value), i));
+        }
+        return out;
+      },
+      walk: function walk(callback, thisArg) {
+        if (typeof callback !== "function") {
+          return;
+        }
+        const visited = new Set();
+        for (let i = 0; i < entries.length; i += 1) {
+          walkModelValue(
+            entries[i].key,
+            entries[i].value,
+            [entries[i].key],
+            entries,
+            callback,
+            thisArg,
+            visited
+          );
+        }
+      },
+      traverse: function traverse(callback, thisArg) {
+        return api.walk(callback, thisArg);
+      },
+      toArray: function toArray() {
+        return api.values();
+      },
+      toObject: function toObject() {
+        const out = {};
+        for (let i = 0; i < entries.length; i += 1) {
+          out[String(entries[i].key)] = cloneModelValue(entries[i].value);
+        }
+        return out;
+      },
+      add: function add(value, key) {
+        if (mode === "array") {
+          entries.push({
+            key: entries.length,
+            index: entries.length,
+            role: "value",
+            value: cloneModelValue(value),
+          });
+          reindexArrayEntries();
+          emit("add", { index: entries.length - 1, key: entries.length - 1, value: cloneModelValue(value) });
+          return entries.length - 1;
+        }
+        const resolvedKey =
+          typeof key !== "undefined" && key !== null && String(key).trim()
+            ? String(key)
+            : "key" + String(entries.length + 1);
+        const existingIndex = findIndexByKey(resolvedKey);
+        if (existingIndex >= 0) {
+          entries[existingIndex].value = cloneModelValue(value);
+          emit("update", { index: existingIndex, key: resolvedKey, value: cloneModelValue(value) });
+          return existingIndex;
+        }
+        entries.push({
+          key: resolvedKey,
+          index: entries.length,
+          role: resolvedKey,
+          value: cloneModelValue(value),
+        });
+        emit("add", { index: entries.length - 1, key: resolvedKey, value: cloneModelValue(value) });
+        return entries.length - 1;
+      },
+      insert: function insert(index, value, key) {
+        const idxRaw = Number(index);
+        const idx = Number.isFinite(idxRaw) ? Math.max(0, Math.min(entries.length, Math.floor(idxRaw))) : entries.length;
+        if (mode === "array") {
+          entries.splice(idx, 0, {
+            key: idx,
+            index: idx,
+            role: "value",
+            value: cloneModelValue(value),
+          });
+          reindexArrayEntries();
+          emit("insert", { index: idx, key: idx, value: cloneModelValue(value) });
+          return idx;
+        }
+        const resolvedKey =
+          typeof key !== "undefined" && key !== null && String(key).trim()
+            ? String(key)
+            : "key" + String(entries.length + 1);
+        const existingIndex = findIndexByKey(resolvedKey);
+        if (existingIndex >= 0) {
+          entries[existingIndex].value = cloneModelValue(value);
+          emit("update", { index: existingIndex, key: resolvedKey, value: cloneModelValue(value) });
+          return existingIndex;
+        }
+        entries.splice(idx, 0, {
+          key: resolvedKey,
+          index: idx,
+          role: resolvedKey,
+          value: cloneModelValue(value),
+        });
+        for (let i = 0; i < entries.length; i += 1) {
+          entries[i].index = i;
+        }
+        emit("insert", { index: idx, key: resolvedKey, value: cloneModelValue(value) });
+        return idx;
+      },
+      remove: function remove(keyOrIndex) {
+        if (entries.length === 0) {
+          return null;
+        }
+        let index = -1;
+        if (mode === "array") {
+          const idx = Number(keyOrIndex);
+          if (Number.isFinite(idx)) {
+            index = Math.floor(idx);
+          }
+        } else if (typeof keyOrIndex === "number") {
+          index = Math.floor(keyOrIndex);
+        } else {
+          index = findIndexByKey(keyOrIndex);
+        }
+        if (!Number.isFinite(index) || index < 0 || index >= entries.length) {
+          return null;
+        }
+        const removed = entries.splice(index, 1)[0];
+        if (mode === "array") {
+          reindexArrayEntries();
+        } else {
+          for (let i = 0; i < entries.length; i += 1) {
+            entries[i].index = i;
+          }
+        }
+        emit("remove", {
+          index: index,
+          key: removed && Object.prototype.hasOwnProperty.call(removed, "key") ? removed.key : index,
+          value: removed ? cloneModelValue(removed.value) : null,
+        });
+        return removed ? cloneModelValue(removed.value) : null;
+      },
+      subscribe: function subscribe(listener) {
+        if (typeof listener !== "function") {
+          return function noopUnsubscribe() {};
+        }
+        listeners.add(listener);
+        return function unsubscribe() {
+          listeners.delete(listener);
+        };
+      },
+      emit: function emitManual(type, details) {
+        emit(type, details);
+      },
+    };
+
+    return api;
+  }
+
   function isNumericPathSegment(segment) {
     return /^[0-9]+$/.test(String(segment || ""));
   }
@@ -2647,6 +3052,60 @@
     return global.document || null;
   }
 
+  const deferredDispatchQueue = [];
+  let deferredDispatchQueued = false;
+
+  function flushDeferredDispatchQueue() {
+    deferredDispatchQueued = false;
+    if (deferredDispatchQueue.length === 0) {
+      return;
+    }
+    const callbacks = deferredDispatchQueue.splice(0, deferredDispatchQueue.length);
+    for (let i = 0; i < callbacks.length; i += 1) {
+      const callback = callbacks[i];
+      if (typeof callback !== "function") {
+        continue;
+      }
+      try {
+        callback();
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml deferred callback failed:", error);
+        }
+      }
+    }
+    if (deferredDispatchQueue.length > 0) {
+      scheduleMicrotaskDispatch(function flushDeferredDispatchTail() {});
+    }
+  }
+
+  function scheduleMicrotaskDispatch(callback) {
+    if (typeof callback !== "function") {
+      return;
+    }
+    deferredDispatchQueue.push(callback);
+    if (deferredDispatchQueued) {
+      return;
+    }
+    deferredDispatchQueued = true;
+    const flush = function flushDeferredDispatchQueueNow() {
+      flushDeferredDispatchQueue();
+    };
+    if (typeof global.requestAnimationFrame === "function") {
+      global.requestAnimationFrame(flush);
+      return;
+    }
+    if (typeof global.queueMicrotask === "function") {
+      global.queueMicrotask(flush);
+      return;
+    }
+    if (typeof Promise === "function" && typeof Promise.resolve === "function") {
+      Promise.resolve().then(flush, flush);
+      return;
+    }
+    flush();
+  }
+
   function ensureContentLoadedState(doc) {
     if (!doc || (typeof doc !== "object" && typeof doc !== "function")) {
       return null;
@@ -2841,11 +3300,7 @@
       emitContentLoadedSignal(doc, source);
     };
 
-    if (typeof global.setTimeout === "function") {
-      global.setTimeout(dispatch, 0);
-    } else {
-      dispatch();
-    }
+    scheduleMicrotaskDispatch(dispatch);
   }
 
   function markMountPending(doc) {
@@ -2945,23 +3400,12 @@
         return;
       }
       binding.readyHooksState[key] = "done";
-      const run = function runDeferredHostOnReady() {
-        runLifecycleHookBody(binding.host, hook.body, doc, "qhtml host lifecycle hook failed:");
-      };
-      if (typeof global.setTimeout === "function") {
-        global.setTimeout(run, 16);
-      } else {
-        run();
-      }
+      runLifecycleHookBody(binding.host, hook.body, doc, "qhtml host lifecycle hook failed:");
     };
 
     const alreadySignaled = !!(state && Number(state.sequence || 0) > 0 && Number(state.pending || 0) === 0);
     if (!state || !state.runtimeManaged || alreadySignaled) {
-      if (typeof global.setTimeout === "function") {
-        global.setTimeout(execute, 16);
-      } else {
-        execute();
-      }
+      scheduleMicrotaskDispatch(execute);
       return;
     }
 
@@ -4780,6 +5224,10 @@
     const preservedUuid = normalizeQDomUuidValue(
       target.meta && typeof target.meta === "object" ? target.meta[QDOM_UUID_META_KEY] : ""
     );
+    const preservedRuntimeThemeRules =
+      target.meta && typeof target.meta === "object" && target.meta.qRuntimeThemeRules
+        ? cloneSdmlValue(target.meta.qRuntimeThemeRules)
+        : null;
     const clonedReplacement = cloneSdmlValue(replacement);
     if (!clonedReplacement || typeof clonedReplacement !== "object") {
       return false;
@@ -4798,6 +5246,9 @@
     }
     if (preservedUuid) {
       target.meta[QDOM_UUID_META_KEY] = preservedUuid;
+    }
+    if (preservedRuntimeThemeRules && !target.meta.qRuntimeThemeRules) {
+      target.meta.qRuntimeThemeRules = preservedRuntimeThemeRules;
     }
     return true;
   }
@@ -7262,6 +7713,249 @@
     return true;
   }
 
+  function clearBindingModelSubscriptions(binding) {
+    if (!binding) {
+      return;
+    }
+    const namedSubs =
+      binding.modelSubscriptionsByName && typeof binding.modelSubscriptionsByName === "object"
+        ? binding.modelSubscriptionsByName
+        : null;
+    if (namedSubs) {
+      const names = Object.keys(namedSubs);
+      for (let i = 0; i < names.length; i += 1) {
+        const entry = namedSubs[names[i]];
+        const unsubscribe = entry && typeof entry.unsubscribe === "function" ? entry.unsubscribe : null;
+        if (!unsubscribe) {
+          continue;
+        }
+        try {
+          unsubscribe();
+        } catch (error) {
+          // no-op
+        }
+      }
+    }
+    const subscriptions = Array.isArray(binding.modelSubscriptions) ? binding.modelSubscriptions : [];
+    for (let i = 0; i < subscriptions.length; i += 1) {
+      const unsubscribe = subscriptions[i];
+      if (typeof unsubscribe !== "function") {
+        continue;
+      }
+      try {
+        unsubscribe();
+      } catch (error) {
+        // no-op
+      }
+    }
+    binding.modelSubscriptionsByName = {};
+    binding.modelSubscriptions = [];
+    if (binding.modelMutationQueueState && typeof binding.modelMutationQueueState === "object") {
+      binding.modelMutationQueueState.pending = false;
+      if (binding.modelMutationQueueState.names && typeof binding.modelMutationQueueState.names.clear === "function") {
+        binding.modelMutationQueueState.names.clear();
+      }
+    }
+  }
+
+  function resolveModelEntriesToValues(entries) {
+    const list = Array.isArray(entries) ? entries : [];
+    const values = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const entry = list[i];
+      if (!entry || typeof entry !== "object") {
+        values.push(cloneModelValue(entry));
+        continue;
+      }
+      if (Object.prototype.hasOwnProperty.call(entry, "value")) {
+        values.push(cloneModelValue(entry.value));
+        continue;
+      }
+      if (Object.prototype.hasOwnProperty.call(entry, "text")) {
+        values.push(cloneModelValue(entry.text));
+        continue;
+      }
+      if (entry.kind === "qobject" && typeof entry.source === "string") {
+        values.push(String(entry.source));
+        continue;
+      }
+      values.push(cloneModelValue(entry));
+    }
+    return values;
+  }
+
+  function ensureBindingModelMutationQueueState(binding) {
+    if (!binding || typeof binding !== "object") {
+      return null;
+    }
+    if (!binding.modelMutationQueueState || typeof binding.modelMutationQueueState !== "object") {
+      binding.modelMutationQueueState = {
+        pending: false,
+        names: new Set(),
+      };
+    }
+    const state = binding.modelMutationQueueState;
+    if (!(state.names && typeof state.names.add === "function")) {
+      state.names = new Set();
+    }
+    return state;
+  }
+
+  function queueBindingModelMutationRefresh(binding, modelName) {
+    if (!binding || !binding.host || binding.host.nodeType !== 1) {
+      return;
+    }
+    const state = ensureBindingModelMutationQueueState(binding);
+    if (!state) {
+      return;
+    }
+    const normalizedName = String(modelName || "").trim();
+    if (normalizedName) {
+      state.names.add(normalizedName);
+    }
+    if (state.pending) {
+      return;
+    }
+    state.pending = true;
+    scheduleMicrotaskDispatch(function flushModelMutationRefresh() {
+      if (!state) {
+        return;
+      }
+      state.pending = false;
+      if (!binding || !binding.host || bindings.get(binding.host) !== binding) {
+        if (state.names && typeof state.names.clear === "function") {
+          state.names.clear();
+        }
+        return;
+      }
+      if (binding.rendering || binding.updating) {
+        queueBindingModelMutationRefresh(binding, normalizedName);
+        return;
+      }
+      const changedNames = state.names && typeof state.names.values === "function" ? Array.from(state.names.values()) : [];
+      if (state.names && typeof state.names.clear === "function") {
+        state.names.clear();
+      }
+      const sourceSignal =
+        changedNames.length > 0 ? "q-model:" + changedNames.join(",") : "q-model";
+      updateQHtmlElement(binding.host, {
+        sourceSignal: sourceSignal,
+      });
+    });
+  }
+
+  function ensureBindingModelSubscription(binding, name, model) {
+    if (!binding || !name || !model || typeof model.subscribe !== "function") {
+      return;
+    }
+    if (!binding.modelSubscriptionsByName || typeof binding.modelSubscriptionsByName !== "object") {
+      binding.modelSubscriptionsByName = {};
+    }
+    const subscriptionsByName = binding.modelSubscriptionsByName;
+    const existingSubscription = subscriptionsByName[name];
+    if (
+      existingSubscription &&
+      existingSubscription.model === model &&
+      typeof existingSubscription.unsubscribe === "function"
+    ) {
+      return;
+    }
+    if (existingSubscription && typeof existingSubscription.unsubscribe === "function") {
+      try {
+        existingSubscription.unsubscribe();
+      } catch (error) {
+        // no-op
+      }
+    }
+    const unsubscribe = model.subscribe(function onModelMutated() {
+      queueBindingModelMutationRefresh(binding, name);
+    });
+    subscriptionsByName[name] = {
+      model: model,
+      unsubscribe: unsubscribe,
+    };
+  }
+
+  function syncHostModelDefinitions(binding) {
+    if (!binding || !binding.host || binding.host.nodeType !== 1) {
+      return;
+    }
+    const host = binding.host;
+    const rootNode = sourceNodeOf(binding.rawQdom || binding.qdom) || binding.qdom;
+    const meta = rootNode && rootNode.meta && typeof rootNode.meta === "object" ? rootNode.meta : null;
+    const modelDefs = meta && meta.qModels && typeof meta.qModels === "object" ? meta.qModels : null;
+    if (!binding.modelSubscriptionsByName || typeof binding.modelSubscriptionsByName !== "object") {
+      binding.modelSubscriptionsByName = {};
+    }
+    const subscriptionsByName = binding.modelSubscriptionsByName;
+    if (!modelDefs) {
+      const staleNames = Object.keys(subscriptionsByName);
+      for (let i = 0; i < staleNames.length; i += 1) {
+        const staleEntry = subscriptionsByName[staleNames[i]];
+        const staleUnsubscribe = staleEntry && typeof staleEntry.unsubscribe === "function" ? staleEntry.unsubscribe : null;
+        if (staleUnsubscribe) {
+          try {
+            staleUnsubscribe();
+          } catch (error) {
+            // no-op
+          }
+        }
+        delete subscriptionsByName[staleNames[i]];
+      }
+      binding.modelSubscriptions = [];
+      return;
+    }
+    const names = Object.keys(modelDefs);
+    const activeNameSet = new Set();
+    for (let i = 0; i < names.length; i += 1) {
+      const activeName = String(names[i] || "").trim();
+      if (activeName) {
+        activeNameSet.add(activeName);
+      }
+    }
+    const subscribedNames = Object.keys(subscriptionsByName);
+    for (let i = 0; i < subscribedNames.length; i += 1) {
+      const subscribedName = subscribedNames[i];
+      if (activeNameSet.has(subscribedName)) {
+        continue;
+      }
+      const staleEntry = subscriptionsByName[subscribedName];
+      const staleUnsubscribe = staleEntry && typeof staleEntry.unsubscribe === "function" ? staleEntry.unsubscribe : null;
+      if (staleUnsubscribe) {
+        try {
+          staleUnsubscribe();
+        } catch (error) {
+          // no-op
+        }
+      }
+      delete subscriptionsByName[subscribedName];
+    }
+    if (names.length === 0) {
+      binding.modelSubscriptions = [];
+      return;
+    }
+    for (let i = 0; i < names.length; i += 1) {
+      const name = String(names[i] || "").trim();
+      if (!name) {
+        continue;
+      }
+      const sourceEntries = modelDefs[name];
+      const existing = host[name];
+      const model =
+        existing && typeof existing === "object" && existing.__qhtmlIsQModel === true
+          ? existing
+          : createQModel(resolveModelEntriesToValues(sourceEntries));
+      host[name] = model;
+      ensureBindingModelSubscription(binding, name, model);
+    }
+    binding.modelSubscriptions = Object.keys(subscriptionsByName)
+      .map(function toUnsubscribe(name) {
+        const entry = subscriptionsByName[name];
+        return entry && typeof entry.unsubscribe === "function" ? entry.unsubscribe : null;
+      })
+      .filter(Boolean);
+  }
+
   function renderBinding(binding, options) {
     if (!binding || !binding.qdom) {
       return;
@@ -7269,6 +7963,7 @@
     const opts = options || {};
     const restorableState = captureDomPropertyState(binding, binding.host);
     binding.rendering = true;
+    syncHostModelDefinitions(binding);
     if (opts.skipBindingEvaluation !== true) {
       evaluateAllNodeBindings(binding, {
         forceAll: opts.forceBindingEvaluation === true,
@@ -8553,6 +9248,139 @@
         return installQDomFactories(value);
       }
 
+      function readTreeModelSource(input, options) {
+        const opts = options && typeof options === "object" ? options : {};
+        const host = opts.host && typeof opts.host === "object" ? opts.host : null;
+        let source = input;
+        if ((source === null || typeof source === "undefined" || source === "") && opts.targetElement && typeof opts.targetElement.getAttribute === "function") {
+          source = opts.targetElement.getAttribute("model");
+        }
+        if (typeof source === "string") {
+          const normalized = source.trim();
+          if (normalized === "[object Object]" || normalized === "[object Array]") {
+            source = "";
+          }
+          if (host && source in host) {
+            source = host[source];
+          } else if (host && source.indexOf("-") !== -1) {
+            const alternate = source.replace(/-/g, "_");
+            if (alternate && alternate in host) {
+              source = host[alternate];
+            }
+          }
+        }
+        if ((source === null || typeof source === "undefined" || source === "") && host) {
+          const hostKeys = Object.keys(host);
+          for (let i = 0; i < hostKeys.length; i += 1) {
+            const candidate = host[hostKeys[i]];
+            if (candidate && typeof candidate === "object" && candidate.__qhtmlIsQModel === true) {
+              source = candidate;
+              break;
+            }
+          }
+        }
+        if (source && typeof source === "object" && source.__qhtmlIsQModel === true) {
+          if (typeof source.toArray === "function") {
+            const arrayValue = source.toArray();
+            if (
+              Array.isArray(arrayValue) &&
+              arrayValue.length === 1 &&
+              arrayValue[0] &&
+              typeof arrayValue[0] === "object" &&
+              !Array.isArray(arrayValue[0])
+            ) {
+              return arrayValue[0];
+            }
+            return arrayValue;
+          }
+          if (typeof source.toObject === "function") {
+            return source.toObject();
+          }
+          if (typeof source.values === "function") {
+            return source.values();
+          }
+        }
+        return source;
+      }
+
+      function sanitizeTreeText(value) {
+        const text = String(value == null ? "" : value);
+        let out = "";
+        for (let i = 0; i < text.length; i += 1) {
+          const ch = text.charAt(i);
+          if (ch === "{" || ch === "}" || ch === "\"") {
+            continue;
+          }
+          out += ch;
+        }
+        return out;
+      }
+
+      function buildTreePairs(value) {
+        if (Array.isArray(value)) {
+          return value.map(function mapArray(item, index) {
+            return [String(index), item];
+          });
+        }
+        const obj = value && typeof value === "object" ? value : {};
+        return Object.keys(obj).map(function mapObject(key) {
+          return [key, obj[key]];
+        });
+      }
+
+      function buildTreeBody(value, parentIsArray, depth) {
+        const pairs = buildTreePairs(value);
+        let out = "";
+        for (let i = 0; i < pairs.length; i += 1) {
+          const key = pairs[i][0];
+          const item = pairs[i][1];
+          const isPlainObject = !!(item && typeof item === "object" && !Array.isArray(item));
+          let branchLabel = key;
+          let branchValue = item;
+          if (parentIsArray && isPlainObject) {
+            const itemKeys = Object.keys(item);
+            if (itemKeys.length === 1) {
+              branchLabel = itemKeys[0];
+              branchValue = item[branchLabel];
+            }
+          }
+          const isBranch = !!(branchValue && typeof branchValue === "object");
+          const connectorClass = depth > 0 ? ".q-tree-connector" : "";
+          const isLast = i === pairs.length - 1;
+          const lastClass = depth > 0 && isLast ? ".q-tree-connector-last" : "";
+          if (isBranch) {
+            out +=
+              "li.q-tree-item.q-tree-branch-item" + connectorClass + lastClass +
+              " { details.q-tree-branch { open: \"open\" ontoggle { var summary=this.querySelector(\"summary.q-tree-summary\"); var marker=summary ? summary.querySelector(\".q-tree-marker\") : null; var open=this.open===true; if (marker) { marker.className = \"q-tree-marker \" + (open ? \"q-tree-marker-open\" : \"q-tree-marker-closed\"); marker.textContent = open ? \"-\" : \"+\"; } } summary.q-tree-summary { span.q-tree-marker.q-tree-marker-open { text { - } } span.q-tree-label { text { " + sanitizeTreeText(branchLabel) + " } } } ul.q-tree-list.q-tree-children { " + buildTreeBody(branchValue, Array.isArray(branchValue), depth + 1) + " } } }";
+            continue;
+          }
+          let textValue = "";
+          if (parentIsArray && isPlainObject) {
+            const itemKeys = Object.keys(item);
+            if (itemKeys.length === 1) {
+              textValue = sanitizeTreeText(itemKeys[0]) + ": " + sanitizeTreeText(item[itemKeys[0]]);
+            }
+          }
+          if (!textValue) {
+            textValue = parentIsArray
+              ? sanitizeTreeText(item)
+              : sanitizeTreeText(key) + ": " + sanitizeTreeText(item);
+          }
+          out +=
+            "li.q-tree-item.q-tree-leaf.q-tree-leaf-item" + connectorClass + lastClass +
+            " { span.q-tree-leaf-connector { } span.q-tree-leaf-label { text { " + textValue + " } } }";
+        }
+        return out;
+      }
+
+      function createTreeSource(input, options) {
+        const source = readTreeModelSource(input, options);
+        if (source && typeof source === "object") {
+          return buildTreeBody(source, Array.isArray(source), 0);
+        }
+        return "li.q-tree-item.q-tree-leaf.q-tree-leaf-item { span.q-tree-leaf-connector { } span.q-tree-leaf-label { text { " + sanitizeTreeText(source) + " } } }";
+      }
+
       if (isInstanceKind(normalizedKind(node))) {
         normalizeLegacySlotArrays(node);
       }
@@ -8603,6 +9431,14 @@
             return createSlotFactory(options);
           }
           return createSlotFactory({ name: options, children: children });
+        },
+      });
+      Object.defineProperty(node, "createQTreeSource", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function createQTreeSource(input, options) {
+          return createTreeSource(input, options);
         },
       });
       Object.defineProperty(node, "qcolor", {
@@ -11061,6 +11897,7 @@
     if (typeof binding.disconnect === "function") {
       binding.disconnect();
     }
+    clearBindingModelSubscriptions(binding);
     terminateWasmRuntimesInNode(binding.host);
     bindings.delete(qHtmlElement);
   }
@@ -11413,6 +12250,7 @@
     listRegisteredComponentSlots: listRegisteredComponentSlots,
     createQSignalEvent: createQSignalEvent,
     emitQSignal: emitQSignal,
+    createQModel: createQModel,
     hydrateComponentElement: hydrateComponentElement,
     setDomMutationObserversEnabled: setDomMutationSyncEnabled,
     getDomMutationObserversEnabled: function getDomMutationObserversEnabled() {
@@ -11427,6 +12265,7 @@
   modules.qhtmlRuntime = runtimeApi;
   installGlobalDomMutationSyncToggle();
   global.QHtml = runtimeApi;
+  global.QModel = createQModel;
 
   if (global.document && global.document.readyState === "loading") {
     global.document.addEventListener("DOMContentLoaded", function onReady() {

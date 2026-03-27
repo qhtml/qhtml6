@@ -1,327 +1,101 @@
 q-component q-tree-view {
-  q-property model: q-map { }
+  q-property model: ""
+  q-property treeModel: ""
 
-  function cloneValue(value) {
-    if (Array.isArray(value)) {
-      var copiedArray = [];
-      for (var i = 0; i < value.length; i += 1) {
-        copiedArray.push(this.cloneValue(value[i]));
-      }
-      return copiedArray;
-    }
-    if (value && typeof value === "object") {
-      var copiedObject = {};
-      var keys = Object.keys(value);
-      for (var j = 0; j < keys.length; j += 1) {
-        var key = keys[j];
-        copiedObject[key] = this.cloneValue(value[key]);
-      }
-      return copiedObject;
-    }
-    return value;
+  function _effectiveModel() {
+    var value = this.treeModel
+    if (value === null || typeof value === "undefined" || value === "") { value = this.model }
+    if (value === null || typeof value === "undefined" || value === "") { value = this.getAttribute("treeModel") }
+    if (value === null || typeof value === "undefined" || value === "") { value = this.getAttribute("model") }
+    return value
   }
 
-  function ensureModel() {
-    if (Array.isArray(this.model)) {
-      return this.model;
+  function _unbindModelObserver() {
+    if (typeof this.__treeModelUnsubscribe === "function") {
+      this.__treeModelUnsubscribe()
     }
-    if (this.model && typeof this.model === "object") {
-      return this.model;
+    this.__treeModelUnsubscribe = null
+    this.__treeObservedModel = null
+  }
+
+  function _bindModelObserver(modelValue) {
+    if (!modelValue || typeof modelValue.subscribe !== "function") {
+      this._unbindModelObserver()
+      return
     }
-    this.model = [];
-    return this.model;
-  }
-
-  function import(jsValue) {
-    this.model = this.cloneValue(jsValue);
-    this.renderTree();
-    return this.model;
-  }
-
-  function export() {
-    return this.cloneValue(this.ensureModel());
-  }
-
-  function parsePath(path) {
-    var text = String(path || "").trim();
-    if (!text) {
-      return [];
+    if (this.__treeObservedModel === modelValue && typeof this.__treeModelUnsubscribe === "function") {
+      return
     }
-    return text.split(".");
+    this._unbindModelObserver()
+    var component = this
+    this.__treeModelUnsubscribe = modelValue.subscribe(function() {
+      component.refresh()
+    })
+    this.__treeObservedModel = modelValue
   }
 
-  function resolve(path) {
-    var cursor = this.ensureModel();
-    var parts = this.parsePath(path);
-    for (var i = 0; i < parts.length; i += 1) {
-      var part = parts[i];
-      if (Array.isArray(cursor)) {
-        cursor = cursor[Number(part)];
-      } else {
-        cursor = cursor[part];
+  function _normalizeBranches() {
+    var component = this
+    function setBranchState(branchNode, summaryNode, openState) {
+      if (!branchNode || !summaryNode) { return }
+      var open = openState === true
+      var marker = summaryNode.querySelector(".q-tree-marker")
+      var children = branchNode.querySelector(".q-tree-children")
+      branchNode.open = open
+      branchNode.setAttribute("q-tree-open", open ? "1" : "0")
+      if (children) { children.style.display = open ? "block" : "none" }
+      if (marker) {
+        marker.className = "q-tree-marker " + (open ? "q-tree-marker-open" : "q-tree-marker-closed")
+        marker.textContent = open ? "-" : "+"
       }
     }
-    return cursor;
-  }
-
-  function selectedPath() {
-    return String(this.__qTreeViewSelectedPath || "");
-  }
-
-  function select(path) {
-    this.__qTreeViewSelectedPath = String(path || "");
-    this.renderTree();
-    return this.__qTreeViewSelectedPath;
-  }
-
-  function selectedValue() {
-    return this.resolve(this.selectedPath());
-  }
-
-  function parentAndKey(path) {
-    var parts = this.parsePath(path);
-    var parent = this.ensureModel();
-    for (var i = 0; i < parts.length - 1; i += 1) {
-      var part = parts[i];
-      if (Array.isArray(parent)) {
-        parent = parent[Number(part)];
-      } else {
-        parent = parent[part];
-      }
-    }
-    return {
-      parent: parent,
-      key: parts.length ? parts[parts.length - 1] : ""
-    };
-  }
-
-  function updateSelected(value) {
-    var path = this.selectedPath();
-    if (!path) {
-      return false;
-    }
-    var target = this.parentAndKey(path);
-    var nextValue = this.cloneValue(value);
-    if (Array.isArray(target.parent)) {
-      target.parent[Number(target.key)] = nextValue;
-      this.renderTree();
-      return true;
-    }
-    target.parent[target.key] = nextValue;
-    this.renderTree();
-    return true;
-  }
-
-  function removeSelected() {
-    var path = this.selectedPath();
-    if (!path) {
-      return false;
-    }
-    var target = this.parentAndKey(path);
-    if (Array.isArray(target.parent)) {
-      target.parent.splice(Number(target.key), 1);
-    } else {
-      delete target.parent[target.key];
-    }
-    this.__qTreeViewSelectedPath = "";
-    this.renderTree();
-    return true;
-  }
-
-  function addNode(value, path) {
-    var targetPath = String(path || "");
-    var target = this.resolve(targetPath);
-    var nextValue = this.cloneValue(value);
-    if (Array.isArray(target)) {
-      target.push(nextValue);
-      this.__qTreeViewSelectedPath = targetPath ? targetPath + "." + String(target.length - 1) : String(target.length - 1);
-      this.renderTree();
-      return true;
-    }
-    if (target && typeof target === "object") {
-      var key = "item" + String(Object.keys(target).length + 1);
-      target[key] = nextValue;
-      this.__qTreeViewSelectedPath = targetPath ? targetPath + "." + key : key;
-      this.renderTree();
-      return true;
-    }
-    return false;
-  }
-
-  function describeNode(key, value) {
-    if (typeof this.renderItem === "function") {
-      return String(this.renderItem(key, value));
-    }
-    if (Array.isArray(value)) {
-      return String(key) + ": [" + String(value.length) + "]";
-    }
-    if (value && typeof value === "object") {
-      return String(key) + ": {" + String(Object.keys(value).length) + "}";
-    }
-    return String(key) + ": " + String(value);
-  }
-
-  function appendRow(container, key, value, depth, path) {
-    if (!container) {
-      return;
-    }
-    var rowStyle =
-      "padding-left:" + String((depth * 0.75) + 0.4) + "rem;" +
-      "padding-top:0.2rem;" +
-      "padding-bottom:0.2rem;" +
-      "font-family:'Consolas','Monaco',monospace;" +
-      "font-size:0.84rem;" +
-      "cursor:pointer;" +
-      "border-radius:0.25rem;";
-    if (this.selectedPath() === String(path || "")) {
-      rowStyle += "background:#dbeafe;color:#1d4ed8;";
-    }
-    var textValue = this.describeNode(key, value);
-    if (typeof container.createQElement === "function" && typeof container.appendNode === "function" && typeof container.createQText === "function") {
-      var rowNode = container.createQElement({
-        tagName: "div",
-        attributes: {
-          class: "q-tree-view-row",
-          style: rowStyle,
-          "data-path": String(path || ""),
-          onclick: 'this.closest("q-tree-view").select(this.getAttribute("data-path"));'
-        },
-        children: [container.createQText(textValue)]
-      });
-      container.appendNode(rowNode);
-      return;
-    }
-    if (container.nodeType === 1) {
-      var rowDom = document.createElement("div");
-      rowDom.className = "q-tree-view-row";
-      rowDom.setAttribute("style", rowStyle);
-      rowDom.setAttribute("data-path", String(path || ""));
-      rowDom.setAttribute("onclick", 'this.closest("q-tree-view").select(this.getAttribute("data-path"));');
-      rowDom.textContent = textValue;
-      container.appendChild(rowDom);
-    }
-  }
-
-  function renderBranch(container, value, path, depth) {
-    if (Array.isArray(value)) {
-      for (var i = 0; i < value.length; i += 1) {
-        var nextArrayPath = path ? path + "." + String(i) : String(i);
-        this.appendRow(container, i, value[i], depth, nextArrayPath);
-        if (Array.isArray(value[i]) || (value[i] && typeof value[i] === "object")) {
-          this.renderBranch(container, value[i], nextArrayPath, depth + 1);
+    var detailsBranches = component.querySelectorAll("details.q-tree-branch")
+    var i = 0
+    while (i < detailsBranches.length) {
+      var details = detailsBranches[i]
+      var summary = details.querySelector(":scope > .q-tree-summary")
+      var children = details.querySelector(":scope > .q-tree-children")
+      if (summary && children) {
+        if (String(summary.tagName || "").toLowerCase() !== "summary") {
+          var realSummary = document.createElement("summary")
+          realSummary.className = summary.className
+          while (summary.firstChild) {
+            realSummary.appendChild(summary.firstChild)
+          }
+          details.replaceChild(realSummary, summary)
+          summary = realSummary
         }
+        setBranchState(details, summary, details.open === true)
       }
-      return;
-    }
-
-    if (value && typeof value === "object") {
-      var keys = Object.keys(value);
-      for (var j = 0; j < keys.length; j += 1) {
-        var key = keys[j];
-        var child = value[key];
-        var nextObjectPath = path ? path + "." + key : key;
-        this.appendRow(container, key, child, depth, nextObjectPath);
-        if (Array.isArray(child) || (child && typeof child === "object")) {
-          this.renderBranch(container, child, nextObjectPath, depth + 1);
-        }
-      }
-      return;
-    }
-
-    this.appendRow(container, "value", value, depth, path);
-  }
-
-  function renderTree() {
-    var body = this.querySelector("[q-tree-view-body='1']");
-    if (!body) {
-      throw new Error("q-tree-view body node missing.");
-    }
-    var bodyNode = body.qdom();
-    if (!bodyNode) {
-      body.innerHTML = "";
-      this.renderBranch(body, this.ensureModel(), "", 0);
-      return;
-    }
-    var list = null;
-    if (typeof bodyNode.children === "function") {
-      list = bodyNode.children();
-    } else if (Array.isArray(bodyNode.children)) {
-      list = bodyNode.children;
-    }
-    if (list && typeof list.splice === "function") {
-      list.splice(0, list.length);
-      this.renderBranch(bodyNode, this.ensureModel(), "", 0);
-      var host = this.qhtmlRoot();
-      if (host && typeof host.update === "function") {
-        var bodyUuid = String((bodyNode && bodyNode.UUID) || "").trim();
-        if (bodyUuid) {
-          host.update(bodyUuid);
-        } else {
-          host.update();
-        }
-      }
-      return;
-    }
-    body.innerHTML = "";
-    this.renderBranch(body, this.ensureModel(), "", 0);
-  }
-
-  onReady {
-    try {
-      if (this.__qTreeViewReady === true) {
-        return;
-      }
-
-      var rootNode = this.querySelector("[q-tree-root='1']");
-      if (!rootNode) {
-        throw new Error("q-tree-view root node missing.");
-      }
-
-      rootNode.addNode = function(value, path) {
-        return this.closest("q-tree-view").addNode(value, path || "");
-      };
-
-      rootNode.import = function(jsValue) {
-        return this.closest("q-tree-view").import(jsValue);
-      };
-
-      rootNode.export = function() {
-        return this.closest("q-tree-view").export();
-      };
-
-      rootNode.select = function(path) {
-        return this.closest("q-tree-view").select(path);
-      };
-
-      rootNode.selectedValue = function() {
-        return this.closest("q-tree-view").selectedValue();
-      };
-
-      this.__qTreeViewReady = true;
-      this.renderTree();
-    } catch (error) {
-      if (typeof console !== "undefined" && console && typeof console.error === "function") {
-        console.error("q-tree-view onReady failed:", error);
-      }
+      i += 1
     }
   }
 
-  div.q-tree-view-shell {
-    style {
-      border: 1px solid #cbd5e1;
-      border-radius: 0.55rem;
-      background: #ffffff;
-      max-height: 16rem;
-      overflow: auto;
+  function _queueNormalizeBranches() {
+    var component = this
+    if (typeof component.__normalizeRaf === "number") {
+      cancelAnimationFrame(component.__normalizeRaf)
     }
-
-    QTreeNode {
-      q-tree-root: "1"
-      style { display: block; padding: 0.35rem; }
-
-      div {
-        q-tree-view-body: "1"
-      }
-    }
+    component.__normalizeRaf = requestAnimationFrame(function() {
+      component.__normalizeRaf = null
+      component._normalizeBranches()
+    })
   }
+
+  function refresh() {
+    var host = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || this.closest("q-html")
+    var root = this.querySelector("[q-tree-root='1']")
+    if (!root || typeof root.qdom !== "function") { return }
+    var modelInput = this._effectiveModel()
+    this._bindModelObserver(modelInput)
+    var rootQdom = root.qdom()
+    if (!rootQdom || typeof rootQdom.createQTreeSource !== "function") { return }
+    var body = rootQdom.createQTreeSource(modelInput, { host: host, targetElement: this })
+    rootQdom.replaceWithQHTML("ul.q-tree.q-tree-list { q-tree-root: \"1\" " + body + " }")
+    this._queueNormalizeBranches()
+  }
+
+  onReady { this.refresh() }
+
+  ul.q-tree.q-tree-list { q-tree-root: "1" }
 }

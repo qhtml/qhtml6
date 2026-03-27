@@ -40,6 +40,13 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - Dispatch runtime signal events (`q-signal` and optional namespaced event).
 - `createQSignalEvent(payload)`
   - Create a bubbling/composed `q-signal` event object.
+- `createQModel(input)`
+  - Returns normalized model adapter with mutators/events:
+    - `add`, `insert`, `remove`
+    - `keys`, `values`, `entries`, `at`, `value`, `key`, `indexOf`, `count`, `foreach`, `forEach`, `map`, `walk`, `traverse`
+    - `toArray`, `toObject`
+    - `subscribe(listener)` and `emit(type, details?)`
+  - Exposed as both `QHtml.createQModel(...)` and global `QModel(...)`.
 - `initAll(root?, options?)`
   - Mount all `<q-html>` descendants.
 - `startAutoMountObserver(root?, options?)`
@@ -95,6 +102,9 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - `property(name, value)` setter alias of `setProperty`
   - `rewrite(...)` executes `callback` with default bindings `{ this: currentNodeFacade }`.
   - The callback return value is stringified and applied to the calling node via `replaceWithQHTML(...)`.
+- QDom tree/model helper:
+  - `createQTreeSource(model, options?)` returns qhtml list-node source (`li`/`details`) for nested object/array/QModel input.
+  - Supports resolving named models through `options.host` and `options.targetElement`.
 - QDom projection helpers:
   - `show(prop1, prop2, ...)` returns `[projectedTree]` with only requested keys on each QDom node.
   - `map({ fromKey: toKey, ... })` returns `[projectedTree]` with key names remapped recursively.
@@ -135,3 +145,4 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - Maintains component-host property reference indexes (`propertyName -> Set<qdomUuid>`) derived from binding scripts that reference `this.component.<prop>` / `component.<prop>` for targeted updates.
 - Custom-element registration (`customElements.define`) now applies parsed component `q-property` defaults per instance at construction/connection time (non-binding defaults only).
 - SDML helper component/template/signal definitions from remote blocks are scoped to their owning alias definition via internal prefixed ids, avoiding global definition collisions.
+- When parser metadata contains top-level named `q-model` definitions (`doc.meta.qModels`), mount syncs them onto host properties as `QModel` instances and subscribes host updates to model mutations.

@@ -60,7 +60,15 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - applying the style merges classes into `class` and declarations into `style`
     - repeater and iterable model support:
       - `q-repeater` and `q-foreach` blocks
+      - `q-model` definitions (named + anonymous) as reusable iterable model sources
+      - `q-model-view` is the base model/delegate syntax and is lowered to repeater QDom (`keyword: "q-model-view"`) with:
+        - model source from one or more anonymous `q-model { ... }` blocks
+        - delegate alias from `as { itemName }`
+      - `q-repeater` is parsed as an extension over the same `q-model-view` pipeline (compatible `model { ... }` + `slot { ... }` syntax)
       - model containers `q-array`, `q-object`, and `q-map`
+      - `q-array` named-definition parsing now handles quoted strings and inline nested typed values (`q-map`/`q-array`) without token splitting loss
+      - `q-model`/repeater model values also accept inline `q-script { return ... }` when statically resolvable
+      - `q-script` inside `q-model` blocks is preserved for model parsing (not pre-evaluated as global q-script replacement text)
       - property assignments accept typed anonymous container values:
         - `propName: q-array { "a", 1, q-array { "b", 2 } }`
         - `propName: q-map { key: "v", nested: q-map { ok: true } }`
@@ -96,10 +104,10 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
 - Throws `QHtmlKeywordAliasError` with `.index` for invalid alias declarations/usages (self-reference or alias-to-alias).
 - Import/macro stages throw descriptive `Error` messages for recursion/limits/unbalanced blocks.
 - `q-style-class` is block-only inside `q-style` (`q-style-class { ... }`).
-- `q-repeater` warns and falls back to a single iteration when `model { ... }` contains non-iterative blocks such as `html { ... }` or `text { ... }`.
+- model warnings are emitted when non-iterative containers are mixed into model blocks; `q-model-view` keeps valid parsed entries while `q-repeater` retains fallback behavior for incompatible model content.
 
 ## Binding semantics
-- Preprocess `q-script` evaluation intentionally skips assignment context (`name: q-script { ... }`) so assignment scripts can be preserved as runtime bindings.
+- Preprocess `q-script` evaluation intentionally skips assignment context (`name: q-script { ... }`) and `q-model { q-script { ... } }` context so model scripts are preserved for model parsing/runtime bindings.
 - `q-bind` assignment expressions are never source-preprocessed; they are emitted as binding metadata for runtime evaluation.
 
 ## Cross-module usage

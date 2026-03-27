@@ -1976,6 +1976,118 @@ div#multi-extends-status { text { pending } }
           </q-html>
         </section>
       </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>44. q-model Runtime API</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-model my-model { q-array { 5, 10 } }
+onReady {
+  var status = "q-model-fail";
+  try {
+    var model = this["my-model"];
+      model.add(15);
+      var countOk = Number(model.count()) === 3;
+      var secondOk = Number(model.at(1)) === 10;
+      var values = model.values();
+      var thirdOk = Array.isArray(values) && Number(values[2]) === 15;
+      if (countOk && secondOk && thirdOk) { status = "q-model-ok"; }
+  } catch (err) { }
+  var statusNode = this.querySelector("#q-model-status");
+  if (statusNode) { statusNode.textContent = status; }
+}
+div#q-model-status { text { pending } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: q-model-ok</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t44" data-mode="contains" data-contains="q-model-ok">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t44" data-qtest-host="1">
+q-model my-model { q-array { 5, 10 } }
+onReady {
+  var status = "q-model-fail";
+  try {
+    var model = this["my-model"];
+      model.add(15);
+      var countOk = Number(model.count()) === 3;
+      var secondOk = Number(model.at(1)) === 10;
+      var values = model.values();
+      var thirdOk = Array.isArray(values) && Number(values[2]) === 15;
+      if (countOk && secondOk && thirdOk) { status = "q-model-ok"; }
+  } catch (err) { }
+  var statusNode = this.querySelector("#q-model-status");
+  if (statusNode) { statusNode.textContent = status; }
+}
+div#q-model-status { text { pending } }
+          </q-html>
+        </section>
+      </article>
+
+      <article class="test-card">
+        <div class="test-head"><h2>45. q-model-view Delegation + Mixed Model Sources</h2></div>
+        <div class="io-grid">
+          <section class="cell"><h3>QHTML Input</h3><pre>q-array my-source { 5, 10, q-map { name: "tom" } }
+q-model-view {
+  q-model { my-source }
+  q-model { q-script { return [20] } }
+  as { item }
+  div.mv-cell { text { ${item &amp;&amp; item.name ? item.name : item} } }
+}
+onReady {
+  var status = "q-model-view-fail";
+  try {
+    var text = String(this.textContent || "");
+    if (text.indexOf("5") &gt;= 0 &amp;&amp; text.indexOf("10") &gt;= 0 &amp;&amp; text.indexOf("tom") &gt;= 0 &amp;&amp; text.indexOf("20") &gt;= 0) {
+      status = "q-model-view-ok";
+    }
+  } catch (err) { }
+  var statusNode = this.querySelector("#q-model-view-status");
+  if (statusNode) { statusNode.textContent = status; }
+}
+div#q-model-view-status { text { pending } }</pre></section>
+          <section class="cell"><h3>Expected Output</h3><pre>contains: q-model-view-ok</pre></section>
+          <section class="cell">
+            <h3>Actual Output + Status</h3>
+            <q-html data-qtest-role="result" data-qtest-case="t45" data-mode="contains" data-contains="q-model-view-ok">
+onReady { var host = this; if (!host.__tick) { host.__tick = setInterval(function () { host.update({ forceBindings: true, force: true }); }, 1200); } }
+div.status-line { span { class: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "status pass" : "status fail"; } content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell && shell.getAttribute("data-pass") === "1" ? "pass" : "fail"; } } }
+pre { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-actual") || "") : ""; } }
+pre.detail { content: q-bind { var shell = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || (this.closest ? this.closest("q-html") : null); return shell ? String(shell.getAttribute("data-detail") || "") : ""; } }
+            </q-html>
+          </section>
+        </div>
+        <section class="preview">
+          <h3>Rendered Preview</h3>
+          <q-html id="host-t45" data-qtest-host="1">
+q-array my-source { 5, 10, q-map { name: "tom" } }
+q-model-view {
+  q-model { my-source }
+  q-model { q-script { return [20] } }
+  as { item }
+  div.mv-cell { text { ${item && item.name ? item.name : item} } }
+}
+onReady {
+  var status = "q-model-view-fail";
+  try {
+    var text = String(this.textContent || "");
+    if (text.indexOf("5") >= 0 && text.indexOf("10") >= 0 && text.indexOf("tom") >= 0 && text.indexOf("20") >= 0) {
+      status = "q-model-view-ok";
+    }
+  } catch (err) { }
+  var statusNode = this.querySelector("#q-model-view-status");
+  if (statusNode) { statusNode.textContent = status; }
+}
+div#q-model-view-status { text { pending } }
+          </q-html>
+        </section>
+      </article>
     </section>
   </div>
 

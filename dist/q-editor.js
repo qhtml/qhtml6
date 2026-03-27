@@ -2641,7 +2641,29 @@
       if (!this.isConnected) return;
       const version = ++this._renderVersion;
       const source = String(this._source || '');
+      const shouldPopulateHtml = this._activeTab === 'html';
       const shouldPopulateQDom = this._activeTab === 'qdom';
+      const shouldPopulatePreview = this._activeTab === 'preview';
+      const shouldBuildAdapter = shouldPopulateHtml || shouldPopulateQDom || shouldPopulatePreview;
+
+      if (!shouldBuildAdapter) {
+        this._adapter = null;
+        this._qdomSerialized = '';
+        this._qdomDecoded = '';
+        this._htmlOutput = '';
+        this._componentNames = collectComponentNames(source);
+        globalScope.__QEDITOR_QDOM_SERIALIZED__ = this._qdomSerialized;
+        globalScope.__QEDITOR_QDOM_DECODED__ = this._qdomDecoded;
+        this.dispatchEvent(new CustomEvent('q-editor-output', { bubbles: true, composed: true }));
+        this._refreshQhtmlHighlight();
+        this._syncQhtmlScroll();
+        if (this._previewNode) {
+          this._detachPreviewListeners();
+          this._unmountPreviewQHtml();
+          this._previewNode.innerHTML = '';
+        }
+        return;
+      }
 
       let adapter = null;
       let htmlRaw = '';
@@ -2689,7 +2711,9 @@
         this._unmountPreviewQHtml();
         this._previewNode.innerHTML = '';
 
-        if (renderError) {
+        if (!shouldPopulatePreview) {
+          // Preview runtime is mounted lazily only when preview tab is active.
+        } else if (renderError) {
           this._previewNode.innerHTML = '<pre class="qe-error">' + escapeHtml(String(renderError && renderError.stack ? renderError.stack : renderError)) + '</pre>';
         } else {
           let mountedRuntimePreview = false;

@@ -2089,6 +2089,27 @@
     return store;
   }
 
+  function scheduleReadyHookExecution(callback) {
+    if (typeof callback !== "function") {
+      return;
+    }
+    if (typeof global.queueMicrotask === "function") {
+      global.queueMicrotask(callback);
+      return;
+    }
+    if (typeof Promise === "function" && typeof Promise.resolve === "function") {
+      Promise.resolve()
+        .then(callback)
+        .catch(function reportReadyHookError(error) {
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml ready-hook scheduling failed:", error);
+          }
+        });
+      return;
+    }
+    callback();
+  }
+
   function runLifecycleHookMaybeDeferred(hook, thisArg, targetDocument, errorLabel) {
     if (!isOnReadyHook(hook)) {
       runLifecycleHookNow(hook, thisArg, targetDocument, errorLabel);
@@ -2119,11 +2140,7 @@
     };
 
     const deferExecute = function deferExecuteReadyHook() {
-      if (typeof global.setTimeout === "function") {
-        global.setTimeout(execute, 0);
-      } else {
-        execute();
-      }
+      scheduleReadyHookExecution(execute);
     };
 
     if (!runtimeManaged || alreadySignaled) {
@@ -3010,11 +3027,29 @@
     return re.test(value);
   }
 
-  function stringifyRepeaterEntry(entry) {
+  function resolveRepeaterEntryValue(entry) {
+    if (!entry || typeof entry !== "object") {
+      return entry;
+    }
+    if (Object.prototype.hasOwnProperty.call(entry, "value")) {
+      return entry.value;
+    }
+    if (Object.prototype.hasOwnProperty.call(entry, "text")) {
+      return entry.text;
+    }
+    return entry;
+  }
+
+  function stringifyRepeaterEntry(entry, options) {
+    const opts = options || {};
+    const preferModelValue = !!opts.preferModelValue;
     if (!entry || typeof entry !== "object") {
       return String(entry == null ? "" : entry);
     }
     if (entry.kind === "qobject") {
+      if (preferModelValue && Object.prototype.hasOwnProperty.call(entry, "value")) {
+        return String(entry.value == null ? "" : entry.value);
+      }
       return String(entry.source || "").trim();
     }
     if (Object.prototype.hasOwnProperty.call(entry, "value")) {
@@ -3023,21 +3058,21 @@
     return String(entry.text || "");
   }
 
-  function replaceRepeaterPlaceholderText(source, slotName, entry) {
+  function replaceRepeaterPlaceholderText(source, slotName, entry, options) {
     const text = String(source == null ? "" : source);
     const escaped = String(slotName || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp("\\$\\{\\s*" + escaped + "\\s*\\}", "g");
-    return text.replace(re, stringifyRepeaterEntry(entry));
+    return text.replace(re, stringifyRepeaterEntry(entry, options));
   }
 
-  function applyRepeaterEntryToValue(value, slotName, entry) {
+  function applyRepeaterEntryToValue(value, slotName, entry, options) {
     if (typeof value === "string") {
-      return replaceRepeaterPlaceholderText(value, slotName, entry);
+      return replaceRepeaterPlaceholderText(value, slotName, entry, options);
     }
     if (Array.isArray(value)) {
       const out = [];
       for (let i = 0; i < value.length; i += 1) {
-        out.push(applyRepeaterEntryToValue(value[i], slotName, entry));
+        out.push(applyRepeaterEntryToValue(value[i], slotName, entry, options));
       }
       return out;
     }
@@ -3047,7 +3082,7 @@
     const keys = Object.keys(value);
     for (let i = 0; i < keys.length; i += 1) {
       const key = keys[i];
-      value[key] = applyRepeaterEntryToValue(value[key], slotName, entry);
+      value[key] = applyRepeaterEntryToValue(value[key], slotName, entry, options);
     }
     return value;
   }
@@ -3055,6 +3090,7 @@
   function materializeRepeaterTemplateNodes(repeaterNode, entry) {
     const templateNodes = Array.isArray(repeaterNode && repeaterNode.templateNodes) ? repeaterNode.templateNodes : [];
     const slotName = String(repeaterNode && repeaterNode.slotName || "item").trim() || "item";
+    const preferModelValue = String(repeaterNode && repeaterNode.keyword || "").trim().toLowerCase() === "q-model-view";
     const out = [];
     for (let i = 0; i < templateNodes.length; i += 1) {
       const templateNode = templateNodes[i];
@@ -3064,6 +3100,7 @@
         entry &&
         typeof entry === "object" &&
         entry.kind === "qobject" &&
+        !preferModelValue &&
         core.NODE_TYPES.text &&
         cloned &&
         cloned.kind === core.NODE_TYPES.text &&
@@ -3077,9 +3114,23 @@
         }
         continue;
       }
-      out.push(applyRepeaterEntryToValue(cloned, slotName, entry));
+      out.push(applyRepeaterEntryToValue(cloned, slotName, entry, { preferModelValue: preferModelValue }));
     }
     return out;
+  }
+
+  function createRepeaterRenderContext(baseContext, repeaterNode, entry, index) {
+    const next = Object.assign({}, baseContext || {});
+    const inheritedScope =
+      baseContext && baseContext.inlineScope && typeof baseContext.inlineScope === "object"
+        ? baseContext.inlineScope
+        : null;
+    const inlineScope = Object.assign({}, inheritedScope || {});
+    const slotName = String(repeaterNode && repeaterNode.slotName || "item").trim() || "item";
+    inlineScope[slotName] = resolveRepeaterEntryValue(entry);
+    inlineScope.index = Number(index) || 0;
+    next.inlineScope = inlineScope;
+    return next;
   }
 
   function renderRepeaterNode(repeaterNode, parent, targetDocument, context) {
@@ -3099,10 +3150,25 @@
     for (let i = 0; i < modelEntries.length; i += 1) {
       const entry = modelEntries[i];
       const expanded = materializeRepeaterTemplateNodes(repeaterNode, entry);
+      const entryContext = createRepeaterRenderContext(context, repeaterNode, entry, i);
       for (let j = 0; j < expanded.length; j += 1) {
-        renderNode(expanded[j], parent, targetDocument, context);
+        renderNode(expanded[j], parent, targetDocument, entryContext);
       }
     }
+  }
+
+  function buildInterpolationScope(context, fallbackNode) {
+    const scope = {};
+    if (context && context.inlineScope && typeof context.inlineScope === "object") {
+      const keys = Object.keys(context.inlineScope);
+      for (let i = 0; i < keys.length; i += 1) {
+        const key = keys[i];
+        scope[key] = context.inlineScope[key];
+      }
+    }
+    scope.component = resolveComponentForInterpolation(context, fallbackNode);
+    scope.componentQdom = resolveComponentQdomForInterpolation(context);
+    return scope;
   }
 
   function renderNode(node, parent, targetDocument, context) {
@@ -3131,10 +3197,7 @@
           textValue = interpolateInlineReferenceExpressions(
             textValue,
             parent && parent.nodeType === 1 ? parent : null,
-            {
-              component: resolveComponentForInterpolation(context, parent),
-              componentQdom: resolveComponentQdomForInterpolation(context),
-            },
+            buildInterpolationScope(context, parent),
             "qhtml text interpolation failed:"
           );
         }
@@ -3174,13 +3237,11 @@
       }
 
       const element = targetDocument.createElement(tagName);
-      const interpolationComponent = resolveComponentForInterpolation(context, parent);
+      const interpolationScope = buildInterpolationScope(context, parent);
+      const interpolationComponent = interpolationScope.component || null;
       setElementAttributes(element, node.attributes, {
         thisArg: element,
-        scope: {
-          component: interpolationComponent,
-          componentQdom: resolveComponentQdomForInterpolation(context),
-        },
+        scope: interpolationScope,
       });
       parent.appendChild(element);
 
@@ -3202,10 +3263,7 @@
           textContent = interpolateInlineReferenceExpressions(
             textContent,
             element,
-            {
-              component: interpolationComponent,
-              componentQdom: resolveComponentQdomForInterpolation(context),
-            },
+            buildInterpolationScope(context, element),
             "qhtml text interpolation failed:"
           );
         }
@@ -3420,7 +3478,10 @@
 
     const hostTag = String(componentNode.componentId || instanceNode.tagName || "div").trim().toLowerCase();
     const hostElement = targetDocument.createElement(hostTag || "div");
-    setElementAttributes(hostElement, instanceNode.attributes);
+    setElementAttributes(hostElement, instanceNode.attributes, {
+      thisArg: hostElement,
+      scope: buildInterpolationScope(context, parent),
+    });
     setElementProperties(hostElement, instanceNode.props);
     if (key) {
       hostElement.setAttribute("q-component", key);
@@ -3599,6 +3660,7 @@
       componentHostStack: [],
       componentQdomStack: [],
       slotStack: [],
+      inlineScope: {},
       disableLifecycleHooks: !!opts.disableLifecycleHooks,
       capture: opts.capture ? opts.capture : null,
     };
@@ -3741,6 +3803,10 @@
       componentHostStack: Array.isArray(opts.componentHostStack) ? opts.componentHostStack : [],
       componentQdomStack: Array.isArray(opts.componentQdomStack) ? opts.componentQdomStack : [],
       slotStack: Array.isArray(opts.slotStack) ? opts.slotStack : [],
+      inlineScope:
+        opts.inlineScope && typeof opts.inlineScope === "object"
+          ? Object.assign({}, opts.inlineScope)
+          : {},
       disableLifecycleHooks: !!opts.disableLifecycleHooks,
     };
     const effectiveComponentNode = resolveInheritedComponentDefinition(

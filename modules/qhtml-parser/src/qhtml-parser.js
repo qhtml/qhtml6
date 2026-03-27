@@ -22,6 +22,8 @@
   const LIFECYCLE_BLOCKS = new Set(["onready", "onload", "onloaded"]);
   const BINDING_EXPRESSION_KEYWORDS = new Set(["q-bind", "q-script"]);
   const REPEATER_KEYWORDS = new Set(["q-repeater", "q-foreach"]);
+  const MODEL_KEYWORDS = new Set(["q-model"]);
+  const MODEL_VIEW_KEYWORDS = new Set(["q-model-view"]);
   const ITERATIVE_MODEL_KEYWORDS = new Set(["q-array", "q-object", "q-map"]);
   const DEPRECATED_FEATURE_WARNED = new Set();
   const CANONICAL_KEYWORD_TARGETS = new Set([
@@ -45,8 +47,10 @@
     "q-array",
     "q-object",
     "q-map",
+    "q-model",
     "q-repeater",
     "q-foreach",
+    "q-model-view",
     "q-import",
     "q-sdml-component",
     "sdml-endpoint",
@@ -2066,6 +2070,27 @@
           });
           continue;
         }
+        if (MODEL_KEYWORDS.has(nameLower) && nextChar !== "{" && nextChar !== ",") {
+          const modelName = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after " + nameBase + " name", parser.index);
+          }
+          consume(parser);
+          const modelItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          items.push({
+            type: "QModelDefinition",
+            keyword: nameLower,
+            name: String(modelName || "").trim(),
+            items: modelItems,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (nameLower === "q-signal" && nextChar !== "{" && nextChar !== ",") {
           const signalId = parseIdentifier(parser);
           let parameterSource = "";
@@ -2439,6 +2464,23 @@
               keyword: nameLower,
               name: "",
               items: repeaterItems,
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
+          if (MODEL_KEYWORDS.has(nameLower)) {
+            consume(parser);
+            const modelItems = parseBlockItems(parser, scopedKeywordAliases);
+            expect(parser, "}");
+            items.push({
+              type: "QModelDefinition",
+              keyword: nameLower,
+              name: "",
+              items: modelItems,
               keywords: keywordSnapshot,
               start: itemStart,
               end: parser.index,
@@ -2897,6 +2939,28 @@
           continue;
         }
 
+        if (MODEL_KEYWORDS.has(firstLower) && peek(parser) !== "{" && peek(parser) !== ",") {
+          const modelName = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after " + firstSelectorBase + " name", parser.index);
+          }
+          consume(parser);
+          const modelItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          body.push({
+            type: "QModelDefinition",
+            keyword: firstLower,
+            name: String(modelName || "").trim(),
+            items: modelItems,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
         if (REPEATER_KEYWORDS.has(firstLower) && peek(parser) === "{") {
           consume(parser);
           const repeaterItems = parseBlockItems(parser, scopedKeywordAliases);
@@ -2906,6 +2970,23 @@
             keyword: firstLower,
             name: "",
             items: repeaterItems,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (MODEL_KEYWORDS.has(firstLower) && peek(parser) === "{") {
+          consume(parser);
+          const modelItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          body.push({
+            type: "QModelDefinition",
+            keyword: firstLower,
+            name: "",
+            items: modelItems,
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -4065,12 +4146,17 @@
       parentContext && parentContext.qObjects instanceof Map
         ? parentContext.qObjects
         : null;
+    const parentModels =
+      parentContext && parentContext.qModels instanceof Map
+        ? parentContext.qModels
+        : null;
     const parentRepeaterScope =
       parentContext && parentContext.repeaterScope && typeof parentContext.repeaterScope === "object"
         ? parentContext.repeaterScope
         : null;
     const qArrays = new Map();
     const qObjects = new Map();
+    const qModels = new Map();
     if (parentArrays instanceof Map) {
       parentArrays.forEach(function copyArray(value, key) {
         qArrays.set(String(key || ""), deepClonePlainValue(value));
@@ -4081,11 +4167,17 @@
         qObjects.set(String(key || ""), deepClonePlainValue(value));
       });
     }
+    if (parentModels instanceof Map) {
+      parentModels.forEach(function copyModel(value, key) {
+        qModels.set(String(key || ""), deepClonePlainValue(value));
+      });
+    }
     return {
       qColors: createQColorContext(parentColors),
       qStyles: createQStyleContext(parentStyles),
       qArrays: qArrays,
       qObjects: qObjects,
+      qModels: qModels,
       repeaterScope: parentRepeaterScope ? Object.assign({}, parentRepeaterScope) : {},
     };
   }
@@ -5721,6 +5813,33 @@
     return null;
   }
 
+  function tryResolveStaticQScriptValue(scriptBody) {
+    const body = String(scriptBody || "").trim();
+    const match = body.match(/^return\s+([\s\S]+?);?\s*$/);
+    if (match) {
+      const expr = String(match[1] || "").trim();
+      if (expr) {
+        try {
+          const evaluated = new Function('"use strict"; return (' + expr + ");")();
+          if (typeof evaluated !== "undefined") {
+            return deepClonePlainValue(evaluated);
+          }
+        } catch (error) {
+          // fallback below
+        }
+      }
+    }
+    try {
+      const evaluated = new Function('"use strict";\n' + body + "\n")();
+      if (typeof evaluated === "undefined") {
+        return null;
+      }
+      return deepClonePlainValue(evaluated);
+    } catch (error) {
+      return null;
+    }
+  }
+
   function isQScriptIdentifierChar(ch) {
     return !!ch && /[A-Za-z0-9_-]/.test(ch);
   }
@@ -6916,6 +7035,30 @@
     return input[cursor] === ":";
   }
 
+  function isModelQScriptContext(source, qScriptStart) {
+    const input = String(source || "");
+    let cursor = Number(qScriptStart) - 1;
+    while (cursor >= 0 && /\s/.test(input[cursor])) {
+      cursor -= 1;
+    }
+    if (cursor < 0 || input[cursor] !== "{") {
+      return false;
+    }
+    cursor -= 1;
+    while (cursor >= 0 && /\s/.test(input[cursor])) {
+      cursor -= 1;
+    }
+    if (cursor < 0) {
+      return false;
+    }
+    const end = cursor + 1;
+    while (cursor >= 0 && /[A-Za-z0-9_-]/.test(input[cursor])) {
+      cursor -= 1;
+    }
+    const token = input.slice(cursor + 1, end).toLowerCase();
+    return token === "q-model" || token === "model";
+  }
+
   function isQKeywordAliasDeclarationContext(source, tokenStart) {
     const input = String(source || "");
     let cursor = Math.max(0, Number(tokenStart) || 0) - 1;
@@ -7125,17 +7268,25 @@
       scopedMaps && scopedMaps.qObjects instanceof Map
         ? scopedMaps.qObjects
         : new Map();
+    const baseModels =
+      scopedMaps && scopedMaps.qModels instanceof Map
+        ? scopedMaps.qModels
+        : new Map();
     const scopeValues =
       scopedMaps && scopedMaps.repeaterScope && typeof scopedMaps.repeaterScope === "object"
         ? scopedMaps.repeaterScope
         : {};
     const localArrays = new Map();
     const localObjects = new Map();
+    const localModels = new Map();
     baseArrays.forEach(function copyScopedArray(value, key) {
       localArrays.set(String(key || ""), deepClonePlainValue(value));
     });
     baseObjects.forEach(function copyScopedObject(value, key) {
       localObjects.set(String(key || ""), deepClonePlainValue(value));
+    });
+    baseModels.forEach(function copyScopedModel(value, key) {
+      localModels.set(String(key || ""), deepClonePlainValue(value));
     });
     const localScope = Object.assign({}, scopeValues);
 
@@ -7145,21 +7296,43 @@
         continue;
       }
 
-      if (registerQArrayDefinitionItem({ qArrays: localArrays, qObjects: localObjects, repeaterScope: localScope }, item)) {
+      if (registerQArrayDefinitionItem({ qArrays: localArrays, qObjects: localObjects, qModels: localModels, repeaterScope: localScope }, item)) {
         continue;
       }
-      if (registerQObjectDefinitionItem({ qArrays: localArrays, qObjects: localObjects, repeaterScope: localScope }, item)) {
+      if (registerQObjectDefinitionItem({ qArrays: localArrays, qObjects: localObjects, qModels: localModels, repeaterScope: localScope }, item)) {
         const objectName = normalizeRepeaterSymbolName(item.name);
-        if (!objectName) {
-          const anonymousObject = convertScopedObjectItemsToPlainValue(
-            Array.isArray(item.items) ? item.items : [],
-            { qArrays: localArrays, qObjects: localObjects, repeaterScope: localScope },
-            visitedRefs
-          );
-          const keys = Object.keys(anonymousObject);
-          for (let ai = 0; ai < keys.length; ai += 1) {
-            out[keys[ai]] = anonymousObject[keys[ai]];
-          }
+        if (objectName) {
+          continue;
+        }
+        const anonymousObject = convertScopedObjectItemsToPlainValue(
+          Array.isArray(item.items) ? item.items : [],
+          { qArrays: localArrays, qObjects: localObjects, qModels: localModels, repeaterScope: localScope },
+          visitedRefs
+        );
+        const keys = Object.keys(anonymousObject);
+        for (let ai = 0; ai < keys.length; ai += 1) {
+          out[keys[ai]] = anonymousObject[keys[ai]];
+        }
+        continue;
+      }
+      if (registerQModelDefinitionItem({ qArrays: localArrays, qObjects: localObjects, qModels: localModels, repeaterScope: localScope }, item)) {
+        const modelName = normalizeRepeaterSymbolName(item.name);
+        if (modelName) {
+          continue;
+        }
+        const anonymousModelEntries = resolveRepeaterModelEntries(
+          Array.isArray(item.items) ? item.items : [],
+          { qArrays: localArrays, qObjects: localObjects, qModels: localModels, repeaterScope: localScope },
+          item
+        );
+        const modelValues = convertScopedArrayEntriesToPlainValue(anonymousModelEntries, {
+          qArrays: localArrays,
+          qObjects: localObjects,
+          qModels: localModels,
+          repeaterScope: localScope,
+        }, visitedRefs);
+        for (let mi = 0; mi < modelValues.length; mi += 1) {
+          out[String(mi)] = modelValues[mi];
         }
         continue;
       }
@@ -7177,6 +7350,7 @@
         {
           qArrays: localArrays,
           qObjects: localObjects,
+          qModels: localModels,
           repeaterScope: localScope,
         },
         visitedRefs
@@ -7192,6 +7366,10 @@
     for (let i = 0; i < list.length; i += 1) {
       const entry = list[i];
       if (entry && typeof entry === "object" && entry.kind === "qobject") {
+        if (Object.prototype.hasOwnProperty.call(entry, "value")) {
+          out.push(resolveScopedPropertyValueReferences(entry.value, scopedMaps, visitedRefs));
+          continue;
+        }
         out.push(
           convertScopedObjectItemsToPlainValue(
             Array.isArray(entry.items) ? entry.items : [],
@@ -7249,6 +7427,10 @@
       scopedMaps && scopedMaps.qObjects instanceof Map
         ? scopedMaps.qObjects
         : null;
+    const qModels =
+      scopedMaps && scopedMaps.qModels instanceof Map
+        ? scopedMaps.qModels
+        : null;
     const repeaterScope =
       scopedMaps && scopedMaps.repeaterScope && typeof scopedMaps.repeaterScope === "object"
         ? scopedMaps.repeaterScope
@@ -7288,6 +7470,21 @@
       );
       seen.delete(guard);
       return resolvedObject;
+    }
+
+    if (qModels && qModels.has(normalized)) {
+      const guard = "q-model:" + normalized;
+      if (seen.has(guard)) {
+        return value;
+      }
+      seen.add(guard);
+      const resolvedModel = convertScopedArrayEntriesToPlainValue(
+        qModels.get(normalized),
+        scopedMaps,
+        seen
+      );
+      seen.delete(guard);
+      return resolvedModel;
     }
 
     return value;
@@ -8156,6 +8353,54 @@
     return out;
   }
 
+  function createRepeaterEntriesFromModelValue(value) {
+    if (Array.isArray(value)) {
+      const out = [];
+      for (let i = 0; i < value.length; i += 1) {
+        out.push(createRepeaterPrimitiveEntry(deepClonePlainValue(value[i])));
+      }
+      return out;
+    }
+    if (value && typeof value === "object") {
+      const keys = Object.keys(value);
+      const out = [];
+      for (let i = 0; i < keys.length; i += 1) {
+        const key = keys[i];
+        out.push(createRepeaterPrimitiveEntry(deepClonePlainValue(value[key])));
+      }
+      return out;
+    }
+    return [createRepeaterPrimitiveEntry(value)];
+  }
+
+  function readModelViewAlias(aliasItem) {
+    if (!aliasItem || aliasItem.type !== "Element") {
+      return "";
+    }
+    const selectors = Array.isArray(aliasItem.selectors) ? aliasItem.selectors : [];
+    if (selectors.length !== 1 || String(selectors[0] || "").trim().toLowerCase() !== "as") {
+      return "";
+    }
+    const nested = Array.isArray(aliasItem.items) ? aliasItem.items : [];
+    for (let i = 0; i < nested.length; i += 1) {
+      const candidate = nested[i];
+      if (!candidate || typeof candidate !== "object") {
+        continue;
+      }
+      const source =
+        candidate.type === "TextBlock" || candidate.type === "RawTextLine"
+          ? String(candidate.text || "")
+          : candidate.type === "BareWord"
+            ? String(candidate.name || "")
+            : "";
+      const token = source.trim();
+      if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(token)) {
+        return token;
+      }
+    }
+    return "";
+  }
+
   function parseRepeaterLiteralToken(token) {
     const raw = String(token || "").trim();
     if (!raw) {
@@ -8216,39 +8461,53 @@
         }
       }
     }
-
-    const entries = [];
-    const tokens = body.split(/[\s,]+/).map(function eachToken(token) {
-      return String(token || "").trim();
-    }).filter(Boolean);
     const qArrays = scopedContext && scopedContext.qArrays instanceof Map ? scopedContext.qArrays : new Map();
     const qObjects = scopedContext && scopedContext.qObjects instanceof Map ? scopedContext.qObjects : new Map();
+    const qModels = scopedContext && scopedContext.qModels instanceof Map ? scopedContext.qModels : new Map();
     const repeaterScope =
       scopedContext && scopedContext.repeaterScope && typeof scopedContext.repeaterScope === "object"
         ? scopedContext.repeaterScope
         : {};
+    const typedValues = parseTypedArrayBodyToValue(body, null);
+    const entries = [];
 
-    for (let i = 0; i < tokens.length; i += 1) {
-      const token = tokens[i];
-      const key = normalizeRepeaterSymbolName(token);
-      if (qArrays.has(key)) {
-        const arrayEntries = qArrays.get(key);
-        const cloned = cloneRepeaterEntries(arrayEntries);
-        for (let j = 0; j < cloned.length; j += 1) {
-          entries.push(cloned[j]);
+    for (let i = 0; i < typedValues.length; i += 1) {
+      const typedValue = typedValues[i];
+      if (typeof typedValue === "string") {
+        const token = String(typedValue || "").trim();
+        const key = normalizeRepeaterSymbolName(token);
+        if (qArrays.has(key)) {
+          const clonedArrayEntries = cloneRepeaterEntries(qArrays.get(key));
+          for (let ai = 0; ai < clonedArrayEntries.length; ai += 1) {
+            entries.push(clonedArrayEntries[ai]);
+          }
+          continue;
         }
-        continue;
+        if (qObjects.has(key)) {
+          const objectSpec = qObjects.get(key);
+          entries.push(
+            createRepeaterObjectEntry(
+              objectSpec && objectSpec.items,
+              objectSpec && objectSpec.source,
+              objectSpec && objectSpec.keyword
+            )
+          );
+          continue;
+        }
+        if (qModels.has(key)) {
+          const clonedModelEntries = cloneRepeaterEntries(qModels.get(key));
+          for (let mi = 0; mi < clonedModelEntries.length; mi += 1) {
+            entries.push(clonedModelEntries[mi]);
+          }
+          continue;
+        }
+        if (Object.prototype.hasOwnProperty.call(repeaterScope, key)) {
+          entries.push(createRepeaterPrimitiveEntry(deepClonePlainValue(repeaterScope[key])));
+          continue;
+        }
       }
-      if (qObjects.has(key)) {
-        const objectSpec = qObjects.get(key);
-        entries.push(createRepeaterObjectEntry(objectSpec && objectSpec.items, objectSpec && objectSpec.source, objectSpec && objectSpec.keyword));
-        continue;
-      }
-      if (Object.prototype.hasOwnProperty.call(repeaterScope, key)) {
-        entries.push(deepClonePlainValue(repeaterScope[key]));
-        continue;
-      }
-      entries.push(createRepeaterPrimitiveEntry(parseRepeaterLiteralToken(token)));
+      const resolvedValue = resolveScopedPropertyValueReferences(typedValue, scopedContext, null);
+      entries.push(createRepeaterPrimitiveEntry(resolvedValue));
     }
     return entries;
   }
@@ -8278,6 +8537,49 @@
         source: String(item.raw || "").trim(),
         keyword: normalizeQObjectKeyword(item.keyword),
       });
+    }
+    return true;
+  }
+
+  function registerQModelDefinitionItem(scopedContext, item) {
+    if (!item || item.type !== "QModelDefinition") {
+      return false;
+    }
+    const qModels = scopedContext && scopedContext.qModels instanceof Map ? scopedContext.qModels : null;
+    const modelName = normalizeRepeaterSymbolName(item.name);
+    const rawModelEntries = resolveRepeaterModelEntries(
+      Array.isArray(item.items) ? item.items : [],
+      scopedContext,
+      item
+    );
+    const modelEntries = [];
+    for (let i = 0; i < rawModelEntries.length; i += 1) {
+      const entry = rawModelEntries[i];
+      if (entry && typeof entry === "object" && entry.kind === "qobject") {
+        const objectValue = convertScopedObjectItemsToPlainValue(
+          Array.isArray(entry.items) ? entry.items : [],
+          scopedContext,
+          null
+        );
+        modelEntries.push(createRepeaterPrimitiveEntry(objectValue));
+        continue;
+      }
+      if (entry && typeof entry === "object" && Object.prototype.hasOwnProperty.call(entry, "value")) {
+        modelEntries.push(
+          createRepeaterPrimitiveEntry(
+            resolveScopedPropertyValueReferences(entry.value, scopedContext, null)
+          )
+        );
+        continue;
+      }
+      if (entry && typeof entry === "object" && Object.prototype.hasOwnProperty.call(entry, "text")) {
+        modelEntries.push(createRepeaterPrimitiveEntry(entry.text));
+        continue;
+      }
+      modelEntries.push(createRepeaterPrimitiveEntry(entry));
+    }
+    if (qModels && modelName) {
+      qModels.set(modelName, cloneRepeaterEntries(modelEntries));
     }
     return true;
   }
@@ -8317,6 +8619,7 @@
     const modelRawParts = [];
     const qArrays = scopedContext && scopedContext.qArrays instanceof Map ? scopedContext.qArrays : new Map();
     const qObjects = scopedContext && scopedContext.qObjects instanceof Map ? scopedContext.qObjects : new Map();
+    const qModels = scopedContext && scopedContext.qModels instanceof Map ? scopedContext.qModels : new Map();
 
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i];
@@ -8339,6 +8642,31 @@
         entries.push(createRepeaterObjectEntry(item.items, item.raw, item.keyword));
         continue;
       }
+      if (registerQModelDefinitionItem(scopedContext, item)) {
+        if (!String(item.name || "").trim()) {
+          const anonymousEntries = resolveRepeaterModelEntries(
+            Array.isArray(item.items) ? item.items : [],
+            scopedContext,
+            item
+          );
+          for (let j = 0; j < anonymousEntries.length; j += 1) {
+            entries.push(anonymousEntries[j]);
+          }
+        }
+        continue;
+      }
+      if (item.type === "QScriptInline") {
+        const resolvedScriptValue = tryResolveStaticQScriptValue(item.script || "");
+        if (resolvedScriptValue === null) {
+          hasInvalidContainer = true;
+          continue;
+        }
+        const scriptEntries = createRepeaterEntriesFromModelValue(resolvedScriptValue);
+        for (let j = 0; j < scriptEntries.length; j += 1) {
+          entries.push(scriptEntries[j]);
+        }
+        continue;
+      }
       if (item.type === "BareWord") {
         const token = String(item.name || "").trim();
         const key = normalizeRepeaterSymbolName(token);
@@ -8354,6 +8682,13 @@
           entries.push(createRepeaterObjectEntry(objectEntry.items, objectEntry.source, objectEntry.keyword));
           continue;
         }
+        if (qModels.has(key)) {
+          const modelEntries = cloneRepeaterEntries(qModels.get(key));
+          for (let j = 0; j < modelEntries.length; j += 1) {
+            entries.push(modelEntries[j]);
+          }
+          continue;
+        }
         entries.push(createRepeaterPrimitiveEntry(token));
         continue;
       }
@@ -8365,11 +8700,18 @@
     }
 
     if (hasInvalidContainer) {
-      warnRepeaterIssue("q-repeater warning: model contains non-iterative containers; using single fallback iteration.", {
+      warnRepeaterIssue("q-model warning: model contains non-iterative containers; using fallback iteration.", {
         repeater: repeaterItem && repeaterItem.name ? repeaterItem.name : "",
         keyword: repeaterItem && repeaterItem.keyword ? repeaterItem.keyword : "q-repeater",
       });
-      return [createRepeaterPrimitiveEntry(modelRawParts.join(" ").trim())];
+      const keyword = String(repeaterItem && repeaterItem.keyword || "").trim().toLowerCase();
+      if (keyword === "q-model" || keyword === "q-model-view") {
+        if (entries.length > 0) {
+          return entries;
+        }
+      } else {
+        return [createRepeaterPrimitiveEntry(modelRawParts.join(" ").trim())];
+      }
     }
 
     return entries;
@@ -8393,11 +8735,14 @@
       return createRepeaterPrimitiveEntry(entry);
     }
     if (entry.kind === "qobject") {
+      const objectItems = Array.isArray(entry.items) ? entry.items : [];
       return {
         kind: "qobject",
         source: String(entry.source || "").trim(),
         objectKeyword: normalizeQObjectKeyword(entry.objectKeyword || entry.keyword),
-        nodes: convertRepeaterObjectItemsToNodes(entry.items, source, context),
+        items: deepClonePlainValue(objectItems),
+        value: convertScopedObjectItemsToPlainValue(objectItems, context, null),
+        nodes: convertRepeaterObjectItemsToNodes(objectItems, source, context),
       };
     }
     if (Object.prototype.hasOwnProperty.call(entry, "value")) {
@@ -8415,11 +8760,28 @@
   }
 
   function buildRepeaterNodeFromAst(repeaterItem, source, context) {
+    const modelViewBase = buildModelViewNodeFromAst(repeaterItem, source, context);
+    modelViewBase.repeaterId = String(repeaterItem && repeaterItem.name || "").trim();
+    modelViewBase.keyword = String(repeaterItem && repeaterItem.keyword || "q-repeater").trim().toLowerCase() || "q-repeater";
+    if (!modelViewBase.meta || typeof modelViewBase.meta !== "object") {
+      modelViewBase.meta = {};
+    }
+    modelViewBase.meta.originalSource =
+      repeaterItem && typeof repeaterItem.raw === "string" ? repeaterItem.raw : null;
+    modelViewBase.meta.sourceRange =
+      repeaterItem && typeof repeaterItem.start === "number" && typeof repeaterItem.end === "number"
+        ? [repeaterItem.start, repeaterItem.end]
+        : null;
+    applyKeywordAliasesToNode(modelViewBase, repeaterItem ? repeaterItem.keywords : null);
+    return modelViewBase;
+  }
+
+  function buildModelViewNodeFromAst(modelViewItem, source, context) {
     const scopedContext = createScopedConversionContext(context);
-    const items = Array.isArray(repeaterItem && repeaterItem.items) ? repeaterItem.items : [];
+    const items = Array.isArray(modelViewItem && modelViewItem.items) ? modelViewItem.items : [];
     let slotName = "item";
     let modelItems = [];
-    let modelSource = "";
+    const modelSourceParts = [];
     const templateNodes = [];
 
     for (let i = 0; i < items.length; i += 1) {
@@ -8431,10 +8793,19 @@
         continue;
       }
       if (registerQObjectDefinitionItem(scopedContext, item)) {
-        if (!String(item.name || "").trim()) {
-          const anonymousObjectNodes = convertAstItemToNodes(item, source, createScopedConversionContext(scopedContext));
-          for (let oi = 0; oi < anonymousObjectNodes.length; oi += 1) {
-            templateNodes.push(anonymousObjectNodes[oi]);
+        continue;
+      }
+      if (item.type === "QModelDefinition") {
+        if (String(item.name || "").trim()) {
+          registerQModelDefinitionItem(scopedContext, item);
+        } else {
+          const anonymousItems = Array.isArray(item.items) ? item.items : [];
+          for (let mi = 0; mi < anonymousItems.length; mi += 1) {
+            modelItems.push(anonymousItems[mi]);
+          }
+          const rawModelSource = String(item.raw || "").trim();
+          if (rawModelSource) {
+            modelSourceParts.push(rawModelSource);
           }
         }
         continue;
@@ -8442,16 +8813,22 @@
       if (item.type === "Element") {
         const selectors = Array.isArray(item.selectors) ? item.selectors : [];
         const selectorLower = selectors.length === 1 ? String(selectors[0] || "").trim().toLowerCase() : "";
-        if (selectorLower === "slot") {
-          const alias = readRepeaterSlotAlias(item);
+        if (selectorLower === "as" || selectorLower === "slot") {
+          const alias = selectorLower === "as" ? readModelViewAlias(item) : readRepeaterSlotAlias(item);
           if (alias) {
             slotName = alias;
           }
           continue;
         }
-        if (selectorLower === "model") {
-          modelItems = Array.isArray(item.items) ? item.items : [];
-          modelSource = String(item.raw || "").trim();
+        if (selectorLower === "q-model" || selectorLower === "model") {
+          const inlineModelItems = Array.isArray(item.items) ? item.items : [];
+          for (let mi = 0; mi < inlineModelItems.length; mi += 1) {
+            modelItems.push(inlineModelItems[mi]);
+          }
+          const inlineModelSource = String(item.raw || "").trim();
+          if (inlineModelSource) {
+            modelSourceParts.push(inlineModelSource);
+          }
           continue;
         }
       }
@@ -8461,10 +8838,11 @@
       }
     }
 
-    const resolvedEntries = resolveRepeaterModelEntries(modelItems, scopedContext, repeaterItem);
+    const resolvedEntries = resolveRepeaterModelEntries(modelItems, scopedContext, modelViewItem);
     for (let i = 0; i < resolvedEntries.length; i += 1) {
       resolvedEntries[i] = normalizeRepeaterModelEntry(resolvedEntries[i], source, scopedContext);
     }
+    const modelSource = modelSourceParts.join("\n").trim();
     const modelNode = core.createModelNode({
       entries: resolvedEntries,
       source: modelSource,
@@ -8472,24 +8850,24 @@
         generated: true,
       },
     });
-    const repeaterNode = core.createRepeaterNode({
-      repeaterId: String(repeaterItem && repeaterItem.name || "").trim(),
-      keyword: String(repeaterItem && repeaterItem.keyword || "q-repeater").trim().toLowerCase() || "q-repeater",
+    const modelViewNode = core.createRepeaterNode({
+      repeaterId: "",
+      keyword: "q-model-view",
       slotName: String(slotName || "item").trim() || "item",
       model: modelNode,
       modelEntries: resolvedEntries,
       modelSource: modelSource,
       templateNodes: templateNodes,
       meta: {
-        originalSource: repeaterItem && typeof repeaterItem.raw === "string" ? repeaterItem.raw : null,
+        originalSource: modelViewItem && typeof modelViewItem.raw === "string" ? modelViewItem.raw : null,
         sourceRange:
-          repeaterItem && typeof repeaterItem.start === "number" && typeof repeaterItem.end === "number"
-            ? [repeaterItem.start, repeaterItem.end]
+          modelViewItem && typeof modelViewItem.start === "number" && typeof modelViewItem.end === "number"
+            ? [modelViewItem.start, modelViewItem.end]
             : null,
       },
     });
-    applyKeywordAliasesToNode(repeaterNode, repeaterItem ? repeaterItem.keywords : null);
-    return repeaterNode;
+    applyKeywordAliasesToNode(modelViewNode, modelViewItem ? modelViewItem.keywords : null);
+    return modelViewNode;
   }
 
   function processElementItems(targetElement, astItems, source, context) {
@@ -8508,6 +8886,10 @@
     const qObjectContext =
       context && context.qObjects instanceof Map
         ? context.qObjects
+        : new Map();
+    const qModelContext =
+      context && context.qModels instanceof Map
+        ? context.qModels
         : new Map();
     const repeaterScope =
       context && context.repeaterScope && typeof context.repeaterScope === "object"
@@ -8554,10 +8936,10 @@
 
     for (let i = 0; i < astItems.length; i += 1) {
       const item = astItems[i];
-      if (registerQArrayDefinitionItem({ qArrays: qArrayContext, qObjects: qObjectContext, repeaterScope: repeaterScope }, item)) {
+      if (registerQArrayDefinitionItem({ qArrays: qArrayContext, qObjects: qObjectContext, qModels: qModelContext, repeaterScope: repeaterScope }, item)) {
         continue;
       }
-      if (registerQObjectDefinitionItem({ qArrays: qArrayContext, qObjects: qObjectContext, repeaterScope: repeaterScope }, item)) {
+      if (registerQObjectDefinitionItem({ qArrays: qArrayContext, qObjects: qObjectContext, qModels: qModelContext, repeaterScope: repeaterScope }, item)) {
         if (String(item.name || "").trim()) {
           continue;
         }
@@ -8566,11 +8948,15 @@
           qStyles: styleContext,
           qArrays: qArrayContext,
           qObjects: qObjectContext,
+          qModels: qModelContext,
           repeaterScope: repeaterScope,
         });
         for (let oi = 0; oi < objectNodes.length; oi += 1) {
           appendChildNode(objectNodes[oi]);
         }
+        continue;
+      }
+      if (registerQModelDefinitionItem({ qArrays: qArrayContext, qObjects: qObjectContext, qModels: qModelContext, repeaterScope: repeaterScope }, item)) {
         continue;
       }
       if (item && item.type === "RepeaterDefinition") {
@@ -8579,6 +8965,7 @@
           qStyles: styleContext,
           qArrays: qArrayContext,
           qObjects: qObjectContext,
+          qModels: qModelContext,
           repeaterScope: repeaterScope,
         });
         for (let ri = 0; ri < repeatedNodes.length; ri += 1) {
@@ -8593,6 +8980,7 @@
           qStyles: styleContext,
           qArrays: qArrayContext,
           qObjects: qObjectContext,
+          qModels: qModelContext,
           repeaterScope: repeaterScope,
         });
         appendActiveQTheme(invocationContext.qStyles, namedTheme);
@@ -8624,6 +9012,7 @@
           qStyles: styleContext,
           qArrays: qArrayContext,
           qObjects: qObjectContext,
+          qModels: qModelContext,
           repeaterScope: repeaterScope,
         });
         appendActiveQColorSetup(invocationContext.qColors, namedColorSetup);
@@ -8699,6 +9088,7 @@
         applyPropertyToElement(targetElement, item, {
           qArrays: qArrayContext,
           qObjects: qObjectContext,
+          qModels: qModelContext,
           repeaterScope: repeaterScope,
         });
       } else if (item.type === "HtmlBlock") {
@@ -8801,13 +9191,14 @@
             const nestedNodes = convertAstItemToNodes(
               nestedAst.body[j],
               resolved,
-              createScopedConversionContext({
-                qColors: colorContext,
-                qStyles: styleContext,
-                qArrays: qArrayContext,
-                qObjects: qObjectContext,
-                repeaterScope: repeaterScope,
-              })
+            createScopedConversionContext({
+              qColors: colorContext,
+              qStyles: styleContext,
+              qArrays: qArrayContext,
+              qObjects: qObjectContext,
+              qModels: qModelContext,
+              repeaterScope: repeaterScope,
+            })
             );
             for (let ni = 0; ni < nestedNodes.length; ni += 1) {
               appendChildNode(nestedNodes[ni]);
@@ -8831,6 +9222,7 @@
             qStyles: styleContext,
             qArrays: qArrayContext,
             qObjects: qObjectContext,
+            qModels: qModelContext,
             repeaterScope: repeaterScope,
           })
         );
@@ -8897,6 +9289,7 @@
     const styleContext = scopedContext.qStyles;
     const qArrayContext = scopedContext.qArrays;
     const qObjectContext = scopedContext.qObjects;
+    const qModelContext = scopedContext.qModels;
     const repeaterScope = scopedContext.repeaterScope;
     const componentAttributes = {};
     const componentProperties = [];
@@ -8942,6 +9335,9 @@
         }
         continue;
       }
+      if (registerQModelDefinitionItem(scopedContext, item)) {
+        continue;
+      }
       if (item && item.type === "RepeaterDefinition") {
         const repeatedNodes = convertAstItemToNodes(item, source, scopedContext);
         for (let ri = 0; ri < repeatedNodes.length; ri += 1) {
@@ -8956,6 +9352,7 @@
           qStyles: styleContext,
           qArrays: qArrayContext,
           qObjects: qObjectContext,
+          qModels: qModelContext,
           repeaterScope: repeaterScope,
         });
         appendActiveQTheme(invocationContext.qStyles, namedTheme);
@@ -8987,6 +9384,7 @@
           qStyles: styleContext,
           qArrays: qArrayContext,
           qObjects: qObjectContext,
+          qModels: qModelContext,
           repeaterScope: repeaterScope,
         });
         appendActiveQColorSetup(invocationContext.qColors, namedColorSetup);
@@ -9052,6 +9450,7 @@
           {
             qArrays: qArrayContext,
             qObjects: qObjectContext,
+            qModels: qModelContext,
             repeaterScope: repeaterScope,
           },
           null
@@ -9211,6 +9610,13 @@
       return buildComponentNodeFromAst(astElement, source, {
         definitionType: "component",
       }, scopedContext);
+    }
+
+    if (selectors.length === 1) {
+      const modelViewSelectorToken = parseTagToken(selectors[0]);
+      if (MODEL_VIEW_KEYWORDS.has(String(modelViewSelectorToken.tag || "").toLowerCase())) {
+        return buildModelViewNodeFromAst(astElement, source, scopedContext);
+      }
     }
 
     const selectorTokens = [];
@@ -9378,7 +9784,7 @@
       return null;
     }
 
-    if (item.type === "QArrayDefinition" || item.type === "QObjectDefinition") {
+    if (item.type === "QArrayDefinition" || item.type === "QObjectDefinition" || item.type === "QModelDefinition") {
       return null;
     }
 
@@ -9498,6 +9904,11 @@
       return out;
     }
 
+    if (item.type === "QModelDefinition") {
+      registerQModelDefinitionItem(context, item);
+      return [];
+    }
+
     const node = convertAstItemToNode(item, source, context);
     return node ? [node] : [];
   }
@@ -9539,7 +9950,10 @@
       maxPasses: opts.maxQScriptPasses,
       keywordAliases: postMacroKeywordAliases,
       shouldEvaluate: function shouldEvaluateQScriptBlock(context) {
-        return !isAssignmentQScriptContext(context && context.source, context && context.start);
+        return (
+          !isAssignmentQScriptContext(context && context.source, context && context.start) &&
+          !isModelQScriptContext(context && context.source, context && context.start)
+        );
       },
     });
     const ast = parseQHtmlToAst(evaluatedSource);
@@ -9611,6 +10025,9 @@
         for (let oi = 0; oi < objectNodes.length; oi += 1) {
           doc.nodes.push(objectNodes[oi]);
         }
+        continue;
+      }
+      if (registerQModelDefinitionItem(conversionContext, item)) {
         continue;
       }
       if (item.type === "RepeaterDefinition") {
@@ -9696,6 +10113,17 @@
     doc.meta.qRewrites = rewriteResult.definitions;
     doc.meta.evaluatedSource = evaluatedSource;
     doc.meta.lifecycleScripts = lifecycleScripts;
+    if (conversionContext.qModels instanceof Map) {
+      const serializedModels = {};
+      conversionContext.qModels.forEach(function eachModel(entries, name) {
+        const key = String(name || "").trim();
+        if (!key) {
+          return;
+        }
+        serializedModels[key] = cloneRepeaterEntries(entries);
+      });
+      doc.meta.qModels = Object.keys(serializedModels).length > 0 ? serializedModels : {};
+    }
     if (Array.isArray(opts.scriptRules)) {
       doc.scripts = opts.scriptRules.slice();
     }
@@ -10053,9 +10481,17 @@
     }
 
     if (core.NODE_TYPES.repeater && node.kind === core.NODE_TYPES.repeater) {
-      const keyword = String(node.keyword || "q-repeater").trim().toLowerCase() === "q-foreach" ? "q-foreach" : "q-repeater";
+      const normalizedKeyword = String(node.keyword || "q-repeater").trim().toLowerCase();
+      const keyword =
+        normalizedKeyword === "q-foreach"
+          ? "q-foreach"
+          : normalizedKeyword === "q-model-view"
+            ? "q-model-view"
+            : "q-repeater";
       const repeaterId = String(node.repeaterId || "").trim();
       const slotName = String(node.slotName || "item").trim() || "item";
+      const modelHead = keyword === "q-model-view" ? "q-model" : "model";
+      const slotHead = keyword === "q-model-view" ? "as" : "slot";
       const modelNode =
         core.NODE_TYPES.model &&
         node.model &&
@@ -10064,7 +10500,7 @@
           ? node.model
           : null;
       const lines = [indent + (repeaterId ? keyword + " " + repeaterId + " {" : keyword + " {")];
-      lines.push(indent + "  model {");
+      lines.push(indent + "  " + modelHead + " {");
       const modelSource = modelNode && typeof modelNode.source === "string" ? modelNode.source.trim() : "";
       if (modelSource) {
         const sourceLines = modelSource.split("\n");
@@ -10079,7 +10515,7 @@
         }
       }
       lines.push(indent + "  }");
-      lines.push(indent + "  slot { " + slotName + " }");
+      lines.push(indent + "  " + slotHead + " { " + slotName + " }");
       const templateNodes = Array.isArray(node.templateNodes) ? node.templateNodes : [];
       for (let i = 0; i < templateNodes.length; i += 1) {
         lines.push(serializeNode(templateNodes[i], indentLevel + 1));

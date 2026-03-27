@@ -25,6 +25,13 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - `slot` projection containers
 - `q-signal` definitions invoked through `component-instance` dispatch behavior
 
+## Repeater/model-view interpolation scope
+- Repeater render now carries per-row inline scope:
+  - alias variable from repeater/model-view slot name (for example `item`)
+  - `index` for the current row
+- Inline expressions in text/attributes can read scoped values directly (for example `${item}` and `${item.name}`).
+- `q-model-view` repeaters prefer model-value interpolation (`[object Object]` for object rows) instead of q-object source-string substitution.
+
 ## Component host assignment behavior
 - `component-instance.attributes` map to DOM attributes.
 - `component-instance.props` map to direct host element property assignment (`host[propName] = value`).
