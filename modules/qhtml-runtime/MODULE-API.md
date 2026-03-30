@@ -132,7 +132,8 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 
 ## Side effects
 - Executes lifecycle scripts and inline `on<Event>` handler bodies with dynamic `Function` evaluation.
-- Executes `meta.qBindings` scripts (`q-bind` and assignment `q-script`) with `this` bound to each source QDom node before render/update.
+- Root-level `onReady { ... }` hooks (no parent element) are deferred until mount settles, then run once per host mount cycle.
+- Executes `meta.qBindings` scripts (canonical `q-script`; `q-bind` inputs are parser-normalized aliases) with `this` bound to each source QDom node before render/update.
 - Emits runtime signal events through `emitQSignal(...)` helpers.
 - Initializes/terminates component `q-wasm` sessions as component hosts are rendered, replaced, or unmounted.
 - Persists updated QDom into mapped sibling template nodes.
@@ -142,7 +143,7 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - QDom-driven render/patch cycles run with sync suppression to avoid feeding renderer writes back into QDom.
 - Adds context helpers on DOM elements (`qhtmlRoot()`, `root()`, `component`, `slot`, `qdom`).
 - Maintains host-bound UUID maps (`uuid↔dom`, `uuid↔qdom`) and listens for `qhtml:update` scoped-refresh events.
-- Maintains component-host property reference indexes (`propertyName -> Set<qdomUuid>`) derived from binding scripts that reference `this.component.<prop>` / `component.<prop>` for targeted updates.
+- Maintains component-host property reference indexes (`propertyName -> Set<qdomUuid>`) derived from binding scripts that reference `this.component.<prop>` / `component.<prop>` for scoped refresh targeting APIs.
 - Custom-element registration (`customElements.define`) now applies parsed component `q-property` defaults per instance at construction/connection time (non-binding defaults only).
 - SDML helper component/template/signal definitions from remote blocks are scoped to their owning alias definition via internal prefixed ids, avoiding global definition collisions.
 - When parser metadata contains top-level named `q-model` definitions (`doc.meta.qModels`), mount syncs them onto host properties as `QModel` instances and subscribes host updates to model mutations.

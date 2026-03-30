@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.1.3
+# QHTML.js v6.1.4
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,14 +12,13 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.1.3
+## Whats New in v6.1.4
 
-- Added typed `q-array` and `q-map` property values, including nested anonymous container declarations on the right-hand side of property assignments.
-- Named `q-array ... { }` and `q-map ... { }` declarations still work and can be assigned to component properties by name.
-- Added `property <name>: <value>` shorthand inside `q-component`, while preserving `property <name> { ... }` as child-node binding syntax.
-- Added `q-model` normalized model API support for `q-array`, `q-map`, and script-backed sources.
-- Added `q-model-view` delegate rendering (`q-model { ... }` + `as { item }`) for model-driven UI blocks.
-- Updated `q-tree-view` to use the model pipeline and native `details/summary` structure.
+- Deprecated `q-bind`; assignment usage is now treated as an alias of `q-script`.
+- Declared `q-property` setter changes no longer auto-trigger component/host invalidate-update cycles; refresh/update is explicit.
+- Updated runtime/parser/docs to reflect canonical assignment binding semantics around `q-script`.
+- Refreshed `dist/test.html` into a simplified board that runs first-pass checks on `QHTMLContentLoaded` and re-checks every 5 seconds.
+- Kept binding-deprecated test numbers in place with explicit `test has been deprecated` markers.
 
 
 ## 1. Quick Start
@@ -758,16 +757,17 @@ scoped-label {
 
 Use `slot { name }` for raw slot insertion blocks, and `${name}` for inline placeholder insertion.
 
-## 4. State with `q-bind`
+## 4. State with `q-script` (`q-bind` alias/deprecated)
 
-`q-bind` computes assignment values. After state changes, call `this.closest("q-html").update()`.
+`q-bind` is deprecated and treated the same as `q-script`.
+Use `q-script` for assignment expressions.
 
 ### Bind to text
 
-You can use q-bind with q-properties in q-components to re-evaluate after calling `this.component.update()`.
+Use assignment-form `q-script` with `q-property`.
 ```qhtml
 q-component my-component {
-  q-property myprop: q-bind { return "bound-" + (2 + 3) }
+  q-property myprop: q-script { return "bound-" + (2 + 3) }
   div { text { ${this.component.myprop} } }
 }
 
@@ -791,7 +791,7 @@ my-component { }
 </q-html>
 ```
 
-### Assignment form (like `q-bind`, but with `q-script`)
+### Assignment form
 
 ```qhtml
 <q-html>
@@ -807,8 +807,8 @@ my-component { }
 `${expression}` is inline expression syntax for string content.
 
 - It resolves when the final HTML string value is rendered.
-- It is not a `q-bind` watcher by itself.
-- If you need re-evaluation on state updates, use `q-bind`.
+- It is not a watcher by itself.
+- Re-evaluation is explicit (for example, manual setter calls and explicit update flows).
 
 ### Works in rendered text/attribute strings
 
@@ -845,11 +845,11 @@ q-keyword ${alias} { q-component } // invalid
 ${tagName} { text { hi } }         // invalid
 ```
 
-### Use `q-bind` for reactive re-evaluation
+### Deprecated alias (`q-bind`)
 
 ```qhtml
 q-component counter-label {
-  q-property label: q-bind { return "Count: " + window.count; }
+  q-property label: q-bind { return "Count: " + window.count; } // same as q-script (deprecated alias)
   div { text { ${this.component.label} } }
 }
 ```
@@ -1152,6 +1152,15 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 - `modules/release-bundle/README.md`
 
 # Past Changes
+## Whats New in v6.1.3
+
+- Added typed `q-array` and `q-map` property values, including nested anonymous container declarations on the right-hand side of property assignments.
+- Named `q-array ... { }` and `q-map ... { }` declarations still work and can be assigned to component properties by name.
+- Added `property <name>: <value>` shorthand inside `q-component`, while preserving `property <name> { ... }` as child-node binding syntax.
+- Added `q-model` normalized model API support for `q-array`, `q-map`, and script-backed sources.
+- Added `q-model-view` delegate rendering (`q-model { ... }` + `as { item }`) for model-driven UI blocks.
+- Updated `q-tree-view` to use the model pipeline and native `details/summary` structure.
+
 ## Whats New in v6.1.0
 
 - Added `q-component ... extends ...` inheritance support.

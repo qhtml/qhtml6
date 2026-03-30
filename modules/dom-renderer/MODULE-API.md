@@ -43,9 +43,17 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - Declared `q-property` host setters:
   - treat `host.qdom()` props as source-of-truth for reads/writes when available.
   - sync value writes back to mapped QDom props when available.
+  - track previous values in a per-component property-state map stored on QDom metadata.
   - skip re-render when value is unchanged (`Object.is`).
-  - prefer scoped targeted updates via runtime property-reference index (`__qhtmlComponentPropertyRefIndex`) using `host.update({ uuid, scopeElement: host, forceBindings: true })`.
-  - fallback to `host.invalidate({ forceBindings: true })` / `host.update({ forceBindings: true })` if targeted dispatch is unavailable.
+  - dispatch bubbling `q-property-changed` custom events for real value changes.
+  - do not auto-dispatch render invalidation/update cycles after setter writes; post-set refresh is explicit.
+  - event payload includes:
+    - `component` / `componentId` / `componentTag`
+    - `componentUuid`
+    - `property`
+    - `value`
+    - `previousValue`
+    - `timestamp`
   - `property someName { ... }` fallback values resolve to literal text when no bound element exists for that property definition.
  - Component method calls resolve detached/stale element references to live DOM instances by UUID/id before execution.
 

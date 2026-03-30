@@ -956,7 +956,7 @@
     consume(parser);
     const scriptBody = readBalancedBlockContent(parser);
     return {
-      type: resolvedKeyword === "q-bind" ? "QBindExpression" : "QScriptExpression",
+      type: "QScriptExpression",
       keyword: resolvedKeyword,
       script: scriptBody,
       raw: parser.source.slice(snapshot, parser.index),
@@ -2337,6 +2337,9 @@
           continue;
         }
         if (nameLower === "property" && nextChar !== "{") {
+          if (!isIdentifierStartChar(nextChar)) {
+            parser.index = afterName;
+          } else {
           const propertyNameStart = parser.index;
           const propertyName = parseIdentifier(parser);
           const propertyNameEnd = parser.index;
@@ -2383,6 +2386,7 @@
             raw: parser.source.slice(itemStart, parser.index),
           });
           continue;
+          }
         }
         if (nextChar === ":") {
           consume(parser);
@@ -2562,12 +2566,11 @@
           if (nameLower === "q-bind" || nameLower === "q-script") {
             consume(parser);
             const expressionBody = readBalancedBlockContent(parser);
-            const expressionType = nameLower === "q-script" ? "QScriptExpression" : "QBindExpression";
             items.push({
               type: "Property",
               name: "content",
               value: {
-                type: expressionType,
+                type: "QScriptExpression",
                 keyword: nameLower,
                 script: expressionBody,
                 start: itemStart,
@@ -7185,7 +7188,11 @@
   }
 
   function normalizeBindingExpressionKind(expressionType) {
-    return String(expressionType || "").trim().toLowerCase() === "qscriptexpression" ? "q-script" : "q-bind";
+    const normalized = String(expressionType || "").trim().toLowerCase();
+    if (normalized === "q-bind" || normalized === "qbindexpression") {
+      return "q-script";
+    }
+    return "q-script";
   }
 
   function ensureNodeBindingList(node) {
@@ -10402,8 +10409,7 @@
     const indent = "  ".repeat(indentLevel);
     const key = String(name || "").trim();
     const spec = binding && typeof binding === "object" ? binding : {};
-    const expressionType = normalizeBindingExpressionKind(spec.expressionType);
-    const keyword = expressionType === "q-script" ? "q-script" : "q-bind";
+    const keyword = "q-script";
     const scriptBody = String(spec.script || "");
     const lines = [indent + key + ": " + keyword + " {"];
     if (scriptBody) {

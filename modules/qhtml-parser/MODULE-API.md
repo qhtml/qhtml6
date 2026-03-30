@@ -32,7 +32,8 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - declared properties can be authored with either:
       - `q-property name: value`
       - `property name: value` (shorthand alias)
-    - `meta.qBindings` entries for assignment expressions (`q-bind` / assignment-form `q-script`)
+    - `property: value` is treated as a normal assignment key (`property`) unless an identifier follows `property` (legacy `property name: ...` form)
+    - `meta.qBindings` entries for assignment expressions (canonical `q-script`; `q-bind` parses as alias)
     - definition kind preservation for `q-component`, `q-template`, and `q-signal`
     - top-level SDML declarations:
       - `sdml-endpoint endpointName { url { /api/path } }`
@@ -108,7 +109,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
 
 ## Binding semantics
 - Preprocess `q-script` evaluation intentionally skips assignment context (`name: q-script { ... }`) and `q-model { q-script { ... } }` context so model scripts are preserved for model parsing/runtime bindings.
-- `q-bind` assignment expressions are never source-preprocessed; they are emitted as binding metadata for runtime evaluation.
+- `q-bind` in assignment form is accepted for backward compatibility and normalized to `q-script` metadata/output.
 
 ## Cross-module usage
 - Requires `qdom-core` for node creation and type constants.

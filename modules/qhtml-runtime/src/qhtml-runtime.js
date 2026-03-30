@@ -47,7 +47,6 @@
   const FORM_CONTROL_TAGS = new Set(["input", "textarea", "select"]);
   const MAX_UPDATE_CYCLES_PER_TICK = 1000;
   const MAX_UPDATE_REENTRIES_PER_EPOCH = 1000;
-  const DEFAULT_QBIND_EVALUATION_INTERVAL = 10;
   const QDOM_UUID_META_KEY = typeof core.QDOM_UUID_KEY === "string" ? core.QDOM_UUID_KEY : "uuid";
   const QDOM_UUID_MAPS_HOST_PROPERTY = "__qhtmlUuidMaps";
   const QDOM_COMPONENT_PROP_REF_INDEX_PROPERTY = "__qhtmlComponentPropertyRefIndex";
@@ -2879,6 +2878,123 @@
     return false;
   }
 
+  function isDomEventAttributeName(attributeName) {
+    const key = String(attributeName || "").trim().toLowerCase();
+    if (!key || key.length <= 2 || key.indexOf("on") !== 0) {
+      return false;
+    }
+    return key !== "onready";
+  }
+
+  function ensureEventAttributeListenerStore(element) {
+    if (!element || element.nodeType !== 1) {
+      return null;
+    }
+    let store = element.__qhtmlEventAttributeListeners;
+    if (!store || typeof store !== "object") {
+      store = {};
+      element.__qhtmlEventAttributeListeners = store;
+    }
+    return store;
+  }
+
+  function detachEventAttributeListener(element, attributeName) {
+    if (!element || element.nodeType !== 1) {
+      return;
+    }
+    const key = String(attributeName || "").trim().toLowerCase();
+    if (!key) {
+      return;
+    }
+    const store = ensureEventAttributeListenerStore(element);
+    if (!store || !store[key]) {
+      return;
+    }
+    const entry = store[key];
+    try {
+      element.removeEventListener(entry.eventName, entry.handler);
+    } catch (error) {
+      // ignore listener detach failures
+    }
+    delete store[key];
+  }
+
+  function bindEventAttributeListener(element, attributeName, body, options) {
+    if (!element || element.nodeType !== 1 || !isDomEventAttributeName(attributeName)) {
+      return false;
+    }
+    const key = String(attributeName || "").trim().toLowerCase();
+    const eventName = key.slice(2);
+    const source = String(body || "").trim();
+    if (!source) {
+      detachEventAttributeListener(element, key);
+      try {
+        element.removeAttribute(key);
+      } catch (error) {
+        // ignore attribute removal failures
+      }
+      return true;
+    }
+    const opts = options && typeof options === "object" ? options : {};
+    const doc = opts.doc || element.ownerDocument || global.document || null;
+    const host = opts.host && opts.host.nodeType === 1 ? opts.host : null;
+    const transformedSource = transformScriptBody(source);
+    const store = ensureEventAttributeListenerStore(element);
+    const current = store && store[key] ? store[key] : null;
+    if (current && current.eventName === eventName && current.source === transformedSource) {
+      return true;
+    }
+    detachEventAttributeListener(element, key);
+    const hasInterpolatedBody = hasInlineReferenceExpressions(transformedSource);
+    let compiled = null;
+    if (!hasInterpolatedBody) {
+      try {
+        compiled = new Function("event", "document", withScopedSelectorPrelude(transformedSource));
+      } catch (error) {
+        reportLifecycleHookFailure("qhtml event handler compile failed:", element, transformedSource, error);
+        return false;
+      }
+    }
+    const handler = function qHtmlInlineEventAttributeHandler(event) {
+      const componentContext =
+        element && (typeof element === "object" || typeof element === "function")
+          ? element.component || (typeof resolveNearestComponentHost === "function" ? resolveNearestComponentHost(element) : null)
+          : null;
+      let executableSource = transformedSource;
+      if (hasInterpolatedBody) {
+        executableSource = interpolateInlineReferenceExpressions(
+          transformedSource,
+          element,
+          {
+            component: componentContext,
+            event: event,
+            document: doc,
+            root: host,
+          },
+          "qhtml event interpolation failed:"
+        );
+      }
+      try {
+        ensureScopedSelectorShortcut(element, host);
+        if (compiled) {
+          return compiled.call(element, event, doc);
+        }
+        const dynamic = new Function("event", "document", withScopedSelectorPrelude(executableSource));
+        return dynamic.call(element, event, doc);
+      } catch (error) {
+        reportLifecycleHookFailure("qhtml event handler failed:", element, transformedSource, error);
+        return undefined;
+      }
+    };
+    element.addEventListener(eventName, handler);
+    store[key] = {
+      eventName: eventName,
+      handler: handler,
+      source: transformedSource,
+    };
+    return true;
+  }
+
   function withDomMutationSyncSuppressed(binding, callback) {
     if (typeof callback !== "function") {
       return undefined;
@@ -3411,7 +3527,6 @@
 
     if (!enqueueContentLoadedCallback(doc, execute)) {
       execute();
-      return;
     }
   }
 
@@ -5015,6 +5130,9 @@
           continue;
         }
         if (mutation.type === "delete" || mutation.newValue === null || typeof mutation.newValue === "undefined") {
+          if (isDomEventAttributeName(attributeName)) {
+            detachEventAttributeListener(element, attributeName);
+          }
           element.removeAttribute(attributeName);
           if (attributeName === "checked" && String(element.tagName || "").toLowerCase() === "input") {
             element.checked = false;
@@ -5023,6 +5141,14 @@
         }
 
         const value = String(mutation.newValue);
+        if (
+          bindEventAttributeListener(element, attributeName, value, {
+            doc: element.ownerDocument || global.document || null,
+            host: binding && binding.host ? binding.host : null,
+          })
+        ) {
+          continue;
+        }
         element.setAttribute(attributeName, value);
         if (attributeName === "value" && isFormControlElement(element) && element.value !== value) {
           element.value = value;
@@ -5179,6 +5305,9 @@
       }
       for (let i = 0; i < toRemove.length; i += 1) {
         const name = toRemove[i];
+        if (isDomEventAttributeName(name)) {
+          detachEventAttributeListener(scopeElement, name);
+        }
         scopeElement.removeAttribute(name);
         if (name === "checked" && domTagName === "input") {
           scopeElement.checked = false;
@@ -5195,6 +5324,14 @@
           continue;
         }
         const normalizedValue = String(value);
+        if (
+          bindEventAttributeListener(scopeElement, name, normalizedValue, {
+            doc: scopeElement.ownerDocument || global.document || null,
+            host: binding && binding.host ? binding.host : null,
+          })
+        ) {
+          continue;
+        }
         if (scopeElement.getAttribute(name) !== normalizedValue) {
           scopeElement.setAttribute(name, normalizedValue);
         }
@@ -6410,36 +6547,6 @@
     return [];
   }
 
-  function ensureBindingEvaluationState(binding) {
-    if (!binding || typeof binding !== "object") {
-      return {
-        tick: 0,
-        interval: DEFAULT_QBIND_EVALUATION_INTERVAL,
-      };
-    }
-    if (!binding.bindingEvaluationState || typeof binding.bindingEvaluationState !== "object") {
-      binding.bindingEvaluationState = {
-        tick: 0,
-        interval: DEFAULT_QBIND_EVALUATION_INTERVAL,
-      };
-    }
-    const state = binding.bindingEvaluationState;
-    const configuredInterval = Number(state.interval);
-    if (!Number.isFinite(configuredInterval) || configuredInterval <= 0) {
-      state.interval = DEFAULT_QBIND_EVALUATION_INTERVAL;
-    } else {
-      state.interval = Math.max(1, Math.floor(configuredInterval));
-    }
-    return state;
-  }
-
-  function isQBindExpressionBinding(bindingSpec) {
-    const expressionType = String(bindingSpec && bindingSpec.expressionType ? bindingSpec.expressionType : "q-bind")
-      .trim()
-      .toLowerCase();
-    return expressionType !== "q-script" && expressionType !== "qscriptexpression";
-  }
-
   function ensureNodeBindingCache(node) {
     if (!node || typeof node !== "object") {
       return null;
@@ -7182,12 +7289,12 @@
       const wrappedBody =
         "try {\n" +
         withScopedSelectorPrelude(scriptBody) +
-        "\n} catch (__qbindError) { return undefined; }";
+        "\n} catch (__qBindingError) { return undefined; }";
       const fn = new Function(wrappedBody);
       return fn.call(executionContext);
     } catch (error) {
       if (isRuntimeDebugLoggingEnabled() && global.console && typeof global.console.error === "function") {
-        global.console.error("qhtml q-bind evaluation failed:", error);
+        global.console.error("qhtml binding evaluation failed:", error);
       }
       return undefined;
     }
@@ -7290,6 +7397,9 @@
         continue;
       }
       if (typeof value === "undefined") {
+        if (isDomEventAttributeName(key)) {
+          detachEventAttributeListener(element, key);
+        }
         element.removeAttribute(key);
         if (key === "checked" && String(element.tagName || "").toLowerCase() === "input") {
           element.checked = false;
@@ -7297,6 +7407,14 @@
         continue;
       }
       const attrValue = String(value);
+      if (
+        bindEventAttributeListener(element, key, attrValue, {
+          doc: element.ownerDocument || global.document || null,
+          host: binding && binding.host ? binding.host : null,
+        })
+      ) {
+        continue;
+      }
       element.setAttribute(key, attrValue);
       if (key === "value" && isFormControlElement(element) && element.value !== attrValue) {
         element.value = attrValue;
@@ -7338,7 +7456,6 @@
       };
     }
     const opts = options || {};
-    const state = ensureBindingEvaluationState(binding);
     const forceAll = opts.forceAll === true;
     const scopedElement = opts.scopeElement && opts.scopeElement.nodeType === 1 ? opts.scopeElement : null;
     let evaluationRoot = root;
@@ -7351,12 +7468,8 @@
         evaluationRoot = scopedNode;
       }
     }
-    state.tick += 1;
-    const allowQBindEvaluation = forceAll || state.tick % state.interval === 0;
     const result = evaluateNodeBindingsInTree(evaluationRoot, {
       forceAll: forceAll,
-      allowQBindEvaluation: allowQBindEvaluation,
-      evaluationTick: state.tick,
       patchDom: opts.patchDom === true,
       scopeElement: scopedElement,
       binding: binding,
@@ -7364,7 +7477,7 @@
     if (result.changed) {
       markChangedBindingNodesForUpdate(binding, result.changedNodes);
     }
-    // q-bind/q-script evaluation can patch frequently; avoid enqueueing template
+    // Binding evaluation can patch frequently; avoid enqueueing template
     // persistence on every reactive tick to prevent timer thrash.
     return result;
   }
@@ -7424,17 +7537,13 @@
         const cacheKey = bindingCacheKeyForEntry(entry);
         const cacheEntry = cache && cache[cacheKey] && typeof cache[cacheKey] === "object" ? cache[cacheKey] : {};
         const hasCachedFingerprint = Object.prototype.hasOwnProperty.call(cacheEntry, "fingerprint");
-        const shouldEvaluateQBind = !isQBindExpressionBinding(entry) || opts.allowQBindEvaluation === true;
-        if (opts.forceAll !== true && !shouldEvaluateQBind && hasCachedFingerprint) {
-          continue;
-        }
         const value = evaluateBindingExpression(opts.binding, node, entry, {
           scopeElement: scopedElement,
         });
         const normalized = normalizeBindingValueForNode(entry, value);
         const nextFingerprint = createBindingValueFingerprint(normalized);
         if (hasCachedFingerprint && cacheEntry.fingerprint === nextFingerprint) {
-          cacheEntry.lastEvaluatedTick = Number(opts.evaluationTick) || 0;
+          cacheEntry.lastEvaluatedTick = 0;
           if (cache) {
             cache[cacheKey] = cacheEntry;
           }
@@ -7444,7 +7553,7 @@
         if (cache) {
           cache[cacheKey] = {
             fingerprint: nextFingerprint,
-            lastEvaluatedTick: Number(opts.evaluationTick) || 0,
+            lastEvaluatedTick: 0,
           };
         }
         const patched =
@@ -7640,8 +7749,6 @@
     if (opts.skipBindingEvaluation !== true) {
       evaluateNodeBindingsInTree(sourceScopeNode, {
         forceAll: true,
-        allowQBindEvaluation: true,
-        evaluationTick: 0,
         patchDom: false,
         scopeElement: scopeElement,
         binding: binding,

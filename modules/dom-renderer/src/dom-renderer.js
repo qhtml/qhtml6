@@ -8,8 +8,9 @@
   }
 
   const INVALID_METHOD_NAMES = new Set(["constructor", "prototype", "__proto__"]);
-  const COMPONENT_PROP_REF_INDEX_KEY = "__qhtmlComponentPropertyRefIndex";
+  const COMPONENT_PROP_STATE_KEY = "__qhtmlDeclaredPropertyState";
   const QDOM_UUID_META_KEY = typeof core.QDOM_UUID_KEY === "string" ? core.QDOM_UUID_KEY : "uuid";
+  const QHTML_PROPERTY_CHANGED_EVENT = "q-property-changed";
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
   const INLINE_REFERENCE_PATTERN = /\$\{\s*([^}]+?)\s*\}/g;
   const INLINE_REFERENCE_ESCAPE_TOKEN = "__QHTML_ESCAPED_INLINE_REF__";
@@ -1963,6 +1964,132 @@
     }
   }
 
+  function isDomEventAttributeName(attributeName) {
+    const key = String(attributeName || "").trim().toLowerCase();
+    if (!key || key.length <= 2 || key.indexOf("on") !== 0) {
+      return false;
+    }
+    return key !== "onready";
+  }
+
+  function ensureEventAttributeListenerStore(element) {
+    if (!element || element.nodeType !== 1) {
+      return null;
+    }
+    let store = element.__qhtmlEventAttributeListeners;
+    if (!store || typeof store !== "object") {
+      store = {};
+      element.__qhtmlEventAttributeListeners = store;
+    }
+    return store;
+  }
+
+  function detachEventAttributeListener(element, attributeName) {
+    if (!element || element.nodeType !== 1) {
+      return;
+    }
+    const key = String(attributeName || "").trim().toLowerCase();
+    if (!key) {
+      return;
+    }
+    const store = ensureEventAttributeListenerStore(element);
+    if (!store || !store[key]) {
+      return;
+    }
+    const entry = store[key];
+    try {
+      element.removeEventListener(entry.eventName, entry.handler);
+    } catch (error) {
+      // ignore listener detach failures
+    }
+    delete store[key];
+  }
+
+  function bindEventAttributeListener(element, attributeName, body, options) {
+    if (!element || element.nodeType !== 1 || !isDomEventAttributeName(attributeName)) {
+      return false;
+    }
+    const key = String(attributeName || "").trim().toLowerCase();
+    const eventName = key.slice(2);
+    const source = String(body || "").trim();
+    if (!source) {
+      detachEventAttributeListener(element, key);
+      try {
+        element.removeAttribute(key);
+      } catch (error) {
+        // ignore attribute removal failures
+      }
+      return true;
+    }
+    const opts = options && typeof options === "object" ? options : {};
+    const doc = opts.doc || element.ownerDocument || global.document || null;
+    const scopeRoot =
+      opts.scopeRoot && opts.scopeRoot.nodeType === 1
+        ? opts.scopeRoot
+        : null;
+    const transformedSource = source.replace(/(^|[^A-Za-z0-9_$])#([A-Za-z_][A-Za-z0-9_-]*)/g, function replaceSelector(_, prefix, id) {
+      return prefix + 'document.querySelector("#' + id + '")';
+    });
+    const store = ensureEventAttributeListenerStore(element);
+    const current = store && store[key] ? store[key] : null;
+    if (current && current.eventName === eventName && current.source === transformedSource) {
+      return true;
+    }
+    detachEventAttributeListener(element, key);
+    const hasInterpolatedBody = hasInlineReferenceExpressions(transformedSource);
+    let compiled = null;
+    if (!hasInterpolatedBody) {
+      try {
+        compiled = new Function("event", "document", withScopedSelectorPrelude(transformedSource));
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml event handler compile failed:", error);
+        }
+        return false;
+      }
+    }
+    const handler = function qHtmlInlineEventAttributeHandler(event) {
+      const componentContext =
+        element && (typeof element === "object" || typeof element === "function")
+          ? element.component || (typeof resolveNearestComponentHost === "function" ? resolveNearestComponentHost(element) : null)
+          : null;
+      let executableSource = transformedSource;
+      if (hasInterpolatedBody) {
+        executableSource = interpolateInlineReferenceExpressions(
+          transformedSource,
+          element,
+          {
+            component: componentContext,
+            event: event,
+            document: doc,
+            root: scopeRoot,
+          },
+          "qhtml event interpolation failed:"
+        );
+      }
+      try {
+        ensureScopedSelectorShortcut(element, scopeRoot);
+        if (compiled) {
+          return compiled.call(element, event, doc);
+        }
+        const dynamic = new Function("event", "document", withScopedSelectorPrelude(executableSource));
+        return dynamic.call(element, event, doc);
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml event handler failed:", error);
+        }
+        return undefined;
+      }
+    };
+    element.addEventListener(eventName, handler);
+    store[key] = {
+      eventName: eventName,
+      handler: handler,
+      source: transformedSource,
+    };
+    return true;
+  }
+
   function setElementAttributes(element, attrs, options) {
     if (!attrs || typeof attrs !== "object") {
       return;
@@ -1985,6 +2112,17 @@
           interpolationScope,
           "qhtml attribute interpolation failed:"
         );
+      }
+      if (
+        bindEventAttributeListener(element, key, String(normalized), {
+          doc: element.ownerDocument || global.document || null,
+          scopeRoot:
+            interpolationScope && interpolationScope.root && interpolationScope.root.nodeType === 1
+              ? interpolationScope.root
+              : null,
+        })
+      ) {
+        continue;
       }
       element.setAttribute(key, String(normalized));
     }
@@ -2261,6 +2399,111 @@
     }
   }
 
+  function readHostQDomNode(hostElement) {
+    if (!hostElement || typeof hostElement.qdom !== "function") {
+      return null;
+    }
+    try {
+      const qdomNode = hostElement.qdom();
+      return qdomNode && typeof qdomNode === "object" ? qdomNode : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function readHostQDomUuid(hostElement) {
+    const qdomNode = readHostQDomNode(hostElement);
+    if (!qdomNode || !qdomNode.meta || typeof qdomNode.meta !== "object") {
+      return "";
+    }
+    const preferred = typeof qdomNode.meta[QDOM_UUID_META_KEY] === "string" ? String(qdomNode.meta[QDOM_UUID_META_KEY] || "").trim() : "";
+    if (preferred) {
+      return preferred;
+    }
+    const legacy = typeof qdomNode.meta.uuid === "string" ? String(qdomNode.meta.uuid || "").trim() : "";
+    return legacy;
+  }
+
+  function getComponentPropertyStateStore(hostElement) {
+    const qdomNode = readHostQDomNode(hostElement);
+    if (qdomNode && (!qdomNode.meta || typeof qdomNode.meta !== "object")) {
+      qdomNode.meta = {};
+    }
+    const qdomMeta = qdomNode && qdomNode.meta && typeof qdomNode.meta === "object" ? qdomNode.meta : null;
+    if (qdomMeta) {
+      if (!qdomMeta[COMPONENT_PROP_STATE_KEY] || typeof qdomMeta[COMPONENT_PROP_STATE_KEY] !== "object" || Array.isArray(qdomMeta[COMPONENT_PROP_STATE_KEY])) {
+        qdomMeta[COMPONENT_PROP_STATE_KEY] = {};
+      }
+      return qdomMeta[COMPONENT_PROP_STATE_KEY];
+    }
+    if (!hostElement || typeof hostElement !== "object") {
+      return null;
+    }
+    if (!hostElement[COMPONENT_PROP_STATE_KEY] || typeof hostElement[COMPONENT_PROP_STATE_KEY] !== "object" || Array.isArray(hostElement[COMPONENT_PROP_STATE_KEY])) {
+      hostElement[COMPONENT_PROP_STATE_KEY] = {};
+    }
+    return hostElement[COMPONENT_PROP_STATE_KEY];
+  }
+
+  function readTrackedDeclaredProperty(hostElement, propertyName) {
+    const store = getComponentPropertyStateStore(hostElement);
+    if (!store || !Object.prototype.hasOwnProperty.call(store, propertyName)) {
+      return {
+        exists: false,
+        value: undefined,
+      };
+    }
+    return {
+      exists: true,
+      value: store[propertyName],
+    };
+  }
+
+  function writeTrackedDeclaredProperty(hostElement, propertyName, value) {
+    const store = getComponentPropertyStateStore(hostElement);
+    if (!store) {
+      return;
+    }
+    store[propertyName] = value;
+  }
+
+  function emitDeclaredPropertyChangedEvent(hostElement, componentId, propertyName, nextValue, previousValue) {
+    if (!hostElement || typeof hostElement.dispatchEvent !== "function") {
+      return;
+    }
+    const payload = {
+      type: QHTML_PROPERTY_CHANGED_EVENT,
+      component: componentId,
+      componentId: componentId,
+      componentTag: String(hostElement && hostElement.tagName ? hostElement.tagName : componentId || "").trim().toLowerCase(),
+      componentUuid: readHostQDomUuid(hostElement),
+      property: propertyName,
+      value: nextValue,
+      previousValue: previousValue,
+      timestamp: Date.now(),
+    };
+    try {
+      if (typeof global.CustomEvent === "function") {
+        hostElement.dispatchEvent(
+          new global.CustomEvent(QHTML_PROPERTY_CHANGED_EVENT, {
+            detail: payload,
+            bubbles: true,
+            composed: true,
+          })
+        );
+      } else {
+        hostElement.dispatchEvent({
+          type: QHTML_PROPERTY_CHANGED_EVENT,
+          detail: payload,
+        });
+      }
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml property change event dispatch failed:", error);
+      }
+    }
+  }
+
   function emitWasmMappedSignals(componentNode, hostElement, signalBindingsByExport, exportName, args, result) {
     const exportKey = String(exportName || "").trim().toLowerCase();
     if (!exportKey || !(signalBindingsByExport instanceof Map) || !signalBindingsByExport.has(exportKey)) {
@@ -2469,6 +2712,7 @@
       return;
     }
     ensureScopedSelectorShortcut(hostElement, null);
+    const componentId = String(componentNode.componentId || hostElement.tagName || "").trim().toLowerCase();
     const componentAttributes = componentNode.attributes && typeof componentNode.attributes === "object"
       ? componentNode.attributes
       : {};
@@ -2582,8 +2826,13 @@
           set: function setDeclaredComponentProperty(value) {
             let hadValue = false;
             let previousValue = undefined;
+            const trackedState = readTrackedDeclaredProperty(this, propertyName);
+            if (trackedState.exists) {
+              hadValue = true;
+              previousValue = trackedState.value;
+            }
             try {
-              const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
+              const qdomNode = readHostQDomNode(this);
               if (qdomNode && typeof qdomNode === "object" && qdomNode.props && typeof qdomNode.props === "object") {
                 if (Object.prototype.hasOwnProperty.call(qdomNode.props, propertyName)) {
                   hadValue = true;
@@ -2596,6 +2845,14 @@
             if (!hadValue && Object.prototype.hasOwnProperty.call(this, storageKey)) {
               hadValue = true;
               previousValue = this[storageKey];
+            }
+            if (!hadValue) {
+              try {
+                previousValue = this[propertyName];
+                hadValue = true;
+              } catch (readPreviousValueError) {
+                // ignore getter failures and continue with write path
+              }
             }
             this[storageKey] = value;
             try {
@@ -2612,77 +2869,12 @@
               // best-effort qdom sync for declared property writes
             }
             if (hadValue && Object.is(previousValue, value)) {
+              writeTrackedDeclaredProperty(this, propertyName, value);
               return;
             }
-            const propertyReferenceIndex =
-              this &&
-              this[COMPONENT_PROP_REF_INDEX_KEY] &&
-              typeof this[COMPONENT_PROP_REF_INDEX_KEY].get === "function"
-                ? this[COMPONENT_PROP_REF_INDEX_KEY]
-                : null;
-            if (propertyReferenceIndex) {
-              const normalizedPropertyName = String(propertyName || "").trim().toLowerCase();
-              const references = propertyReferenceIndex.get(normalizedPropertyName);
-              if (references && typeof references.forEach === "function") {
-                const canUseScopedComponentUpdate =
-                  this &&
-                  this.__qhtmlComponentUpdateAccessorInstalled === true &&
-                  typeof this.update === "function";
-                const rootHost =
-                  typeof this.qhtmlRoot === "function"
-                    ? this.qhtmlRoot()
-                    : typeof this.root === "function"
-                      ? this.root()
-                      : null;
-                const hostRef = this;
-                if (canUseScopedComponentUpdate || (rootHost && typeof rootHost.update === "function")) {
-                  let dispatched = false;
-                  references.forEach(function dispatchScopedUpdate(rawUuid) {
-                    const uuid = typeof rawUuid === "string" ? rawUuid.trim() : "";
-                    if (!uuid) {
-                      return;
-                    }
-                    try {
-                      let result = false;
-                      if (canUseScopedComponentUpdate) {
-                        result = hostRef.update({
-                          uuid: uuid,
-                          scopeElement: hostRef,
-                          forceBindings: true,
-                        });
-                      } else if (rootHost && typeof rootHost.update === "function") {
-                        result = rootHost.update({
-                          uuid: uuid,
-                          forceBindings: true,
-                        });
-                      }
-                      if (result !== false) {
-                        dispatched = true;
-                      }
-                    } catch (targetedUpdateError) {
-                      // continue and fallback below if no targeted update succeeds
-                    }
-                  });
-                  if (dispatched) {
-                    return;
-                  }
-                }
-              }
-            }
-            if (typeof this.invalidate === "function") {
-              try {
-                this.invalidate({ forceBindings: true });
-                return;
-              } catch (invalidateError) {
-                // fallback to update below
-              }
-            }
-            if (typeof this.update === "function") {
-              try {
-                this.update({ forceBindings: true });
-              } catch (updateError) {
-                // ignore auto-update failures
-              }
+            writeTrackedDeclaredProperty(this, propertyName, value);
+            if (hadValue) {
+              emitDeclaredPropertyChangedEvent(this, componentId, propertyName, value, previousValue);
             }
           },
         });

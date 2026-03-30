@@ -280,69 +280,6 @@ builder-demo-theme {
         </div>
       </section>
 
-      <section class="example-class" id="q-checkout-modal" data-title="q-checkout-modal.qhtml usage">
-        <div class="example-head">
-          <h3>q-checkout-modal.qhtml usage</h3>
-          <p>Populate checkout items and show the modal.</p>
-        </div>
-        <div class="example-body">
-          <q-editor>
-q-import { q-components/q-modal.qhtml }
-q-import { q-components/q-form.qhtml }
-q-import { q-components/q-grid.qhtml }
-q-import { q-components/q-checkout-modal.qhtml?v=cart-fix-3 }
-
-q-style checkout-open-style {
-  background-color: #0f766e
-  color: #f8fafc
-  border: 1px solid #115e59
-}
-
-q-theme checkout-theme {
-  .checkout-open-btn { checkout-open-style }
-}
-
-checkout-theme {
-  button.checkout-open-btn.w3-button {
-    text { Open Checkout Modal }
-    onclick {
-      var modal = document.querySelector("#checkout-usage");
-      modal.setItems([
-        { id: "sku-1", name: "Starter Pack", price: 24.99, quantity: 2 },
-        { id: "sku-2", name: "Add-on", price: 8.5, quantity: 1 }
-      ]);
-      modal.show();
-    }
-  }
-  q-checkout-modal { id: "checkout-usage" }
-}
-          </q-editor>
-        </div>
-      </section>
-
-      <section class="example-class" id="q-estore" data-title="q-estore.qhtml usage">
-        <div class="example-head">
-          <h3>q-estore.qhtml usage</h3>
-          <p>Compose catalog + checkout with autoloaded items.</p>
-        </div>
-        <div class="example-body">
-          <q-editor>
-q-import { q-components/q-form.qhtml }
-q-import { q-components/q-grid.qhtml }
-q-import { q-components/q-modal.qhtml }
-q-import { q-components/q-store-catalog-item.qhtml?v=cart-fix-2 }
-q-import { q-components/q-store-catalog.qhtml?v=cart-fix-2 }
-q-import { q-components/q-checkout-modal.qhtml?v=cart-fix-3 }
-q-import { q-components/q-estore.qhtml?v=cart-fix-2 }
-
-q-estore {
-  items-json: "[{\"id\":\"sku-1\",\"name\":\"Starter\",\"description\":\"Inline demo item\",\"price\":12.5}]"
-  autoload: "true"
-}
-          </q-editor>
-        </div>
-      </section>
-
       <section class="example-class" id="q-form" data-title="q-form.qhtml usage">
         <div class="example-head">
           <h3>q-form.qhtml usage</h3>
@@ -581,117 +518,48 @@ sidebar-demo-theme {
         </div>
       </section>
 
-      <section class="example-class" id="q-store-catalog" data-title="q-store-catalog.qhtml usage">
-        <div class="example-head">
-          <h3>q-store-catalog.qhtml usage</h3>
-          <p>Catalog behavior with add item action.</p>
-        </div>
-        <div class="example-body">
-          <q-editor>
-q-import { q-components/q-form.qhtml }
-q-import { q-components/q-grid.qhtml }
-q-import { q-components/q-store-catalog-item.qhtml?v=cart-fix-2 }
-q-import { q-components/q-store-catalog.qhtml?v=cart-fix-2 }
-
-q-style catalog-add-style {
-  background-color: #0ea5e9
-  color: #082f49
-  border: 1px solid #0284c7
-}
-q-theme catalog-theme { .catalog-add-btn { catalog-add-style } }
-
-catalog-theme {
-  button.catalog-add-btn.w3-button.w3-margin-bottom {
-    text { Add Sample Item }
-    onclick { document.querySelector("#catalog-usage").addCatalogItem({ name: "Demo Item", description: "Added via method", price: 11.25 }); }
-  }
-  q-store-catalog { id: "catalog-usage" }
-}
-          </q-editor>
-        </div>
-      </section>
-
-      <section class="example-class" id="q-store-catalog-item" data-title="q-store-catalog-item.qhtml usage">
-        <div class="example-head">
-          <h3>q-store-catalog-item.qhtml usage</h3>
-          <p>Standalone catalog item card example.</p>
-        </div>
-        <div class="example-body">
-          <q-editor>
-q-import { q-components/q-store-catalog-item.qhtml?v=cart-fix-2 }
-
-q-store-catalog-item {
-  data-item-id: "widget-a"
-  data-item-name: "Widget A"
-  data-item-description: "Single card usage for store item rendering."
-  data-item-price: "19.95"
-}
-          </q-editor>
-        </div>
-      </section>
-
       <section class="example-class" id="q-popup-menu" data-title="q-popup-menu.qhtml usage">
         <div class="example-head">
           <h3>q-popup-menu.qhtml usage</h3>
-          <p>Scoped q-context-menu with item, separator, text, submenu, and click signal.</p>
+          <p>Minimal popup menu using <code>popup-contents</code> and explicit <code>show(x, y)</code>.</p>
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-popup-menu.qhtml }
+q-import { q-components/q-popup-menu.qhtml?v=popup-redesign-6 }
 
-q-style popup-zone-style {
-  background-color: #f8fafc
-  color: #0f172a
-  border: 1px dashed #94a3b8
-}
-q-style popup-log-style {
-  color: #334155
-}
-q-style popup-menu-panel-override-style {
-  background-color: #fff7ed
-}
-q-style popup-item-override-style {
-  background-color: #ffedd5
-}
-q-style popup-submenu-panel-override-style {
-  background-color: #fff1f2
-}
+div.w3-container.w3-border.w3-round-large.w3-padding {
+  h4 { text { Right-click inside the dashed area } }
+  div#ctx-zone.w3-panel.w3-border-dashed.w3-round-large {
+    style {
+      min-height: 140px;
+      background-color: #f8fafc;
+      color: #0f172a;
+      border: 1px dashed #94a3b8;
+    }
+    oncontextmenu {
+      event.preventDefault();
+      document.querySelector("#ctx-usage").show(event.clientX + "px", event.clientY + "px");
+       document.querySelector("#ctx-log").textContent = "Last open: " + String(event.clientX) + ", " + String(event.clientY);
+    }
 
-q-theme popup-demo-theme {
-  .popup-zone { popup-zone-style }
-  .popup-log { popup-log-style }
-  .q-popup-menu-panel { popup-menu-panel-override-style }
-  .q-popup-item-row { popup-item-override-style }
-  .q-popup-submenu-panel { popup-submenu-panel-override-style }
-}
-
-popup-demo-theme {
-  div.w3-container.w3-border.w3-round-large.w3-padding {
-    h4 { text { Right-click inside the dashed area } }
-    div#ctx-zone.popup-zone.w3-panel.w3-border-dashed.w3-round-large {
-      style { min-height: 140px; }
-      p { text { This context menu is scoped to this panel only. } }
-      q-context-menu {
-        id: "ctx-usage"
-        q-popup-text { text { Actions } }
-        q-popup-separator { }
-        q-popup-item { content { text { Rename } } }
-        q-popup-item { content { text { Duplicate } } }
-        q-popup-submenu {
-          content { text { More } }
-          menu { q-popup-item { content { text { Archive } } } q-popup-item { content { text { Delete } } } }
+    p { text { This context menu uses explicit show(event.clientX, event.clientY). } }
+      q-popup-menu#ctx-usage {
+      style { position: fixed;   background-color: #f8fafc; }
+      popup-contents {
+        ul.w3-ul.w3-small.w3-card {
+          li { text { Rename } }
+          li { text { Duplicate } }
+          hr { }
+          li { text { Archive } }
+          li { text { Delete } }
         }
       }
+      onready { this.closest("q-popup-menu").style.display = 'none'; }
     }
-    p#ctx-log.popup-log.w3-small { text { Last click: none } }
+
   }
-}
-onReady {
-  var menu = this.querySelector("#ctx-usage");
-  var log = this.querySelector("#ctx-log");
-  menu.addEventListener("menuItemClicked", function(evt) {
-    log.textContent = "Last click: " + String(evt.detail.label || evt.detail.uuid || "unknown");
-  });
+  p#ctx-log.w3-small { style { color: #334155; } text { Last open: none } }
+
 }
           </q-editor>
         </div>
@@ -872,6 +740,7 @@ tech-tag-theme {
           </q-editor>
         </div>
       </section>
+
     </main>
   </div>
 

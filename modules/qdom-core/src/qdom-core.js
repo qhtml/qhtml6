@@ -1192,6 +1192,20 @@
       }
     }
 
+    function isDomLikeObject(value) {
+      if (!value || typeof value !== "object") {
+        return false;
+      }
+      if (typeof value.nodeType === "number") {
+        return true;
+      }
+      if (value === global || value === (global && global.document)) {
+        return true;
+      }
+      const tag = Object.prototype.toString.call(value);
+      return tag === "[object Window]" || tag === "[object HTMLDocument]" || tag === "[object Document]";
+    }
+
     function proxify(target, path) {
       if (!target || typeof target !== "object") {
         return target;
@@ -1211,7 +1225,10 @@
               };
             }
           }
-          const value = Reflect.get(obj, prop, receiver);
+          const value = Reflect.get(obj, prop, obj);
+          if (typeof value === "function" && isDomLikeObject(obj)) {
+            return value.bind(obj);
+          }
           if (typeof prop === "symbol") {
             return value;
           }

@@ -1,342 +1,65 @@
-q-component q-estore {
-  q-style q-estore-card-style {
-    q-style-class { w3-card w3-round-large w3-border w3-padding }
-    backgroundColor: #eef4fb
-    color: #102a43
-    borderColor: #c7d8ef
-  }
-  q-style q-estore-header-row-style {
-    q-style-class { w3-row-padding w3-margin-bottom }
-  }
-  q-style q-estore-header-col-style {
-    q-style-class { w3-col s12 }
-  }
-  q-style q-estore-title-style {
-    q-style-class { w3-margin-top w3-margin-bottom }
-  }
-  q-style q-estore-muted-style {
-    q-style-class { w3-small }
-    color: #5b708a
-  }
-  q-style q-estore-status-style {
-    q-style-class { w3-panel w3-leftbar w3-small }
-    backgroundColor: #e8f2ff
-    color: #1f3b57
-    borderColor: #c7d8ef
-    borderLeftColor: #3b82f6
-  }
-  q-default-theme q-estore-theme {
-    .q-estore-card { q-estore-card-style }
-    .q-estore-header-row { q-estore-header-row-style }
-    .q-estore-header-col { q-estore-header-col-style }
-    .q-estore-title { q-estore-title-style }
-    .q-estore-muted { q-estore-muted-style }
-    .q-estore-status { q-estore-status-style }
+q-component q-estore-pricebox {
+  q-property currentItem: null
+
+  q-style q-estore-pricebox-style {
+    width: 40%
+    height: 60%
   }
 
-  q-property { state catalog checkout statusNode }
-  q-signal statusChanged(text)
-  q-signal storeReady()
-
-  state: q-bind {
-    if (this.__qEstoreState && typeof this.__qEstoreState === "object") {
-      return this.__qEstoreState;
-    }
-    this.__qEstoreState = {
-      cache: new Map(),
-      inflight: new Map(),
-      autoloadStarted: false,
-      lastStatus: "",
-    };
-    return this.__qEstoreState;
+  q-default-theme q-estore-default-theme {
+    .q-estore-pricebox-container { q-estore-pricebox-style }
   }
 
-  catalog: q-bind { return this.querySelector("[q-estore-catalog='1']"); }
-  checkout: q-bind { return this.querySelector("[q-estore-checkout='1']"); }
-  statusNode: q-bind { return this.querySelector("[q-estore-status='1']"); }
-
-  function setStatus(text) {
-    const state = this.component.state;
-    state.lastStatus = String(text || "");
-    const node = this.component.statusNode;
-    if (node) {
-      node.textContent = state.lastStatus;
-    }
-    this.component.statusChanged(state.lastStatus);
-  }
-
-  function resolveItemsUrl(url) {
-    const explicit = String(url || "").trim();
-    if (explicit) {
-      return explicit;
-    }
-    const attr = String(this.getAttribute("items-src") || "").trim();
-    if (attr) {
-      return attr;
-    }
-    return "q-components/items.json";
-  }
-
-  function getGlobalFetchState() {
-    if (typeof window === "undefined") {
-      return {
-        cache: new Map(),
-        inflight: new Map(),
-      };
-    }
-    if (!window.__qEstoreGlobalFetchState || typeof window.__qEstoreGlobalFetchState !== "object") {
-      window.__qEstoreGlobalFetchState = {
-        cache: new Map(),
-        inflight: new Map(),
-      };
-    }
-    if (!(window.__qEstoreGlobalFetchState.cache instanceof Map)) {
-      window.__qEstoreGlobalFetchState.cache = new Map();
-    }
-    if (!(window.__qEstoreGlobalFetchState.inflight instanceof Map)) {
-      window.__qEstoreGlobalFetchState.inflight = new Map();
-    }
-    return window.__qEstoreGlobalFetchState;
-  }
-
-  function getInlineItemsJson() {
-    const raw = this.getAttribute("items-json");
-    return typeof raw === "string" ? raw.trim() : "";
-  }
-
-  function parseItemsPayload(payload) {
-    if (typeof payload === "string") {
-      const text = payload.trim();
-      if (!text) {
-        return [];
+  q-estore-default-theme {
+    div.q-estore-pricebox-container {
+      q-grid {
+        rows: 1
+        div { slot { pricebox-content } }
+        div { slot { pricebox-price } }
+        div { slot { pricebox-add-button } }
       }
-      try {
-        return this.parseItemsPayload(JSON.parse(text));
-      } catch (error) {
-        try {
-          return this.parseItemsPayload(JSON.parse(decodeURIComponent(text)));
-        } catch (decodeError) {
-          return [];
+    }
+  }
+}
+
+q-component product-grid extends q-grid extends q-model-view {
+  q-signal qEstoreAddedToCart(chosenItem)
+  q-property itemModel: ""
+  q-property columns: 4
+  rows: 4
+  columns: q-bind { return this.component.columns }
+  q-model {
+    q-script {
+      return this.component.itemModel
+    }
+  }
+  as { item }
+
+  q-estore-pricebox {
+    currentItem: q-bind { return item }
+    style {
+      width: auto
+      height: auto
+    }
+
+    pricebox-content {
+      div {
+        text { ${item && item.content !== undefined ? item.content : ""} }
+      }
+    }
+
+    pricebox-price {
+      div {
+        text { ${item && item.price !== undefined ? item.price : ""} }
+      }
+    }
+
+    pricebox-add-button {
+      button {
+        text { Add to cart }
+        onclick {
+          this.closest("product-grid").qEstoreAddedToCart(this.closest("q-estore-pricebox").currentItem)
         }
-      }
-    }
-    if (Array.isArray(payload)) {
-      return payload;
-    }
-    if (payload && typeof payload === "object" && Array.isArray(payload.items)) {
-      return payload.items;
-    }
-    return [];
-  }
-
-  function loadItemsFromJson(jsonText) {
-    const raw = String(jsonText || "").trim();
-    if (!raw) {
-      this.setStatus("Inline items-json is empty.");
-      return [];
-    }
-    let parsed;
-    try {
-      const looksEncoded = raw.indexOf("%") !== -1 && raw.indexOf("[") === -1 && raw.indexOf("{") === -1;
-      parsed = looksEncoded ? JSON.parse(decodeURIComponent(raw)) : JSON.parse(raw);
-    } catch (error) {
-      try {
-        parsed = JSON.parse(decodeURIComponent(raw));
-      } catch (decodeError) {
-        this.setStatus("Inline items-json parse failed: " + String(decodeError && decodeError.message ? decodeError.message : decodeError));
-        throw decodeError;
-      }
-    }
-    const items = this.parseItemsPayload(parsed);
-    this.loadItems(items);
-    this.setStatus("Loaded " + items.length + " catalog items from inline JSON.");
-    return items;
-  }
-
-  function loadItems(items) {
-    const loaded = this.component.catalog.setCatalogItems(items || []);
-    this.syncCheckoutFromCatalog();
-    this.setStatus("Loaded " + loaded.length + " catalog items.");
-    return loaded;
-  }
-
-  function addCatalogItem(item) {
-    const loaded = this.component.catalog.addCatalogItem(item || {});
-    this.setStatus("Catalog now has " + loaded.length + " items.");
-    return loaded;
-  }
-
-  function addToCart(item, quantity) {
-    const out = this.component.catalog.addToCart(item || {}, quantity);
-    this.syncCheckoutFromCatalog();
-    return out;
-  }
-
-  function getCartItems() {
-    return this.component.catalog.getCartItems();
-  }
-
-  function clearCartItems() {
-    const cleared = this.component.catalog.clearCart();
-    this.syncCheckoutFromCatalog();
-    this.setStatus("Cart was cleared.");
-    return cleared;
-  }
-
-  function getSubtotalBeforeTax() {
-    return this.component.catalog.getCartSubtotal();
-  }
-
-  function syncCheckoutFromCatalog() {
-    const cartItems = this.component.catalog.getCartItems();
-    this.component.checkout.setItems(cartItems);
-  }
-
-  function showCheckoutModal() {
-    this.syncCheckoutFromCatalog();
-    this.component.checkout.show();
-  }
-
-  function hideCheckoutModal() {
-    this.component.checkout.hide();
-  }
-
-  function loadItemsFromUrl(url) {
-    const state = this.component.state;
-    const self = this;
-    const inline = this.getInlineItemsJson();
-    const explicit = String(url || "").trim();
-    if ((!explicit || explicit.toLowerCase() === "inline") && inline) {
-      return Promise.resolve(self.loadItemsFromJson(inline));
-    }
-
-    const target = this.resolveItemsUrl(url);
-    const inflight = state.inflight;
-    const cache = state.cache;
-    const globalState = this.getGlobalFetchState();
-    const globalCache = globalState.cache;
-    const globalInflight = globalState.inflight;
-
-    if (cache.has(target)) {
-      const cached = cache.get(target);
-      self.loadItems(cached);
-      self.setStatus("Loaded " + cached.length + " catalog items from memory cache.");
-      return Promise.resolve(cached);
-    }
-    if (globalCache.has(target)) {
-      const cached = globalCache.get(target);
-      cache.set(target, cached);
-      self.loadItems(cached);
-      self.setStatus("Loaded " + cached.length + " catalog items from memory cache.");
-      return Promise.resolve(cached);
-    }
-
-    if (inflight.has(target)) {
-      return inflight.get(target);
-    }
-    if (globalInflight.has(target)) {
-      const shared = globalInflight.get(target).then(function(sharedItems) {
-        cache.set(target, sharedItems);
-        self.loadItems(sharedItems);
-        return sharedItems;
-      });
-      inflight.set(target, shared);
-      return shared.finally(function() {
-        inflight.delete(target);
-      });
-    }
-
-    this.setStatus("Loading items from " + target + " ...");
-
-    const pending = fetch(target, { cache: "no-store" })
-      .then(function(response) {
-        if (!response || !response.ok) {
-          throw new Error("HTTP " + (response ? response.status : "unknown"));
-        }
-        return response.json();
-      })
-      .then(function(payload) {
-        const items = self.parseItemsPayload(payload);
-        cache.set(target, items);
-        globalCache.set(target, items);
-        self.loadItems(items);
-        return items;
-      })
-      .catch(function(error) {
-        self.setStatus("Failed to load items: " + String(error && error.message ? error.message : error));
-        throw error;
-      })
-      .finally(function() {
-        inflight.delete(target);
-        globalInflight.delete(target);
-      });
-
-    inflight.set(target, pending);
-    globalInflight.set(target, pending);
-    return pending;
-  }
-
-  onReady {
-    if (this.__qEstoreReady) {
-      return;
-    }
-    this.__qEstoreReady = true;
-    const state = this.component.state;
-    if (state.lastStatus) {
-      this.setStatus(state.lastStatus);
-    }
-
-    const self = this;
-    this.component.catalog.checkoutRequested.connect(function() {
-      self.showCheckoutModal();
-    });
-    this.component.catalog.cartChanged.connect(function(lastItem, items, totalCount, subtotal, subtotalFormatted) {
-      self.syncCheckoutFromCatalog();
-      self.setStatus("Cart updated: " + Number(totalCount || 0) + " items, subtotal " + String(subtotalFormatted || "$0.00") + ".");
-    });
-
-    const autoload = String(this.getAttribute("autoload") || "true").toLowerCase() !== "false";
-    if (autoload) {
-      if (!state.autoloadStarted) {
-        state.autoloadStarted = true;
-        const inline = this.getInlineItemsJson();
-        if (inline) {
-          this.loadItemsFromJson(inline);
-        } else {
-          this.loadItemsFromUrl();
-        }
-      }
-    } else {
-      this.setStatus("Autoload disabled. Call loadItemsFromUrl(url) to start.");
-    }
-    this.component.storeReady();
-  }
-
-  q-estore-theme {
-    div.q-estore-card {
-      div.q-estore-header-row {
-        div.q-estore-header-col {
-          h2.q-estore-title {
-            text { Q E-Store }
-          }
-          p.q-estore-muted {
-            text { Catalog + checkout modal composed into one reusable component. }
-          }
-        }
-      }
-
-      div.q-estore-status {
-        style { border-left-color: transparent; }
-        q-estore-status: "1"
-        text { Initializing e-store component... }
-      }
-
-      q-store-catalog {
-        q-estore-catalog: "1"
-      }
-
-      q-checkout-modal {
-        q-estore-checkout: "1"
       }
     }
   }
