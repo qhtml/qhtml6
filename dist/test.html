@@ -190,7 +190,46 @@ property-event-probe { }`, e: ['property-probe-ok'] },
       { n: 43, t: 'scoped theme application', s: `q-style title-accent { color: #1d4ed8 } q-theme article-theme { h3 { title-accent } } article-theme { div { h3 { text { Scoped Title } } } }`, e: ['Scoped Title'] },
       { n: 44, t: 'scoped $() selector shortcut', s: `div#sender { text { sender-value } } div#result44 { text { pending } } onReady { $("#result44").textContent = $("#sender").textContent; }`, e: ['sender-value'] },
       { n: 45, t: 'root onReady hook', s: `onReady { this.setAttribute("data-ready", "1"); } div { text { root-ready } }`, e: ['root-ready'] },
-      { n: 46, t: 'escaped brace in text', s: `div { text { hello world } }`, e: ['hello world'] }
+      { n: 46, t: 'escaped brace in text', s: `div { text { hello world } }`, e: ['hello world'] },
+      { n: 47, t: 'q-timer endless countdown', s: `div#t47-count { text { 50 } }
+div#t47-status { text { waiting } }
+q-timer t47Primary {
+  interval: 300
+  repeat: true
+  running: true
+  onTimeout {
+    var countNode = document.querySelector("#t47-count");
+    var value = Number(countNode.textContent || "50");
+    value = value - 1;
+    countNode.textContent = String(value);
+    if (value <= 45) {
+      clearInterval(t47Primary);
+      document.querySelector("#t47-status").textContent = "decrement-ok";
+    }
+  }
+}`, e: ['decrement-ok'] },
+      { n: 48, t: 'q-timer controller stops primary timer', s: `div#t48-cycles { text { 0 } }
+div#t48-status { text { waiting } }
+q-timer t48Primary {
+  interval: 300
+  repeat: true
+  running: true
+  onTimeout {
+    var cyclesNode = document.querySelector("#t48-cycles");
+    var cycles = Number(cyclesNode.textContent || "0");
+    cycles = cycles + 1;
+    cyclesNode.textContent = String(cycles);
+  }
+}
+q-timer t48Controller {
+  interval: 20000
+  repeat: false
+  running: true
+  onTimeout {
+    clearInterval(t48Primary);
+    document.querySelector("#t48-status").textContent = "controller-fired running=false";
+  }
+}`, e: ['controller-fired', 'running=false'] }
     ];
 
     function normalize(input) {

@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-03-30T02:51:31Z */
+/* generated: 2026-03-30T16:36:37Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -1399,6 +1399,7 @@
     "q-repeater",
     "q-foreach",
     "q-model-view",
+    "q-timer",
     "q-import",
     "q-sdml-component",
     "sdml-endpoint",
@@ -4454,6 +4455,31 @@
             raw: parser.source.slice(start, parser.index),
           });
           continue;
+        }
+
+        if (firstLower === "q-timer" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const timerId = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-timer id", parser.index);
+          }
+          consume(parser);
+          const timerBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QTimerDefinition",
+            timerId: String(timerId || "").trim(),
+            body: String(timerBody || ""),
+            config: parseQTimerDefinitionBody(String(timerBody || ""), scopedKeywordAliases),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-timer" && peek(parser) === "{") {
+          throw ParseError("Anonymous q-timer is not allowed", parser.index);
         }
 
         if (firstLower === "sdml-endpoint" && peek(parser) !== "{" && peek(parser) !== ",") {
@@ -9383,6 +9409,73 @@
     return text.slice(openIndex + 1, closeIndex).trim();
   }
 
+  function coerceQTimerPropertyValue(value) {
+    if (isBindingExpressionValue(value)) {
+      const expressionType = String(value.type || "").trim().toLowerCase();
+      if (expressionType === "qscriptexpression") {
+        const staticValue = tryResolveStaticQScript(value.script || "");
+        if (staticValue !== null) {
+          return staticValue;
+        }
+      }
+      return null;
+    }
+    return coercePropertyValue(value);
+  }
+
+  function parseQTimerDefinitionBody(bodyText, keywordAliases) {
+    const body = String(bodyText || "");
+    const parser = parserFor(body);
+    const items = parseBlockItems(parser, cloneKeywordAliases(keywordAliases));
+    const config = {
+      interval: 0,
+      repeat: true,
+      running: true,
+      onTimeout: "",
+    };
+
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type === "Property") {
+        const assignment = parseAssignmentName(item.name);
+        const key = normalizePropertyName(assignment.name);
+        if (!key) {
+          continue;
+        }
+        const value = coerceQTimerPropertyValue(item.value);
+        if (key === "interval") {
+          const numeric = Number(value);
+          config.interval = Number.isFinite(numeric) && numeric >= 0 ? Math.floor(numeric) : 0;
+          continue;
+        }
+        if (key === "repeat") {
+          const parsed = parseWasmBoolean(value);
+          if (parsed !== null) {
+            config.repeat = parsed;
+          }
+          continue;
+        }
+        if (key === "running") {
+          const parsed = parseWasmBoolean(value);
+          if (parsed !== null) {
+            config.running = parsed;
+          }
+        }
+        continue;
+      }
+      if (item.type === "EventBlock") {
+        const blockName = String(item.name || "").trim().toLowerCase();
+        if (blockName === "ontimeout") {
+          config.onTimeout = compactScriptBody(item.script || "");
+        }
+      }
+    }
+    return config;
+  }
+
   function parseQColorSchemaEntriesFromAstItems(items) {
     const out = {};
     const list = Array.isArray(items) ? items : [];
@@ -11318,6 +11411,7 @@
     const imports = [];
     const sdmlEndpoints = [];
     const sdmlComponents = [];
+    const qTimers = [];
     const lifecycleScripts = [];
     for (let i = 0; i < ast.body.length; i += 1) {
       const item = ast.body[i];
@@ -11336,6 +11430,22 @@
         sdmlComponents.push({
           componentId: String(item.componentId || "").trim(),
           path: String(item.path || "").trim(),
+        });
+        continue;
+      }
+      if (item.type === "QTimerDefinition") {
+        const timerId = String(item.timerId || "").trim();
+        if (!timerId) {
+          continue;
+        }
+        const config = item.config && typeof item.config === "object" ? item.config : {};
+        const interval = Number(config.interval);
+        qTimers.push({
+          timerId: timerId,
+          interval: Number.isFinite(interval) && interval >= 0 ? Math.floor(interval) : 0,
+          repeat: config.repeat !== false,
+          running: config.running !== false,
+          onTimeout: String(config.onTimeout || ""),
         });
         continue;
       }
@@ -11461,6 +11571,7 @@
     doc.meta.imports = imports.length > 0 ? imports : importUrls;
     doc.meta.sdmlEndpoints = sdmlEndpoints;
     doc.meta.sdmlComponents = sdmlComponents;
+    doc.meta.qTimers = qTimers;
     doc.meta.resolvedSource = effectiveSource;
     doc.meta.macroExpandedSource = macroExpandedSource;
     doc.meta.qMacros = macroResult.definitions;
@@ -11506,6 +11617,26 @@
         lines.push(indent + "  " + chunks[i]);
       }
     }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
+  function serializeQTimerDefinitionBlock(timerDef, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    const timer = timerDef && typeof timerDef === "object" ? timerDef : null;
+    const timerId = String(timer && (timer.timerId || timer.name || timer.id) || "").trim();
+    if (!timerId) {
+      return "";
+    }
+    const interval = Number(timer && timer.interval);
+    const repeat = timer && Object.prototype.hasOwnProperty.call(timer, "repeat") ? timer.repeat !== false : true;
+    const running = timer && Object.prototype.hasOwnProperty.call(timer, "running") ? timer.running !== false : true;
+    const onTimeout = String(timer && timer.onTimeout || "").trim();
+    const lines = [indent + "q-timer " + timerId + " {"];
+    lines.push(indent + "  interval: " + (Number.isFinite(interval) && interval >= 0 ? Math.floor(interval) : 0));
+    lines.push(indent + "  repeat: " + (repeat ? "true" : "false"));
+    lines.push(indent + "  running: " + (running ? "true" : "false"));
+    lines.push(serializeScriptBlock("onTimeout", onTimeout, indentLevel + 1));
     lines.push(indent + "}");
     return lines.join("\n");
   }
@@ -12115,6 +12246,18 @@
     const nodes = documentNode && Array.isArray(documentNode.nodes) ? documentNode.nodes : [];
     for (let i = 0; i < nodes.length; i += 1) {
       lines.push(serializeNode(nodes[i], 0));
+    }
+    const qTimers =
+      documentNode &&
+      documentNode.meta &&
+      Array.isArray(documentNode.meta.qTimers)
+        ? documentNode.meta.qTimers
+        : [];
+    for (let i = 0; i < qTimers.length; i += 1) {
+      const timerBlock = serializeQTimerDefinitionBlock(qTimers[i], 0);
+      if (timerBlock) {
+        lines.push(timerBlock);
+      }
     }
     const lifecycleScripts =
       documentNode &&
@@ -14242,6 +14385,144 @@
     delete store[key];
   }
 
+  function rewriteHashSelectorShorthand(source) {
+    const input = String(source == null ? "" : source);
+    if (!input || input.indexOf("#") === -1) {
+      return input;
+    }
+    let out = "";
+    let inSingle = false;
+    let inDouble = false;
+    let inBacktick = false;
+    let inLineComment = false;
+    let inBlockComment = false;
+    let escaped = false;
+    let i = 0;
+    while (i < input.length) {
+      const ch = input[i];
+      const next = i + 1 < input.length ? input[i + 1] : "";
+      if (inLineComment) {
+        out += ch;
+        if (ch === "\n" || ch === "\r") {
+          inLineComment = false;
+        }
+        i += 1;
+        continue;
+      }
+      if (inBlockComment) {
+        out += ch;
+        if (ch === "*" && next === "/") {
+          out += "/";
+          i += 2;
+          inBlockComment = false;
+          continue;
+        }
+        i += 1;
+        continue;
+      }
+      if (inSingle) {
+        out += ch;
+        if (escaped) {
+          escaped = false;
+          i += 1;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+        } else if (ch === "'") {
+          inSingle = false;
+        }
+        i += 1;
+        continue;
+      }
+      if (inDouble) {
+        out += ch;
+        if (escaped) {
+          escaped = false;
+          i += 1;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+        } else if (ch === '"') {
+          inDouble = false;
+        }
+        i += 1;
+        continue;
+      }
+      if (inBacktick) {
+        out += ch;
+        if (escaped) {
+          escaped = false;
+          i += 1;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+        } else if (ch === "`") {
+          inBacktick = false;
+        }
+        i += 1;
+        continue;
+      }
+      if (ch === "/" && next === "/") {
+        out += "//";
+        i += 2;
+        inLineComment = true;
+        continue;
+      }
+      if (ch === "/" && next === "*") {
+        out += "/*";
+        i += 2;
+        inBlockComment = true;
+        continue;
+      }
+      if (ch === "'") {
+        out += ch;
+        inSingle = true;
+        i += 1;
+        continue;
+      }
+      if (ch === '"') {
+        out += ch;
+        inDouble = true;
+        i += 1;
+        continue;
+      }
+      if (ch === "`") {
+        out += ch;
+        inBacktick = true;
+        i += 1;
+        continue;
+      }
+      if (ch === "#") {
+        const prev = i > 0 ? input[i - 1] : "";
+        if (prev && /[A-Za-z0-9_$]/.test(prev)) {
+          out += ch;
+          i += 1;
+          continue;
+        }
+        const first = next;
+        if (!first || !/[A-Za-z_]/.test(first)) {
+          out += ch;
+          i += 1;
+          continue;
+        }
+        let j = i + 2;
+        while (j < input.length && /[A-Za-z0-9_-]/.test(input[j])) {
+          j += 1;
+        }
+        const id = input.slice(i + 1, j);
+        out += 'document.querySelector("#' + id + '")';
+        i = j;
+        continue;
+      }
+      out += ch;
+      i += 1;
+    }
+    return out;
+  }
+
   function bindEventAttributeListener(element, attributeName, body, options) {
     if (!element || element.nodeType !== 1 || !isDomEventAttributeName(attributeName)) {
       return false;
@@ -14264,9 +14545,7 @@
       opts.scopeRoot && opts.scopeRoot.nodeType === 1
         ? opts.scopeRoot
         : null;
-    const transformedSource = source.replace(/(^|[^A-Za-z0-9_$])#([A-Za-z_][A-Za-z0-9_-]*)/g, function replaceSelector(_, prefix, id) {
-      return prefix + 'document.querySelector("#' + id + '")';
-    });
+    const transformedSource = rewriteHashSelectorShorthand(source);
     const store = ensureEventAttributeListenerStore(element);
     const current = store && store[key] ? store[key] : null;
     if (current && current.eventName === eventName && current.source === transformedSource) {
@@ -18639,6 +18918,38 @@
     }
   }
 
+  function resolveQHtmlHostForInlineScope(thisArg, scope) {
+    const scopeObj = scope && typeof scope === "object" ? scope : null;
+    const explicitRoot = scopeObj ? scopeObj.root || scopeObj.host || null : null;
+    const direct = resolveScopedSelectorRoot(thisArg, explicitRoot);
+    if (direct) {
+      return direct;
+    }
+    if (scopeObj && isQHtmlHostElement(scopeObj.host)) {
+      return scopeObj.host;
+    }
+    return null;
+  }
+
+  function mergeNamedRuntimeValuesIntoInlineScope(scope, thisArg) {
+    if (!scope || typeof scope !== "object") {
+      return;
+    }
+    const host = resolveQHtmlHostForInlineScope(thisArg, scope);
+    if (!host || !host.__qhtmlNamedRuntimeValues || typeof host.__qhtmlNamedRuntimeValues !== "object") {
+      return;
+    }
+    const values = host.__qhtmlNamedRuntimeValues;
+    const names = Object.keys(values);
+    for (let i = 0; i < names.length; i += 1) {
+      const name = String(names[i] || "").trim();
+      if (!name || Object.prototype.hasOwnProperty.call(scope, name)) {
+        continue;
+      }
+      scope[name] = values[name];
+    }
+  }
+
   function buildInlineExpressionScope(thisArg, extraScope) {
     const scope = Object.create(null);
     if (extraScope && typeof extraScope === "object") {
@@ -18694,6 +19005,7 @@
     if (thisArg && (typeof thisArg === "object" || typeof thisArg === "function")) {
       ensureScopedSelectorShortcut(thisArg, scope.root || scope.host || null);
     }
+    mergeNamedRuntimeValuesIntoInlineScope(scope, thisArg);
     return scope;
   }
 
@@ -19838,13 +20150,149 @@
     return null;
   }
 
+  function rewriteHashSelectorShorthand(source) {
+    const input = String(source == null ? "" : source);
+    if (!input || input.indexOf("#") === -1) {
+      return input;
+    }
+    let out = "";
+    let inSingle = false;
+    let inDouble = false;
+    let inBacktick = false;
+    let inLineComment = false;
+    let inBlockComment = false;
+    let escaped = false;
+    let i = 0;
+    while (i < input.length) {
+      const ch = input[i];
+      const next = i + 1 < input.length ? input[i + 1] : "";
+      if (inLineComment) {
+        out += ch;
+        if (ch === "\n" || ch === "\r") {
+          inLineComment = false;
+        }
+        i += 1;
+        continue;
+      }
+      if (inBlockComment) {
+        out += ch;
+        if (ch === "*" && next === "/") {
+          out += "/";
+          i += 2;
+          inBlockComment = false;
+          continue;
+        }
+        i += 1;
+        continue;
+      }
+      if (inSingle) {
+        out += ch;
+        if (escaped) {
+          escaped = false;
+          i += 1;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+        } else if (ch === "'") {
+          inSingle = false;
+        }
+        i += 1;
+        continue;
+      }
+      if (inDouble) {
+        out += ch;
+        if (escaped) {
+          escaped = false;
+          i += 1;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+        } else if (ch === '"') {
+          inDouble = false;
+        }
+        i += 1;
+        continue;
+      }
+      if (inBacktick) {
+        out += ch;
+        if (escaped) {
+          escaped = false;
+          i += 1;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+        } else if (ch === "`") {
+          inBacktick = false;
+        }
+        i += 1;
+        continue;
+      }
+      if (ch === "/" && next === "/") {
+        out += "//";
+        i += 2;
+        inLineComment = true;
+        continue;
+      }
+      if (ch === "/" && next === "*") {
+        out += "/*";
+        i += 2;
+        inBlockComment = true;
+        continue;
+      }
+      if (ch === "'") {
+        out += ch;
+        inSingle = true;
+        i += 1;
+        continue;
+      }
+      if (ch === '"') {
+        out += ch;
+        inDouble = true;
+        i += 1;
+        continue;
+      }
+      if (ch === "`") {
+        out += ch;
+        inBacktick = true;
+        i += 1;
+        continue;
+      }
+      if (ch === "#") {
+        const prev = i > 0 ? input[i - 1] : "";
+        if (prev && /[A-Za-z0-9_$]/.test(prev)) {
+          out += ch;
+          i += 1;
+          continue;
+        }
+        const first = next;
+        if (!first || !/[A-Za-z_]/.test(first)) {
+          out += ch;
+          i += 1;
+          continue;
+        }
+        let j = i + 2;
+        while (j < input.length && /[A-Za-z0-9_-]/.test(input[j])) {
+          j += 1;
+        }
+        const id = input.slice(i + 1, j);
+        out += 'document.querySelector("#' + id + '")';
+        i = j;
+        continue;
+      }
+      out += ch;
+      i += 1;
+    }
+    return out;
+  }
+
   function transformScriptBody(body) {
     if (typeof body !== "string" || body.length === 0) {
       return "";
     }
-    return body.replace(/(^|[^A-Za-z0-9_$])#([A-Za-z_][A-Za-z0-9_-]*)/g, function replaceSelector(_, prefix, id) {
-      return prefix + 'document.querySelector("#' + id + '")';
-    });
+    return rewriteHashSelectorShorthand(body);
   }
 
   function serializeSourceChildNode(node) {
@@ -20131,6 +20579,48 @@
 
   function normalizeSdmlAlias(value) {
     return String(value || "").trim().toLowerCase();
+  }
+
+  function normalizeKeywordTimerName(value) {
+    return String(value || "").trim();
+  }
+
+  function parseKeywordTimerBoolean(value, fallback) {
+    if (value === true || value === false) {
+      return value;
+    }
+    const text = String(value == null ? "" : value).trim().toLowerCase();
+    if (text === "true" || text === "1" || text === "yes" || text === "on") {
+      return true;
+    }
+    if (text === "false" || text === "0" || text === "no" || text === "off") {
+      return false;
+    }
+    return fallback;
+  }
+
+  function normalizeKeywordTimerDeclarations(rawDeclarations) {
+    const list = Array.isArray(rawDeclarations) ? rawDeclarations : [];
+    const out = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const entry = list[i];
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const timerId = normalizeKeywordTimerName(entry.timerId || entry.name || entry.id);
+      if (!timerId) {
+        continue;
+      }
+      const intervalValue = Number(entry.interval);
+      out.push({
+        timerId: timerId,
+        interval: Number.isFinite(intervalValue) && intervalValue >= 0 ? Math.floor(intervalValue) : 0,
+        repeat: parseKeywordTimerBoolean(entry.repeat, true),
+        running: parseKeywordTimerBoolean(entry.running, true),
+        onTimeout: String(entry.onTimeout || entry.body || "").trim(),
+      });
+    }
+    return out;
   }
 
   function isLikelySdmlEndpointReference(value) {
@@ -21060,6 +21550,238 @@
       }
     }
     binding.listeners.length = 0;
+  }
+
+  function setNamedRuntimeValue(binding, name, value) {
+    const bindingName = String(name || "").trim();
+    if (!binding || !bindingName || !binding.host) {
+      return;
+    }
+    if (!binding.host.__qhtmlNamedRuntimeValues || typeof binding.host.__qhtmlNamedRuntimeValues !== "object") {
+      binding.host.__qhtmlNamedRuntimeValues = Object.create(null);
+    }
+    binding.host.__qhtmlNamedRuntimeValues[bindingName] = value;
+    try {
+      binding.host[bindingName] = value;
+    } catch (ignoredHostRuntimeValueAssign) {
+      // no-op
+    }
+    if (!binding.keywordTimerGlobalNames || !(binding.keywordTimerGlobalNames instanceof Set)) {
+      binding.keywordTimerGlobalNames = new Set();
+    }
+    binding.keywordTimerGlobalNames.add(bindingName);
+    try {
+      global[bindingName] = value;
+    } catch (ignoredGlobalRuntimeValueAssign) {
+      // no-op
+    }
+  }
+
+  function clearKeywordTimerExports(binding) {
+    if (!binding || !(binding.keywordTimerGlobalNames instanceof Set)) {
+      return;
+    }
+    binding.keywordTimerGlobalNames.forEach(function clearNamedTimer(name) {
+      const bindingName = String(name || "").trim();
+      if (!bindingName) {
+        return;
+      }
+      if (binding.host && binding.host.__qhtmlNamedRuntimeValues && typeof binding.host.__qhtmlNamedRuntimeValues === "object") {
+        delete binding.host.__qhtmlNamedRuntimeValues[bindingName];
+      }
+      try {
+        delete global[bindingName];
+      } catch (ignoredGlobalTimerDelete) {
+        try {
+          global[bindingName] = null;
+        } catch (ignoredGlobalTimerNull) {
+          // no-op
+        }
+      }
+    });
+    binding.keywordTimerGlobalNames.clear();
+  }
+
+  function clearKeywordTimers(binding) {
+    if (!binding || !Array.isArray(binding.keywordTimers)) {
+      clearKeywordTimerExports(binding);
+      return;
+    }
+    for (let i = 0; i < binding.keywordTimers.length; i += 1) {
+      const runtime = binding.keywordTimers[i];
+      if (!runtime || runtime.timerId == null) {
+        continue;
+      }
+      if (runtime.repeat === true) {
+        if (typeof global.clearInterval === "function") {
+          global.clearInterval(runtime.timerId);
+        }
+      } else if (typeof global.clearTimeout === "function") {
+        global.clearTimeout(runtime.timerId);
+      }
+      runtime.timerId = null;
+      runtime.running = false;
+    }
+    binding.keywordTimers.length = 0;
+    clearKeywordTimerExports(binding);
+  }
+
+  function createKeywordTimerExecutor(binding, declaration) {
+    const scriptBody = transformScriptBody(String(declaration && declaration.onTimeout || ""));
+    if (!scriptBody.trim()) {
+      return function noopKeywordTimerExecutor() {};
+    }
+    const hasInterpolatedBody = hasInlineReferenceExpressions(scriptBody);
+    let executor = null;
+    if (!hasInterpolatedBody) {
+      try {
+        executor = new Function("event", "document", withScopedSelectorPrelude(scriptBody));
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml q-timer compile failed:", error);
+        }
+        return function noopKeywordTimerExecutor() {};
+      }
+    }
+
+    return function runKeywordTimerExecutor(runtime) {
+      const host = binding && binding.host ? binding.host : null;
+      const doc = binding && binding.doc ? binding.doc : global.document;
+      const eventPayload = {
+        type: "timeout",
+        timerId: declaration && declaration.timerId ? declaration.timerId : "",
+        timerHandle: runtime && runtime.timerId != null ? runtime.timerId : null,
+      };
+      if (!host) {
+        return;
+      }
+      ensureScopedSelectorShortcut(host, host);
+      if (hasInterpolatedBody) {
+        const inlineScope = {
+          document: doc,
+          host: host,
+          root: host,
+          event: eventPayload,
+          timer: runtime || null,
+        };
+        const timerName = declaration && declaration.timerId ? String(declaration.timerId || "").trim() : "";
+        if (timerName) {
+          inlineScope[timerName] = runtime && runtime.timerId != null ? runtime.timerId : null;
+        }
+        const executableSource = interpolateInlineReferenceExpressions(
+          scriptBody,
+          host,
+          inlineScope,
+          "qhtml q-timer interpolation failed:"
+        );
+        try {
+          const dynamic = new Function("event", "document", withScopedSelectorPrelude(executableSource));
+          dynamic.call(host, eventPayload, doc);
+        } catch (error) {
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml q-timer execution failed:", error);
+          }
+        }
+        return;
+      }
+      try {
+        executor.call(host, eventPayload, doc);
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml q-timer execution failed:", error);
+        }
+      }
+    };
+  }
+
+  function syncKeywordTimers(binding) {
+    if (!binding || !binding.qdom || !binding.qdom.meta) {
+      clearKeywordTimers(binding);
+      return;
+    }
+
+    clearKeywordTimers(binding);
+    const declarations = normalizeKeywordTimerDeclarations(binding.qdom.meta.qTimers);
+    if (declarations.length === 0) {
+      return;
+    }
+
+    if (!Array.isArray(binding.keywordTimers)) {
+      binding.keywordTimers = [];
+    }
+
+    for (let i = 0; i < declarations.length; i += 1) {
+      const declaration = declarations[i];
+      const runTimeout = createKeywordTimerExecutor(binding, declaration);
+      const runtime = {
+        timerId: null,
+        repeat: declaration.repeat !== false,
+        running: declaration.running !== false,
+        interval: Number.isFinite(Number(declaration.interval)) && Number(declaration.interval) >= 0
+          ? Math.floor(Number(declaration.interval))
+          : 0,
+        name: String(declaration.timerId || "").trim(),
+        start: null,
+        stop: null,
+        restart: null,
+      };
+
+      const publishTimerHandle = function publishTimerHandle() {
+        if (!runtime.name) {
+          return;
+        }
+        setNamedRuntimeValue(binding, runtime.name, runtime.timerId);
+      };
+
+      runtime.stop = function stopKeywordTimer() {
+        if (runtime.timerId != null) {
+          if (runtime.repeat === true) {
+            if (typeof global.clearInterval === "function") {
+              global.clearInterval(runtime.timerId);
+            }
+          } else if (typeof global.clearTimeout === "function") {
+            global.clearTimeout(runtime.timerId);
+          }
+        }
+        runtime.timerId = null;
+        runtime.running = false;
+        publishTimerHandle();
+        return true;
+      };
+
+      runtime.start = function startKeywordTimer() {
+        runtime.stop();
+        runtime.running = true;
+        const tick = function keywordTimerTick() {
+          runTimeout(runtime);
+          if (runtime.repeat !== true) {
+            runtime.stop();
+          }
+        };
+        if (runtime.repeat === true) {
+          runtime.timerId = typeof global.setInterval === "function"
+            ? global.setInterval(tick, runtime.interval)
+            : null;
+        } else {
+          runtime.timerId = typeof global.setTimeout === "function"
+            ? global.setTimeout(tick, runtime.interval)
+            : null;
+        }
+        publishTimerHandle();
+        return runtime.timerId;
+      };
+
+      runtime.restart = function restartKeywordTimer() {
+        return runtime.start();
+      };
+
+      binding.keywordTimers.push(runtime);
+      if (runtime.running) {
+        runtime.start();
+      } else {
+        publishTimerHandle();
+      }
+    }
   }
 
   function attachScriptRules(binding) {
@@ -24411,6 +25133,7 @@
       attachDomControlSync(binding);
       attachDomMutationSync(binding);
       runHostLifecycleHooks(binding);
+      syncKeywordTimers(binding);
       attachScriptRules(binding);
       scheduleTemplatePersistence(binding);
     } finally {
@@ -27971,6 +28694,7 @@
         if (!loaded.meta || typeof loaded.meta !== "object") {
           loaded.meta = {};
         }
+        loaded.meta.qTimers = normalizeKeywordTimerDeclarations(loaded.meta.qTimers);
         const restoredEndpoints = Array.isArray(loaded.meta.sdmlEndpoints) ? loaded.meta.sdmlEndpoints : [];
         loaded.meta.sdmlEndpoints = registerSdmlEndpointsForDocument(
           qHtmlElement.ownerDocument || global.document,
@@ -28045,6 +28769,7 @@
           };
         }).filter(Boolean)
       : [];
+    parsed.meta.qTimers = normalizeKeywordTimerDeclarations(parsed.meta.qTimers);
     parsed.meta.sdmlComponents = registerSdmlDeclarationsForDocument(
       qHtmlElement.ownerDocument || global.document,
       sdmlDeclarations,
@@ -28103,6 +28828,8 @@
       domMutationFlushTimer: null,
       domMutationRefreshTimer: null,
       domMutationSyncSuppressDepth: 0,
+      keywordTimers: [],
+      keywordTimerGlobalNames: new Set(),
       withObservedMutationsSuppressed: null,
       disconnect: function noop() {},
       ready: null,
@@ -28300,6 +29027,7 @@
     if (typeof binding.disconnect === "function") {
       binding.disconnect();
     }
+    clearKeywordTimers(binding);
     clearBindingModelSubscriptions(binding);
     terminateWasmRuntimesInNode(binding.host);
     bindings.delete(qHtmlElement);

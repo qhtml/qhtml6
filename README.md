@@ -19,6 +19,7 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Updated runtime/parser/docs to reflect canonical assignment binding semantics around `q-script`.
 - Refreshed `dist/test.html` into a simplified board that runs first-pass checks on `QHTMLContentLoaded` and re-checks every 5 seconds.
 - Kept binding-deprecated test numbers in place with explicit `test has been deprecated` markers.
+- Added `q-timer <name> { ... }` as a top-level language construct (native runtime timer declaration) instead of component-based timer usage.
 
 
 ## 1. Quick Start
@@ -553,6 +554,35 @@ q-model-view {
   div { text { ${item && item.name ? item.name : item} } }
 }
 ```
+
+### `q-timer` (keyword-level timer)
+
+`q-timer` is a named top-level construct that declares a runtime timer directly:
+
+```qhtml
+q-timer myTimer {
+  interval: 3000
+  repeat: true
+  running: true
+  onTimeout {
+    alert("hello world");
+  }
+}
+```
+
+Behavior:
+- `repeat: true` uses native `setInterval(...)`.
+- `repeat: false` uses native `setTimeout(...)`.
+- The named timer handle is exported globally as `window.<name>` (for example `window.myTimer`).
+- The same named handle is also exposed to inline expression scope (for example `${myTimer}` in runtime-evaluated expressions).
+
+Name collisions / overwrite behavior:
+- If multiple `q-timer` declarations use the same name in the same mounted host, the **last declaration wins for the exported name** (`window.<name>` points to the last timer handle).
+- Earlier same-name timers may still be running if they were already started; only the exported reference is overwritten.
+- On host re-render/unmount, runtime-managed keyword timers for that host are cleared and re-created from current declarations.
+
+Recommendation:
+- Use unique timer names per host to avoid handle collisions.
 
 ### `q-tree-view`
 

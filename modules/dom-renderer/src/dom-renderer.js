@@ -2005,6 +2005,144 @@
     delete store[key];
   }
 
+  function rewriteHashSelectorShorthand(source) {
+    const input = String(source == null ? "" : source);
+    if (!input || input.indexOf("#") === -1) {
+      return input;
+    }
+    let out = "";
+    let inSingle = false;
+    let inDouble = false;
+    let inBacktick = false;
+    let inLineComment = false;
+    let inBlockComment = false;
+    let escaped = false;
+    let i = 0;
+    while (i < input.length) {
+      const ch = input[i];
+      const next = i + 1 < input.length ? input[i + 1] : "";
+      if (inLineComment) {
+        out += ch;
+        if (ch === "\n" || ch === "\r") {
+          inLineComment = false;
+        }
+        i += 1;
+        continue;
+      }
+      if (inBlockComment) {
+        out += ch;
+        if (ch === "*" && next === "/") {
+          out += "/";
+          i += 2;
+          inBlockComment = false;
+          continue;
+        }
+        i += 1;
+        continue;
+      }
+      if (inSingle) {
+        out += ch;
+        if (escaped) {
+          escaped = false;
+          i += 1;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+        } else if (ch === "'") {
+          inSingle = false;
+        }
+        i += 1;
+        continue;
+      }
+      if (inDouble) {
+        out += ch;
+        if (escaped) {
+          escaped = false;
+          i += 1;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+        } else if (ch === '"') {
+          inDouble = false;
+        }
+        i += 1;
+        continue;
+      }
+      if (inBacktick) {
+        out += ch;
+        if (escaped) {
+          escaped = false;
+          i += 1;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+        } else if (ch === "`") {
+          inBacktick = false;
+        }
+        i += 1;
+        continue;
+      }
+      if (ch === "/" && next === "/") {
+        out += "//";
+        i += 2;
+        inLineComment = true;
+        continue;
+      }
+      if (ch === "/" && next === "*") {
+        out += "/*";
+        i += 2;
+        inBlockComment = true;
+        continue;
+      }
+      if (ch === "'") {
+        out += ch;
+        inSingle = true;
+        i += 1;
+        continue;
+      }
+      if (ch === '"') {
+        out += ch;
+        inDouble = true;
+        i += 1;
+        continue;
+      }
+      if (ch === "`") {
+        out += ch;
+        inBacktick = true;
+        i += 1;
+        continue;
+      }
+      if (ch === "#") {
+        const prev = i > 0 ? input[i - 1] : "";
+        if (prev && /[A-Za-z0-9_$]/.test(prev)) {
+          out += ch;
+          i += 1;
+          continue;
+        }
+        const first = next;
+        if (!first || !/[A-Za-z_]/.test(first)) {
+          out += ch;
+          i += 1;
+          continue;
+        }
+        let j = i + 2;
+        while (j < input.length && /[A-Za-z0-9_-]/.test(input[j])) {
+          j += 1;
+        }
+        const id = input.slice(i + 1, j);
+        out += 'document.querySelector("#' + id + '")';
+        i = j;
+        continue;
+      }
+      out += ch;
+      i += 1;
+    }
+    return out;
+  }
+
   function bindEventAttributeListener(element, attributeName, body, options) {
     if (!element || element.nodeType !== 1 || !isDomEventAttributeName(attributeName)) {
       return false;
@@ -2027,9 +2165,7 @@
       opts.scopeRoot && opts.scopeRoot.nodeType === 1
         ? opts.scopeRoot
         : null;
-    const transformedSource = source.replace(/(^|[^A-Za-z0-9_$])#([A-Za-z_][A-Za-z0-9_-]*)/g, function replaceSelector(_, prefix, id) {
-      return prefix + 'document.querySelector("#' + id + '")';
-    });
+    const transformedSource = rewriteHashSelectorShorthand(source);
     const store = ensureEventAttributeListenerStore(element);
     const current = store && store[key] ? store[key] : null;
     if (current && current.eventName === eventName && current.source === transformedSource) {
