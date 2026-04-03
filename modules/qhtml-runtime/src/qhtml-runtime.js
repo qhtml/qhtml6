@@ -3191,15 +3191,6 @@
           emitterUuid: registration.emitterUuid || emitterUuid,
           signalName: registration.signalName || loweredRawEventName,
         };
-        if (global.console && typeof global.console.log === "function") {
-          global.console.log("[QHTML][signal][subscribe][declarative]", {
-            emitterUuid: runtimeSignalRegistration.emitterUuid,
-            signal: runtimeSignalRegistration.signalName,
-            routeKey: runtimeSignalRegistration.routeKey,
-            token: runtimeSignalRegistration.token,
-            attribute: key,
-          });
-        }
         return true;
       };
       if (!tryRegisterDeclarativeSignal()) {
@@ -3607,16 +3598,6 @@
       createdAt: Date.now(),
     };
     signalEntry.set(routeKey, entry);
-    if (global.console && typeof global.console.log === "function") {
-      global.console.log("[QHTML][signal][subscribe]", {
-        emitterUuid: emitterUuid,
-        signal: normalizedSignalName,
-        mode: mode,
-        subscriberUuid: subscriberUuid,
-        routeKey: routeKey,
-        token: entry.token,
-      });
-    }
     if (entry.token != null) {
       globalSignalSubscriptionByToken.set(entry.token, {
         emitterUuid: emitterUuid,
@@ -4392,13 +4373,6 @@
       }
     }
     const normalizedSignalName = String(signalName || "").trim();
-    if (global.console && typeof global.console.log === "function") {
-      global.console.log("[QHTML][signal][emit]", {
-        signal: normalizedSignalName || String(payload && payload.signal || "").trim(),
-        componentUuid: resolveSignalEmitterUuid(target, payload),
-        payload: payload && typeof payload === "object" ? payload : {},
-      });
-    }
     if (!normalizedSignalName) {
       return out;
     }

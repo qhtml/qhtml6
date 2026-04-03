@@ -2368,15 +2368,6 @@
           emitterUuid: registration.emitterUuid || emitterUuid,
           signalName: registration.signalName || loweredRawEventName,
         };
-        if (global.console && typeof global.console.log === "function") {
-          global.console.log("[QHTML][signal][subscribe][declarative]", {
-            emitterUuid: runtimeSignalRegistration.emitterUuid,
-            signal: runtimeSignalRegistration.signalName,
-            routeKey: runtimeSignalRegistration.routeKey,
-            token: runtimeSignalRegistration.token,
-            attribute: key,
-          });
-        }
         return true;
       };
       if (!tryRegisterDeclarativeSignal()) {
@@ -3621,13 +3612,6 @@
         });
         if (typeof hostElement.addEventListener === "function") {
           hostElement.addEventListener(signalName, wrapped);
-          if (global.console && typeof global.console.log === "function") {
-            global.console.log("[QHTML][signal][subscribe]", {
-              mode: "dom",
-              signal: String(signalName || "").trim().toLowerCase(),
-              componentUuid: readSignalEmitterUuid(),
-            });
-          }
         }
         return handler;
       };
