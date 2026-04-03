@@ -894,6 +894,7 @@
   }
 
   function resetBindingUuidMapState(binding) {
+    clearBindingGlobalUuidPointers(binding);
     const state = ensureBindingUuidMapState(binding);
     state.uuidToDom.clear();
     state.uuidToQdom.clear();
@@ -971,6 +972,7 @@
     if (source !== qdomNode) {
       state.qdomToUuid.set(source, uuid);
     }
+    registerGlobalUuidPointer(binding, uuid, incomingNode, domElement);
     return uuid;
   }
 
@@ -2885,6 +2887,29 @@
     if (!binding || !binding.host || bindings.get(binding.host) !== binding) {
       return;
     }
+    if (isQueuedEventLoopEnabled()) {
+      if (binding.domMutationFlushTimer) {
+        return;
+      }
+      binding.domMutationFlushTimer = "__queued__";
+      enqueueRuntimeEvent(
+        "dom-mutation-sync-flush",
+        function processDomMutationSyncFlush() {
+          if (binding.domMutationFlushTimer !== "__queued__") {
+            return;
+          }
+          binding.domMutationFlushTimer = null;
+          flushPendingDomMutationSync(binding, {
+            maxItems: DOM_MUTATION_SYNC_FLUSH_BATCH_SIZE,
+            scheduleRemainder: true,
+          });
+        },
+        {
+          target: binding.host,
+        }
+      );
+      return;
+    }
     if (binding.domMutationFlushTimer || typeof global.setTimeout !== "function") {
       return;
     }
@@ -2919,6 +2944,50 @@
     return key !== "onready";
   }
 
+  function createEventNameVariants(rawEventName) {
+    const base = String(rawEventName || "").trim();
+    if (!base) {
+      return [];
+    }
+    const seen = new Set();
+    const out = [];
+    function push(name) {
+      const value = String(name || "").trim();
+      if (!value || seen.has(value)) {
+        return;
+      }
+      seen.add(value);
+      out.push(value);
+    }
+    push(base);
+    push(base.toLowerCase());
+    push(base.toUpperCase());
+    push(base.charAt(0).toLowerCase() + base.slice(1));
+    push(base.charAt(0).toUpperCase() + base.slice(1));
+    const lowerBase = base.toLowerCase();
+    if (lowerBase.endsWith("changed")) {
+      const stem = base.slice(0, base.length - "changed".length);
+      if (stem) {
+        push(stem.charAt(0).toLowerCase() + stem.slice(1) + "Changed");
+      }
+    }
+    return out;
+  }
+
+  function hasExactEventName(eventNames, targetName) {
+    const list = Array.isArray(eventNames) ? eventNames : [];
+    const target = String(targetName || "").trim();
+    if (!target) {
+      return false;
+    }
+    for (let i = 0; i < list.length; i += 1) {
+      if (String(list[i] || "").trim() === target) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   function ensureEventAttributeListenerStore(element) {
     if (!element || element.nodeType !== 1) {
       return null;
@@ -2945,7 +3014,36 @@
     }
     const entry = store[key];
     try {
-      element.removeEventListener(entry.eventName, entry.handler);
+      if (
+        entry &&
+        entry.runtimeSignalRegistration &&
+        global.QHtml &&
+        typeof global.QHtml.unregisterSignalSubscriber === "function"
+      ) {
+        const runtimeReg = entry.runtimeSignalRegistration;
+        if (runtimeReg.token != null) {
+          global.QHtml.unregisterSignalSubscriber({ token: runtimeReg.token });
+        } else if (runtimeReg.emitterUuid && runtimeReg.signalName && runtimeReg.routeKey) {
+          global.QHtml.unregisterSignalSubscriber({
+            emitterUuid: runtimeReg.emitterUuid,
+            signalName: runtimeReg.signalName,
+            routeKey: runtimeReg.routeKey,
+          });
+        }
+      }
+      const eventNames = Array.isArray(entry.eventNames) && entry.eventNames.length > 0
+        ? entry.eventNames
+        : [entry.eventName];
+      for (let i = 0; i < eventNames.length; i += 1) {
+        const name = String(eventNames[i] || "").trim();
+        if (!name) {
+          continue;
+        }
+        element.removeEventListener(name, entry.handler);
+      }
+      if (typeof entry.signalBridge === "function") {
+        element.removeEventListener("q-signal", entry.signalBridge);
+      }
     } catch (error) {
       // ignore listener detach failures
     }
@@ -2956,8 +3054,13 @@
     if (!element || element.nodeType !== 1 || !isDomEventAttributeName(attributeName)) {
       return false;
     }
-    const key = String(attributeName || "").trim().toLowerCase();
-    const eventName = key.slice(2);
+    const rawKey = String(attributeName || "").trim();
+    const key = rawKey.toLowerCase();
+    const rawEventName = rawKey.slice(2);
+    const eventNames = createEventNameVariants(rawEventName);
+    if (eventNames.length === 0) {
+      return false;
+    }
     const source = String(body || "").trim();
     if (!source) {
       detachEventAttributeListener(element, key);
@@ -2974,7 +3077,13 @@
     const transformedSource = transformScriptBody(source);
     const store = ensureEventAttributeListenerStore(element);
     const current = store && store[key] ? store[key] : null;
-    if (current && current.eventName === eventName && current.source === transformedSource) {
+    const currentNames = current && Array.isArray(current.eventNames) ? current.eventNames : [];
+    const sameNames =
+      currentNames.length === eventNames.length &&
+      currentNames.every(function sameName(name, index) {
+        return String(name || "") === String(eventNames[index] || "");
+      });
+    if (current && current.source === transformedSource && sameNames) {
       return true;
     }
     detachEventAttributeListener(element, key);
@@ -3019,11 +3128,102 @@
         return undefined;
       }
     };
-    element.addEventListener(eventName, handler);
+    for (let i = 0; i < eventNames.length; i += 1) {
+      element.addEventListener(eventNames[i], handler);
+    }
+    const signalBridge = function qHtmlSignalCaseBridge(event) {
+      const detail = event && event.detail && typeof event.detail === "object" ? event.detail : null;
+      const signalName = detail && typeof detail.signal === "string" ? String(detail.signal || "").trim() : "";
+      if (!signalName) {
+        return;
+      }
+      if (signalName.toLowerCase() !== String(rawEventName || "").trim().toLowerCase()) {
+        return;
+      }
+      if (hasExactEventName(eventNames, signalName)) {
+        return;
+      }
+      return handler.call(this, event);
+    };
+    element.addEventListener("q-signal", signalBridge);
+    let runtimeSignalRegistration = null;
+    const runtimeApi = global.QHtml && typeof global.QHtml === "object" ? global.QHtml : null;
+    const loweredRawEventName = String(rawEventName || "").trim().toLowerCase();
+    if (
+      runtimeApi &&
+      typeof runtimeApi.getEventLoopMode === "function" &&
+      runtimeApi.getEventLoopMode() === "queued" &&
+      typeof runtimeApi.registerSignalSubscriber === "function" &&
+      loweredRawEventName.endsWith("changed")
+    ) {
+      const tryRegisterDeclarativeSignal = function tryRegisterDeclarativeSignal() {
+        if (runtimeSignalRegistration) {
+          return true;
+        }
+        const emitterUuid = normalizeQDomUuidValue(resolveSignalEmitterUuid(element, {}));
+        if (!emitterUuid) {
+          return false;
+        }
+        const queuedWrapped = function onDeclarativeSignalQueued(detailPayload) {
+          const detail = detailPayload && typeof detailPayload === "object" ? detailPayload : {};
+          const queuedEvent = {
+            type: loweredRawEventName,
+            detail: detail,
+            target: element,
+            currentTarget: element,
+          };
+          return handler.call(element, queuedEvent);
+        };
+        const registration = runtimeApi.registerSignalSubscriber({
+          emitterUuid: emitterUuid,
+          signalName: loweredRawEventName,
+          subscriberUuid: emitterUuid,
+          handler: queuedWrapped,
+          mode: "declarative",
+          attributeName: key,
+        });
+        if (!registration || typeof registration !== "object") {
+          return false;
+        }
+        runtimeSignalRegistration = {
+          token: registration.token,
+          routeKey: registration.routeKey,
+          emitterUuid: registration.emitterUuid || emitterUuid,
+          signalName: registration.signalName || loweredRawEventName,
+        };
+        if (global.console && typeof global.console.log === "function") {
+          global.console.log("[QHTML][signal][subscribe][declarative]", {
+            emitterUuid: runtimeSignalRegistration.emitterUuid,
+            signal: runtimeSignalRegistration.signalName,
+            routeKey: runtimeSignalRegistration.routeKey,
+            token: runtimeSignalRegistration.token,
+            attribute: key,
+          });
+        }
+        return true;
+      };
+      if (!tryRegisterDeclarativeSignal()) {
+        const deferredRegistration = function onDeferredDeclarativeRegistration() {
+          element.removeEventListener(QHTML_CONTENT_LOADED_EVENT, deferredRegistration);
+          if (!tryRegisterDeclarativeSignal()) {
+            return;
+          }
+          const activeStore = ensureEventAttributeListenerStore(element);
+          const activeEntry = activeStore && activeStore[key] ? activeStore[key] : null;
+          if (activeEntry && activeEntry.source === transformedSource) {
+            activeEntry.runtimeSignalRegistration = runtimeSignalRegistration;
+          }
+        };
+        element.addEventListener(QHTML_CONTENT_LOADED_EVENT, deferredRegistration, { once: true });
+      }
+    }
     store[key] = {
-      eventName: eventName,
+      eventName: eventNames[0],
+      eventNames: eventNames.slice(),
       handler: handler,
       source: transformedSource,
+      signalBridge: signalBridge,
+      runtimeSignalRegistration: runtimeSignalRegistration,
     };
     return true;
   }
@@ -3191,6 +3391,1103 @@
     }
   }
 
+  const EVENT_LOOP_MODE_COMPAT = "compat";
+  const EVENT_LOOP_MODE_QUEUED = "queued";
+  const EVENT_LOOP_IDLE_TICK_MS = 16;
+  const EVENT_LOOP_MAX_EVENTS_PER_TURN = 250;
+  const EVENT_LOOP_MAX_TIME_PER_TURN_MS = 10;
+  const EVENT_LOOP_TIMER_CATCHUP_CAP = 6;
+  const EVENT_LOOP_TIMER_MIN_INTERVAL_MS = 1;
+  let mountedQHtmlHostCount = 0;
+  const runtimeEventLoopState = {
+    queue: [],
+    transactionQueue: [],
+    processing: false,
+    transactionDepth: 0,
+    nextId: 0,
+    scheduleHandle: null,
+    scheduleDueAt: 0,
+    timers: new Map(),
+    nextTimerToken: 1,
+  };
+  const globalUuidPointerRegistry = new Map();
+  const globalUuidLookupRegistry = new Map();
+  const globalPropertySubscriberRegistry = new Map();
+  const globalSignalSubscriberRegistry = new Map();
+  const globalSignalSubscriptionByToken = new Map();
+  let globalSignalSubscriptionCounter = 1;
+
+  function exposeGlobalRuntimeMaps() {
+    try {
+      global.QHTML_UUID_MAP = globalUuidPointerRegistry;
+    } catch (error) {
+      // no-op
+    }
+    try {
+      global.QHTML_UUID_LOOKUP_MAP = globalUuidLookupRegistry;
+    } catch (error) {
+      // no-op
+    }
+    try {
+      global.QHTML_PROPERTY_SUBSCRIBER_MAP = globalPropertySubscriberRegistry;
+    } catch (error) {
+      // no-op
+    }
+    try {
+      global.QHTML_SIGNAL_SUBSCRIBER_MAP = globalSignalSubscriberRegistry;
+    } catch (error) {
+      // no-op
+    }
+  }
+
+  function ensureBindingGlobalTrackingState(binding) {
+    if (!binding || typeof binding !== "object") {
+      return null;
+    }
+    if (!(binding.globalRegisteredUuids instanceof Set)) {
+      binding.globalRegisteredUuids = new Set();
+    }
+    if (!(binding.globalPropertyRefKeys instanceof Set)) {
+      binding.globalPropertyRefKeys = new Set();
+    }
+    if (!(binding.globalSignalSubscriptionTokens instanceof Set)) {
+      binding.globalSignalSubscriptionTokens = new Set();
+    }
+    return binding;
+  }
+
+  function normalizeSignalName(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function ensureSignalEmitterEntry(emitterUuid) {
+    const normalizedEmitterUuid = normalizeQDomUuidValue(emitterUuid);
+    if (!normalizedEmitterUuid) {
+      return null;
+    }
+    let emitterEntry = globalSignalSubscriberRegistry.get(normalizedEmitterUuid);
+    if (!(emitterEntry instanceof Map)) {
+      emitterEntry = new Map();
+      globalSignalSubscriberRegistry.set(normalizedEmitterUuid, emitterEntry);
+    }
+    return emitterEntry;
+  }
+
+  function removeSignalSubscriptionEntry(emitterUuid, normalizedSignalName, routeKey) {
+    const normalizedEmitterUuid = normalizeQDomUuidValue(emitterUuid);
+    const normalizedSignal = normalizeSignalName(normalizedSignalName);
+    const key = String(routeKey || "").trim();
+    if (!normalizedEmitterUuid || !normalizedSignal || !key) {
+      return false;
+    }
+    const emitterEntry = globalSignalSubscriberRegistry.get(normalizedEmitterUuid);
+    if (!(emitterEntry instanceof Map)) {
+      return false;
+    }
+    const signalEntry = emitterEntry.get(normalizedSignal);
+    if (!(signalEntry instanceof Map)) {
+      return false;
+    }
+    const existing = signalEntry.get(key);
+    if (!existing || typeof existing !== "object") {
+      return false;
+    }
+    if (existing.token != null) {
+      globalSignalSubscriptionByToken.delete(existing.token);
+    }
+    signalEntry.delete(key);
+    if (signalEntry.size === 0) {
+      emitterEntry.delete(normalizedSignal);
+    }
+    if (emitterEntry.size === 0) {
+      globalSignalSubscriberRegistry.delete(normalizedEmitterUuid);
+    }
+    return true;
+  }
+
+  function listSignalSubscribers(emitterUuid, signalName) {
+    const normalizedEmitterUuid = normalizeQDomUuidValue(emitterUuid);
+    const normalizedSignal = normalizeSignalName(signalName);
+    if (!normalizedEmitterUuid || !normalizedSignal) {
+      return [];
+    }
+    const emitterEntry = globalSignalSubscriberRegistry.get(normalizedEmitterUuid);
+    if (!(emitterEntry instanceof Map)) {
+      return [];
+    }
+    const signalEntry = emitterEntry.get(normalizedSignal);
+    if (!(signalEntry instanceof Map) || signalEntry.size === 0) {
+      return [];
+    }
+    const out = [];
+    signalEntry.forEach(function eachSignalEntry(entry) {
+      if (!entry || typeof entry.handler !== "function") {
+        return;
+      }
+      out.push(entry);
+    });
+    return out;
+  }
+
+  function clearSignalSubscribersForEmitter(emitterUuid) {
+    const normalizedEmitterUuid = normalizeQDomUuidValue(emitterUuid);
+    if (!normalizedEmitterUuid) {
+      return 0;
+    }
+    const emitterEntry = globalSignalSubscriberRegistry.get(normalizedEmitterUuid);
+    if (!(emitterEntry instanceof Map)) {
+      return 0;
+    }
+    let removed = 0;
+    emitterEntry.forEach(function eachSignalEntry(signalEntry) {
+      if (!(signalEntry instanceof Map)) {
+        return;
+      }
+      signalEntry.forEach(function eachEntry(entry) {
+        if (entry && entry.token != null) {
+          globalSignalSubscriptionByToken.delete(entry.token);
+        }
+        removed += 1;
+      });
+    });
+    globalSignalSubscriberRegistry.delete(normalizedEmitterUuid);
+    return removed;
+  }
+
+  function registerSignalSubscriberRuntime(options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const emitterUuid = normalizeQDomUuidValue(opts.emitterUuid || opts.uuid || "");
+    const signalName = String(opts.signalName || opts.signal || "").trim();
+    const normalizedSignalName = normalizeSignalName(signalName);
+    const handler = opts.handler;
+    if (!emitterUuid || !normalizedSignalName || typeof handler !== "function") {
+      return null;
+    }
+    const emitterEntry = ensureSignalEmitterEntry(emitterUuid);
+    if (!(emitterEntry instanceof Map)) {
+      return null;
+    }
+    let signalEntry = emitterEntry.get(normalizedSignalName);
+    if (!(signalEntry instanceof Map)) {
+      signalEntry = new Map();
+      emitterEntry.set(normalizedSignalName, signalEntry);
+    }
+    const mode = String(opts.mode || "connect").trim().toLowerCase() || "connect";
+    const subscriberUuid = normalizeQDomUuidValue(opts.subscriberUuid || emitterUuid);
+    let token = null;
+    let routeKey = String(opts.routeKey || "").trim();
+    if (!routeKey) {
+      if (mode === "declarative") {
+        const attributeName = String(opts.attributeName || "").trim().toLowerCase();
+        routeKey = "decl:" + emitterUuid + ":" + normalizedSignalName + ":" + (subscriberUuid || emitterUuid) + ":" + attributeName;
+      } else {
+        token = globalSignalSubscriptionCounter;
+        globalSignalSubscriptionCounter += 1;
+        routeKey = "conn:" + String(token);
+      }
+    }
+    const existing = signalEntry.get(routeKey);
+    if (existing && typeof existing === "object" && existing.token != null) {
+      globalSignalSubscriptionByToken.delete(existing.token);
+    }
+    if (token == null && mode !== "declarative") {
+      token = globalSignalSubscriptionCounter;
+      globalSignalSubscriptionCounter += 1;
+    }
+    const entry = {
+      routeKey: routeKey,
+      token: token,
+      emitterUuid: emitterUuid,
+      signalName: signalName,
+      signalNameNormalized: normalizedSignalName,
+      subscriberUuid: subscriberUuid,
+      mode: mode,
+      attributeName: String(opts.attributeName || "").trim(),
+      handler: handler,
+      createdAt: Date.now(),
+    };
+    signalEntry.set(routeKey, entry);
+    if (global.console && typeof global.console.log === "function") {
+      global.console.log("[QHTML][signal][subscribe]", {
+        emitterUuid: emitterUuid,
+        signal: normalizedSignalName,
+        mode: mode,
+        subscriberUuid: subscriberUuid,
+        routeKey: routeKey,
+        token: entry.token,
+      });
+    }
+    if (entry.token != null) {
+      globalSignalSubscriptionByToken.set(entry.token, {
+        emitterUuid: emitterUuid,
+        signalName: normalizedSignalName,
+        routeKey: routeKey,
+      });
+      const trackedBinding = ensureBindingGlobalTrackingState(opts.binding);
+      if (trackedBinding && trackedBinding.globalSignalSubscriptionTokens instanceof Set) {
+        trackedBinding.globalSignalSubscriptionTokens.add(entry.token);
+      }
+    }
+    return {
+      token: entry.token,
+      routeKey: routeKey,
+      emitterUuid: emitterUuid,
+      signalName: normalizedSignalName,
+      mode: mode,
+    };
+  }
+
+  function unregisterSignalSubscriberRuntime(options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const tokenCandidate = opts.token;
+    if (tokenCandidate != null) {
+      const token = Number(tokenCandidate);
+      if (Number.isFinite(token) && globalSignalSubscriptionByToken.has(token)) {
+        const lookup = globalSignalSubscriptionByToken.get(token);
+        if (lookup && removeSignalSubscriptionEntry(lookup.emitterUuid, lookup.signalName, lookup.routeKey)) {
+          globalSignalSubscriptionByToken.delete(token);
+          return true;
+        }
+      }
+      return false;
+    }
+    const emitterUuid = normalizeQDomUuidValue(opts.emitterUuid || opts.uuid || "");
+    const signalName = normalizeSignalName(opts.signalName || opts.signal || "");
+    const routeKey = String(opts.routeKey || "").trim();
+    if (!emitterUuid || !signalName || !routeKey) {
+      return false;
+    }
+    return removeSignalSubscriptionEntry(emitterUuid, signalName, routeKey);
+  }
+
+  function clearBindingSignalSubscribers(binding) {
+    const trackedBinding = ensureBindingGlobalTrackingState(binding);
+    if (!trackedBinding || !(trackedBinding.globalSignalSubscriptionTokens instanceof Set) || trackedBinding.globalSignalSubscriptionTokens.size === 0) {
+      return 0;
+    }
+    let removed = 0;
+    trackedBinding.globalSignalSubscriptionTokens.forEach(function eachSignalToken(token) {
+      if (unregisterSignalSubscriberRuntime({ token: token })) {
+        removed += 1;
+      }
+    });
+    trackedBinding.globalSignalSubscriptionTokens.clear();
+    return removed;
+  }
+
+  function registerGlobalUuidPointer(binding, uuid, pointer, domElement) {
+    const normalizedUuid = normalizeQDomUuidValue(uuid);
+    if (!normalizedUuid) {
+      return;
+    }
+    globalUuidPointerRegistry.set(normalizedUuid, pointer || null);
+    globalUuidLookupRegistry.set(normalizedUuid, {
+      pointer: pointer || null,
+      dom: domElement && domElement.nodeType === 1 ? domElement : null,
+      host: binding && binding.host && binding.host.nodeType === 1 ? binding.host : null,
+    });
+    const trackedBinding = ensureBindingGlobalTrackingState(binding);
+    if (trackedBinding && trackedBinding.globalRegisteredUuids instanceof Set) {
+      trackedBinding.globalRegisteredUuids.add(normalizedUuid);
+    }
+  }
+
+  function clearBindingGlobalUuidPointers(binding) {
+    const trackedBinding = ensureBindingGlobalTrackingState(binding);
+    if (!trackedBinding || !(trackedBinding.globalRegisteredUuids instanceof Set) || trackedBinding.globalRegisteredUuids.size === 0) {
+      return;
+    }
+    trackedBinding.globalRegisteredUuids.forEach(function eachBindingUuid(uuid) {
+      const normalizedUuid = normalizeQDomUuidValue(uuid);
+      if (!normalizedUuid) {
+        return;
+      }
+      const lookup = globalUuidLookupRegistry.get(normalizedUuid);
+      if (lookup && lookup.host && binding && binding.host && lookup.host !== binding.host) {
+        return;
+      }
+      clearSignalSubscribersForEmitter(normalizedUuid);
+      globalUuidPointerRegistry.delete(normalizedUuid);
+      globalUuidLookupRegistry.delete(normalizedUuid);
+    });
+    trackedBinding.globalRegisteredUuids.clear();
+  }
+
+  function makeGlobalPropertyRefKey(ownerUuid, propertyName, targetUuid) {
+    return ownerUuid + "::" + propertyName + "::" + targetUuid;
+  }
+
+  function splitGlobalPropertyRefKey(key) {
+    const raw = String(key || "");
+    const first = raw.indexOf("::");
+    if (first < 0) {
+      return null;
+    }
+    const second = raw.indexOf("::", first + 2);
+    if (second < 0) {
+      return null;
+    }
+    return {
+      ownerUuid: raw.slice(0, first),
+      propertyName: raw.slice(first + 2, second),
+      targetUuid: raw.slice(second + 2),
+    };
+  }
+
+  function registerGlobalPropertySubscriber(binding, ownerUuid, propertyName, targetUuid) {
+    const owner = normalizeQDomUuidValue(ownerUuid);
+    const property = normalizeComponentPropertyReferenceName(propertyName);
+    const target = normalizeQDomUuidValue(targetUuid);
+    if (!owner || !property || !target) {
+      return;
+    }
+    let ownerMap = globalPropertySubscriberRegistry.get(owner);
+    if (!(ownerMap instanceof Map)) {
+      ownerMap = new Map();
+      globalPropertySubscriberRegistry.set(owner, ownerMap);
+    }
+    let subscriberSet = ownerMap.get(property);
+    if (!(subscriberSet instanceof Set)) {
+      subscriberSet = new Set();
+      ownerMap.set(property, subscriberSet);
+    }
+    subscriberSet.add(target);
+    const trackedBinding = ensureBindingGlobalTrackingState(binding);
+    if (!(trackedBinding && trackedBinding.globalPropertyRefKeys instanceof Set)) {
+      return;
+    }
+    trackedBinding.globalPropertyRefKeys.add(makeGlobalPropertyRefKey(owner, property, target));
+  }
+
+  function clearBindingGlobalPropertySubscribers(binding) {
+    const trackedBinding = ensureBindingGlobalTrackingState(binding);
+    if (!trackedBinding || !(trackedBinding.globalPropertyRefKeys instanceof Set) || trackedBinding.globalPropertyRefKeys.size === 0) {
+      return;
+    }
+    trackedBinding.globalPropertyRefKeys.forEach(function eachBindingPropertyRef(key) {
+      const parsed = splitGlobalPropertyRefKey(key);
+      if (!parsed) {
+        return;
+      }
+      const ownerMap = globalPropertySubscriberRegistry.get(parsed.ownerUuid);
+      if (!(ownerMap instanceof Map)) {
+        return;
+      }
+      const subscriberSet = ownerMap.get(parsed.propertyName);
+      if (!(subscriberSet instanceof Set)) {
+        return;
+      }
+      subscriberSet.delete(parsed.targetUuid);
+      if (subscriberSet.size === 0) {
+        ownerMap.delete(parsed.propertyName);
+      }
+      if (ownerMap.size === 0) {
+        globalPropertySubscriberRegistry.delete(parsed.ownerUuid);
+      }
+    });
+    trackedBinding.globalPropertyRefKeys.clear();
+  }
+
+  function lookupGlobalPropertySubscribers(ownerUuid, propertyName) {
+    const owner = normalizeQDomUuidValue(ownerUuid);
+    const property = normalizeComponentPropertyReferenceName(propertyName);
+    if (!owner || !property) {
+      return [];
+    }
+    const ownerMap = globalPropertySubscriberRegistry.get(owner);
+    if (!(ownerMap instanceof Map)) {
+      return [];
+    }
+    const subscriberSet = ownerMap.get(property);
+    if (!(subscriberSet instanceof Set) || subscriberSet.size === 0) {
+      return [];
+    }
+    return Array.from(subscriberSet.values()).map(normalizeQDomUuidValue).filter(Boolean);
+  }
+
+  function readUuidForDomElementByLookup(element) {
+    if (!element || element.nodeType !== 1) {
+      return "";
+    }
+    let matched = "";
+    globalUuidLookupRegistry.forEach(function eachLookup(lookupEntry, uuid) {
+      if (matched) {
+        return;
+      }
+      if (!lookupEntry || typeof lookupEntry !== "object") {
+        return;
+      }
+      if (lookupEntry.dom === element) {
+        matched = normalizeQDomUuidValue(uuid);
+      }
+    });
+    return matched;
+  }
+
+  function forEachPropertyChangeSubscriberTarget(payload, callback) {
+    if (typeof callback !== "function") {
+      return;
+    }
+    const detail = payload && typeof payload === "object" ? payload : {};
+    const ownerUuid = normalizeQDomUuidValue(detail.componentUuid || detail.uuid || "");
+    const propertyName = normalizeComponentPropertyReferenceName(detail.property);
+    if (!ownerUuid || !propertyName) {
+      return;
+    }
+    const subscribers = lookupGlobalPropertySubscribers(ownerUuid, propertyName);
+    if (subscribers.length === 0) {
+      return;
+    }
+    for (let i = 0; i < subscribers.length; i += 1) {
+      const targetUuid = normalizeQDomUuidValue(subscribers[i]);
+      if (!targetUuid) {
+        continue;
+      }
+      const lookup = globalUuidLookupRegistry.get(targetUuid);
+      const host =
+        lookup && lookup.host && lookup.host.nodeType === 1
+          ? lookup.host
+          : lookup && lookup.dom && lookup.dom.nodeType === 1 && typeof lookup.dom.closest === "function"
+            ? lookup.dom.closest("q-html")
+            : null;
+      if (!host || host.nodeType !== 1) {
+        continue;
+      }
+      callback(host, targetUuid, ownerUuid, propertyName);
+    }
+  }
+
+  function queueTargetedUuidUpdatesFromPropertyChange(payload) {
+    forEachPropertyChangeSubscriberTarget(payload, function queuePropertyTargetUpdate(host, targetUuid, ownerUuid, propertyName) {
+      enqueueRuntimeEvent(
+        "property-subscriber-update",
+        function processPropertySubscriberUpdate() {
+          updateQHtmlElement(host, {
+            uuid: targetUuid,
+            sourceSignal: "q-property:" + propertyName,
+          });
+        },
+        {
+          target: host,
+          payload: {
+            ownerUuid: ownerUuid,
+            property: propertyName,
+            targetUuid: targetUuid,
+          },
+        }
+      );
+    });
+  }
+
+  function dispatchTargetedUuidUpdatesFromPropertyChangeNow(payload) {
+    let dispatched = false;
+    forEachPropertyChangeSubscriberTarget(payload, function updatePropertyTargetNow(host, targetUuid, ownerUuid, propertyName) {
+      dispatched = !!(
+        updateQHtmlElement(host, {
+          uuid: targetUuid,
+          sourceSignal: "q-property:" + propertyName,
+          __fromEventLoop: true,
+        }) || dispatched
+      );
+    });
+    return dispatched;
+  }
+
+  function buildPropertyChangedSignalDispatch(payload) {
+    const detail = payload && typeof payload === "object" ? payload : {};
+    const propertyName = String(detail.property || "").trim();
+    if (!propertyName) {
+      return null;
+    }
+    const signalName = String(detail.signal || (propertyName + "Changed")).trim();
+    if (!signalName) {
+      return null;
+    }
+    const value = Object.prototype.hasOwnProperty.call(detail, "value") ? detail.value : undefined;
+    const componentUuid = normalizeQDomUuidValue(detail.componentUuid || detail.uuid || "");
+    const signalPayload = {
+      type: "signal",
+      signal: signalName,
+      signalId: signalName,
+      component: String(detail.component || detail.componentId || "").trim(),
+      componentId: String(detail.componentId || detail.component || "").trim(),
+      componentTag: String(detail.componentTag || "").trim(),
+      componentUuid: componentUuid,
+      property: propertyName,
+      value: value,
+      args: [value],
+      source: "q-property",
+      timestamp: Number.isFinite(Number(detail.timestamp)) ? Number(detail.timestamp) : Date.now(),
+      params: {
+        value: value,
+      },
+    };
+    return {
+      signalName: signalName,
+      payload: signalPayload,
+    };
+  }
+
+  function normalizeEventLoopMode(value) {
+    const mode = String(value || "").trim().toLowerCase();
+    if (!mode) {
+      return EVENT_LOOP_MODE_QUEUED;
+    }
+    return mode === EVENT_LOOP_MODE_COMPAT ? EVENT_LOOP_MODE_COMPAT : EVENT_LOOP_MODE_QUEUED;
+  }
+
+  function getRuntimeEventLoopMode() {
+    return normalizeEventLoopMode(global.QHTML_EVENT_LOOP_MODE);
+  }
+
+  function isQueuedEventLoopEnabled() {
+    return getRuntimeEventLoopMode() === EVENT_LOOP_MODE_QUEUED;
+  }
+
+  function nowMs() {
+    if (typeof global.performance !== "undefined" && global.performance && typeof global.performance.now === "function") {
+      return global.performance.now();
+    }
+    return Date.now();
+  }
+
+  function readEventLoopBudgetMaxEvents() {
+    const configured = Number(global.QHTML_EVENT_LOOP_MAX_EVENTS_PER_TURN);
+    if (!Number.isFinite(configured) || configured <= 0) {
+      return EVENT_LOOP_MAX_EVENTS_PER_TURN;
+    }
+    return Math.floor(configured);
+  }
+
+  function readEventLoopBudgetMaxTimeMs() {
+    const configured = Number(global.QHTML_EVENT_LOOP_MAX_TIME_PER_TURN_MS);
+    if (!Number.isFinite(configured) || configured <= 0) {
+      return EVENT_LOOP_MAX_TIME_PER_TURN_MS;
+    }
+    return configured;
+  }
+
+  function createRuntimeQueueEntry(type, process, metadata) {
+    if (typeof process !== "function") {
+      return null;
+    }
+    const meta = metadata && typeof metadata === "object" ? metadata : {};
+    runtimeEventLoopState.nextId += 1;
+    return {
+      id: runtimeEventLoopState.nextId,
+      type: String(type || meta.type || "runtime-event"),
+      target: meta.target || null,
+      payload: meta.payload || null,
+      createdAt: Date.now(),
+      process: process,
+    };
+  }
+
+  function hasRunningQueuedTimers() {
+    if (!(runtimeEventLoopState.timers instanceof Map) || runtimeEventLoopState.timers.size === 0) {
+      return false;
+    }
+    let active = false;
+    runtimeEventLoopState.timers.forEach(function eachTimer(timerRecord) {
+      if (active) {
+        return;
+      }
+      if (timerRecord && timerRecord.running === true) {
+        active = true;
+      }
+    });
+    return active;
+  }
+
+  function eventLoopHasPendingWork() {
+    return (
+      runtimeEventLoopState.queue.length > 0 ||
+      runtimeEventLoopState.transactionQueue.length > 0 ||
+      (mountedQHtmlHostCount > 0 && hasRunningQueuedTimers())
+    );
+  }
+
+  function clearEventLoopScheduledHandle() {
+    if (runtimeEventLoopState.scheduleHandle == null) {
+      runtimeEventLoopState.scheduleDueAt = 0;
+      return;
+    }
+    if (typeof global.clearTimeout === "function") {
+      try {
+        global.clearTimeout(runtimeEventLoopState.scheduleHandle);
+      } catch (ignoredClearEventLoopTimeout) {
+        // no-op
+      }
+    }
+    runtimeEventLoopState.scheduleHandle = null;
+    runtimeEventLoopState.scheduleDueAt = 0;
+  }
+
+  function computeNextQueuedTimerDelay() {
+    if (!(runtimeEventLoopState.timers instanceof Map) || runtimeEventLoopState.timers.size === 0) {
+      return null;
+    }
+    const now = Date.now();
+    let minDelay = null;
+    runtimeEventLoopState.timers.forEach(function eachTimer(timerRecord) {
+      if (!timerRecord || timerRecord.running !== true) {
+        return;
+      }
+      const nextAt = Number(timerRecord.nextAt);
+      if (!Number.isFinite(nextAt)) {
+        return;
+      }
+      const delay = Math.max(0, nextAt - now);
+      if (minDelay === null || delay < minDelay) {
+        minDelay = delay;
+      }
+    });
+    return minDelay;
+  }
+
+  function scheduleRuntimeEventLoop(delayMs) {
+    if (!isQueuedEventLoopEnabled()) {
+      clearEventLoopScheduledHandle();
+      return;
+    }
+    if (runtimeEventLoopState.processing) {
+      return;
+    }
+    if (!eventLoopHasPendingWork() && mountedQHtmlHostCount <= 0) {
+      clearEventLoopScheduledHandle();
+      return;
+    }
+
+    const requestedDelay = Number.isFinite(Number(delayMs)) ? Math.max(0, Math.floor(Number(delayMs))) : 0;
+    const timerDelay = computeNextQueuedTimerDelay();
+    const idleDelay =
+      mountedQHtmlHostCount > 0 && eventLoopHasPendingWork() ? EVENT_LOOP_IDLE_TICK_MS : Number.POSITIVE_INFINITY;
+    const effectiveDelay = Math.max(
+      0,
+      Math.min(
+        requestedDelay,
+        timerDelay == null ? Number.POSITIVE_INFINITY : timerDelay,
+        idleDelay
+      )
+    );
+    const dueAt = Date.now() + effectiveDelay;
+    if (
+      runtimeEventLoopState.scheduleHandle != null &&
+      Number.isFinite(runtimeEventLoopState.scheduleDueAt) &&
+      runtimeEventLoopState.scheduleDueAt <= dueAt
+    ) {
+      return;
+    }
+
+    clearEventLoopScheduledHandle();
+    if (typeof global.setTimeout !== "function") {
+      runRuntimeEventLoopTurn();
+      return;
+    }
+    runtimeEventLoopState.scheduleDueAt = dueAt;
+    runtimeEventLoopState.scheduleHandle = global.setTimeout(function onRuntimeEventLoopTick() {
+      runtimeEventLoopState.scheduleHandle = null;
+      runtimeEventLoopState.scheduleDueAt = 0;
+      runRuntimeEventLoopTurn();
+    }, effectiveDelay);
+  }
+
+  function enqueueRuntimeEvent(type, process, metadata) {
+    const entry = createRuntimeQueueEntry(type, process, metadata);
+    if (!entry) {
+      return null;
+    }
+    if (runtimeEventLoopState.transactionDepth > 0) {
+      runtimeEventLoopState.transactionQueue.push(entry);
+    } else {
+      runtimeEventLoopState.queue.push(entry);
+    }
+    scheduleRuntimeEventLoop(0);
+    return entry.id;
+  }
+
+  function processQueuedTimerDueEntries(now) {
+    if (!isQueuedEventLoopEnabled()) {
+      return;
+    }
+    if (!(runtimeEventLoopState.timers instanceof Map) || runtimeEventLoopState.timers.size === 0) {
+      return;
+    }
+    const nowTimestamp = Number.isFinite(Number(now)) ? Number(now) : Date.now();
+    runtimeEventLoopState.timers.forEach(function eachTimer(timerRecord, key) {
+      if (!timerRecord || timerRecord.running !== true) {
+        return;
+      }
+      const interval = Math.max(EVENT_LOOP_TIMER_MIN_INTERVAL_MS, Math.floor(Number(timerRecord.interval) || 0));
+      let fired = 0;
+      while (timerRecord.running === true && Number(timerRecord.nextAt) <= nowTimestamp) {
+        enqueueRuntimeEvent(
+          "timer-timeout",
+          function processQueuedTimerTimeout() {
+            try {
+              timerRecord.onTimeout(timerRecord.runtime || null);
+            } catch (error) {
+              if (global.console && typeof global.console.error === "function") {
+                global.console.error("qhtml queued timer execution failed:", error);
+              }
+            }
+          },
+          {
+            target: timerRecord.binding && timerRecord.binding.host ? timerRecord.binding.host : null,
+            payload: {
+              timerName: timerRecord.name || "",
+              key: key,
+            },
+          }
+        );
+        fired += 1;
+        if (timerRecord.repeat !== true) {
+          timerRecord.running = false;
+          runtimeEventLoopState.timers.delete(key);
+          break;
+        }
+        timerRecord.nextAt += interval;
+        if (fired >= EVENT_LOOP_TIMER_CATCHUP_CAP) {
+          break;
+        }
+      }
+    });
+  }
+
+  function processRuntimeQueueTransaction(entry) {
+    if (!entry || typeof entry.process !== "function") {
+      return;
+    }
+    runtimeEventLoopState.transactionDepth += 1;
+    const pending = [entry];
+    try {
+      while (pending.length > 0 || runtimeEventLoopState.transactionQueue.length > 0) {
+        const current = pending.length > 0 ? pending.shift() : runtimeEventLoopState.transactionQueue.shift();
+        if (!current || typeof current.process !== "function") {
+          continue;
+        }
+        try {
+          current.process();
+        } catch (error) {
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml runtime event failed:", {
+              id: current.id,
+              type: current.type,
+              error: error,
+            });
+          }
+        }
+      }
+    } finally {
+      runtimeEventLoopState.transactionDepth -= 1;
+    }
+  }
+
+  function runRuntimeEventLoopTurn() {
+    if (!isQueuedEventLoopEnabled()) {
+      clearEventLoopScheduledHandle();
+      return;
+    }
+    if (runtimeEventLoopState.processing) {
+      scheduleRuntimeEventLoop(EVENT_LOOP_IDLE_TICK_MS);
+      return;
+    }
+    runtimeEventLoopState.processing = true;
+    const maxEvents = readEventLoopBudgetMaxEvents();
+    const maxTimeMs = readEventLoopBudgetMaxTimeMs();
+    const startedAt = nowMs();
+    let processed = 0;
+    try {
+      while (processed < maxEvents && nowMs() - startedAt <= maxTimeMs) {
+        processQueuedTimerDueEntries(Date.now());
+        const next = runtimeEventLoopState.queue.length > 0 ? runtimeEventLoopState.queue.shift() : null;
+        if (!next) {
+          break;
+        }
+        processRuntimeQueueTransaction(next);
+        processed += 1;
+      }
+    } finally {
+      runtimeEventLoopState.processing = false;
+    }
+    if (eventLoopHasPendingWork() || runtimeEventLoopState.queue.length > 0) {
+      scheduleRuntimeEventLoop(0);
+    } else if (mountedQHtmlHostCount > 0 && isQueuedEventLoopEnabled()) {
+      scheduleRuntimeEventLoop(EVENT_LOOP_IDLE_TICK_MS);
+    } else {
+      clearEventLoopScheduledHandle();
+    }
+  }
+
+  function createEventLoopTimerRecord(binding, runtime, runTimeout, declaration) {
+    const intervalValue = Math.max(
+      EVENT_LOOP_TIMER_MIN_INTERVAL_MS,
+      Math.floor(Number(runtime && runtime.interval))
+    );
+    runtimeEventLoopState.nextTimerToken += 1;
+    const token = runtimeEventLoopState.nextTimerToken;
+    const key = "qtimer:" + String(token);
+    return {
+      key: key,
+      token: token,
+      binding: binding || null,
+      runtime: runtime || null,
+      name: declaration && declaration.timerId ? String(declaration.timerId || "").trim() : "",
+      interval: intervalValue,
+      repeat: runtime && runtime.repeat === true,
+      running: runtime && runtime.running !== false,
+      nextAt: Date.now() + intervalValue,
+      onTimeout: function executeQueuedTimerTimeout(currentRuntime) {
+        runTimeout(currentRuntime || runtime || null);
+        if (!runtime || runtime.repeat !== true || runtime.running === false) {
+          if (runtime) {
+            runtime.running = false;
+          }
+          this.running = false;
+          runtimeEventLoopState.timers.delete(key);
+        }
+      },
+    };
+  }
+
+  function startQueuedKeywordTimer(binding, runtime, declaration, runTimeout, publishTimerHandle) {
+    if (!runtime || typeof runTimeout !== "function") {
+      return null;
+    }
+    runtime.stop();
+    runtime.running = true;
+    const record = createEventLoopTimerRecord(binding, runtime, runTimeout, declaration);
+    runtime.__queuedTimerKey = record.key;
+    runtime.timerId = record.token;
+    runtimeEventLoopState.timers.set(record.key, record);
+    if (typeof publishTimerHandle === "function") {
+      publishTimerHandle();
+    }
+    scheduleRuntimeEventLoop(0);
+    return runtime.timerId;
+  }
+
+  function stopQueuedKeywordTimer(runtime) {
+    if (!runtime) {
+      return true;
+    }
+    const key = runtime.__queuedTimerKey ? String(runtime.__queuedTimerKey) : "";
+    if (key) {
+      runtimeEventLoopState.timers.delete(key);
+      runtime.__queuedTimerKey = "";
+    }
+    runtime.timerId = null;
+    runtime.running = false;
+    return true;
+  }
+
+  function createRuntimeEventLoopDispatch(target, eventName, detail, options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const bubbles = opts.bubbles !== false;
+    const composed = opts.composed !== false;
+    if (typeof global.CustomEvent === "function") {
+      return new global.CustomEvent(String(eventName || ""), {
+        detail: detail || {},
+        bubbles: bubbles,
+        composed: composed,
+      });
+    }
+    return {
+      type: String(eventName || ""),
+      detail: detail || {},
+    };
+  }
+
+  function resolveSignalEmitterUuid(target, payload) {
+    const detail = payload && typeof payload === "object" ? payload : {};
+    const fromPayload = normalizeQDomUuidValue(detail.componentUuid || detail.uuid || "");
+    if (fromPayload) {
+      return fromPayload;
+    }
+    if (!target || typeof target !== "object") {
+      return "";
+    }
+    try {
+      const qdomNode = typeof target.qdom === "function" ? target.qdom() : null;
+      if (qdomNode && typeof qdomNode === "object") {
+        return ensureQDomNodeUuid(qdomNode);
+      }
+    } catch (readQdomError) {
+      // fall through to lookup map
+    }
+    if (target.nodeType === 1) {
+      const uuidFromLookup = readUuidForDomElementByLookup(target);
+      if (uuidFromLookup) {
+        return uuidFromLookup;
+      }
+    }
+    return "";
+  }
+
+  function resolveSignalNameForDispatch(signalName, payload) {
+    const explicit = String(signalName || "").trim();
+    if (explicit) {
+      return explicit;
+    }
+    const detail = payload && typeof payload === "object" ? payload : {};
+    return String(detail.signal || detail.signalId || "").trim();
+  }
+
+  function queueSignalSubscriberDispatch(emitterUuid, signalName, payload) {
+    const subscribers = listSignalSubscribers(emitterUuid, signalName);
+    if (subscribers.length === 0) {
+      return 0;
+    }
+    let queued = 0;
+    for (let i = 0; i < subscribers.length; i += 1) {
+      const subscriber = subscribers[i];
+      if (!subscriber || typeof subscriber.handler !== "function") {
+        continue;
+      }
+      const subscriberHandler = subscriber.handler;
+      enqueueRuntimeEvent(
+        "signal-handler-call",
+        function processSignalHandlerCall() {
+          try {
+            subscriberHandler(payload, signalName, emitterUuid);
+          } catch (error) {
+            if (global.console && typeof global.console.error === "function") {
+              global.console.error("qhtml queued signal subscriber failed:", error);
+            }
+          }
+        },
+        {
+          target: null,
+          payload: {
+            emitterUuid: emitterUuid,
+            signal: signalName,
+            subscriberUuid: subscriber.subscriberUuid || "",
+            routeKey: subscriber.routeKey || "",
+            mode: subscriber.mode || "",
+          },
+        }
+      );
+      queued += 1;
+    }
+    return queued;
+  }
+
+  function dispatchSignalPayloadNow(target, signalName, payload) {
+    if (!target || typeof target.dispatchEvent !== "function") {
+      return {
+        qSignal: false,
+        named: false,
+      };
+    }
+    const out = {
+      qSignal: false,
+      named: false,
+    };
+    try {
+      target.dispatchEvent(createRuntimeEventLoopDispatch(target, "q-signal", payload, { bubbles: true, composed: true }));
+      out.qSignal = true;
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml signal dispatch failed:", error);
+      }
+    }
+    const normalizedSignalName = String(signalName || "").trim();
+    if (global.console && typeof global.console.log === "function") {
+      global.console.log("[QHTML][signal][emit]", {
+        signal: normalizedSignalName || String(payload && payload.signal || "").trim(),
+        componentUuid: resolveSignalEmitterUuid(target, payload),
+        payload: payload && typeof payload === "object" ? payload : {},
+      });
+    }
+    if (!normalizedSignalName) {
+      return out;
+    }
+    try {
+      target.dispatchEvent(
+        createRuntimeEventLoopDispatch(target, normalizedSignalName, payload, {
+          bubbles: true,
+          composed: true,
+        })
+      );
+      out.named = true;
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml named signal dispatch failed:", error);
+      }
+    }
+    return out;
+  }
+
+  function dispatchPropertyChangedEventNow(target, payload) {
+    const detail = payload && typeof payload === "object" ? Object.assign({}, payload) : {};
+    if (!normalizeQDomUuidValue(detail.componentUuid || detail.uuid || "")) {
+      detail.componentUuid = resolveSignalEmitterUuid(target, detail) || "";
+    }
+    const updated = dispatchTargetedUuidUpdatesFromPropertyChangeNow(detail);
+    const signalDispatch = buildPropertyChangedSignalDispatch(detail);
+    if (!signalDispatch) {
+      return updated;
+    }
+    const dispatched = dispatchSignalPayloadNow(target, signalDispatch.signalName, signalDispatch.payload);
+    return !!(updated || dispatched.qSignal || dispatched.named);
+  }
+
+  function dispatchSignalPayloadRuntime(target, signalName, payload) {
+    if (!isQueuedEventLoopEnabled()) {
+      return dispatchSignalPayloadNow(target, signalName, payload);
+    }
+    const resolvedPayload = payload && typeof payload === "object" ? payload : {};
+    const resolvedSignalName = resolveSignalNameForDispatch(signalName, resolvedPayload);
+    const emitterUuid = resolveSignalEmitterUuid(target, resolvedPayload);
+    enqueueRuntimeEvent(
+      "signal-dispatch",
+      function processSignalDispatch() {
+        dispatchSignalPayloadNow(target, resolvedSignalName, resolvedPayload);
+        if (emitterUuid && resolvedSignalName) {
+          queueSignalSubscriberDispatch(emitterUuid, resolvedSignalName, resolvedPayload);
+        }
+      },
+      {
+        target: target,
+        payload: {
+          componentUuid: emitterUuid,
+          signal: resolvedSignalName,
+        },
+      }
+    );
+    return {
+      qSignal: !!resolvedSignalName,
+      named: !!resolvedSignalName,
+      queued: true,
+      componentUuid: emitterUuid,
+    };
+  }
+
+  function dispatchPropertyChangedEventRuntime(target, payload) {
+    if (!isQueuedEventLoopEnabled()) {
+      return dispatchPropertyChangedEventNow(target, payload);
+    }
+    const detail = payload && typeof payload === "object" ? Object.assign({}, payload) : {};
+    if (!normalizeQDomUuidValue(detail.componentUuid || detail.uuid || "")) {
+      detail.componentUuid = resolveSignalEmitterUuid(target, detail) || "";
+    }
+    enqueueRuntimeEvent(
+      "property-change-dispatch",
+      function processPropertyChangeDispatch() {
+        queueTargetedUuidUpdatesFromPropertyChange(detail);
+        const signalDispatch = buildPropertyChangedSignalDispatch(detail);
+        if (signalDispatch) {
+          dispatchSignalPayloadRuntime(target, signalDispatch.signalName, signalDispatch.payload);
+        }
+      },
+      {
+        target: target,
+        payload: detail,
+      }
+    );
+    return true;
+  }
+
   function getSignalDocument(root) {
     if (root && root.nodeType === 9) {
       return root;
@@ -3333,17 +4630,10 @@
   }
 
   function createQSignalEvent(payload) {
-    if (typeof global.CustomEvent === "function") {
-      return new global.CustomEvent("q-signal", {
-        detail: payload || {},
-        bubbles: true,
-        composed: true,
-      });
-    }
-    return {
-      type: "q-signal",
-      detail: payload || {},
-    };
+    return createRuntimeEventLoopDispatch(null, "q-signal", payload || {}, {
+      bubbles: true,
+      composed: true,
+    });
   }
 
   function emitQSignal(target, payload, eventNamePrefix) {
@@ -3363,27 +4653,46 @@
     if (!resolvedTarget) {
       return emitted;
     }
-    try {
-      resolvedTarget.dispatchEvent(createQSignalEvent(normalizedPayload));
-      emitted.qSignal = true;
-    } catch (error) {
-      if (global.console && typeof global.console.error === "function") {
-        global.console.error("qhtml emitQSignal failed:", error);
-      }
-    }
+    const directResult = dispatchSignalPayloadRuntime(resolvedTarget, "", normalizedPayload);
+    emitted.qSignal = !!(directResult && directResult.qSignal);
     if (prefix && signalName && typeof global.CustomEvent === "function") {
-      try {
-        resolvedTarget.dispatchEvent(
-          new global.CustomEvent(prefix + ":" + signalName, {
-            detail: normalizedPayload,
-            bubbles: true,
-            composed: true,
-          })
+      const namespacedEventName = prefix + ":" + signalName;
+      if (isQueuedEventLoopEnabled()) {
+        enqueueRuntimeEvent(
+          "namespaced-signal-dispatch",
+          function processNamespacedSignal() {
+            try {
+              resolvedTarget.dispatchEvent(
+                createRuntimeEventLoopDispatch(resolvedTarget, namespacedEventName, normalizedPayload, {
+                  bubbles: true,
+                  composed: true,
+                })
+              );
+            } catch (error) {
+              if (global.console && typeof global.console.error === "function") {
+                global.console.error("qhtml emitQSignal namespaced dispatch failed:", error);
+              }
+            }
+          },
+          {
+            target: resolvedTarget,
+            payload: normalizedPayload,
+          }
         );
         emitted.namespaced = true;
-      } catch (error) {
-        if (global.console && typeof global.console.error === "function") {
-          global.console.error("qhtml emitQSignal namespaced dispatch failed:", error);
+      } else {
+        try {
+          resolvedTarget.dispatchEvent(
+            createRuntimeEventLoopDispatch(resolvedTarget, namespacedEventName, normalizedPayload, {
+              bubbles: true,
+              composed: true,
+            })
+          );
+          emitted.namespaced = true;
+        } catch (error) {
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml emitQSignal namespaced dispatch failed:", error);
+          }
         }
       }
     }
@@ -3449,6 +4758,18 @@
       emitContentLoadedSignal(doc, source);
     };
 
+    if (isQueuedEventLoopEnabled()) {
+      enqueueRuntimeEvent(
+        "content-loaded-dispatch",
+        function processContentLoadedDispatch() {
+          dispatch();
+        },
+        {
+          target: doc || null,
+        }
+      );
+      return;
+    }
     scheduleMicrotaskDispatch(dispatch);
   }
 
@@ -5034,7 +6355,14 @@
     }
     for (let i = 0; i < binding.keywordTimers.length; i += 1) {
       const runtime = binding.keywordTimers[i];
-      if (!runtime || runtime.timerId == null) {
+      if (!runtime) {
+        continue;
+      }
+      if (typeof runtime.stop === "function") {
+        runtime.stop();
+        continue;
+      }
+      if (runtime.timerId == null) {
         continue;
       }
       if (runtime.repeat === true) {
@@ -5159,6 +6487,11 @@
       };
 
       runtime.stop = function stopKeywordTimer() {
+        if (isQueuedEventLoopEnabled()) {
+          stopQueuedKeywordTimer(runtime);
+          publishTimerHandle();
+          return true;
+        }
         if (runtime.timerId != null) {
           if (runtime.repeat === true) {
             if (typeof global.clearInterval === "function") {
@@ -5175,6 +6508,9 @@
       };
 
       runtime.start = function startKeywordTimer() {
+        if (isQueuedEventLoopEnabled()) {
+          return startQueuedKeywordTimer(binding, runtime, declaration, runTimeout, publishTimerHandle);
+        }
         runtime.stop();
         runtime.running = true;
         const tick = function keywordTimerTick() {
@@ -6111,6 +7447,18 @@
       flushObservedMutations(binding);
     };
 
+    if (isQueuedEventLoopEnabled()) {
+      enqueueRuntimeEvent(
+        "observed-mutation-flush",
+        function processObservedMutationFlush() {
+          flush();
+        },
+        {
+          target: binding.host || null,
+        }
+      );
+      return;
+    }
     if (typeof global.queueMicrotask === "function") {
       global.queueMicrotask(flush);
     } else if (typeof global.setTimeout === "function") {
@@ -8367,7 +9715,7 @@
       return;
     }
     state.pending = true;
-    scheduleMicrotaskDispatch(function flushModelMutationRefresh() {
+    const flushModelMutationRefresh = function flushModelMutationRefresh() {
       if (!state) {
         return;
       }
@@ -8391,7 +9739,21 @@
       updateQHtmlElement(binding.host, {
         sourceSignal: sourceSignal,
       });
-    });
+    };
+    if (isQueuedEventLoopEnabled()) {
+      enqueueRuntimeEvent(
+        "model-mutation-refresh",
+        flushModelMutationRefresh,
+        {
+          target: binding.host || null,
+          payload: {
+            modelName: normalizedName || "",
+          },
+        }
+      );
+      return;
+    }
+    scheduleMicrotaskDispatch(flushModelMutationRefresh);
   }
 
   function ensureBindingModelSubscription(binding, name, model) {
@@ -8575,6 +9937,7 @@
     resetBindingUuidMapState(binding);
     reindexBindingLiveQDomUuids(binding);
     exposeBindingUuidMapsOnHost(binding);
+    clearBindingGlobalPropertySubscribers(binding);
     const componentPropertyIndexResetHosts = new WeakSet();
     const slotHandleByContainer = new WeakMap();
     const slotContainerByHandle = new WeakMap();
@@ -12261,6 +13624,13 @@
     };
 
     bindings.set(qHtmlElement, binding);
+    mountedQHtmlHostCount += 1;
+    if (mountedQHtmlHostCount < 0) {
+      mountedQHtmlHostCount = 0;
+    }
+    if (isQueuedEventLoopEnabled()) {
+      scheduleRuntimeEventLoop(0);
+    }
     binding.ready = Promise.resolve()
       .then(function loadAndRender() {
         return withDomMutationSyncGloballySuspended(function suspendedParse() {
@@ -12443,6 +13813,9 @@
       global.clearTimeout(binding.templateSaveTimer);
       binding.templateSaveTimer = null;
     }
+    if (binding.domMutationFlushTimer === "__queued__") {
+      binding.domMutationFlushTimer = null;
+    }
     if (Array.isArray(binding.pendingMutations)) {
       binding.pendingMutations.length = 0;
     }
@@ -12452,10 +13825,22 @@
     if (typeof binding.disconnect === "function") {
       binding.disconnect();
     }
+    clearBindingSignalSubscribers(binding);
+    clearBindingGlobalPropertySubscribers(binding);
+    clearBindingGlobalUuidPointers(binding);
     clearKeywordTimers(binding);
     clearBindingModelSubscriptions(binding);
     terminateWasmRuntimesInNode(binding.host);
     bindings.delete(qHtmlElement);
+    mountedQHtmlHostCount -= 1;
+    if (mountedQHtmlHostCount < 0) {
+      mountedQHtmlHostCount = 0;
+    }
+    if (mountedQHtmlHostCount === 0) {
+      clearEventLoopScheduledHandle();
+    } else if (isQueuedEventLoopEnabled()) {
+      scheduleRuntimeEventLoop(EVENT_LOOP_IDLE_TICK_MS);
+    }
   }
 
   function getQDomForElement(qHtmlElement) {
@@ -12562,6 +13947,28 @@
     if (!binding || !binding.qdom) {
       return false;
     }
+    const opts = options && typeof options === "object" ? options : null;
+    const fromEventLoop = !!(opts && opts.__fromEventLoop === true);
+    if (isQueuedEventLoopEnabled() && !fromEventLoop) {
+      const queuedOptions = Object.assign({}, opts || {}, {
+        __fromEventLoop: true,
+      });
+      enqueueRuntimeEvent(
+        "update-qhtml",
+        function processQueuedQHtmlUpdate() {
+          updateQHtmlElement(qHtmlElement, queuedOptions);
+        },
+        {
+          target: qHtmlElement,
+          payload: {
+            uuid: normalizeQDomUuidValue(queuedOptions.uuid),
+            forceBindings: queuedOptions.forceBindings === true,
+            forceRender: queuedOptions.forceRender === true,
+          },
+        }
+      );
+      return true;
+    }
     const previousUpdating = binding.updating === true;
     binding.updating = true;
     try {
@@ -12569,7 +13976,6 @@
         maxItems: DOM_MUTATION_SYNC_FLUSH_BATCH_SIZE,
         scheduleRemainder: true,
       });
-      const opts = options && typeof options === "object" ? options : null;
       const forceBindings = !!(
         opts &&
         (opts.forceBindings === true || opts.invalidate === true || opts.force === true || opts.bindings === "all")
@@ -12790,6 +14196,9 @@
       signalState.runtimeManaged = true;
     }
     scheduleContentLoadedSignal(signalDoc, scope);
+    if (isQueuedEventLoopEnabled()) {
+      scheduleRuntimeEventLoop(0);
+    }
     return out;
   }
 
@@ -12806,6 +14215,13 @@
     listRegisteredComponentSlots: listRegisteredComponentSlots,
     createQSignalEvent: createQSignalEvent,
     emitQSignal: emitQSignal,
+    enqueueRuntimeEvent: enqueueRuntimeEvent,
+    registerSignalSubscriber: registerSignalSubscriberRuntime,
+    unregisterSignalSubscriber: unregisterSignalSubscriberRuntime,
+    clearSignalSubscribersForEmitter: clearSignalSubscribersForEmitter,
+    getEventLoopMode: getRuntimeEventLoopMode,
+    dispatchSignalPayload: dispatchSignalPayloadRuntime,
+    dispatchPropertyChangedEvent: dispatchPropertyChangedEventRuntime,
     createQModel: createQModel,
     hydrateComponentElement: hydrateComponentElement,
     setDomMutationObserversEnabled: setDomMutationSyncEnabled,
@@ -12820,6 +14236,7 @@
 
   modules.qhtmlRuntime = runtimeApi;
   installGlobalDomMutationSyncToggle();
+  exposeGlobalRuntimeMaps();
   global.QHtml = runtimeApi;
   global.QModel = createQModel;
 

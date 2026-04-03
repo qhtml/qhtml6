@@ -9658,12 +9658,19 @@
         };
         continue;
       }
-      if (item.type === "EventBlock" && item.isLifecycle) {
-        if (definitionType === "component") {
+      if (item.type === "EventBlock") {
+        if (definitionType === "component" && item.isLifecycle) {
           lifecycleScripts.push({
             name: String(item.name || "").trim(),
             body: compactScriptBody(item.script || ""),
           });
+          continue;
+        }
+        if (definitionType === "component") {
+          const eventName = String(item.name || "").trim();
+          if (eventName) {
+            componentAttributes[eventName] = compactScriptBody(item.script || "");
+          }
         }
         continue;
       }

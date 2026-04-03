@@ -717,6 +717,53 @@ tree-demo-theme {
         </div>
       </section>
 
+      <section class="example-class" id="q-toolbar" data-title="q-toolbar + q-toolbutton usage">
+        <div class="example-head">
+          <h3>q-toolbar + q-toolbutton usage</h3>
+          <p>Floating, draggable, resizable toolbar with square toolbuttons that auto-scale from container resize events.</p>
+        </div>
+        <div class="example-body">
+          <q-editor>
+q-import { q-components/q-toolbar.qhtml }
+
+div.w3-container.w3-border.w3-round-large.w3-padding {
+  h4 { text { Toolbar Demo } }
+  p { text { Drag from the top edge, resize from bottom-right corner, and click X to close. } }
+  button.w3-button.w3-small.w3-border {
+    text { Re-open toolbar }
+    onclick { this.closest("div").querySelector("#toolbox-main").showToolbar(); }
+  }
+
+  q-toolbar#toolbox-main {
+    title: "Quick Tools"
+    x: 160
+    y: 120
+    width: 360
+    height: 72
+
+    q-toolbutton {
+      src: "q-components/expand-collapse.svg"
+      label: "Open File"
+      onclick { alert("file open clicked") }
+    }
+
+    q-toolbutton {
+      src: "q-components/expand-collapse.svg"
+      label: "Save"
+      onclick { alert("save clicked") }
+    }
+
+    q-toolbutton {
+      src: "q-components/expand-collapse.svg"
+      label: "Settings"
+      onclick { alert("settings clicked") }
+    }
+  }
+}
+          </q-editor>
+        </div>
+      </section>
+
       <section class="example-class" id="q-tech-tag" data-title="q-tech-tag.qhtml usage">
         <div class="example-head">
           <h3>q-tech-tag.qhtml usage</h3>

@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QHTML Test Board</title>
+  <script>
+    window.QHTML_EVENT_LOOP_MODE = "queued";
+  </script>
   <script src="qhtml.js"></script>
   <style>
     :root {
@@ -142,7 +145,24 @@
       { n: 8, t: 'q-script assignment form', s: `div { data-note: q-script { return "n:" + (4 + 1) } text { q-script { return "script-inline"; } } }`, e: ['data-note="n:5"', 'script-inline'] },
       { n: 9, t: 'q-macro + slot', s: `q-macro badge { slot { label } return { span.badge { text { \${this.slot("label")} } } } } div { badge { label { hello world } } }`, e: ['hello world', 'class="badge"'] },
       { n: 10, t: 'q-component + q-property + slot', s: `q-component app-card { q-property { title } div { h3 { text { \${this.component.title} } } slot { body } } } app-card { title: "Welcome" body { p { text { Projected content. } } } }`, e: ['Welcome', 'Projected content.'] },
-      { n: 11, t: 'q-signal connect + emit', s: `q-component sender-box { q-signal sent(message) } q-component receiver-box { q-property msg: "pending" function setMsg(v) { this.msg = v } div { text { \${this.component.msg} } } } sender-box#sender { } receiver-box#recv { } onReady { $("#sender").sent.connect($("#recv").setMsg); $("#sender").sent("signal-ok"); $("#recv").update(); }`, e: ['signal-ok'] },
+      { n: 11, t: 'q-signal declarative on<Signal> + mixed-case handler', s: `q-component signal-probe {
+  q-signal ping(message)
+  function fire() {
+    this.ping("hello world")
+  }
+}
+
+div#t11-out { text { waiting } }
+
+signal-probe#t11-src {
+  onPiNg {
+    $("#t11-out").textContent = event.detail.params.message;
+  }
+}
+
+onReady {
+  $("#t11-src").fire();
+}`, e: ['hello world'] },
       { n: 12, t: 'q-alias', s: `q-component mycomp { q-alias myotherprop { return "hello world"; } div { text { \${this.component.myotherprop} } } } mycomp { }`, e: ['hello world'] },
       { n: 13, t: 'q-keyword aliasing', s: `q-keyword component { q-component } component card-box { div { text { hello } } } card-box { }`, e: ['hello'] },
       { n: 14, t: 'q-style direct apply', s: `q-style panel { backgroundColor: #eff6ff color: #1e293b border: 1px solid #93c5fd } panel,div { text { Styled panel } }`, e: ['Styled panel', 'border: 1px solid #93c5fd'] },
@@ -165,10 +185,59 @@ my-comp { }`, e: ['2'] },
       { n: 24, t: 'q-model-view basics', s: `q-array my-source { 5, 10, q-map { name: "tom" } } q-model-view { q-model { my-source } as { item } div { text { \${item && item.name ? item.name : item} } } }`, e: ['5', '10', 'tom'] },
       { n: 25, t: 'extends single inheritance', s: `q-component base-label { q-property label: "base-ok" } q-component child-label extends base-label { div { text { \${this.component.label} } } } child-label { }`, e: ['base-ok'] },
       { n: 26, t: 'extends multiple inheritance', s: `q-component base-a { q-property a: "A" } q-component base-b { q-property b: "B" } q-component child-multi extends base-a extends base-b { div { text { \${this.component.a}-\${this.component.b} } } } child-multi { }`, e: ['A-B'] },
-      { n: 27, t: 'q-signal slot payload syntax', s: `q-component sender27 { q-signal sent(message) } q-component receiver27 { q-property msg: "pending" function setMsg(v) { this.msg = v } div { text { \${this.component.msg} } } } sender27#sender27 { } receiver27#receiver27 { } onReady { $("#sender27").sent.connect($("#receiver27").setMsg); $("#sender27").sent("file-open"); $("#receiver27").update(); }`, e: ['file-open'] },
+      { n: 27, t: 'q-signal definition slot payload', s: `q-signal dataReady {
+  slot { value }
+}
+
+div#t27-out { text { waiting } }
+
+div#t27-carrier {
+  onDaTaReAdY {
+    $("#t27-out").textContent = event.detail.slots.value[0];
+  }
+
+  dataReady {
+    value { slot-payload-ok }
+  }
+}`, e: ['slot-payload-ok'] },
       { n: 28, t: 'q-rewrite template-style', s: `q-rewrite make-strong { slot { input } return { strong { q-script { return String(this.slot("input")); } } } } div { make-strong { rewrite-ok } }`, e: ['rewrite-ok', '<strong>'] },
-      { n: 29, t: 'qdom find + append', s: `div#qdom-find-target { text { before } } onReady { this.qdom().find("#qdom-find-target").appendNode("span { text { after } }"); this.update(); }`, e: ['before', 'after'] },
-      { n: 30, t: 'qdom replaceWithQHTML', s: `div#replace-me { text { old } } onReady { this.qdom().find("#replace-me").replaceWithQHTML("div#replace-me { text { new } }"); this.update(); }`, e: ['new'] },
+      { n: 29, t: 'q-signal same-component on<Signal> handler', s: `q-component probe29 {
+  q-signal probe(message)
+  onPrObE {
+    $("#t29-out").textContent = event.detail.params.message;
+  }
+  function boot() {
+    this.probe("self-ok")
+  }
+}
+
+probe29#t29-probe { }
+div#t29-out { text { waiting } }
+
+onReady {
+  $("#t29-probe").boot();
+}`, e: ['self-ok'] },
+      { n: 30, t: 'q-signal multiple subscribers receive same emit', s: `q-component emitter30 {
+  q-signal ping(value)
+  function fireNow() {
+    this.ping("multi-ok")
+  }
+}
+
+emitter30#t30-em { }
+div#t30-a { text { waiting-a } }
+div#t30-b { text { waiting-b } }
+
+onReady {
+  var em = $("#t30-em");
+  em.ping.connect(function(value) {
+    $("#t30-a").textContent = String(value) + "-a";
+  });
+  em.ping.connect(function(value) {
+    $("#t30-b").textContent = String(value) + "-b";
+  });
+  em.fireNow();
+}`, e: ['multi-ok-a', 'multi-ok-b'] },
       { n: 31, t: 'qdom serialize + deserialize style flow', s: `div#ser { text { one } } div#out { text { pending } } onReady { var s = this.qdom().find("#ser").serialize(); this.qdom().find("#out").replaceWithQHTML(s); this.update(); }`, e: ['one'] },
       { n: 32, t: 'q-template basic', s: `q-template badge { span.badge { text { template badge } } } div { badge { } }`, e: ['template badge'] },
       { n: 33, t: 'q-macro scoped placeholder', s: `q-macro scoped-label { slot { value } return { p { text { value=\${this.slot("value")} } } } } scoped-label { value { demo-ref } }`, e: ['value=demo-ref'] },
@@ -177,13 +246,7 @@ my-comp { }`, e: ['2'] },
       { n: 36, t: 'q-array nested access', s: `q-component arr-comp { q-property arr: q-array { "a", "b", q-array { "nested-a", "nested-b" } } div { text { \${this.component.arr[2][0]} } } } arr-comp { }`, e: ['nested-a'] },
       { n: 37, t: 'q-map nested access', s: `q-component map-comp { q-property settings: q-map { title: "MapTest" nested: q-map { enabled: true } } div { text { \${this.component.settings.title} - \${this.component.settings.nested.enabled} } } } map-comp { }`, e: ['MapTest - true'] },
       { n: 38, t: 'q-model from q-script source', s: `q-model my-model { q-array { 1, 2, 3 } } div#mv38 { text { pending } } onReady { var m = this["my-model"]; document.querySelector("#mv38").textContent = String(m.count()); }`, e: ['3'] },
-      { n: 39, t: 'q-property-changed event', s: `q-component property-event-probe {
-  q-property count: 1
-  div {
-    text { property-probe-ok }
-  }
-}
-property-event-probe { }`, e: ['property-probe-ok'] },
+      { n: 39, t: 'q-property changed signal via .connect', d: true },
       { n: 40, t: 'q-bind test', d: true },
       { n: 41, t: 'q-style-class merge', s: `q-style card-shell { q-style-class { w3-card w3-round-large w3-padding } borderColor: #cbd5e1 } card-shell,div#card41 { text { class-merge } }`, e: ['class-merge', 'w3-card'] },
       { n: 42, t: 'q-theme composition', s: `q-style button-base { backgroundColor: #0f766e color: #ffffff } q-style button-danger { backgroundColor: #b91c1c color: #ffffff } q-theme base-theme { button { button-base } } q-theme admin-theme { base-theme { } .danger { button-danger } } admin-theme { button.danger { text { Remove } } }`, e: ['Remove'] },
@@ -191,45 +254,273 @@ property-event-probe { }`, e: ['property-probe-ok'] },
       { n: 44, t: 'scoped $() selector shortcut', s: `div#sender { text { sender-value } } div#result44 { text { pending } } onReady { $("#result44").textContent = $("#sender").textContent; }`, e: ['sender-value'] },
       { n: 45, t: 'root onReady hook', s: `onReady { this.setAttribute("data-ready", "1"); } div { text { root-ready } }`, e: ['root-ready'] },
       { n: 46, t: 'escaped brace in text', s: `div { text { hello world } }`, e: ['hello world'] },
-      { n: 47, t: 'q-timer endless countdown', s: `div#t47-count { text { 50 } }
-div#t47-status { text { waiting } }
-q-timer t47Primary {
-  interval: 300
-  repeat: true
-  running: true
-  onTimeout {
-    var countNode = document.querySelector("#t47-count");
-    var value = Number(countNode.textContent || "50");
-    value = value - 1;
-    countNode.textContent = String(value);
-    if (value <= 45) {
-      clearInterval(t47Primary);
-      document.querySelector("#t47-status").textContent = "decrement-ok";
-    }
-  }
-}`, e: ['decrement-ok'] },
-      { n: 48, t: 'q-timer controller stops primary timer', s: `div#t48-cycles { text { 0 } }
-div#t48-status { text { waiting } }
-q-timer t48Primary {
-  interval: 300
-  repeat: true
-  running: true
-  onTimeout {
-    var cyclesNode = document.querySelector("#t48-cycles");
-    var cycles = Number(cyclesNode.textContent || "0");
-    cycles = cycles + 1;
-    cyclesNode.textContent = String(cycles);
+      { n: 47, t: 'q-signal forwarded through component method', s: `q-component source47 {
+  q-signal step(value)
+  function run() {
+    this.step("forward-ok")
   }
 }
-q-timer t48Controller {
-  interval: 20000
-  repeat: false
-  running: true
-  onTimeout {
-    clearInterval(t48Primary);
-    document.querySelector("#t48-status").textContent = "controller-fired running=false";
+
+q-component relay47 {
+  q-signal done(value)
+  function wire() {
+    var self = this;
+    $("#src47").step.connect(function(value) {
+      self.done(value);
+    });
   }
-}`, e: ['controller-fired', 'running=false'] }
+}
+
+source47#src47 { }
+relay47#relay47 {
+  onDoNe {
+    $("#t47-out").textContent = event.detail.params.value;
+  }
+}
+div#t47-out { text { waiting } }
+
+onReady {
+  $("#relay47").wire();
+  $("#src47").run();
+}`, e: ['forward-ok'] },
+      { n: 48, t: 'q-signal disconnect after first emit', s: `q-component emitter48 {
+  q-signal tick()
+  function fireTwice() {
+    this.tick();
+    this.tick();
+  }
+}
+
+emitter48#t48-em { }
+div#t48-out { text { waiting } }
+
+onReady {
+  var em = $("#t48-em");
+  var count = 0;
+  var handler = function() {
+    count = count + 1;
+    $("#t48-out").textContent = "count=" + count;
+    em.tick.disconnect(handler);
+  };
+  em.tick.connect(handler);
+  em.fireTwice();
+}`, e: ['count=1'] },
+      { n: 49, t: 'q-model-view randomized components with timers', s: `q-component mycomp {
+  q-property randomText: "0"
+  div.randomText { text { \${this.component.randomText} } }
+  onrandomTextChanged {
+    this.querySelector(".randomText").innerHTML = String(this.randomText)
+  }
+  function randomize() {
+    this.randomText = String(Math.floor(Math.random() * 5000))
+  }
+}
+
+q-array t49-model {
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+  11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+  21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+  31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+  41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+}
+
+div#t49-title { text { t49-model-view-randomize } }
+button#t49-start {
+  type: "button"
+  text { Start timers }
+}
+div { text { Status: } } div#t49-status { text { idle } }
+div { text { Ticks: } } div#t49-ticks { text { 0 } }
+
+q-model-view {
+  q-model { t49-model }
+  as { index }
+  mycomp { }
+}
+
+q-timer t49MainTimer {
+  repeat: true
+  interval: 1000
+  running: true
+  ontimeout {
+    if (!window.__t49Active) {
+      return
+    }
+    var nodes = document.querySelectorAll("#host-t49 mycomp")
+    var i = 0
+    while (i < nodes.length) {
+      nodes[i].randomize()
+      i = i + 1
+    }
+    var tick = document.querySelector("#host-t49 #t49-ticks")
+    tick.textContent = String(Number(tick.textContent || "0") + 1)
+  }
+}
+
+q-timer t49EndTimer {
+  repeat: true
+  interval: 500
+  running: true
+  ontimeout {
+    if (!window.__t49Active) {
+      return
+    }
+    if (Date.now() - Number(window.__t49StartedAt || 0) < 30000) {
+      return
+    }
+    window.__t49Active = false
+    clearInterval(t49MainTimer)
+    clearTimeout(t49MainTimer)
+    clearInterval(t49EndTimer)
+    clearTimeout(t49EndTimer)
+    document.querySelector("#host-t49 #t49-status").textContent = "stopped"
+  }
+}
+
+onReady {
+  window.__t49Active = false
+  window.__t49StartedAt = 0
+  var start = document.querySelector("#host-t49 #t49-start")
+  start.addEventListener("click", function() {
+    window.__t49StartedAt = Date.now()
+    window.__t49Active = true
+    document.querySelector("#host-t49 #t49-status").textContent = "running"
+    start.disabled = true
+  })
+}`, e: ['t49-model-view-randomize', 'Start timers', 'Status:', 'Ticks:'] },
+      { n: 50, t: 'q-signal .connect receives args', s: `q-component emitter50 {
+  q-signal fired(value, count)
+  function fireNow() {
+    this.fired("payload", 7)
+  }
+}
+
+emitter50#t50-em { }
+div#t50-out { text { waiting } }
+
+onReady {
+  var em = $("#t50-em");
+  em.fired.connect(function(value, count) {
+    $("#t50-out").textContent = String(value) + "-" + String(count);
+  });
+  em.fireNow();
+}`, e: ['payload-7'] },
+      { n: 51, t: 'q-signal .connect cross-component receiver', s: `q-component emitter51 {
+  q-signal done(msg)
+  function run() { this.done("cross-ok"); }
+}
+
+q-component receiver51 {
+  onReady {
+    $("#t51-em").done.connect(function(msg) {
+      $("#t51-out").textContent = msg;
+    });
+  }
+}
+
+emitter51#t51-em { }
+receiver51 { }
+div#t51-out { text { waiting } }
+
+onReady {
+  $("#t51-em").run();
+}`, e: ['cross-ok'] },
+      { n: 52, t: 'q-signal .disconnect removes subscriber', s: `q-component emitter52 {
+  q-signal done(value)
+  function fireNow(value) { this.done(value); }
+}
+
+emitter52#t52-em { }
+div#t52-out { text { waiting } }
+
+onReady {
+  var em = $("#t52-em");
+  var count = 0;
+  var handler = function(value) {
+    count = count + 1;
+    $("#t52-out").textContent = "count=" + count + "|value=" + String(value);
+  };
+
+  em.done.connect(handler);
+  em.done.disconnect(handler);
+  em.fireNow("should-not-deliver");
+
+  window.setTimeout(function() {
+    if (count === 0) {
+      $("#t52-out").textContent = "count=0|disconnect-ok";
+    }
+  }, 40);
+}`, e: ['count=0|disconnect-ok'] }
+,
+      { n: 53, t: 'q-property changed: declarative + manual subscription (multi-change)', s: `q-component prop53 {
+  q-property count: 0
+
+  function appendValue(nodeId, value) {
+    var node = $("#" + nodeId);
+    var current = String(node.textContent || "");
+    if (current.trim() === "waiting") {
+      current = "";
+    }
+    node.textContent = current ? (current + "," + String(value)) : String(value);
+  }
+
+  onCoUnTcHaNgEd {
+    this.appendValue("t53-decl", event.detail.params.value);
+  }
+
+  function run() {
+    var self = this;
+    this.addEventListener("countChanged", function(event) {
+      self.appendValue("t53-manual", event.detail.params.value);
+    });
+    this.countChanged.connect(function(value) {
+      self.appendValue("t53-connect", value);
+    });
+    this.count = 1;
+    this.count = 2;
+    this.count = 3;
+
+    window.setTimeout(function() {
+      var decl = $("#t53-decl").textContent;
+      var manual = $("#t53-manual").textContent;
+      var connected = $("#t53-connect").textContent;
+      if (decl === "1,2,3" && manual === "1,2,3" && connected === "1,2,3") {
+        $("#t53-status").textContent = "prop53-ok";
+      } else {
+        $("#t53-status").textContent = "prop53-fail|" + decl + "|" + manual + "|" + connected;
+      }
+    }, 80);
+  }
+}
+
+prop53#t53-probe { }
+div#t53-decl { text { waiting } }
+div#t53-manual { text { waiting } }
+div#t53-connect { text { waiting } }
+div#t53-status { text { waiting } }
+
+onReady {
+  $("#t53-probe").run();
+}`, e: ['prop53-ok'] }
+,
+      { n: 54, t: 'lowercase on<property>changed + q-timer property mutation', s: `q-component mycomp54 {
+  q-property myprop
+  onmypropchanged {
+    this.querySelector("div").innerHTML = String(this.component.myprop);
+  }
+  div { text { waiting } }
+}
+
+mycomp54#mycomp54 { }
+
+q-timer mytimer54 {
+  repeat: true
+  interval: 10000
+  ontimeout {
+    document.querySelector("#mycomp54").myprop = "prop54-ok";
+  }
+  running: true
+}`, e: ['prop54-ok'] }
     ];
 
     function normalize(input) {

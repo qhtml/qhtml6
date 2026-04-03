@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.1.4
+# QHTML.js v6.1.5
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,14 +12,14 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.1.4
+## Whats New in v6.1.5
 
-- Deprecated `q-bind`; assignment usage is now treated as an alias of `q-script`.
-- Declared `q-property` setter changes no longer auto-trigger component/host invalidate-update cycles; refresh/update is explicit.
-- Updated runtime/parser/docs to reflect canonical assignment binding semantics around `q-script`.
-- Refreshed `dist/test.html` into a simplified board that runs first-pass checks on `QHTMLContentLoaded` and re-checks every 5 seconds.
-- Kept binding-deprecated test numbers in place with explicit `test has been deprecated` markers.
-- Added `q-timer <name> { ... }` as a top-level language construct (native runtime timer declaration) instead of component-based timer usage.
+- Fixed signal callback host binding so `.connect(function(){ ... })` now runs against the live component instance (`this`) during dispatch.
+- Fixed `on<signal>` attribute handling in component definitions to resolve case-insensitively and route through the same signal `.connect(...)` path (with DOM-event fallback for non-signal events).
+- Improved `on<Property>changed` normalization so lowercase/mixed-case handlers (for example `onmypropchanged`) map correctly to `mypropChanged`.
+- Improved queued-mode declarative signal subscription timing by deferring registration until component UUID availability, and preserving cleanup metadata for detach/replace.
+- Updated `dist/test.html` test 49 to use a lower-overhead `q-model-view` randomization scenario with explicit `Start timers` control.
+- Marked unstable test 39 as deprecated; active test board reports all current non-deprecated tests passing.
 
 
 ## 1. Quick Start
@@ -455,6 +455,30 @@ q-component my-comp {
   q-property selected: true
 }
 ```
+
+### `on<Property>Changed` auto-signals
+
+Each declared `q-property` automatically exposes a changed signal handler name in the form `on<Property>Changed`.
+
+```qhtml
+q-component counter-box {
+  q-property count: 0
+
+  onCountChanged {
+    console.log("new count =", event.detail.params.value);
+  }
+
+  function increment() {
+    this.count = Number(this.count) + 1;
+  }
+}
+```
+
+Notes:
+- `onCountChanged` fires only when `count` changes to a different value.
+- Payload is available at `event.detail.params.value` and `event.detail.args[0]`.
+- Each declared property also gets an implicit runtime signal function (`countChanged`, `titleChanged`, etc), so you can use `.connect(...)` in addition to `on<Property>Changed`.
+- `on<Property>Changed` matching is case-insensitive (`oncountchanged`, `onCountChanged`, `onCoUnTcHaNgEd` all work).
 
 ### `q-array` and `q-map` as property values
 
@@ -1182,6 +1206,19 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 - `modules/release-bundle/README.md`
 
 # Past Changes
+## Whats New in v6.1.4
+
+- Deprecated `q-bind`; assignment usage is now treated as an alias of `q-script`.
+- Declared `q-property` setter changes no longer auto-trigger component/host invalidate-update cycles; refresh/update is explicit.
+- `q-property` now emits per-property signals on value change: `on<Property>Changed` (for example `onCountChanged`).
+- Property-changed signal payload is value-first (`event.detail.params.value` / `event.detail.args[0]`) and does not emit when the assigned value is unchanged.
+- Generic `q-property-changed` event wiring is replaced by per-property signal dispatch.
+- Runtime event loop mode now defaults to `queued`; set `window.QHTML_EVENT_LOOP_MODE = "compat"` before `qhtml.js` to opt out.
+- Updated runtime/parser/docs to reflect canonical assignment binding semantics around `q-script`.
+- Refreshed `dist/test.html` into a simplified board that runs first-pass checks on `QHTMLContentLoaded` and re-checks every 5 seconds.
+- Kept binding-deprecated test numbers in place with explicit `test has been deprecated` markers.
+- Added `q-timer <name> { ... }` as a top-level language construct (native runtime timer declaration) instead of component-based timer usage.
+
 ## Whats New in v6.1.3
 
 - Added typed `q-array` and `q-map` property values, including nested anonymous container declarations on the right-hand side of property assignments.

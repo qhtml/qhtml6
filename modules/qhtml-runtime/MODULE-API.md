@@ -40,6 +40,20 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - Dispatch runtime signal events (`q-signal` and optional namespaced event).
 - `createQSignalEvent(payload)`
   - Create a bubbling/composed `q-signal` event object.
+- `registerSignalSubscriber({ emitterUuid, signalName, handler, ... })`
+  - Register queued-mode UUID-routed signal subscriber metadata.
+  - Supports `mode: "connect"` and `mode: "declarative"`.
+  - Returns registration descriptor with token/route key.
+- `unregisterSignalSubscriber({ token } | { emitterUuid, signalName, routeKey })`
+  - Remove one registered queued signal subscriber.
+- `clearSignalSubscribersForEmitter(emitterUuid)`
+  - Remove all registered signal subscribers for an emitter UUID.
+- `getEventLoopMode()`
+  - Returns active runtime mode: `queued` (default) or `compat`.
+- `dispatchPropertyChangedEvent(target, payload)`
+  - Routes declared `q-property` setter changes through per-property signal dispatch (`<property>Changed`).
+  - Queued mode: enqueues targeted property-subscriber updates and signal dispatch on runtime queue.
+  - Compat mode: dispatches immediately.
 - `createQModel(input)`
   - Returns normalized model adapter with mutators/events:
     - `add`, `insert`, `remove`
@@ -135,6 +149,10 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - Root-level `onReady { ... }` hooks (no parent element) are deferred until mount settles, then run once per host mount cycle.
 - Executes `meta.qBindings` scripts (canonical `q-script`; `q-bind` inputs are parser-normalized aliases) with `this` bound to each source QDom node before render/update.
 - Emits runtime signal events through `emitQSignal(...)` helpers.
+- In queued event-loop mode, routes component signal delivery through UUID subscriber maps and queues per-subscriber handler calls on the main runtime queue.
+- Declared `q-property` writes dispatch per-property changed signals (`<property>Changed`) through the runtime dispatcher (`event.detail.params.value` / `args[0]`).
+- Component instance hydration auto-registers implicit `<property>Changed` signal emitters for declared properties (for `.connect/.disconnect/.emit` use), and `on<Property>Changed` listeners are matched case-insensitively via signal routing.
+- Runtime mode defaults to `queued`; set `window.QHTML_EVENT_LOOP_MODE = "compat"` before runtime init to use immediate compatibility mode.
 - Initializes/terminates component `q-wasm` sessions as component hosts are rendered, replaced, or unmounted.
 - Persists updated QDom into mapped sibling template nodes.
 - Emits/consumes DOM events and mutation observers.
@@ -143,6 +161,11 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - QDom-driven render/patch cycles run with sync suppression to avoid feeding renderer writes back into QDom.
 - Adds context helpers on DOM elements (`qhtmlRoot()`, `root()`, `component`, `slot`, `qdom`).
 - Maintains host-bound UUID maps (`uuid↔dom`, `uuid↔qdom`) and listens for `qhtml:update` scoped-refresh events.
+- Exposes global runtime maps for diagnostics:
+  - `QHTML_UUID_MAP`
+  - `QHTML_UUID_LOOKUP_MAP`
+  - `QHTML_PROPERTY_SUBSCRIBER_MAP`
+  - `QHTML_SIGNAL_SUBSCRIBER_MAP`
 - Maintains component-host property reference indexes (`propertyName -> Set<qdomUuid>`) derived from binding scripts that reference `this.component.<prop>` / `component.<prop>` for scoped refresh targeting APIs.
 - Custom-element registration (`customElements.define`) now applies parsed component `q-property` defaults per instance at construction/connection time (non-binding defaults only).
 - SDML helper component/template/signal definitions from remote blocks are scoped to their owning alias definition via internal prefixed ids, avoiding global definition collisions.
