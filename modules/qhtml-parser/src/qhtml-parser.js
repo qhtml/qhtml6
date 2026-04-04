@@ -53,6 +53,7 @@
     "q-model-view",
     "q-timer",
     "q-import",
+    "q-logger",
     "q-sdml-component",
     "sdml-endpoint",
     "slot",
@@ -1186,6 +1187,101 @@
       names.push(name);
     }
     return names;
+  }
+
+  function normalizeQLoggerCategoryToken(rawToken) {
+    const token = String(rawToken || "").trim().toLowerCase();
+    if (!token) {
+      return "";
+    }
+    const condensed = token.replace(/[^a-z0-9]/g, "");
+    if (condensed === "all" || condensed === "qall") {
+      return "all";
+    }
+    if (condensed === "property" || condensed === "qproperty") {
+      return "q-property";
+    }
+    if (condensed === "signal" || condensed === "qsignal") {
+      return "q-signal";
+    }
+    if (condensed === "component" || condensed === "qcomponent") {
+      return "q-component";
+    }
+    if (condensed === "function" || condensed === "qfunction") {
+      return "function";
+    }
+    if (condensed === "slot" || condensed === "qslot") {
+      return "slot";
+    }
+    if (condensed === "model" || condensed === "qmodel") {
+      return "model";
+    }
+    if (condensed === "instantiation" || condensed === "instantiate" || condensed === "qinstantiation") {
+      return "instantiation";
+    }
+    return token;
+  }
+
+  function parseQLoggerCategoriesFromAstItems(items) {
+    const out = [];
+    const seen = new Set();
+    const list = Array.isArray(items) ? items : [];
+    function appendToken(rawToken) {
+      const normalized = normalizeQLoggerCategoryToken(rawToken);
+      if (!normalized || seen.has(normalized)) {
+        return;
+      }
+      seen.add(normalized);
+      out.push(normalized);
+    }
+    function appendTextTokens(rawText) {
+      const matches = String(rawText || "").match(/[A-Za-z_][A-Za-z0-9_-]*/g) || [];
+      for (let i = 0; i < matches.length; i += 1) {
+        appendToken(matches[i]);
+      }
+    }
+    for (let i = 0; i < list.length; i += 1) {
+      const item = list[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type === "BareWord") {
+        appendToken(item.name);
+        continue;
+      }
+      if (item.type === "RawTextLine" || item.type === "TextBlock") {
+        appendTextTokens(item.text);
+        continue;
+      }
+      if (item.type === "Property") {
+        appendToken(item.name);
+        continue;
+      }
+      if (item.type === "Element") {
+        const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+        if (selectors.length === 1) {
+          const token = parseTagToken(selectors[0]);
+          appendToken(token && token.tag);
+        }
+      }
+    }
+    return out;
+  }
+
+  function extractQLoggerCategoriesFromElement(item) {
+    if (!item || item.type !== "Element") {
+      return null;
+    }
+    const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+    if (selectors.length !== 1) {
+      return null;
+    }
+    const token = parseTagToken(selectors[0]);
+    const tagLower = String(token && token.tag || "").trim().toLowerCase();
+    if (tagLower !== "q-logger") {
+      return null;
+    }
+    return parseQLoggerCategoriesFromAstItems(item.items);
   }
 
   function parseQColorIdentifier(parser, keyword) {
@@ -9184,6 +9280,16 @@
         }
         continue;
       }
+      if (item.type === "Element") {
+        const loggerCategories = extractQLoggerCategoriesFromElement(item);
+        if (loggerCategories !== null) {
+          if (!targetElement.meta || typeof targetElement.meta !== "object") {
+            targetElement.meta = {};
+          }
+          targetElement.meta.__qhtmlLoggerCategories = loggerCategories.slice();
+          continue;
+        }
+      }
       if (item.type === "Property") {
         applyPropertyToElement(targetElement, item, {
           qArrays: qArrayContext,
@@ -9399,6 +9505,7 @@
     const methods = [];
     const signalDeclarations = [];
     const aliasDeclarations = [];
+    let componentLoggerCategories = null;
     let wasmConfig = null;
     const lifecycleScripts = [];
     const definitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
@@ -9541,6 +9648,13 @@
           componentProperties.push(propertyName);
         }
         continue;
+      }
+      if (item.type === "Element") {
+        const loggerCategories = extractQLoggerCategoriesFromElement(item);
+        if (loggerCategories !== null) {
+          componentLoggerCategories = loggerCategories.slice();
+          continue;
+        }
       }
       if (item.type === "Property") {
         const assignment = parseAssignmentName(item.name);
@@ -9699,6 +9813,12 @@
         sourceRange: [astNode.start, astNode.end],
       },
     });
+    if (componentLoggerCategories !== null) {
+      if (!componentNode.meta || typeof componentNode.meta !== "object") {
+        componentNode.meta = {};
+      }
+      componentNode.meta.__qhtmlLoggerCategories = componentLoggerCategories.slice();
+    }
     applyKeywordAliasesToNode(componentNode, astNode.keywords);
     return componentNode;
   }

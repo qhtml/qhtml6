@@ -48,6 +48,7 @@
   const MAX_UPDATE_CYCLES_PER_TICK = 1000;
   const MAX_UPDATE_REENTRIES_PER_EPOCH = 1000;
   const QDOM_UUID_META_KEY = typeof core.QDOM_UUID_KEY === "string" ? core.QDOM_UUID_KEY : "uuid";
+  const QLOGGER_META_KEY = "__qhtmlLoggerCategories";
   const QDOM_UUID_MAPS_HOST_PROPERTY = "__qhtmlUuidMaps";
   const QDOM_COMPONENT_PROP_REF_INDEX_PROPERTY = "__qhtmlComponentPropertyRefIndex";
   const BINDING_COMPONENT_PROP_REF_CACHE_KEY = "__qhtmlComponentPropRefCache";
@@ -4314,6 +4315,117 @@
     return String(detail.signal || detail.signalId || "").trim();
   }
 
+  function normalizeQLoggerCategoryToken(rawToken) {
+    const token = String(rawToken || "").trim().toLowerCase();
+    if (!token) {
+      return "";
+    }
+    const condensed = token.replace(/[^a-z0-9]/g, "");
+    if (condensed === "all" || condensed === "qall") {
+      return "all";
+    }
+    if (condensed === "signal" || condensed === "qsignal") {
+      return "q-signal";
+    }
+    if (condensed === "property" || condensed === "qproperty") {
+      return "q-property";
+    }
+    if (condensed === "component" || condensed === "qcomponent") {
+      return "q-component";
+    }
+    if (condensed === "function" || condensed === "qfunction") {
+      return "function";
+    }
+    if (condensed === "slot" || condensed === "qslot") {
+      return "slot";
+    }
+    if (condensed === "model" || condensed === "qmodel") {
+      return "model";
+    }
+    if (condensed === "instantiation" || condensed === "instantiate" || condensed === "qinstantiation") {
+      return "instantiation";
+    }
+    return token;
+  }
+
+  function readQLoggerCategorySet(rawValue) {
+    const out = new Set();
+    if (Array.isArray(rawValue)) {
+      for (let i = 0; i < rawValue.length; i += 1) {
+        const normalized = normalizeQLoggerCategoryToken(rawValue[i]);
+        if (normalized) {
+          out.add(normalized);
+        }
+      }
+      return out;
+    }
+    if (typeof rawValue === "string") {
+      const matches = rawValue.match(/[A-Za-z_][A-Za-z0-9_-]*/g) || [];
+      for (let i = 0; i < matches.length; i += 1) {
+        const normalized = normalizeQLoggerCategoryToken(matches[i]);
+        if (normalized) {
+          out.add(normalized);
+        }
+      }
+      return out;
+    }
+    if (rawValue && typeof rawValue === "object") {
+      const keys = Object.keys(rawValue);
+      for (let i = 0; i < keys.length; i += 1) {
+        const key = String(keys[i] || "").trim();
+        if (!key || rawValue[key] !== true) {
+          continue;
+        }
+        const normalized = normalizeQLoggerCategoryToken(key);
+        if (normalized) {
+          out.add(normalized);
+        }
+      }
+    }
+    return out;
+  }
+
+  function resolveQLoggerTargetForEmitterUuid(emitterUuid) {
+    const normalizedUuid = normalizeQDomUuidValue(emitterUuid);
+    if (!normalizedUuid) {
+      return null;
+    }
+    const lookup = globalUuidLookupRegistry.get(normalizedUuid);
+    if (!lookup || typeof lookup !== "object") {
+      return null;
+    }
+    if (lookup.dom && lookup.dom.nodeType === 1) {
+      return lookup.dom;
+    }
+    if (lookup.host && lookup.host.nodeType === 1) {
+      return lookup.host;
+    }
+    return null;
+  }
+
+  function shouldLogQSignalForTarget(target) {
+    if (!target || typeof target !== "object") {
+      return false;
+    }
+    if (target.__qhtmlQLoggerDisabled === true) {
+      return false;
+    }
+    if (Object.prototype.hasOwnProperty.call(target, "__qhtmlQLoggerCategories")) {
+      const directCategories = readQLoggerCategorySet(target.__qhtmlQLoggerCategories);
+      return directCategories.has("all") || directCategories.has("q-signal");
+    }
+    try {
+      const qdomNode = typeof target.qdom === "function" ? target.qdom() : null;
+      if (qdomNode && qdomNode.meta && typeof qdomNode.meta === "object" && Object.prototype.hasOwnProperty.call(qdomNode.meta, QLOGGER_META_KEY)) {
+        const categories = readQLoggerCategorySet(qdomNode.meta[QLOGGER_META_KEY]);
+        return categories.has("all") || categories.has("q-signal");
+      }
+    } catch (readQdomError) {
+      return false;
+    }
+    return false;
+  }
+
   function queueSignalSubscriberDispatch(emitterUuid, signalName, payload) {
     const subscribers = listSignalSubscribers(emitterUuid, signalName);
     if (subscribers.length === 0) {
@@ -4332,8 +4444,9 @@
           try {
             subscriberHandler(payload, signalName, emitterUuid);
           } catch (error) {
-            if (global.console && typeof global.console.error === "function") {
-              global.console.error("qhtml queued signal subscriber failed:", error);
+            const logTarget = resolveQLoggerTargetForEmitterUuid(emitterUuid);
+            if (shouldLogQSignalForTarget(logTarget) && global.console && typeof global.console.log === "function") {
+              global.console.log("qhtml queued signal subscriber failed:", error);
             }
           }
         },
@@ -4368,8 +4481,8 @@
       target.dispatchEvent(createRuntimeEventLoopDispatch(target, "q-signal", payload, { bubbles: true, composed: true }));
       out.qSignal = true;
     } catch (error) {
-      if (global.console && typeof global.console.error === "function") {
-        global.console.error("qhtml signal dispatch failed:", error);
+      if (shouldLogQSignalForTarget(target) && global.console && typeof global.console.log === "function") {
+        global.console.log("qhtml signal dispatch failed:", error);
       }
     }
     const normalizedSignalName = String(signalName || "").trim();
@@ -4385,8 +4498,8 @@
       );
       out.named = true;
     } catch (error) {
-      if (global.console && typeof global.console.error === "function") {
-        global.console.error("qhtml named signal dispatch failed:", error);
+      if (shouldLogQSignalForTarget(target) && global.console && typeof global.console.log === "function") {
+        global.console.log("qhtml named signal dispatch failed:", error);
       }
     }
     return out;

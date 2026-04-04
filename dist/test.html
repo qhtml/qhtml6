@@ -119,7 +119,7 @@
   <div class="page">
     <section class="hero">
       <h1>QHTML Syntax Input / Output Board</h1>
-      <p>Checks run on <code>QHTMLContentLoaded</code> and then every 5 seconds.</p>
+      <p>Checks run on <code>QHTMLContentLoaded</code> and then every 5 seconds. Manual logger tests run only when their buttons are pressed.</p>
     </section>
 
     <section class="summary-shell">
@@ -312,7 +312,14 @@ onReady {
     this.querySelector(".randomText").innerHTML = String(this.randomText)
   }
   function randomize() {
-    this.randomText = String(Math.floor(Math.random() * 5000))
+    var randomString = "";
+    var randomLettersStr = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    var randomLetters = randomLettersStr.split("");
+    for (var i=0; i<24; i++) {
+      randomString = randomString + randomLetters[(Math.floor(Math.random() * randomLetters.length - 1))] 
+    	
+  }
+  this.randomText = randomString;
   }
 }
 
@@ -340,7 +347,7 @@ q-model-view {
 
 q-timer t49MainTimer {
   repeat: true
-  interval: 1000
+  interval: 10
   running: true
   ontimeout {
     if (!window.__t49Active) {
@@ -521,6 +528,179 @@ q-timer mytimer54 {
   }
   running: true
 }`, e: ['prop54-ok'] }
+,
+      { n: 55, t: 'q-logger q-property (manual button)', m: true, ms: '#t55-done', s: `q-component propertyTest55 {
+  q-property myprop
+  q-logger { q-property }
+  button#t55-run {
+    type: "button"
+    onclick {
+      var host = this.closest("propertyTest55");
+      host.myprop = "hello world";
+      host.querySelector("#t55-out").textContent = host.myprop;
+      host.querySelector("#t55-done").textContent = "1";
+    }
+    text { test property log }
+  }
+  div#t55-out { text { waiting } }
+  div#t55-done { text { 0 } }
+}
+propertyTest55 { }`, e: ['hello world'] }
+,
+      { n: 56, t: 'q-logger q-signal (manual button)', m: true, ms: '#t56-done', s: `q-component signalTest56 {
+  q-signal ping(value)
+  q-logger { q-signal }
+  onPing {
+    this.querySelector("#t56-out").textContent = event.detail.params.value;
+    this.querySelector("#t56-done").textContent = "1";
+  }
+  button#t56-run {
+    type: "button"
+    onclick {
+      this.closest("signalTest56").ping("signal-ok");
+    }
+    text { test signal log }
+  }
+  div#t56-out { text { waiting } }
+  div#t56-done { text { 0 } }
+}
+signalTest56 { }`, e: ['signal-ok'] }
+,
+      { n: 57, t: 'q-logger q-component (manual button)', m: true, ms: '#t57-done', s: `q-component componentTest57 {
+  q-property status: "waiting"
+  q-logger { q-component }
+  button#t57-run {
+    type: "button"
+    onclick {
+      var host = this.closest("componentTest57");
+      host.status = "component-ok";
+      host.querySelector("#t57-out").textContent = host.status;
+      host.querySelector("#t57-done").textContent = "1";
+    }
+    text { test component log }
+  }
+  div#t57-out { text { waiting } }
+  div#t57-done { text { 0 } }
+}
+componentTest57 { }`, e: ['component-ok'] }
+,
+      { n: 58, t: 'q-logger function (manual button)', m: true, ms: '#t58-done', s: `q-component functionTest58 {
+  q-property count: 0
+  q-logger { function }
+  function bump() { this.count = Number(this.count || 0) + 1; return this.count; }
+  button#t58-run {
+    type: "button"
+    onclick {
+      var host = this.closest("functionTest58");
+      host.querySelector("#t58-out").textContent = String(host.bump());
+      host.querySelector("#t58-done").textContent = "1";
+    }
+    text { test function log }
+  }
+  div#t58-out { text { waiting } }
+  div#t58-done { text { 0 } }
+}
+functionTest58 { }`, e: ['1'] }
+,
+      { n: 59, t: 'q-logger slot (manual button)', m: true, ms: '#t59-done', s: `q-component slotTest59 {
+  q-logger { slot }
+  slot { body }
+  div#t59-projected { slot { body } }
+  button#t59-run {
+    type: "button"
+    onclick {
+      var host = this.closest("slotTest59");
+      host.querySelector("#t59-out").textContent = host.querySelector("#t59-projected").textContent.trim();
+      host.querySelector("#t59-done").textContent = "1";
+    }
+    text { test slot log }
+  }
+  div#t59-out { text { waiting } }
+  div#t59-done { text { 0 } }
+}
+slotTest59 {
+  body { slot-ok }
+}`, e: ['slot-ok'] }
+,
+      { n: 60, t: 'q-logger model (manual button)', m: true, ms: '#t60-done', s: `q-model t60-model { q-array { 1, 2, 3 } }
+div#t60-scope { q-logger { model } }
+button#t60-run {
+  type: "button"
+  onclick {
+    var host = this.closest("q-html");
+    var model = host["t60-model"];
+    model.add(4);
+    host.querySelector("#t60-out").textContent = String(model.count());
+    host.querySelector("#t60-done").textContent = "1";
+  }
+  text { test model log }
+}
+div#t60-out { text { waiting } }
+div#t60-done { text { 0 } }`, e: ['4'] }
+,
+      { n: 61, t: 'q-logger instantiation (manual button)', m: true, ms: '#t61-done', s: `q-component instTest61 {
+  q-property status: "waiting"
+  q-logger { instantiation }
+  button#t61-run {
+    type: "button"
+    onclick {
+      var host = this.closest("instTest61");
+      host.status = "instantiation-ok";
+      host.querySelector("#t61-out").textContent = host.status;
+      host.querySelector("#t61-done").textContent = "1";
+    }
+    text { test instantiation log }
+  }
+  div#t61-out { text { waiting } }
+  div#t61-done { text { 0 } }
+}
+instTest61 { }`, e: ['instantiation-ok'] }
+,
+      { n: 62, t: 'q-logger multi categories (manual button)', m: true, ms: '#t62-done', s: `q-component multiTest62 {
+  q-property count: 0
+  q-signal ping(value)
+  q-logger { q-property q-signal function }
+  function bump() { this.count = Number(this.count || 0) + 1; return this.count; }
+  onPing {
+    this.querySelector("#t62-out").textContent = event.detail.params.value + "-" + String(this.count);
+    this.querySelector("#t62-done").textContent = "1";
+  }
+  button#t62-run {
+    type: "button"
+    onclick {
+      var host = this.closest("multiTest62");
+      host.bump();
+      host.ping("multi-ok");
+    }
+    text { test multi logger }
+  }
+  div#t62-out { text { waiting } }
+  div#t62-done { text { 0 } }
+}
+multiTest62 { }`, e: ['multi-ok-1'] }
+,
+      { n: 63, t: 'q-logger multi-scope override (manual button)', m: true, ms: '#t63-done', s: `q-component scopeTest63 {
+  q-property count: 0
+  q-logger { q-property }
+  div.out { text { \${this.component.count} } }
+}
+scopeTest63#t63-a { }
+scopeTest63#t63-b { q-logger { q-signal } }
+button#t63-run {
+  type: "button"
+  onclick {
+    var host = this.closest("q-html");
+    var a = host.querySelector("#t63-a");
+    var b = host.querySelector("#t63-b");
+    a.count = Number(a.count || 0) + 1;
+    b.count = Number(b.count || 0) + 1;
+    host.querySelector("#t63-out").textContent = "a=" + String(a.count) + "|b=" + String(b.count);
+    host.querySelector("#t63-done").textContent = "1";
+  }
+  text { test scope override }
+}
+div#t63-out { text { waiting } }
+div#t63-done { text { 0 } }`, e: ['a=1|b=1'] }
     ];
 
     function normalize(input) {
@@ -588,6 +768,17 @@ q-timer mytimer54 {
         let total = 0;
 
         active.forEach((entry) => {
+          if (entry.test.m === true) {
+            const doneSelector = String(entry.test.ms || "").trim();
+            const doneNode = doneSelector ? entry.host.querySelector(doneSelector) : null;
+            const done = doneNode && normalize(doneNode.textContent) === '1';
+            if (!done) {
+              entry.statusNode.className = 'status deprecated';
+              entry.statusNode.textContent = 'manual';
+              return;
+            }
+          }
+
           total += 1;
           const actualRaw = String(entry.host.innerHTML);
           const actualNormalized = normalize(actualRaw);
