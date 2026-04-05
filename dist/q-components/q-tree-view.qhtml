@@ -2,7 +2,37 @@ q-component q-tree-view {
   q-property model: ""
   q-property treeModel: ""
 
+  function _normalizeSetModelInput(input) {
+    if (input && typeof input === "object") {
+      return input
+    }
+    if (typeof input === "string") {
+      var text = String(input || "").trim()
+      if (!text) {
+        return {}
+      }
+      try {
+        return JSON.parse(text)
+      } catch (error) {
+        return {}
+      }
+    }
+    return {}
+  }
+
+  function setModel(qdomModel) {
+    var normalized = this._normalizeSetModelInput(qdomModel)
+    this.__treeRawModel = normalized
+    this.treeModel = ""
+    this.model = ""
+    this.refresh()
+    return normalized
+  }
+
   function _effectiveModel() {
+    if (this.__treeRawModel && typeof this.__treeRawModel === "object") {
+      return this.__treeRawModel
+    }
     var value = this.treeModel
     if (value === null || typeof value === "undefined" || value === "") { value = this.model }
     if (value === null || typeof value === "undefined" || value === "") { value = this.getAttribute("treeModel") }

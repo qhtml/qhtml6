@@ -957,6 +957,207 @@
     return out;
   }
 
+  function readComponentRepeaterConfig(definitionNode) {
+    if (!definitionNode || typeof definitionNode !== "object") {
+      return null;
+    }
+    const meta = definitionNode.meta && typeof definitionNode.meta === "object" ? definitionNode.meta : null;
+    const cfg =
+      meta &&
+      meta.__qhtmlInheritedRepeaterConfig &&
+      typeof meta.__qhtmlInheritedRepeaterConfig === "object" &&
+      !Array.isArray(meta.__qhtmlInheritedRepeaterConfig)
+        ? meta.__qhtmlInheritedRepeaterConfig
+        : null;
+    if (!cfg) {
+      return null;
+    }
+    const modelEntries = Array.isArray(cfg.modelEntries) ? cfg.modelEntries : [];
+    const aliasNamesRaw = Array.isArray(cfg.aliasNames) ? cfg.aliasNames : [];
+    const aliasNames = [];
+    const seenAlias = new Set();
+    for (let i = 0; i < aliasNamesRaw.length; i += 1) {
+      const aliasName = String(aliasNamesRaw[i] || "").trim();
+      if (!aliasName || seenAlias.has(aliasName)) {
+        continue;
+      }
+      seenAlias.add(aliasName);
+      aliasNames.push(aliasName);
+    }
+    const slotName = String(cfg.slotName || "item").trim() || "item";
+    if (aliasNames.length === 0) {
+      aliasNames.push(slotName);
+    } else if (!seenAlias.has(slotName)) {
+      aliasNames.push(slotName);
+    }
+    return {
+      keyword: String(cfg.keyword || "").trim().toLowerCase(),
+      slotName: slotName,
+      aliasNames: aliasNames,
+      explicitSlot: !!cfg.explicitSlot,
+      explicitModel: !!cfg.explicitModel,
+      modelEntries: modelEntries.slice(),
+      modelSource: String(cfg.modelSource || "").trim(),
+    };
+  }
+
+  function mergeRepeaterConfig(baseConfig, incomingConfig) {
+    const base = baseConfig && typeof baseConfig === "object" ? baseConfig : null;
+    const incoming = incomingConfig && typeof incomingConfig === "object" ? incomingConfig : null;
+    if (!incoming) {
+      return base ? Object.assign({}, base, { modelEntries: Array.isArray(base.modelEntries) ? base.modelEntries.slice() : [] }) : null;
+    }
+    const incomingKeyword = String(incoming.keyword || "").trim().toLowerCase();
+    const incomingAliasesRaw = Array.isArray(incoming.aliasNames) ? incoming.aliasNames : [];
+    const incomingAliases = [];
+    for (let i = 0; i < incomingAliasesRaw.length; i += 1) {
+      const aliasName = String(incomingAliasesRaw[i] || "").trim();
+      if (!aliasName) {
+        continue;
+      }
+      incomingAliases.push(aliasName);
+    }
+    if (!base) {
+      if (!incomingKeyword) {
+        return null;
+      }
+      const slotName = String(incoming.slotName || "item").trim() || "item";
+      const aliasNames = [];
+      const aliasSeen = new Set();
+      for (let i = 0; i < incomingAliases.length; i += 1) {
+        const aliasName = incomingAliases[i];
+        if (!aliasName || aliasSeen.has(aliasName)) {
+          continue;
+        }
+        aliasSeen.add(aliasName);
+        aliasNames.push(aliasName);
+      }
+      if (!aliasSeen.has(slotName)) {
+        aliasSeen.add(slotName);
+        aliasNames.push(slotName);
+      }
+      return Object.assign({}, incoming, {
+        slotName: slotName,
+        aliasNames: aliasNames,
+        keyword: incomingKeyword,
+        modelEntries: Array.isArray(incoming.modelEntries) ? incoming.modelEntries.slice() : [],
+      });
+    }
+    const baseAliasesRaw = Array.isArray(base.aliasNames) ? base.aliasNames : [];
+    const baseAliases = [];
+    for (let i = 0; i < baseAliasesRaw.length; i += 1) {
+      const aliasName = String(baseAliasesRaw[i] || "").trim();
+      if (!aliasName) {
+        continue;
+      }
+      baseAliases.push(aliasName);
+    }
+    const mergedAliases = [];
+    const mergedAliasSeen = new Set();
+    for (let i = 0; i < baseAliases.length; i += 1) {
+      const aliasName = baseAliases[i];
+      if (!aliasName || mergedAliasSeen.has(aliasName)) {
+        continue;
+      }
+      mergedAliasSeen.add(aliasName);
+      mergedAliases.push(aliasName);
+    }
+    for (let i = 0; i < incomingAliases.length; i += 1) {
+      const aliasName = incomingAliases[i];
+      if (!aliasName || mergedAliasSeen.has(aliasName)) {
+        continue;
+      }
+      mergedAliasSeen.add(aliasName);
+      mergedAliases.push(aliasName);
+    }
+    const out = {
+      keyword: incomingKeyword || String(base.keyword || "q-model-view").trim().toLowerCase() || "q-model-view",
+      slotName: String(base.slotName || "item").trim() || "item",
+      aliasNames: mergedAliases,
+      explicitSlot: !!base.explicitSlot,
+      explicitModel: !!base.explicitModel,
+      modelEntries: Array.isArray(base.modelEntries) ? base.modelEntries.slice() : [],
+      modelSource: String(base.modelSource || "").trim(),
+    };
+    if (incoming.explicitSlot) {
+      out.slotName = String(incoming.slotName || out.slotName || "item").trim() || "item";
+      out.explicitSlot = true;
+      if (!mergedAliasSeen.has(out.slotName)) {
+        mergedAliasSeen.add(out.slotName);
+        out.aliasNames.push(out.slotName);
+      }
+    }
+    if (incoming.explicitModel) {
+      out.modelEntries = Array.isArray(incoming.modelEntries) ? incoming.modelEntries.slice() : [];
+      out.modelSource = String(incoming.modelSource || "").trim();
+      out.explicitModel = true;
+    }
+    if (!Array.isArray(out.aliasNames)) {
+      out.aliasNames = [];
+    }
+    let hasSlotAlias = false;
+    for (let i = 0; i < out.aliasNames.length; i += 1) {
+      if (String(out.aliasNames[i] || "").trim() === out.slotName) {
+        hasSlotAlias = true;
+        break;
+      }
+    }
+    if (!hasSlotAlias) {
+      out.aliasNames.push(out.slotName);
+    }
+    return out;
+  }
+
+  function readInheritedRepeaterKeyword(definitionNode) {
+    const inheritedIds = readInheritedComponentIds(definitionNode);
+    for (let ii = 0; ii < inheritedIds.length; ii += 1) {
+      const inheritedLower = String(inheritedIds[ii] || "").trim().toLowerCase();
+      if (inheritedLower === "q-model-view") {
+        return "q-model-view";
+      }
+      if (inheritedLower === "q-repeater" || inheritedLower === "q-foreach") {
+        return "q-repeater";
+      }
+    }
+    return "";
+  }
+
+  function readPlainNodeText(node) {
+    if (!node || typeof node !== "object") {
+      return "";
+    }
+    if (core.NODE_TYPES.text && node.kind === core.NODE_TYPES.text) {
+      return String(node.value || "");
+    }
+    if (node.kind !== core.NODE_TYPES.element && node.kind !== core.NODE_TYPES.componentInstance) {
+      return "";
+    }
+    let out = "";
+    if (typeof node.textContent === "string") {
+      out += node.textContent;
+    }
+    const children = Array.isArray(node.children) ? node.children : [];
+    for (let i = 0; i < children.length; i += 1) {
+      out += readPlainNodeText(children[i]);
+    }
+    return out;
+  }
+
+  function readRepeaterAliasFromTemplateNode(node) {
+    if (!node || typeof node !== "object" || node.kind !== core.NODE_TYPES.element) {
+      return "";
+    }
+    const tag = String(node.tagName || "").trim().toLowerCase();
+    if (tag !== "as" && tag !== "slot") {
+      return "";
+    }
+    const text = readPlainNodeText(node).trim();
+    if (/^[A-Za-z_][A-Za-z0-9_-]*$/.test(text)) {
+      return text;
+    }
+    return "";
+  }
+
   function resolveInheritedComponentDefinition(componentNode, componentRegistry, cache) {
     if (!componentNode || typeof componentNode !== "object" || componentNode.kind !== core.NODE_TYPES.component) {
       return componentNode;
@@ -1012,6 +1213,24 @@
     visitInheritance(componentNode, new Set(), new Set());
 
     if (chain.length <= 1) {
+      const directKeywordRepeater = readInheritedRepeaterKeyword(componentNode);
+      const directConfig = readComponentRepeaterConfig(componentNode);
+      const hasDirectRepeaterSemantics =
+        !!directKeywordRepeater ||
+        !!(directConfig && (
+          String(directConfig.keyword || "").trim().toLowerCase() ||
+          directConfig.explicitModel ||
+          directConfig.explicitSlot
+        ));
+      if (!hasDirectRepeaterSemantics) {
+        if (cacheMap) {
+          cacheMap.set(cacheKey, componentNode);
+        }
+        return componentNode;
+      }
+    }
+
+    if (chain.length <= 0) {
       if (cacheMap) {
         cacheMap.set(cacheKey, componentNode);
       }
@@ -1038,11 +1257,13 @@
       meta: leaf.meta && typeof leaf.meta === "object" ? Object.assign({}, leaf.meta) : {},
     };
 
-    const seenProperties = new Set();
+    const propertyIndex = new Map();
     const propertyDefinitionIndex = new Map();
     const methodIndex = new Map();
     const signalIndex = new Map();
     const aliasIndex = new Map();
+    const lifecycleIndex = new Map();
+    let mergedRepeaterConfig = null;
 
     function mergeNamedEntries(target, sourceEntries, indexMap) {
       const list = Array.isArray(sourceEntries) ? sourceEntries : [];
@@ -1079,11 +1300,15 @@
       for (let pi = 0; pi < properties.length; pi += 1) {
         const propertyName = String(properties[pi] || "").trim();
         const propertyKey = normalizeComponentKey(propertyName);
-        if (!propertyName || !propertyKey || seenProperties.has(propertyKey)) {
+        if (!propertyName || !propertyKey) {
           continue;
         }
-        seenProperties.add(propertyKey);
-        merged.properties.push(propertyName);
+        if (propertyIndex.has(propertyKey)) {
+          merged.properties[propertyIndex.get(propertyKey)] = propertyName;
+        } else {
+          propertyIndex.set(propertyKey, merged.properties.length);
+          merged.properties.push(propertyName);
+        }
       }
 
       mergeNamedEntries(merged.propertyDefinitions, node.propertyDefinitions, propertyDefinitionIndex);
@@ -1097,7 +1322,18 @@
           if (!hook || typeof hook !== "object") {
             continue;
           }
-          merged.lifecycleScripts.push(Object.assign({}, hook));
+          const hookName = normalizeComponentKey(hook.name);
+          const clonedHook = Object.assign({}, hook);
+          if (!hookName) {
+            merged.lifecycleScripts.push(clonedHook);
+            continue;
+          }
+          if (lifecycleIndex.has(hookName)) {
+            merged.lifecycleScripts[lifecycleIndex.get(hookName)] = clonedHook;
+          } else {
+            lifecycleIndex.set(hookName, merged.lifecycleScripts.length);
+            merged.lifecycleScripts.push(clonedHook);
+          }
         }
       }
 
@@ -1110,6 +1346,95 @@
           merged.templateNodes.push(node.templateNodes[ti]);
         }
       }
+
+      mergedRepeaterConfig = mergeRepeaterConfig(mergedRepeaterConfig, readComponentRepeaterConfig(node));
+      if (!mergedRepeaterConfig) {
+        const fallbackKeyword = readInheritedRepeaterKeyword(node);
+        if (fallbackKeyword) {
+          mergedRepeaterConfig = {
+            keyword: fallbackKeyword,
+            slotName: "item",
+            aliasNames: ["item"],
+            explicitSlot: false,
+            explicitModel: false,
+            modelEntries: [],
+            modelSource: "",
+          };
+        }
+      }
+    }
+
+    if (mergedRepeaterConfig) {
+      const filteredTemplateNodes = [];
+      const templateCandidates = Array.isArray(merged.templateNodes) ? merged.templateNodes : [];
+      for (let ti = 0; ti < templateCandidates.length; ti += 1) {
+        const templateNode = templateCandidates[ti];
+        if (!templateNode || typeof templateNode !== "object") {
+          continue;
+        }
+        if (templateNode.kind === core.NODE_TYPES.element) {
+          const tag = String(templateNode.tagName || "").trim().toLowerCase();
+          if (tag === "as" || tag === "slot") {
+            const alias = readRepeaterAliasFromTemplateNode(templateNode);
+            if (alias) {
+              mergedRepeaterConfig.slotName = alias;
+              mergedRepeaterConfig.explicitSlot = true;
+              const aliases = Array.isArray(mergedRepeaterConfig.aliasNames) ? mergedRepeaterConfig.aliasNames : [];
+              let exists = false;
+              for (let ai = 0; ai < aliases.length; ai += 1) {
+                if (String(aliases[ai] || "").trim() === alias) {
+                  exists = true;
+                  break;
+                }
+              }
+              if (!exists) {
+                aliases.push(alias);
+              }
+              mergedRepeaterConfig.aliasNames = aliases;
+            }
+            continue;
+          }
+          if (tag === "model" || tag === "q-model") {
+            continue;
+          }
+        }
+        filteredTemplateNodes.push(templateNode);
+      }
+
+      const repeaterNode = core.createRepeaterNode({
+        repeaterId: "",
+        keyword: String(mergedRepeaterConfig.keyword || "q-model-view").trim().toLowerCase() || "q-model-view",
+        slotName: String(mergedRepeaterConfig.slotName || "item").trim() || "item",
+        modelEntries: Array.isArray(mergedRepeaterConfig.modelEntries)
+          ? mergedRepeaterConfig.modelEntries.slice()
+          : [],
+        modelSource: String(mergedRepeaterConfig.modelSource || "").trim(),
+        templateNodes: filteredTemplateNodes,
+        meta: {
+          generated: true,
+          inherited: true,
+          aliasNames: Array.isArray(mergedRepeaterConfig.aliasNames)
+            ? mergedRepeaterConfig.aliasNames.slice()
+            : [String(mergedRepeaterConfig.slotName || "item").trim() || "item"],
+        },
+      });
+      merged.templateNodes = [repeaterNode];
+      if (!merged.meta || typeof merged.meta !== "object") {
+        merged.meta = {};
+      }
+      merged.meta.__qhtmlInheritedRepeaterConfig = {
+        keyword: repeaterNode.keyword,
+        slotName: repeaterNode.slotName,
+        explicitSlot: !!mergedRepeaterConfig.explicitSlot,
+        explicitModel: !!mergedRepeaterConfig.explicitModel,
+        aliasNames: Array.isArray(mergedRepeaterConfig.aliasNames)
+          ? mergedRepeaterConfig.aliasNames.slice()
+          : [repeaterNode.slotName],
+        modelEntries: Array.isArray(mergedRepeaterConfig.modelEntries)
+          ? mergedRepeaterConfig.modelEntries.slice()
+          : [],
+        modelSource: String(mergedRepeaterConfig.modelSource || "").trim(),
+      };
     }
 
     if (cacheMap) {
@@ -1900,6 +2225,11 @@
         clone.children.length > 0
       ) {
         clone.children = materializeSlots(clone.children, slotFills);
+      }
+      if (core.NODE_TYPES.repeater && clone.kind === core.NODE_TYPES.repeater) {
+        if (Array.isArray(clone.templateNodes) && clone.templateNodes.length > 0) {
+          clone.templateNodes = materializeSlots(clone.templateNodes, slotFills);
+        }
       }
       if (clone.kind === core.NODE_TYPES.slot && Array.isArray(clone.children) && clone.children.length > 0) {
         clone.children = materializeSlots(clone.children, slotFills);
@@ -4126,10 +4456,91 @@
         : null;
     const inlineScope = Object.assign({}, inheritedScope || {});
     const slotName = String(repeaterNode && repeaterNode.slotName || "item").trim() || "item";
-    inlineScope[slotName] = resolveRepeaterEntryValue(entry);
+    const aliasNames =
+      repeaterNode &&
+      repeaterNode.meta &&
+      Array.isArray(repeaterNode.meta.aliasNames)
+        ? repeaterNode.meta.aliasNames
+        : [slotName];
+    const entryValue = resolveRepeaterEntryValue(entry);
+    for (let i = 0; i < aliasNames.length; i += 1) {
+      const aliasName = String(aliasNames[i] || "").trim();
+      if (!aliasName) {
+        continue;
+      }
+      inlineScope[aliasName] = entryValue;
+    }
+    inlineScope[slotName] = entryValue;
     inlineScope.index = Number(index) || 0;
     next.inlineScope = inlineScope;
     return next;
+  }
+
+  function bindRepeaterEntryToComponentHost(context, repeaterNode, entry, index) {
+    const hostStack =
+      context && Array.isArray(context.componentHostStack) ? context.componentHostStack : null;
+    const componentHost = hostStack && hostStack.length > 0 ? hostStack[hostStack.length - 1] : null;
+    if (!componentHost || typeof componentHost !== "object") {
+      return function noopRestore() {};
+    }
+    const slotName = String(repeaterNode && repeaterNode.slotName || "item").trim() || "item";
+    const aliasNames =
+      repeaterNode &&
+      repeaterNode.meta &&
+      Array.isArray(repeaterNode.meta.aliasNames)
+        ? repeaterNode.meta.aliasNames
+        : [slotName];
+    const entryValue = resolveRepeaterEntryValue(entry);
+    const prior = [];
+    for (let i = 0; i < aliasNames.length; i += 1) {
+      const aliasName = String(aliasNames[i] || "").trim();
+      if (!aliasName) {
+        continue;
+      }
+      prior.push({
+        name: aliasName,
+        had: Object.prototype.hasOwnProperty.call(componentHost, aliasName),
+        value: componentHost[aliasName],
+      });
+      componentHost[aliasName] = entryValue;
+    }
+    if (prior.length === 0) {
+      prior.push({
+        name: slotName,
+        had: Object.prototype.hasOwnProperty.call(componentHost, slotName),
+        value: componentHost[slotName],
+      });
+      componentHost[slotName] = entryValue;
+    }
+    const hadIndex = Object.prototype.hasOwnProperty.call(componentHost, "index");
+    const prevIndex = componentHost.index;
+    componentHost.index = Number(index) || 0;
+    return function restoreRepeaterEntryBinding() {
+      for (let i = 0; i < prior.length; i += 1) {
+        const entryState = prior[i];
+        if (!entryState || !entryState.name) {
+          continue;
+        }
+        if (entryState.had) {
+          componentHost[entryState.name] = entryState.value;
+          continue;
+        }
+        try {
+          delete componentHost[entryState.name];
+        } catch (error) {
+          componentHost[entryState.name] = undefined;
+        }
+      }
+      if (hadIndex) {
+        componentHost.index = prevIndex;
+      } else {
+        try {
+          delete componentHost.index;
+        } catch (error) {
+          componentHost.index = undefined;
+        }
+      }
+    };
   }
 
   function renderRepeaterNode(repeaterNode, parent, targetDocument, context) {
@@ -4150,8 +4561,13 @@
       const entry = modelEntries[i];
       const expanded = materializeRepeaterTemplateNodes(repeaterNode, entry);
       const entryContext = createRepeaterRenderContext(context, repeaterNode, entry, i);
-      for (let j = 0; j < expanded.length; j += 1) {
-        renderNode(expanded[j], parent, targetDocument, entryContext);
+      const restoreBinding = bindRepeaterEntryToComponentHost(entryContext, repeaterNode, entry, i);
+      try {
+        for (let j = 0; j < expanded.length; j += 1) {
+          renderNode(expanded[j], parent, targetDocument, entryContext);
+        }
+      } finally {
+        restoreBinding();
       }
     }
   }

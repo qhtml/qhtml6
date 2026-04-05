@@ -607,6 +607,35 @@ tabs-demo-theme {
         </div>
       </section>
 
+      <section class="example-class" id="dynamic-tab-widget" data-title="dynamicTabWidget (q-tabs + q-model-view)">
+        <div class="example-head">
+          <h3>dynamicTabWidget</h3>
+          <p>Model-driven tabs using deep multi-extends: <code>q-tabs</code> + <code>q-model-view</code>.</p>
+        </div>
+        <div class="example-body">
+          <q-editor>
+q-import { q-components.qhtml }
+
+q-component dynamicTabWidget extends q-tabs extends q-model-view {
+  model {
+    q-array {
+      q-map { name: "Tab 1", content: "hello world" },
+      q-map { name: "Tab 2", content: "test 123" }
+    }
+  }
+  as { tabObject }
+
+  q-tab {
+    name { text { ${tabObject.name} } }
+    content { div { text { ${tabObject.content} } } }
+  }
+}
+
+dynamicTabWidget { }
+          </q-editor>
+        </div>
+      </section>
+
       <section class="example-class" id="q-tree-view" data-title="q-tree-view implementation example">
         <div class="example-head">
           <h3>q-tree-view quick usage</h3>

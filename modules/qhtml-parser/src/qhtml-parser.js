@@ -7881,18 +7881,41 @@
     return out;
   }
 
+  function readExtendsKeywordRepeaterHint(extendsComponentIds) {
+    const list = Array.isArray(extendsComponentIds) ? extendsComponentIds : [];
+    for (let i = 0; i < list.length; i += 1) {
+      const inheritedId = String(list[i] || "").trim().toLowerCase();
+      if (inheritedId === "q-model-view") {
+        return "q-model-view";
+      }
+      if (inheritedId === "q-repeater" || inheritedId === "q-foreach") {
+        return "q-repeater";
+      }
+    }
+    return "";
+  }
+
   function collectInheritedDeclaredProperties(definitionNode, definitionRegistry, state) {
     const shared = state && typeof state === "object" ? state : {};
     const out = Array.isArray(shared.out) ? shared.out : [];
     const seenDefs = shared.seenDefs instanceof Set ? shared.seenDefs : new Set();
     const seenProps = shared.seenProps instanceof Set ? shared.seenProps : new Set();
+    const pathKeys = shared.pathKeys instanceof Set ? shared.pathKeys : new Set();
     if (!definitionNode || typeof definitionNode !== "object") {
       return out;
+    }
+    const currentKey = normalizeDefinitionRegistryKey(definitionNode.componentId);
+    if (currentKey && pathKeys.has(currentKey)) {
+      throw new Error("Recursive q-component extends chain detected for '" + currentKey + "'.");
     }
     if (seenDefs.has(definitionNode)) {
       return out;
     }
     seenDefs.add(definitionNode);
+    const nextPathKeys = new Set(pathKeys);
+    if (currentKey) {
+      nextPathKeys.add(currentKey);
+    }
 
     const inheritedIds = readExtendsComponentIds(definitionNode);
     for (let bi = 0; bi < inheritedIds.length; bi += 1) {
@@ -7904,6 +7927,7 @@
         out: out,
         seenDefs: seenDefs,
         seenProps: seenProps,
+        pathKeys: nextPathKeys,
       });
     }
 
@@ -9525,10 +9549,67 @@
         extendsComponentIds.push(legacyExtendsId);
       }
     }
+    const inheritedRepeaterKeyword =
+      definitionType === "component" ? readExtendsKeywordRepeaterHint(extendsComponentIds) : "";
+    const canCaptureInheritedRepeaterOverrides =
+      definitionType === "component" && extendsComponentIds.length > 0;
+    let inheritedRepeaterSlotName = "item";
+    let inheritedRepeaterExplicitSlot = false;
+    let inheritedRepeaterExplicitModel = false;
+    const inheritedRepeaterModelItems = [];
+    const inheritedRepeaterModelSourceParts = [];
 
     const items = Array.isArray(astNode.items) ? astNode.items : [];
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i];
+      if (canCaptureInheritedRepeaterOverrides && item && typeof item === "object") {
+        if (item.type === "Element") {
+          const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+          const selectorLower = selectors.length === 1 ? String(selectors[0] || "").trim().toLowerCase() : "";
+          if (selectorLower === "as" || selectorLower === "slot") {
+            const alias = selectorLower === "as" ? readModelViewAlias(item) : readRepeaterSlotAlias(item);
+            if (alias) {
+              inheritedRepeaterSlotName = alias;
+              inheritedRepeaterExplicitSlot = true;
+            }
+            if (inheritedRepeaterKeyword) {
+              continue;
+            }
+          }
+          if (selectorLower === "q-model" || selectorLower === "model") {
+            const inlineModelItems = Array.isArray(item.items) ? item.items : [];
+            for (let mi = 0; mi < inlineModelItems.length; mi += 1) {
+              inheritedRepeaterModelItems.push(inlineModelItems[mi]);
+            }
+            const inlineModelSource = String(item.raw || "").trim();
+            if (inlineModelSource) {
+              inheritedRepeaterModelSourceParts.push(inlineModelSource);
+            }
+            inheritedRepeaterExplicitModel = true;
+            if (inheritedRepeaterKeyword) {
+              continue;
+            }
+          }
+        }
+        if (item.type === "QModelDefinition") {
+          if (String(item.name || "").trim()) {
+            registerQModelDefinitionItem(scopedContext, item);
+          } else {
+            const anonymousItems = Array.isArray(item.items) ? item.items : [];
+            for (let mi = 0; mi < anonymousItems.length; mi += 1) {
+              inheritedRepeaterModelItems.push(anonymousItems[mi]);
+            }
+            const rawModelSource = String(item.raw || "").trim();
+            if (rawModelSource) {
+              inheritedRepeaterModelSourceParts.push(rawModelSource);
+            }
+            inheritedRepeaterExplicitModel = true;
+          }
+          if (inheritedRepeaterKeyword) {
+            continue;
+          }
+        }
+      }
       if (registerQArrayDefinitionItem(scopedContext, item)) {
         continue;
       }
@@ -9818,6 +9899,27 @@
         componentNode.meta = {};
       }
       componentNode.meta.__qhtmlLoggerCategories = componentLoggerCategories.slice();
+    }
+    if (
+      definitionType === "component" &&
+      (inheritedRepeaterKeyword || inheritedRepeaterExplicitModel || inheritedRepeaterExplicitSlot)
+    ) {
+      const resolvedEntries = resolveRepeaterModelEntries(inheritedRepeaterModelItems, scopedContext, astNode);
+      for (let i = 0; i < resolvedEntries.length; i += 1) {
+        resolvedEntries[i] = normalizeRepeaterModelEntry(resolvedEntries[i], source, scopedContext);
+      }
+      if (!componentNode.meta || typeof componentNode.meta !== "object") {
+        componentNode.meta = {};
+      }
+      componentNode.meta.__qhtmlInheritedRepeaterConfig = {
+        keyword: String(inheritedRepeaterKeyword || "").trim().toLowerCase(),
+        slotName: String(inheritedRepeaterSlotName || "item").trim() || "item",
+        aliasNames: [String(inheritedRepeaterSlotName || "item").trim() || "item"],
+        explicitSlot: !!inheritedRepeaterExplicitSlot,
+        explicitModel: !!inheritedRepeaterExplicitModel,
+        modelEntries: resolvedEntries,
+        modelSource: inheritedRepeaterModelSourceParts.join("\n").trim(),
+      };
     }
     applyKeywordAliasesToNode(componentNode, astNode.keywords);
     return componentNode;

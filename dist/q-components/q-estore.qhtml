@@ -28,11 +28,7 @@ q-component product-grid extends q-grid extends q-model-view {
   q-property columns: 4
   rows: 4
   columns: q-bind { return this.component.columns }
-  q-model {
-    q-script {
-      return this.component.itemModel
-    }
-  }
+  q-model { q-array { } }
   as { item }
 
   q-estore-pricebox {

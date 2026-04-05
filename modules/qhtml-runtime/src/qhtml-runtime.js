@@ -336,6 +336,7 @@
         : input;
     const mode = Array.isArray(sourceInput) ? "array" : sourceInput && typeof sourceInput === "object" ? "map" : "array";
     const listeners = new Set();
+    const modelChangedListeners = new Set();
     const entries = normalizeQModelEntries(sourceInput);
 
     function reindexArrayEntries() {
@@ -369,6 +370,33 @@
       });
     }
 
+    function emitModelChanged(op, details) {
+      const event = Object.assign(
+        {
+          type: "modelChanged",
+          op: String(op || "update"),
+          count: entries.length,
+          values: api.values(),
+          model: api,
+        },
+        details || {}
+      );
+      modelChangedListeners.forEach(function notifyModelChanged(listener) {
+        try {
+          listener(event);
+        } catch (error) {
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml q-model modelChanged listener failed:", error);
+          }
+        }
+      });
+    }
+
+    function emitMutation(legacyType, details, modelOp) {
+      emit(legacyType, details);
+      emitModelChanged(modelOp || legacyType, details);
+    }
+
     function findIndexByKey(key) {
       for (let i = 0; i < entries.length; i += 1) {
         if (String(entries[i].key) === String(key)) {
@@ -389,6 +417,58 @@
         });
       }
       return out;
+    }
+
+    function resolveMapUpsertKey(keyOrIndex) {
+      const keyText = String(keyOrIndex == null ? "" : keyOrIndex).trim();
+      return keyText || "key" + String(entries.length + 1);
+    }
+
+    function setOrReplaceEntry(keyOrIndex, value, modelOp) {
+      const resolvedValue = cloneModelValue(value);
+      if (mode === "array") {
+        const idxRaw = Number(keyOrIndex);
+        const idx = Number.isFinite(idxRaw) ? Math.floor(idxRaw) : entries.length;
+        if (idx >= 0 && idx < entries.length) {
+          entries[idx].value = resolvedValue;
+          emitMutation("update", { index: idx, key: idx, value: cloneModelValue(resolvedValue) }, modelOp);
+          return idx;
+        }
+        const insertIdx = Number.isFinite(idx) ? Math.max(0, Math.min(entries.length, idx)) : entries.length;
+        entries.splice(insertIdx, 0, {
+          key: insertIdx,
+          index: insertIdx,
+          role: "value",
+          value: resolvedValue,
+        });
+        reindexArrayEntries();
+        emitMutation("add", { index: insertIdx, key: insertIdx, value: cloneModelValue(resolvedValue) }, modelOp);
+        return insertIdx;
+      }
+
+      const resolvedKey = resolveMapUpsertKey(keyOrIndex);
+      const existingIndex = findIndexByKey(resolvedKey);
+      if (existingIndex >= 0) {
+        entries[existingIndex].value = resolvedValue;
+        emitMutation(
+          "update",
+          { index: existingIndex, key: resolvedKey, value: cloneModelValue(resolvedValue) },
+          modelOp
+        );
+        return existingIndex;
+      }
+      entries.push({
+        key: resolvedKey,
+        index: entries.length,
+        role: resolvedKey,
+        value: resolvedValue,
+      });
+      emitMutation(
+        "add",
+        { index: entries.length - 1, key: resolvedKey, value: cloneModelValue(resolvedValue) },
+        modelOp
+      );
+      return entries.length - 1;
     }
 
     function walkModelValue(key, value, path, parent, callback, thisArg, visited) {
@@ -556,6 +636,57 @@
         }
         return out;
       },
+      set: function set(keyOrIndex, value) {
+        return setOrReplaceEntry(keyOrIndex, value, "set");
+      },
+      replace: function replace(keyOrIndex, value) {
+        return setOrReplaceEntry(keyOrIndex, value, "replace");
+      },
+      push: function push(value) {
+        const resolvedValue = cloneModelValue(value);
+        if (mode === "array") {
+          entries.push({
+            key: entries.length,
+            index: entries.length,
+            role: "value",
+            value: resolvedValue,
+          });
+          reindexArrayEntries();
+          emitMutation(
+            "add",
+            { index: entries.length - 1, key: entries.length - 1, value: cloneModelValue(resolvedValue) },
+            "push"
+          );
+          return entries.length - 1;
+        }
+        return setOrReplaceEntry(null, resolvedValue, "push");
+      },
+      push_front: function pushFront(value) {
+        const resolvedValue = cloneModelValue(value);
+        if (mode === "array") {
+          entries.splice(0, 0, {
+            key: 0,
+            index: 0,
+            role: "value",
+            value: resolvedValue,
+          });
+          reindexArrayEntries();
+          emitMutation("insert", { index: 0, key: 0, value: cloneModelValue(resolvedValue) }, "push_front");
+          return 0;
+        }
+        const resolvedKey = "key" + String(entries.length + 1);
+        entries.splice(0, 0, {
+          key: resolvedKey,
+          index: 0,
+          role: resolvedKey,
+          value: resolvedValue,
+        });
+        for (let i = 0; i < entries.length; i += 1) {
+          entries[i].index = i;
+        }
+        emitMutation("insert", { index: 0, key: resolvedKey, value: cloneModelValue(resolvedValue) }, "push_front");
+        return 0;
+      },
       add: function add(value, key) {
         if (mode === "array") {
           entries.push({
@@ -565,7 +696,7 @@
             value: cloneModelValue(value),
           });
           reindexArrayEntries();
-          emit("add", { index: entries.length - 1, key: entries.length - 1, value: cloneModelValue(value) });
+          emitMutation("add", { index: entries.length - 1, key: entries.length - 1, value: cloneModelValue(value) }, "add");
           return entries.length - 1;
         }
         const resolvedKey =
@@ -575,7 +706,7 @@
         const existingIndex = findIndexByKey(resolvedKey);
         if (existingIndex >= 0) {
           entries[existingIndex].value = cloneModelValue(value);
-          emit("update", { index: existingIndex, key: resolvedKey, value: cloneModelValue(value) });
+          emitMutation("update", { index: existingIndex, key: resolvedKey, value: cloneModelValue(value) }, "update");
           return existingIndex;
         }
         entries.push({
@@ -584,7 +715,7 @@
           role: resolvedKey,
           value: cloneModelValue(value),
         });
-        emit("add", { index: entries.length - 1, key: resolvedKey, value: cloneModelValue(value) });
+        emitMutation("add", { index: entries.length - 1, key: resolvedKey, value: cloneModelValue(value) }, "add");
         return entries.length - 1;
       },
       insert: function insert(index, value, key) {
@@ -598,7 +729,7 @@
             value: cloneModelValue(value),
           });
           reindexArrayEntries();
-          emit("insert", { index: idx, key: idx, value: cloneModelValue(value) });
+          emitMutation("insert", { index: idx, key: idx, value: cloneModelValue(value) }, "insert");
           return idx;
         }
         const resolvedKey =
@@ -608,7 +739,7 @@
         const existingIndex = findIndexByKey(resolvedKey);
         if (existingIndex >= 0) {
           entries[existingIndex].value = cloneModelValue(value);
-          emit("update", { index: existingIndex, key: resolvedKey, value: cloneModelValue(value) });
+          emitMutation("update", { index: existingIndex, key: resolvedKey, value: cloneModelValue(value) }, "update");
           return existingIndex;
         }
         entries.splice(idx, 0, {
@@ -620,7 +751,7 @@
         for (let i = 0; i < entries.length; i += 1) {
           entries[i].index = i;
         }
-        emit("insert", { index: idx, key: resolvedKey, value: cloneModelValue(value) });
+        emitMutation("insert", { index: idx, key: resolvedKey, value: cloneModelValue(value) }, "insert");
         return idx;
       },
       remove: function remove(keyOrIndex) {
@@ -649,11 +780,11 @@
             entries[i].index = i;
           }
         }
-        emit("remove", {
+        emitMutation("remove", {
           index: index,
           key: removed && Object.prototype.hasOwnProperty.call(removed, "key") ? removed.key : index,
           value: removed ? cloneModelValue(removed.value) : null,
-        });
+        }, "remove");
         return removed ? cloneModelValue(removed.value) : null;
       },
       subscribe: function subscribe(listener) {
@@ -670,7 +801,394 @@
       },
     };
 
+    const modelChangedSignal = {
+      connect: function connect(listener) {
+        if (typeof listener !== "function") {
+          return function noopDisconnect() {};
+        }
+        modelChangedListeners.add(listener);
+        return function disconnect() {
+          modelChangedListeners.delete(listener);
+        };
+      },
+      disconnect: function disconnect(listener) {
+        if (typeof listener !== "function") {
+          return false;
+        }
+        return modelChangedListeners.delete(listener);
+      },
+      emit: function emit(details) {
+        emitModelChanged("manual", details || {});
+      },
+    };
+
+    api.modelChanged = modelChangedSignal;
+    api.modelchanged = modelChangedSignal;
+
     return api;
+  }
+
+  function normalizeQMapFilters(input) {
+    if (Array.isArray(input)) {
+      const out = [];
+      for (let i = 0; i < input.length; i += 1) {
+        const token = String(input[i] == null ? "" : input[i]).trim().toLowerCase();
+        if (!token || out.indexOf(token) >= 0) {
+          continue;
+        }
+        out.push(token);
+      }
+      return out;
+    }
+    if (typeof input === "string") {
+      return normalizeQMapFilters(String(input || "").split(/[,\s]+/g));
+    }
+    return [];
+  }
+
+  function qMapNodeKind(targetNode) {
+    return String(targetNode && targetNode.kind ? targetNode.kind : "").trim().toLowerCase();
+  }
+
+  function qMapNodeLabel(targetNode, kind) {
+    if (!targetNode || typeof targetNode !== "object") {
+      return "unknown";
+    }
+    if (kind === "component") {
+      return "q-component " + String(targetNode.componentId || "unnamed").trim();
+    }
+    if (kind === "component-instance" || kind === "template-instance") {
+      const tag = String(targetNode.tagName || targetNode.componentId || "component").trim();
+      return tag || "component";
+    }
+    if (kind === "slot") {
+      const slotName = String(targetNode.name || "default").trim() || "default";
+      return "slot " + slotName;
+    }
+    if (kind === "element") {
+      return String(targetNode.tagName || "element").trim() || "element";
+    }
+    if (kind === "text") {
+      return "text";
+    }
+    if (kind === "raw-html") {
+      return "html";
+    }
+    if (kind === "repeater") {
+      const keyword = String(targetNode.keyword || "q-model-view").trim() || "q-model-view";
+      const slotName = String(targetNode.slotName || "item").trim() || "item";
+      return keyword + " as " + slotName;
+    }
+    if (kind === "model") {
+      return "q-model";
+    }
+    if (kind === "script-rule") {
+      return "q-script-rule";
+    }
+    if (kind === "color") {
+      return "q-color " + String(targetNode.name || "").trim();
+    }
+    if (kind === "document") {
+      return "document";
+    }
+    return kind || "node";
+  }
+
+  function qMapLeafValue(targetNode, kind) {
+    if (!targetNode || typeof targetNode !== "object") {
+      return "";
+    }
+    if (kind === "text") {
+      return String(targetNode.value == null ? "" : targetNode.value);
+    }
+    if (kind === "raw-html") {
+      return String(targetNode.html == null ? "" : targetNode.html);
+    }
+    if (kind === "slot") {
+      return String(targetNode.name || "default").trim() || "default";
+    }
+    if (kind === "element") {
+      if (typeof targetNode.textContent === "string" && targetNode.textContent.trim()) {
+        return String(targetNode.textContent);
+      }
+      return String(targetNode.tagName || "element");
+    }
+    if (kind === "component" || kind === "component-instance" || kind === "template-instance") {
+      return String(targetNode.componentId || targetNode.tagName || "component");
+    }
+    if (kind === "repeater") {
+      return String(targetNode.slotName || "item");
+    }
+    if (kind === "script-rule") {
+      return String(targetNode.eventName || "").trim() || "event";
+    }
+    if (kind === "color") {
+      return String(targetNode.value || "").trim() || String(targetNode.name || "").trim();
+    }
+    return kind || "";
+  }
+
+  function readQMapChildCollections(targetNode) {
+    const out = [];
+    if (!targetNode || typeof targetNode !== "object") {
+      return out;
+    }
+    if (Array.isArray(targetNode.nodes)) {
+      out.push(targetNode.nodes);
+    }
+    if (Array.isArray(targetNode.templateNodes)) {
+      out.push(targetNode.templateNodes);
+    }
+    if (Array.isArray(targetNode.children)) {
+      out.push(targetNode.children);
+    }
+    if (Array.isArray(targetNode.slots)) {
+      out.push(targetNode.slots);
+    }
+    if (Array.isArray(targetNode.__qhtmlSlotNodes)) {
+      out.push(targetNode.__qhtmlSlotNodes);
+    }
+    if (Array.isArray(targetNode.__qhtmlRenderTree)) {
+      out.push(targetNode.__qhtmlRenderTree);
+    }
+    if (targetNode.model && typeof targetNode.model === "object") {
+      out.push([targetNode.model]);
+    }
+    if (Array.isArray(targetNode.entries)) {
+      out.push(targetNode.entries);
+    }
+    return out;
+  }
+
+  function qMapNodeTokens(targetNode, kind) {
+    const tokens = [];
+    if (kind) {
+      tokens.push(kind);
+    }
+    if (kind === "component") {
+      tokens.push("q-component");
+      const componentId = String(targetNode && targetNode.componentId ? targetNode.componentId : "").trim().toLowerCase();
+      if (componentId) {
+        tokens.push(componentId);
+      }
+    } else if (kind === "slot") {
+      tokens.push("slot");
+    } else if (kind === "element") {
+      const tagName = String(targetNode && targetNode.tagName ? targetNode.tagName : "").trim().toLowerCase();
+      if (tagName) {
+        tokens.push(tagName);
+      }
+      if (tagName === "slot") {
+        tokens.push("slot");
+      }
+    } else if (kind === "repeater") {
+      const keyword = String(targetNode && targetNode.keyword ? targetNode.keyword : "").trim().toLowerCase();
+      if (keyword) {
+        tokens.push(keyword);
+      }
+    }
+    return tokens;
+  }
+
+  function qMapMatchesFilters(targetNode, kind, filters) {
+    if (!(filters instanceof Set) || filters.size === 0) {
+      return true;
+    }
+    const tokens = qMapNodeTokens(targetNode, kind);
+    for (let i = 0; i < tokens.length; i += 1) {
+      if (filters.has(tokens[i])) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function setUniqueQMapKey(target, key, value) {
+    const base = String(key == null ? "" : key).trim() || "node";
+    if (!Object.prototype.hasOwnProperty.call(target, base)) {
+      target[base] = value;
+      return;
+    }
+    let index = 2;
+    while (Object.prototype.hasOwnProperty.call(target, base + " #" + String(index))) {
+      index += 1;
+    }
+    target[base + " #" + String(index)] = value;
+  }
+
+  function createQMapKeywordGroups(targetNode) {
+    const out = [];
+    if (!targetNode || typeof targetNode !== "object") {
+      return out;
+    }
+    const kind = qMapNodeKind(targetNode);
+    if (kind !== "component") {
+      return out;
+    }
+    const propertyMap = {};
+    const propertyDefs = Array.isArray(targetNode.propertyDefinitions) ? targetNode.propertyDefinitions : [];
+    for (let i = 0; i < propertyDefs.length; i += 1) {
+      const definition = propertyDefs[i] && typeof propertyDefs[i] === "object" ? propertyDefs[i] : null;
+      const name = String(definition && definition.name ? definition.name : "").trim();
+      if (!name) {
+        continue;
+      }
+      propertyMap[name] = "q-property";
+    }
+    const declaredProps = Array.isArray(targetNode.properties) ? targetNode.properties : [];
+    for (let i = 0; i < declaredProps.length; i += 1) {
+      const name = String(declaredProps[i] || "").trim();
+      if (!name) {
+        continue;
+      }
+      propertyMap[name] = "q-property";
+    }
+    if (Object.keys(propertyMap).length > 0) {
+      out.push({
+        label: "q-property",
+        token: "q-property",
+        value: propertyMap,
+      });
+    }
+    const signalDefs = Array.isArray(targetNode.signalDeclarations) ? targetNode.signalDeclarations : [];
+    if (signalDefs.length > 0) {
+      const signalMap = {};
+      for (let i = 0; i < signalDefs.length; i += 1) {
+        const declaration = signalDefs[i] && typeof signalDefs[i] === "object" ? signalDefs[i] : null;
+        const signalName = String(declaration && declaration.name ? declaration.name : "").trim();
+        if (!signalName) {
+          continue;
+        }
+        const parameters = Array.isArray(declaration.parameters)
+          ? declaration.parameters.map(function mapSignalParam(name) { return String(name || "").trim(); }).filter(Boolean)
+          : [];
+        signalMap[signalName] = parameters.length > 0 ? "(" + parameters.join(", ") + ")" : "()";
+      }
+      if (Object.keys(signalMap).length > 0) {
+        out.push({
+          label: "q-signal",
+          token: "q-signal",
+          value: signalMap,
+        });
+      }
+    }
+    return out;
+  }
+
+  function readQMapDefinitionNodeForInstance(targetNode) {
+    if (!targetNode || typeof targetNode !== "object") {
+      return null;
+    }
+    const kind = qMapNodeKind(targetNode);
+    if (kind !== "component-instance" && kind !== "template-instance") {
+      return null;
+    }
+    const definitionId = String(targetNode.componentId || targetNode.tagName || "").trim().toLowerCase();
+    if (!definitionId || !(definitionRegistry instanceof Map) || !definitionRegistry.has(definitionId)) {
+      return null;
+    }
+    const definitionNode = definitionRegistry.get(definitionId);
+    if (!definitionNode || typeof definitionNode !== "object") {
+      return null;
+    }
+    return definitionNode;
+  }
+
+  function createQMapNodeTree(sourceNode, options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const includeFullTree = opts.includeFullTree === true;
+    const filterList = normalizeQMapFilters(opts.filters);
+    const filterSet = filterList.length > 0 ? new Set(filterList) : new Set();
+    const visited = new Set();
+
+    function buildEntry(targetNode) {
+      const source = sourceNodeOf(targetNode) || targetNode;
+      if (!source || typeof source !== "object") {
+        return null;
+      }
+      if (visited.has(source)) {
+        return null;
+      }
+      visited.add(source);
+      const kind = qMapNodeKind(source);
+      const label = qMapNodeLabel(source, kind);
+      const childMap = {};
+
+      const keywordGroups = createQMapKeywordGroups(source);
+      for (let i = 0; i < keywordGroups.length; i += 1) {
+        const group = keywordGroups[i];
+        if (!group || typeof group !== "object") {
+          continue;
+        }
+        const token = String(group.token || "").trim().toLowerCase();
+        const includeGroup = includeFullTree || filterSet.size === 0 || (token && filterSet.has(token));
+        if (!includeGroup) {
+          continue;
+        }
+        setUniqueQMapKey(childMap, group.label, group.value);
+      }
+
+      const definitionNode = readQMapDefinitionNodeForInstance(source);
+      if (definitionNode) {
+        const definitionKeywordGroups = createQMapKeywordGroups(definitionNode);
+        for (let i = 0; i < definitionKeywordGroups.length; i += 1) {
+          const group = definitionKeywordGroups[i];
+          if (!group || typeof group !== "object") {
+            continue;
+          }
+          const token = String(group.token || "").trim().toLowerCase();
+          const includeGroup = includeFullTree || filterSet.size === 0 || (token && filterSet.has(token));
+          if (!includeGroup) {
+            continue;
+          }
+          setUniqueQMapKey(childMap, group.label, group.value);
+        }
+      }
+
+      const childCollections = readQMapChildCollections(source);
+      const definitionNodeForInstance = readQMapDefinitionNodeForInstance(source);
+      const definitionChildCollections = definitionNodeForInstance
+        ? readQMapChildCollections(definitionNodeForInstance)
+        : [];
+      for (let i = 0; i < childCollections.length; i += 1) {
+        const list = childCollections[i];
+        for (let j = 0; j < list.length; j += 1) {
+          const entry = buildEntry(list[j]);
+          if (!entry) {
+            continue;
+          }
+          setUniqueQMapKey(childMap, entry.label, entry.value);
+        }
+      }
+      for (let i = 0; i < definitionChildCollections.length; i += 1) {
+        const list = definitionChildCollections[i];
+        for (let j = 0; j < list.length; j += 1) {
+          const entry = buildEntry(list[j]);
+          if (!entry) {
+            continue;
+          }
+          setUniqueQMapKey(childMap, entry.label, entry.value);
+        }
+      }
+
+      const hasChildren = Object.keys(childMap).length > 0;
+      const matches = qMapMatchesFilters(source, kind, filterSet);
+      if (!includeFullTree && !matches && !hasChildren) {
+        return null;
+      }
+      return {
+        label: label,
+        value: hasChildren ? childMap : qMapLeafValue(source, kind),
+      };
+    }
+
+    const rootEntry = buildEntry(sourceNode);
+    if (!rootEntry) {
+      return {};
+    }
+    const out = {};
+    out[rootEntry.label] = rootEntry.value;
+    return out;
   }
 
   function isNumericPathSegment(segment) {
@@ -9769,6 +10287,29 @@
     return values;
   }
 
+  function resolveModelEntriesToInput(entries) {
+    const list = Array.isArray(entries) ? entries : [];
+    const values = resolveModelEntriesToValues(list);
+    if (list.length === 1) {
+      const firstEntry = list[0];
+      const firstValue = values.length > 0 ? values[0] : undefined;
+      const firstIsMapLike =
+        firstValue &&
+        typeof firstValue === "object" &&
+        !Array.isArray(firstValue) &&
+        !(firstValue && typeof firstValue === "object" && firstValue.__qhtmlIsQModel === true);
+      const cameFromModelValueEntry =
+        firstEntry &&
+        typeof firstEntry === "object" &&
+        (Object.prototype.hasOwnProperty.call(firstEntry, "value") ||
+          Object.prototype.hasOwnProperty.call(firstEntry, "text"));
+      if (firstIsMapLike && cameFromModelValueEntry) {
+        return cloneModelValue(firstValue);
+      }
+    }
+    return values;
+  }
+
   function ensureBindingModelMutationQueueState(binding) {
     if (!binding || typeof binding !== "object") {
       return null;
@@ -9875,6 +10416,7 @@
     };
   }
 
+
   function syncHostModelDefinitions(binding) {
     if (!binding || !binding.host || binding.host.nodeType !== 1) {
       return;
@@ -9943,7 +10485,7 @@
       const model =
         existing && typeof existing === "object" && existing.__qhtmlIsQModel === true
           ? existing
-          : createQModel(resolveModelEntriesToValues(sourceEntries));
+          : createQModel(resolveModelEntriesToInput(sourceEntries));
       host[name] = model;
       ensureBindingModelSubscription(binding, name, model);
     }
@@ -12681,6 +13223,18 @@
           return createProjectedView(sourceTarget, mapping, null);
         },
       });
+      Object.defineProperty(node, "qmap", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function qmap(filters, includeFullTree) {
+          const sourceTarget = sourceNodeOf(node) || node;
+          return createQMapNodeTree(sourceTarget, {
+            filters: filters,
+            includeFullTree: includeFullTree === true,
+          });
+        },
+      });
       Object.defineProperty(node, "traverse", {
         configurable: true,
         enumerable: false,
@@ -14310,6 +14864,7 @@
     dispatchSignalPayload: dispatchSignalPayloadRuntime,
     dispatchPropertyChangedEvent: dispatchPropertyChangedEventRuntime,
     createQModel: createQModel,
+    qmapNode: createQMapNodeTree,
     hydrateComponentElement: hydrateComponentElement,
     setDomMutationObserversEnabled: setDomMutationSyncEnabled,
     getDomMutationObserversEnabled: function getDomMutationObserversEnabled() {

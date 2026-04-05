@@ -56,11 +56,17 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - Compat mode: dispatches immediately.
 - `createQModel(input)`
   - Returns normalized model adapter with mutators/events:
-    - `add`, `insert`, `remove`
+    - `add`, `insert`, `remove`, `set`, `replace`, `push`, `push_front`
     - `keys`, `values`, `entries`, `at`, `value`, `key`, `indexOf`, `count`, `foreach`, `forEach`, `map`, `walk`, `traverse`
     - `toArray`, `toObject`
     - `subscribe(listener)` and `emit(type, details?)`
+    - `modelChanged.connect(listener)` / `modelChanged.disconnect(listener)` / `modelChanged.emit(details?)`
+    - mutators emit legacy operation events (`add|insert|update|remove`) and canonical `modelChanged` payloads (`event.op`)
   - Exposed as both `QHtml.createQModel(...)` and global `QModel(...)`.
+- `qmapNode(qdomNode, options?)`
+  - Normalizes a QDom node/document into a tree-shaped map object for model/tree rendering.
+  - `options.filters` (array/string) narrows output to matching keywords/tags when `includeFullTree` is `false`.
+  - `options.includeFullTree === true` returns the full normalized tree with keyword groups.
 - `initAll(root?, options?)`
   - Mount all `<q-html>` descendants.
 - `startAutoMountObserver(root?, options?)`
@@ -122,6 +128,10 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - QDom projection helpers:
   - `show(prop1, prop2, ...)` returns `[projectedTree]` with only requested keys on each QDom node.
   - `map({ fromKey: toKey, ... })` returns `[projectedTree]` with key names remapped recursively.
+- QDom keyword/tree extractor:
+  - `qmap(filters?, includeFullTree?)` returns a normalized map object from the current QDom node.
+  - `filters` accepts array/string tokens (case-insensitive), for example `["q-property","q-signal","slot"]`.
+  - `includeFullTree === true` returns full tree; `false` returns filtered results (with matched descendants retained).
 - QDom facades expose `root(options?)`:
   - default returns owning `<q-html>` host element
   - `{ qdom: true }` or `"qdom"` returns the QDom document root facade

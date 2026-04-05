@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><script src="../qhtml.js"></script></head>
+<body>
+<q-html id="host">
+q-import { ../q-components/q-tree-view.qhtml?v=tree-css-15 }
+
+q-model my-tree {
+  q-map {
+    src: q-array { "index.js", "parser.js", q-map { utils: q-array { "path.js", "net.js" } } }
+    docs: q-array { "README.md", "MODULE-API.md" }
+  }
+}
+
+q-style tree-marker-open-style {
+  backgroundColor: #22c55e
+  color: #ffffff
+  borderColor: #15803d
+}
+q-style tree-marker-closed-style {
+  backgroundColor: #2563eb
+  color: #ffffff
+  borderColor: #1d4ed8
+}
+q-style tree-connector-style {
+  color: #60a5fa
+}
+q-theme tree-demo-theme {
+  .q-tree-marker-open { tree-marker-open-style }
+  .q-tree-marker-closed { tree-marker-closed-style }
+  .q-tree-connector { tree-connector-style }
+}
+
+style { .q-tree-marker-open { background: #22c55e; color: #ffffff; border-color: #15803d; } }
+style { .q-tree-marker-closed { background: #2563eb; color: #ffffff; border-color: #1d4ed8; } }
+style { .q-tree-connector { color: #60a5fa; border-left-color: currentColor; } }
+
+tree-demo-theme {
+  q-tree-view#my-view {
+    model: "my-tree"
+  }
+}
+</q-html>
+</body>
+</html>

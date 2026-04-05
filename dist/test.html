@@ -41,6 +41,47 @@
     .summary-row { display: flex; flex-wrap: wrap; gap: 14px; font-weight: 700; align-items: center; }
     .summary-pass { color: var(--pass); }
     .summary-fail { color: var(--fail); }
+    .failed-list-wrap {
+      margin-top: 8px;
+      border: 1px solid #f3c2c2;
+      background: #fff7f7;
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .failed-list-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .failed-list-title {
+      margin: 0;
+      font-weight: 700;
+      color: var(--fail);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .failed-copy-btn {
+      border: 1px solid #f3bcbc;
+      background: #fff;
+      color: #8b1d1d;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #failed-tests-list {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: "Fira Code", "Cascadia Code", monospace;
+      font-size: 12px;
+      line-height: 1.35;
+      color: #8b1d1d;
+    }
     .tests { display: grid; gap: 12px; }
     .test-head {
       display: flex;
@@ -127,6 +168,13 @@
         <span id="summary-total">Total: 0</span>
         <span id="summary-passed" class="summary-pass">Passed: 0</span>
         <span id="summary-failed" class="summary-fail">Failed: 0</span>
+      </div>
+      <div class="failed-list-wrap">
+        <div class="failed-list-head">
+          <p class="failed-list-title">Failing Tests</p>
+          <button id="copy-failed-tests" class="failed-copy-btn" type="button">Copy</button>
+        </div>
+        <pre id="failed-tests-list">none</pre>
       </div>
     </section>
 
@@ -701,6 +749,272 @@ button#t63-run {
 }
 div#t63-out { text { waiting } }
 div#t63-done { text { 0 } }`, e: ['a=1|b=1'] }
+    ,
+      { n: 64, t: 'qdom().qmap() keyword extraction', s: `q-component probe64 {
+  q-logger { q-signal q-property }
+  q-property foo: "bar"
+  q-signal done(value)
+  slot { body }
+  div { text { probe64 } }
+}
+
+probe64#t64-inst { body { div { text { projected } } } }
+div#t64-out { text { waiting } }
+
+onReady {
+  var defNode = this.qdom().find("probe64");
+  var mapped = defNode ? defNode.qmap(["q-property", "q-signal", "slot"], false) : {};
+  $("#t64-out").textContent = JSON.stringify(mapped);
+}`, e: ['q-property', 'foo', 'q-signal', 'done'] }
+    ,
+      { n: 65, t: 'empty q-map populate + q-property change propagation', s: `q-component mapPump65 {
+  q-logger { q-signal q-property }
+  q-property payload: q-map { }
+  q-property status: "waiting"
+  q-signal payloadUpdated(value)
+
+  onstatusChanged {
+    this.querySelector("#t65-status").textContent = String(this.status);
+  }
+
+  onpayloadChanged {
+    var data = this.payload || {};
+    this.status = "map65-ok|" + String(Object.keys(data).length);
+    this.payloadUpdated(this.status);
+  }
+
+  onpayloadUpdated {
+    this.querySelector("#t65-signal").textContent = String(event.detail.params.value || "");
+  }
+
+  function run() {
+    var existing = this.payload || {};
+    existing.name = "alpha";
+    existing.count = 7;
+    this.payload = Object.assign({}, existing);
+  }
+
+  div#t65-status { text { waiting } }
+  div#t65-signal { text { waiting } }
+}
+
+mapPump65#t65-host { }
+
+onReady {
+  $("#t65-host").run();
+}`, e: ['map65-ok|'] }
+    ,
+      { n: 66, t: 'q-tree-view setModel from instance qdom().qmap()', s: `q-import { q-components/q-tree-view.qhtml?v=tree-css-28 }
+
+q-component comp66 {
+  q-property count: 1
+  q-signal done(value)
+  slot { body }
+  div { text { comp66 } }
+}
+
+comp66#t66-comp {
+  body { span { text { projected66 } } }
+}
+
+q-tree-view#t66-tree { model: q-map { } }
+div#t66-out { text { waiting } }
+
+onReady {
+  var source = $("#t66-comp").qdom();
+  var mapped = source.qmap(["q-property", "q-signal", "slot"], true);
+  $("#t66-tree").setModel(mapped);
+  $("#t66-out").textContent = JSON.stringify(mapped);
+}`, e: ['q-property', 'count', 'q-signal', 'done', 'slot'] }
+    ,
+      { n: 67, t: 'extends q-model-view inheritance chain + timer probe', s: `q-import { q-components.qhtml }
+
+q-component test-comp1 extends q-model-view {
+  model { q-array { 1, 2, 3, 4, 5 } }
+  as { item }
+  div#test-div1 {
+    text { inherited components that inherit components \${this.component.item} }
+    slot { main-slot }
+  }
+}
+
+q-component test-comp2 extends test-comp1 {
+  as { item2 }
+  div#test-div2 {
+    text { what about inherited stuff form test-comp1? \${this.component.item2 || this.component.item} }
+  }
+}
+
+test-comp1#tc1 {
+  main-slot { span { text { hello world } } }
+}
+
+test-comp2#tc2 {
+  main-slot { span { text { testing 1 2 3 } } }
+}
+
+q-timer testtimer67 {
+  interval: 15000
+  repeat: false
+  ontimeout { console.log(document.querySelector("#tc2")) }
+  running: true
+}`, e: ['inherited components that inherit components 1', 'what about inherited stuff form test-comp1? 1', 'hello world', 'testing 1 2 3'] }
+    ,
+      { n: 68, t: 'q-model-view using model { q-array { ... } } + as alias', s: `q-model-view {
+  model { q-array { "a", "b", "c" } }
+  as { item }
+  div { text { model-array-as \${item} } }
+}`, e: ['model-array-as a', 'model-array-as b', 'model-array-as c'] }
+    ,
+      { n: 69, t: 'q-model-view using slot alias keyword', s: `q-model-view {
+  q-model { q-array { 7, 8 } }
+  slot { row }
+  div { text { model-slot-alias \${row} } }
+}`, e: ['model-slot-alias 7', 'model-slot-alias 8'] }
+    ,
+      { n: 70, t: 'q-model named from q-map + q-model-view model reference', s: `q-model my-model70 {
+  q-map { first: "alpha", second: "beta" }
+}
+
+q-model-view {
+  model { my-model70 }
+  as { item }
+  div { text { model-map-ref \${item.first || item.second || item} } }
+}`, e: ['model-map-ref alpha'] }
+    ,
+      { n: 71, t: 'q-model-view with q-model q-script array source', s: `q-model-view {
+  q-model {
+    q-script { return [11, 12, 13] }
+  }
+  as { item }
+  div { text { model-script-source \${item} } }
+}`, e: ['model-script-source 11', 'model-script-source 12', 'model-script-source 13'] }
+    ,
+      { n: 72, t: 'q-model-view inheritance: component extends q-model-view', s: `q-component base-model-view72 extends q-model-view {
+  q-model { q-array { "x", "y" } }
+  as { item }
+  div.base72 {
+    text { base72 \${this.component.item} }
+    slot { extra }
+  }
+}
+
+q-component child-model-view72 extends base-model-view72 {
+  div.child72 {
+    text { child72 \${this.component.item} }
+  }
+}
+
+child-model-view72#t72-inst {
+  extra { span { text { slot72 } } }
+}`, e: ['base72 x', 'base72 y', 'child72 x', 'child72 y', 'slot72'] }
+    ,
+      { n: 73, t: 'deep extends precedence: lowest-level overrides ancestors', s: `q-component ancestor73 {
+  q-property label: "ancestor"
+  function who() { return "ancestor" }
+  div { text { ancestor73-\${this.component.label}-\${this.component.who()} } }
+}
+
+q-component middle73 extends ancestor73 {
+  q-property label: "middle"
+  function who() { return "middle" }
+}
+
+q-component leaf73 extends middle73 {
+  q-property label: "leaf"
+  function who() { return "leaf" }
+  div { text { leaf73-\${this.component.label}-\${this.component.who()} } }
+}
+
+leaf73 { }`, e: ['ancestor73-leaf-leaf', 'leaf73-leaf-leaf'] }
+    ,
+      { n: 74, t: 'deep q-model-view inheritance chain', s: `q-component root74 extends q-model-view {
+  model { q-array { "r1", "r2" } }
+  as { row }
+  div { text { root74-\${this.component.row} } }
+}
+
+q-component mid74 extends root74 {
+  as { row2 }
+  div { text { mid74-\${this.component.row2 || this.component.row} } }
+}
+
+q-component leaf74 extends mid74 {
+  div { text { leaf74-\${this.component.row2 || this.component.row} } }
+}
+
+leaf74 { }`, e: ['root74-r1', 'mid74-r1', 'leaf74-r1', 'root74-r2', 'mid74-r2', 'leaf74-r2'] }
+    ,
+      { n: 75, t: 'double extends: component extends component extends q-model-view', s: `q-component mycomp1 extends q-model-view {
+  model { q-array { "one", "two" } }
+  as { item }
+  div { text { mycomp1-\${this.component.item} } }
+}
+
+q-component mycomp2 extends mycomp1 extends q-model-view {
+  div { text { mycomp2-\${this.component.item} } }
+}
+
+mycomp2 { }`, e: ['mycomp1-one', 'mycomp2-one', 'mycomp1-two', 'mycomp2-two'] }
+    ,
+      { n: 76, t: 'q-model mutators update q-model-view', s: `q-model t76model {
+  q-array { "a", "b" }
+}
+
+q-model-view {
+  q-model { t76model }
+  as { item }
+  div.t76-row { text { \${item} } }
+}
+
+div#t76-status { text { waiting } }
+
+onReady {
+  var host = this;
+  host.t76model.push("c");
+  host.t76model.push_front("z");
+  host.t76model.set(2, "B2");
+  host.t76model.replace(0, "Z0");
+  document.querySelector("#t76-status").textContent = host.t76model.values().join("|");
+}`, e: ['Z0|a|B2|c', 'Z0', 'a', 'B2', 'c'] }
+    ,
+      { n: 77, t: 'q-model modelChanged.connect emits per mutation', s: `q-model t77model {
+  q-map { one: "1" }
+}
+
+div#t77-log { text { waiting } }
+
+onReady {
+  var host = this;
+  var model = host.t77model;
+  var hits = 0;
+  model.modelChanged.connect(function(evt) {
+    hits = hits + 1;
+    document.querySelector("#t77-log").textContent = String(evt.op) + "|" + String(hits);
+  });
+  model.set("one", "11");
+  model.set("two", "22");
+  model.remove("one");
+}`, e: ['remove|3'] }
+    ,
+      { n: 78, t: 'q-model subscribe keeps legacy event types', s: `q-model t78model {
+  q-array { 1 }
+}
+
+div#t78-log { text { waiting } }
+
+onReady {
+  var host = this;
+  var model = host.t78model;
+  var seen = [];
+  model.subscribe(function(evt) {
+    seen.push(String(evt.type));
+    document.querySelector("#t78-log").textContent = seen.join(",");
+  });
+  model.push(2);
+  model.replace(0, 10);
+  model.remove(1);
+}`, e: ['add,update,remove'] }
     ];
 
     function normalize(input) {
@@ -766,6 +1080,7 @@ div#t63-done { text { 0 } }`, e: ['a=1|b=1'] }
       function runChecks() {
         let passed = 0;
         let total = 0;
+        const failedLines = [];
 
         active.forEach((entry) => {
           if (entry.test.m === true) {
@@ -789,16 +1104,40 @@ div#t63-done { text { 0 } }`, e: ['a=1|b=1'] }
           entry.statusNode.textContent = ok ? 'pass' : 'fail';
           if (ok) {
             passed += 1;
+          } else {
+            const expectedText = entry.test.e.join(' | ');
+            const actualText = actualNormalized.length > 280 ? actualNormalized.slice(0, 280) + '…' : actualNormalized;
+            failedLines.push(
+              `${entry.test.n}. ${entry.test.t}\n  expected: ${expectedText}\n  actual:   ${actualText}`
+            );
           }
         });
 
         document.querySelector('#summary-total').textContent = `Total: ${total}`;
         document.querySelector('#summary-passed').textContent = `Passed: ${passed}`;
         document.querySelector('#summary-failed').textContent = `Failed: ${total - passed}`;
+        document.querySelector('#failed-tests-list').textContent = failedLines.length ? failedLines.join('\n\n') : 'none';
+      }
+
+      function wireCopyFailedButton() {
+        const btn = document.querySelector('#copy-failed-tests');
+        const pre = document.querySelector('#failed-tests-list');
+        if (!btn || !pre) return;
+        btn.addEventListener('click', function() {
+          const text = String(pre.textContent || '').trim();
+          if (!text || text === 'none') return;
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            navigator.clipboard.writeText(text).then(function() {
+              btn.textContent = 'Copied';
+              setTimeout(function() { btn.textContent = 'Copy'; }, 1200);
+            }).catch(function() {});
+          }
+        });
       }
 
       document.addEventListener('QHTMLContentLoaded', runChecks);
       window.setInterval(runChecks, 5000);
+      wireCopyFailedButton();
     }
 
     window.addEventListener('DOMContentLoaded', buildBoard);

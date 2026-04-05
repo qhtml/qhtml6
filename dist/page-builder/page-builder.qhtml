@@ -315,20 +315,25 @@ q-component page-builder-runtime {
     return this.querySelector("input[q-page-builder-create-auto-name='1']");
   }
 
-  function paletteCreatorSlotsTree() {
-    return this.querySelector("q-tree-view[q-page-builder-create-slots-tree='1']");
-  }
-
-  function paletteCreatorSlotInput() {
-    return this.querySelector("input[q-page-builder-create-slot-name='1']");
-  }
-
-  function paletteCreatorSignalsInput() {
-    return this.querySelector("textarea[q-page-builder-create-signals='1']");
-  }
-
-  function paletteCreatorPropertiesInput() {
-    return this.querySelector("textarea[q-page-builder-create-properties='1']");
+  function paletteCreatorQHtmlTree() {
+    var localTree = this.querySelector("q-tree-view[q-page-builder-create-qhtml-tree='1']");
+    if (!localTree) {
+      localTree = this.querySelector("q-dom-tree[q-page-builder-create-qhtml-tree='1']");
+    }
+    if (!localTree) {
+      localTree = this.querySelector("[q-page-builder-create-qhtml-tree='1']");
+    }
+    if (localTree) {
+      return localTree;
+    }
+    var globalTree = document.querySelector("q-tree-view[q-page-builder-create-qhtml-tree='1']");
+    if (!globalTree) {
+      globalTree = document.querySelector("q-dom-tree[q-page-builder-create-qhtml-tree='1']");
+    }
+    if (!globalTree) {
+      globalTree = document.querySelector("[q-page-builder-create-qhtml-tree='1']");
+    }
+    return globalTree;
   }
 
   function paletteCreatorStatusNode() {
@@ -337,6 +342,138 @@ q-component page-builder-runtime {
 
   function defaultPaletteCreatorSource() {
     return "div.w3-card.w3-round-large.w3-padding { h3 { text { Custom Block } } p { text { Replace this with your custom content. } } }";
+  }
+
+  function normalizePaletteCreatorType(value) {
+    var type = String(value || "").trim().toLowerCase();
+    if (type === "q-template") {
+      return "q-template";
+    }
+    if (type === "q-macro") {
+      return "q-macro";
+    }
+    return "q-component";
+  }
+
+  function paletteCreatorDefinitionName() {
+    var canonicalInput = this.paletteCreatorCanonicalInput();
+    var canonical = String(canonicalInput && typeof canonicalInput.value === "string" ? canonicalInput.value : "").trim();
+    if (canonical) {
+      return canonical;
+    }
+    var nameInput = this.paletteCreatorNameInput();
+    var name = String(nameInput && typeof nameInput.value === "string" ? nameInput.value : "").trim();
+    var generated = this.canonicalizeName(name);
+    return generated || "custom-item";
+  }
+
+  function parsePaletteCreatorDefinitionSource(source) {
+    var text = String(source || "");
+    var trimmed = text.trim();
+    var openIndex = trimmed.indexOf("{");
+    if (openIndex < 0) {
+      return {
+        hasWrapper: false,
+        type: "",
+        name: "",
+        extendsClause: "",
+        body: trimmed
+      };
+    }
+    var header = trimmed.slice(0, openIndex).trim();
+    var headerParts = header ? header.split(/\s+/g) : [];
+    if (headerParts.length < 2) {
+      return {
+        hasWrapper: false,
+        type: "",
+        name: "",
+        extendsClause: "",
+        body: trimmed
+      };
+    }
+    var type = this.normalizePaletteCreatorType(headerParts[0]);
+    if (type !== "q-component" && type !== "q-template" && type !== "q-macro") {
+      return {
+        hasWrapper: false,
+        type: "",
+        name: "",
+        extendsClause: "",
+        body: trimmed
+      };
+    }
+    var name = String(headerParts[1] || "").trim();
+    if (!name) {
+      return {
+        hasWrapper: false,
+        type: "",
+        name: "",
+        extendsClause: "",
+        body: trimmed
+      };
+    }
+    var closeIndex = trimmed.lastIndexOf("}");
+    var body = "";
+    if (openIndex >= 0 && closeIndex > openIndex) {
+      body = trimmed.slice(openIndex + 1, closeIndex).trim();
+    } else if (openIndex >= 0) {
+      body = trimmed.slice(openIndex + 1).trim();
+    }
+    var extendsClause = headerParts.length > 2 ? headerParts.slice(2).join(" ").trim() : "";
+    return {
+      hasWrapper: true,
+      type: type,
+      name: name,
+      extendsClause: extendsClause,
+      body: body
+    };
+  }
+
+  function buildPaletteCreatorDefinitionSource(type, name, body, extendsClause) {
+    var normalizedType = this.normalizePaletteCreatorType(type);
+    var normalizedName = String(name || "").trim() || "custom-item";
+    var header = normalizedType + " " + normalizedName;
+    var ext = String(extendsClause || "").trim();
+    if (normalizedType === "q-component" && ext) {
+      header += " " + ext;
+    }
+    var payload = String(body || "").trim();
+    if (!payload) {
+      return header + " {\n}";
+    }
+    return header + " {\n" + payload + "\n}";
+  }
+
+  function ensurePaletteCreatorDefinitionSource(options) {
+    var opts = options && typeof options === "object" ? options : {};
+    var editor = this.paletteCreatorEditor();
+    if (!editor || typeof editor.setQhtmlSource !== "function") {
+      return "";
+    }
+    var source = this.readPaletteCreatorSource();
+    var parsed = this.parsePaletteCreatorDefinitionSource(source);
+    var typeInput = this.paletteCreatorTypeInput();
+    var desiredType = this.normalizePaletteCreatorType(typeInput && typeof typeInput.value === "string" ? typeInput.value : "q-component");
+    var desiredName = this.paletteCreatorDefinitionName();
+    var force = opts.force === true;
+    var needsWrapper = !parsed.hasWrapper;
+    var hasTrailingBrace = String(source || "").trim().slice(-1) === "}";
+    var typeChanged = parsed.hasWrapper && parsed.type !== desiredType;
+    var nameChanged = parsed.hasWrapper && parsed.name !== desiredName;
+    var shouldRewrite = force || needsWrapper || !hasTrailingBrace || typeChanged || nameChanged;
+    if (!shouldRewrite) {
+      return source;
+    }
+    var preserveExtends = desiredType === "q-component" && parsed.type === "q-component"
+      ? parsed.extendsClause
+      : "";
+    var nextSource = this.buildPaletteCreatorDefinitionSource(
+      desiredType,
+      desiredName,
+      parsed.body,
+      preserveExtends
+    );
+    editor.setQhtmlSource(nextSource);
+    return nextSource;
   }
 
   function autoNameStorageKey() {
@@ -428,128 +565,168 @@ q-component page-builder-runtime {
     return String(editor.textContent || "").trim();
   }
 
-  function readTreeList(tree) {
-    if (!tree) {
-      return [];
-    }
-    var exported = typeof tree.export === "function" ? tree.export() : tree.model;
-    if (!Array.isArray(exported)) {
-      return [];
-    }
-    var out = [];
-    for (var i = 0; i < exported.length; i += 1) {
-      var raw = exported[i];
-      var value = "";
-      if (raw && typeof raw === "object" && typeof raw.name === "string") {
-        value = String(raw.name || "").trim();
-      } else {
-        value = String(raw || "").trim();
-      }
-      if (!value || out.indexOf(value) >= 0) {
-        continue;
-      }
-      out.push(value);
-    }
-    return out;
-  }
-
-  function setSlotsList(list) {
-    var tree = this.paletteCreatorSlotsTree();
-    if (!tree || typeof tree.import !== "function") {
-      return;
-    }
-    var values = Array.isArray(list) ? list : [];
-    var model = [];
-    for (var i = 0; i < values.length; i += 1) {
-      var slotName = String(values[i] || "").trim();
-      if (!slotName) {
-        continue;
-      }
-      model.push({ name: slotName });
-    }
-    tree.import(model);
-  }
-
-  function addSlotEntry() {
-    var input = this.paletteCreatorSlotInput();
-    var value = String(input && typeof input.value === "string" ? input.value : "").trim();
-    if (!value) {
-      this.setPaletteCreatorStatus("Slot name is required.", "error");
-      return false;
-    }
-    var tree = this.paletteCreatorSlotsTree();
+  function setPaletteCreatorTreeModel(model) {
+    var tree = this.paletteCreatorQHtmlTree();
     if (!tree) {
       return false;
     }
-    var current = this.readTreeList(tree);
-    if (current.indexOf(value) >= 0) {
-      this.setPaletteCreatorStatus("Slot already exists.", "error");
-      return false;
+    if (typeof tree.setModel === "function") {
+      tree.setModel(model);
+      return true;
     }
-    current.push(value);
-    this.setSlotsList(current);
-    if (input) {
-      input.value = "";
+    if (typeof tree.import === "function") {
+      tree.import(model);
+      return true;
     }
-    this.setPaletteCreatorStatus("Slot added.", "success");
+    tree.model = model;
+    if (typeof tree.refresh === "function") {
+      tree.refresh();
+    }
     return true;
   }
 
-  function renameSelectedSlot() {
-    var tree = this.paletteCreatorSlotsTree();
-    var input = this.paletteCreatorSlotInput();
-    var nextName = String(input && typeof input.value === "string" ? input.value : "").trim();
+  function readPaletteCreatorTreeModel() {
+    var tree = this.paletteCreatorQHtmlTree();
     if (!tree) {
-      return false;
+      return {};
     }
-    if (!nextName) {
-      this.setPaletteCreatorStatus("Enter a slot name to rename.", "error");
-      return false;
+    if (tree.__treeRawModel && typeof tree.__treeRawModel === "object") {
+      return tree.__treeRawModel;
     }
-    var selected = tree.selectedValue && typeof tree.selectedValue === "function" ? tree.selectedValue() : null;
-    if (!selected) {
-      this.setPaletteCreatorStatus("Select a slot in the tree first.", "error");
-      return false;
-    }
-    var updated = { name: nextName };
-    if (typeof tree.updateSelected === "function" && tree.updateSelected(updated)) {
-      if (input) {
-        input.value = "";
+    if (typeof tree._effectiveModel === "function") {
+      var effective = tree._effectiveModel();
+      if (effective && typeof effective === "object") {
+        return effective;
       }
-      this.setPaletteCreatorStatus("Slot renamed.", "success");
-      return true;
     }
-    this.setPaletteCreatorStatus("Unable to rename selected slot.", "error");
-    return false;
+    if (typeof tree.export === "function") {
+      return tree.export();
+    }
+    return tree.model || {};
   }
 
-  function removeSelectedSlot() {
-    var tree = this.paletteCreatorSlotsTree();
-    if (!tree || typeof tree.removeSelected !== "function") {
-      return false;
+  function parsePaletteCreatorSourceToQDom(source) {
+    if (globalThis.QHtml && typeof globalThis.QHtml.parseQHtml === "function") {
+      return globalThis.QHtml.parseQHtml(source);
     }
-    if (tree.removeSelected()) {
-      this.setPaletteCreatorStatus("Slot removed.", "success");
-      return true;
+    if (
+      globalThis.QHtmlModules &&
+      globalThis.QHtmlModules.qhtmlParser &&
+      typeof globalThis.QHtmlModules.qhtmlParser.parseQHtmlToQDom === "function"
+    ) {
+      return globalThis.QHtmlModules.qhtmlParser.parseQHtmlToQDom(source);
     }
-    this.setPaletteCreatorStatus("Select a slot to remove.", "error");
-    return false;
+    throw new Error("QHTML parser is unavailable.");
   }
 
-  function parseLineList(value) {
-    var text = String(value || "");
-    if (!text.trim()) {
-      return [];
+  function readPaletteCreatorTreeDataFromSource(source) {
+    var normalizedSource = this.ensurePaletteCreatorDefinitionSource({ force: false }) || source;
+    var parsed = this.parsePaletteCreatorSourceToQDom(normalizedSource);
+    if (globalThis.QHtml && typeof globalThis.QHtml.qmapNode === "function") {
+      return globalThis.QHtml.qmapNode(parsed, {
+        filters: ["q-property", "q-signal", "slot"],
+        includeFullTree: true
+      });
     }
-    var lines = text.split(/\r?\n|,/g);
-    var out = [];
-    for (var i = 0; i < lines.length; i += 1) {
-      var item = String(lines[i] || "").trim();
-      if (!item || out.indexOf(item) >= 0) {
-        continue;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  }
+
+  function syncPaletteTreeFromSource(attempt) {
+    var tryCount = Number(attempt || 0);
+    var source = this.readPaletteCreatorSource();
+    if (!source) {
+      this.setPaletteCreatorStatus("QHTML source is required before sync.", "error");
+      return false;
+    }
+    try {
+      var model = this.readPaletteCreatorTreeDataFromSource(source);
+      var applied = this.setPaletteCreatorTreeModel(model);
+      if (!applied) {
+        if (tryCount < 3) {
+          var component = this;
+          requestAnimationFrame(function() {
+            component.syncPaletteTreeFromSource(tryCount + 1);
+          });
+          return false;
+        }
+        this.setPaletteCreatorStatus("QHTML tree view was not found in Create Palette modal.", "error");
+        return false;
       }
-      out.push(item);
+      this.setPaletteCreatorStatus("QHTML tree synced from source.", "success");
+      return true;
+    } catch (error) {
+      var reason = error && error.message ? String(error.message) : String(error);
+      this.setPaletteCreatorStatus("Tree sync failed: " + reason, "error");
+      return false;
     }
+  }
+
+  function collectPaletteTreeMetadata(nodeValue, parentKey, out) {
+    if (Array.isArray(nodeValue)) {
+      var ai = 0;
+      while (ai < nodeValue.length) {
+        this.collectPaletteTreeMetadata(nodeValue[ai], parentKey, out);
+        ai += 1;
+      }
+      return;
+    }
+    if (!nodeValue || typeof nodeValue !== "object") {
+      return;
+    }
+    var keys = Object.keys(nodeValue);
+    var i = 0;
+    while (i < keys.length) {
+      var key = String(keys[i] || "").trim();
+      var value = nodeValue[keys[i]];
+      var lower = key.toLowerCase();
+      if (lower === "q-property" && value && typeof value === "object" && !Array.isArray(value)) {
+        var propertyNames = Object.keys(value);
+        var p = 0;
+        while (p < propertyNames.length) {
+          var propertyName = String(propertyNames[p] || "").replace(/\s+#\d+$/, "").trim();
+          if (propertyName && out.properties.indexOf(propertyName) < 0) {
+            out.properties.push(propertyName);
+          }
+          p += 1;
+        }
+      }
+      if (lower === "q-signal" && value && typeof value === "object" && !Array.isArray(value)) {
+        var signalNames = Object.keys(value);
+        var s = 0;
+        while (s < signalNames.length) {
+          var signalName = String(signalNames[s] || "").replace(/\s+#\d+$/, "").trim();
+          if (signalName && out.signals.indexOf(signalName) < 0) {
+            out.signals.push(signalName);
+          }
+          s += 1;
+        }
+      }
+      if (lower.indexOf("slot ") === 0) {
+        var slotName = key.slice(5).replace(/\s+#\d+$/, "").trim();
+        if (slotName && out.slots.indexOf(slotName) < 0) {
+          out.slots.push(slotName);
+        }
+      }
+      if (lower === "slot" && value && typeof value === "object" && !Array.isArray(value)) {
+        var slotNames = Object.keys(value);
+        var si = 0;
+        while (si < slotNames.length) {
+          var namedSlot = String(slotNames[si] || "").replace(/\s+#\d+$/, "").trim();
+          if (namedSlot && out.slots.indexOf(namedSlot) < 0) {
+            out.slots.push(namedSlot);
+          }
+          si += 1;
+        }
+      }
+      this.collectPaletteTreeMetadata(value, key, out);
+      i += 1;
+    }
+  }
+
+  function readPaletteCreatorTreeMetadata() {
+    var out = { slots: [], signals: [], properties: [] };
+    var model = this.readPaletteCreatorTreeModel();
+    this.collectPaletteTreeMetadata(model, "", out);
     return out;
   }
 
@@ -568,6 +745,13 @@ q-component page-builder-runtime {
     this.writeAutoNamePreference(enabled);
     var nameInput = this.paletteCreatorNameInput();
     this.onPaletteNameInput(nameInput && typeof nameInput.value === "string" ? nameInput.value : "");
+  }
+
+  function onPaletteTypeChange(rawType) {
+    var typeInput = this.paletteCreatorTypeInput();
+    if (typeInput) {
+      typeInput.value = this.normalizePaletteCreatorType(rawType);
+    }
   }
 
   function openPaletteCreator() {
@@ -596,21 +780,8 @@ q-component page-builder-runtime {
     if (editor && typeof editor.setQhtmlSource === "function") {
       editor.setQhtmlSource(this.defaultPaletteCreatorSource());
     }
-    this.setSlotsList(["default"]);
-    var slotInput = this.paletteCreatorSlotInput();
-    if (slotInput) {
-      slotInput.value = "";
-    }
-    var signalsInput = this.paletteCreatorSignalsInput();
-    if (signalsInput) {
-      signalsInput.value = "";
-    }
-    var propertiesInput = this.paletteCreatorPropertiesInput();
-    if (propertiesInput) {
-      propertiesInput.value = "";
-    }
-    this.setPaletteCreatorStatus("", "");
     modal.show();
+    this.setPaletteCreatorStatus("", "");
     if (nameInput && typeof nameInput.focus === "function") {
       nameInput.focus();
       if (typeof nameInput.select === "function") {
@@ -665,13 +836,8 @@ q-component page-builder-runtime {
     }
     var id = this.uniquePaletteEntryId(this.paletteEntryIdFromLabel(canonicalName));
     var slots = [];
-    if (type === "q-component") {
-      slots = this.readTreeList(this.paletteCreatorSlotsTree());
-    }
-    var signalsInput = this.paletteCreatorSignalsInput();
-    var propertiesInput = this.paletteCreatorPropertiesInput();
-    var signals = this.parseLineList(signalsInput && typeof signalsInput.value === "string" ? signalsInput.value : "");
-    var properties = this.parseLineList(propertiesInput && typeof propertiesInput.value === "string" ? propertiesInput.value : "");
+    var signals = [];
+    var properties = [];
     this.addPaletteEntry({
       id: id,
       label: label,
@@ -1112,6 +1278,7 @@ q-component page-builder-runtime {
                 label.w3-small.w3-text-blue-grey { text { Type } }
                 select.w3-select.w3-border.w3-round {
                   q-page-builder-create-type: "1"
+                  onchange { this.closest("page-builder-runtime").onPaletteTypeChange(this.value); }
                   option { value: "q-component" text { q-component } }
                   option { value: "q-template" text { q-template } }
                   option { value: "q-macro" text { q-macro } }
@@ -1140,49 +1307,6 @@ q-component page-builder-runtime {
               q-editor {
                 q-page-builder-create-editor: "1"
                 initial-qhtml: "div.w3-card.w3-round-large.w3-padding { h3 { text { Custom Block } } p { text { Replace this with your custom content. } } }"
-              }
-            }
-          }
-          q-tab {
-            name { text { Slots } }
-            content {
-              div {
-                style { display: grid; gap: 0.55rem; padding-top: 0.25rem; }
-                q-tree-view {
-                  q-page-builder-create-slots-tree: "1"
-                  model: q-array { "default" }
-                }
-                input.w3-input.w3-border.w3-round {
-                  q-page-builder-create-slot-name: "1"
-                  type: "text"
-                  placeholder: "slot name"
-                }
-                div {
-                  style { display: flex; gap: 0.45rem; flex-wrap: wrap; }
-                  button.w3-button.w3-small.w3-round-large.w3-indigo { type: "button" onclick { this.closest("page-builder-runtime").addSlotEntry(); } text { Add Slot } }
-                  button.w3-button.w3-small.w3-round-large.w3-blue-grey { type: "button" onclick { this.closest("page-builder-runtime").renameSelectedSlot(); } text { Rename Selected } }
-                  button.w3-button.w3-small.w3-round-large.w3-grey { type: "button" onclick { this.closest("page-builder-runtime").removeSelectedSlot(); } text { Remove Selected } }
-                }
-              }
-            }
-          }
-          q-tab {
-            name { text { Signals } }
-            content {
-              textarea.w3-input.w3-border.w3-round {
-                q-page-builder-create-signals: "1"
-                style { min-height: 10rem; font-family: "Consolas", "Monaco", monospace; }
-                placeholder: "one signal per line"
-              }
-            }
-          }
-          q-tab {
-            name { text { Properties } }
-            content {
-              textarea.w3-input.w3-border.w3-round {
-                q-page-builder-create-properties: "1"
-                style { min-height: 10rem; font-family: "Consolas", "Monaco", monospace; }
-                placeholder: "one property per line"
               }
             }
           }

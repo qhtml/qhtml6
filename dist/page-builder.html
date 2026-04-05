@@ -6,7 +6,7 @@
   <title>QHTML Framework Capability Harness</title>
   <link rel="stylesheet" href="w3.css" />
   <script src="q-editor.js"></script>
-  <script src="qhtml.js?v=6.1.2"></script>
+  <script src="qhtml.js?v=6.1.5"></script>
   <style>
     html, body {
       margin: 0;
@@ -42,11 +42,9 @@
 </head>
 <body>
   <q-html id="page-builder-host">
-q-import { q-components/q-modal.qhtml }
-q-import { q-components/q-tabs.qhtml }
-q-import { q-components/q-tree-view.qhtml?v=tree-css-28 }
-q-import { page-builder/page-builder.qhtml }
-q-import { page-builder/page-builder-starter.qhtml }
+q-import { q-components.qhtml?v=6.1.5 }
+q-import { page-builder/page-builder.qhtml?v=6.1.5-treeview-4 }
+q-import { page-builder/page-builder-starter.qhtml?v=6.1.5 }
 page-builder-app { }
   </q-html>
 </body>
