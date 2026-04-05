@@ -11,6 +11,8 @@
   const COMPONENT_PROP_STATE_KEY = "__qhtmlDeclaredPropertyState";
   const QLOGGER_META_KEY = "__qhtmlLoggerCategories";
   const QDOM_UUID_META_KEY = typeof core.QDOM_UUID_KEY === "string" ? core.QDOM_UUID_KEY : "uuid";
+  const Q_MODEL_VIEW_INSTANCE_ATTR = "q-model-view-instance";
+  const Q_MODEL_VIEW_SCOPE_TAG = "q-model-view-scope";
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
   const INLINE_REFERENCE_PATTERN = /\$\{\s*([^}]+?)\s*\}/g;
   const INLINE_REFERENCE_ESCAPE_TOKEN = "__QHTML_ESCAPED_INLINE_REF__";
@@ -4544,6 +4546,73 @@
   }
 
   function renderRepeaterNode(repeaterNode, parent, targetDocument, context) {
+    const keyword = String(repeaterNode && repeaterNode.keyword || "").trim().toLowerCase();
+    const isModelView = keyword === "q-model-view";
+    const suppressModelViewWrapper = !!(context && context.suppressModelViewWrapper === true);
+
+    function resolveModelViewInstanceMarker(node) {
+      if (!isModelView) {
+        return "";
+      }
+      if (node && node.meta && typeof node.meta === "object") {
+        const preferred = String(node.meta[QDOM_UUID_META_KEY] || "").trim();
+        if (preferred) {
+          return preferred;
+        }
+      }
+      if (core && typeof core.ensureNodeUuid === "function") {
+        try {
+          const ensured = String(core.ensureNodeUuid(node) || "").trim();
+          if (ensured) {
+            return ensured;
+          }
+        } catch (ignoredEnsureUuidError) {
+          // fall through
+        }
+      }
+      return ensureInstanceId(node);
+    }
+
+    function applyModelViewInstanceMarker(element, activeContext) {
+      if (!element || element.nodeType !== 1) {
+        return;
+      }
+      const marker =
+        activeContext && typeof activeContext.modelViewInstanceMarker === "string"
+          ? String(activeContext.modelViewInstanceMarker || "").trim()
+          : "";
+      if (!marker) {
+        return;
+      }
+      element.setAttribute(Q_MODEL_VIEW_INSTANCE_ATTR, marker);
+    }
+
+    const modelViewInstanceMarker = resolveModelViewInstanceMarker(repeaterNode);
+    let renderParent = parent;
+    if (isModelView && !suppressModelViewWrapper && parent && typeof parent.appendChild === "function") {
+      const scopeElement = targetDocument.createElement(Q_MODEL_VIEW_SCOPE_TAG);
+      if (modelViewInstanceMarker) {
+        scopeElement.setAttribute(Q_MODEL_VIEW_INSTANCE_ATTR, modelViewInstanceMarker);
+      }
+      scopeElement.style.display = "contents";
+      parent.appendChild(scopeElement);
+      if (context && context.capture) {
+        if (context.capture.nodeMap) {
+          context.capture.nodeMap.set(scopeElement, repeaterNode);
+        }
+        if (context.capture.componentMap && context.componentHostStack.length > 0) {
+          context.capture.componentMap.set(
+            scopeElement,
+            context.componentHostStack[context.componentHostStack.length - 1]
+          );
+        }
+        if (context.capture.slotMap && context.slotStack.length > 0) {
+          context.capture.slotMap.set(scopeElement, context.slotStack[context.slotStack.length - 1]);
+        }
+      }
+      renderParent = scopeElement;
+    }
+
     const modelNode =
       core.NODE_TYPES.model &&
       repeaterNode &&
@@ -4561,10 +4630,17 @@
       const entry = modelEntries[i];
       const expanded = materializeRepeaterTemplateNodes(repeaterNode, entry);
       const entryContext = createRepeaterRenderContext(context, repeaterNode, entry, i);
+      if (modelViewInstanceMarker) {
+        entryContext.modelViewInstanceMarker = modelViewInstanceMarker;
+      }
       const restoreBinding = bindRepeaterEntryToComponentHost(entryContext, repeaterNode, entry, i);
       try {
         for (let j = 0; j < expanded.length; j += 1) {
-          renderNode(expanded[j], parent, targetDocument, entryContext);
+          // Mark all DOM created under this q-model-view instantiation scope.
+          if (entryContext && typeof entryContext === "object") {
+            entryContext.__applyModelViewMarker = applyModelViewInstanceMarker;
+          }
+          renderNode(expanded[j], renderParent, targetDocument, entryContext);
         }
       } finally {
         restoreBinding();
@@ -4652,6 +4728,12 @@
       }
 
       const element = targetDocument.createElement(tagName);
+      if (
+        context &&
+        typeof context.__applyModelViewMarker === "function"
+      ) {
+        context.__applyModelViewMarker(element, context);
+      }
       const interpolationScope = buildInterpolationScope(context, parent);
       const interpolationComponent = interpolationScope.component || null;
       setElementAttributes(element, node.attributes, {
@@ -4893,6 +4975,12 @@
 
     const hostTag = String(componentNode.componentId || instanceNode.tagName || "div").trim().toLowerCase();
     const hostElement = targetDocument.createElement(hostTag || "div");
+    if (
+      context &&
+      typeof context.__applyModelViewMarker === "function"
+    ) {
+      context.__applyModelViewMarker(hostElement, context);
+    }
     setElementAttributes(hostElement, instanceNode.attributes, {
       thisArg: hostElement,
       scope: buildInterpolationScope(context, parent),
@@ -5077,6 +5165,7 @@
       slotStack: [],
       inlineScope: {},
       disableLifecycleHooks: !!opts.disableLifecycleHooks,
+      suppressModelViewWrapper: !!opts.suppressModelViewWrapper,
       capture: opts.capture ? opts.capture : null,
     };
 

@@ -51,6 +51,8 @@
   const QLOGGER_META_KEY = "__qhtmlLoggerCategories";
   const QDOM_UUID_MAPS_HOST_PROPERTY = "__qhtmlUuidMaps";
   const QDOM_COMPONENT_PROP_REF_INDEX_PROPERTY = "__qhtmlComponentPropertyRefIndex";
+  const Q_MODEL_VIEW_INSTANCE_ATTR = "q-model-view-instance";
+  const Q_MODEL_VIEW_SCOPE_TAG = "q-model-view-scope";
   const BINDING_COMPONENT_PROP_REF_CACHE_KEY = "__qhtmlComponentPropRefCache";
   const BINDING_COMPONENT_PROP_REF_CACHE_SCRIPT_KEY = "__qhtmlComponentPropRefCacheScript";
   const COMPONENT_PROP_REFERENCE_PATTERN = /\b(?:this\s*\.\s*component|component)(?:\s*\?\s*)?\.\s*([A-Za-z_$][A-Za-z0-9_$]*)/g;
@@ -10310,6 +10312,241 @@
     return values;
   }
 
+  function escapeRegexLiteral(text) {
+    return String(text == null ? "" : text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function qModelViewSourceReferencesModelName(modelSource, modelName) {
+    const source = String(modelSource == null ? "" : modelSource);
+    const name = String(modelName == null ? "" : modelName).trim();
+    if (!source || !name) {
+      return false;
+    }
+    const pattern = new RegExp("(^|[^A-Za-z0-9_$])" + escapeRegexLiteral(name) + "([^A-Za-z0-9_$]|$)");
+    return pattern.test(source);
+  }
+
+  function collectModelViewRepeatersForModelNames(binding, changedNames) {
+    const matches = [];
+    const names = Array.isArray(changedNames) ? changedNames : [];
+    if (!binding || !binding.qdom || names.length === 0) {
+      return matches;
+    }
+    const referencedNames = names
+      .map(function normalizeName(name) {
+        return String(name || "").trim();
+      })
+      .filter(Boolean);
+    if (referencedNames.length === 0) {
+      return matches;
+    }
+    const rootNode = sourceNodeOf(binding.rawQdom || binding.qdom) || binding.qdom;
+    if (!rootNode || !core || typeof core.walkQDom !== "function") {
+      return matches;
+    }
+    const host = binding.host;
+    core.walkQDom(rootNode, function collectRepeater(candidate) {
+      const node = sourceNodeOf(candidate) || candidate;
+      if (!node || typeof node !== "object") {
+        return;
+      }
+      const kind = String(node.kind || "").trim().toLowerCase();
+      if (kind !== "repeater") {
+        return;
+      }
+      const keyword = String(node.keyword || "").trim().toLowerCase();
+      if (keyword !== "q-model-view") {
+        return;
+      }
+      const sourceParts = [];
+      if (typeof node.modelSource === "string" && node.modelSource.trim()) {
+        sourceParts.push(node.modelSource);
+      }
+      if (node.model && typeof node.model === "object" && typeof node.model.source === "string" && node.model.source.trim()) {
+        sourceParts.push(node.model.source);
+      }
+      if (sourceParts.length === 0) {
+        return;
+      }
+      let matchedModelName = "";
+      for (let i = 0; i < referencedNames.length; i += 1) {
+        const modelName = referencedNames[i];
+        if (!modelName) {
+          continue;
+        }
+        let matched = false;
+        for (let s = 0; s < sourceParts.length; s += 1) {
+          if (qModelViewSourceReferencesModelName(sourceParts[s], modelName)) {
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) {
+          continue;
+        }
+        const candidateModel = host && typeof host === "object" ? host[modelName] : null;
+        if (!(candidateModel && typeof candidateModel === "object" && candidateModel.__qhtmlIsQModel === true)) {
+          continue;
+        }
+        matchedModelName = modelName;
+        const marker = normalizeQDomUuidValue(ensureQDomNodeUuid(node));
+        if (!marker) {
+          continue;
+        }
+        matches.push({
+          node: node,
+          marker: marker,
+          modelName: matchedModelName,
+          model: candidateModel,
+        });
+        break;
+      }
+    });
+    return matches;
+  }
+
+  function qModelValuesToRepeaterEntries(values) {
+    const list = Array.isArray(values) ? values : [];
+    const out = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const value = cloneModelValue(list[i]);
+      out.push({
+        kind: "primitive",
+        value: value,
+        text: String(value == null ? "" : value),
+      });
+    }
+    return out;
+  }
+
+  function syncModelViewRepeaterEntriesFromModel(matches) {
+    const list = Array.isArray(matches) ? matches : [];
+    const touchedMarkers = new Set();
+    for (let i = 0; i < list.length; i += 1) {
+      const entry = list[i];
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const node = entry.node && typeof entry.node === "object" ? entry.node : null;
+      const marker = String(entry.marker || "").trim();
+      const model = entry.model && typeof entry.model === "object" ? entry.model : null;
+      if (!node || !marker || !model || typeof model.values !== "function") {
+        continue;
+      }
+      const nextEntries = qModelValuesToRepeaterEntries(model.values());
+      node.modelEntries = nextEntries.slice();
+      if (!node.model || typeof node.model !== "object") {
+        node.model = {
+          kind: "model",
+          entries: [],
+          source: "",
+          meta: { generated: true },
+        };
+      }
+      node.model.entries = nextEntries.slice();
+      touchedMarkers.add(marker);
+    }
+    return touchedMarkers;
+  }
+
+  function collectModelViewScopeElementsByMarker(rootNode) {
+    const map = new Map();
+    if (!rootNode || rootNode.nodeType !== 1 || typeof rootNode.querySelectorAll !== "function") {
+      return map;
+    }
+    const selector = Q_MODEL_VIEW_SCOPE_TAG + "[" + Q_MODEL_VIEW_INSTANCE_ATTR + "]";
+    const elements = rootNode.querySelectorAll(selector);
+    for (let i = 0; i < elements.length; i += 1) {
+      const element = elements[i];
+      if (!element || element.nodeType !== 1) {
+        continue;
+      }
+      const marker = String(element.getAttribute(Q_MODEL_VIEW_INSTANCE_ATTR) || "").trim();
+      if (!marker) {
+        continue;
+      }
+      if (!map.has(marker)) {
+        map.set(marker, []);
+      }
+      map.get(marker).push(element);
+    }
+    return map;
+  }
+
+  function refreshModelViewScopesFromModels(binding, markers) {
+    if (!binding || !binding.host || binding.host.nodeType !== 1) {
+      return false;
+    }
+    if (!(markers instanceof Set) || markers.size === 0) {
+      return false;
+    }
+    const doc = binding.doc || binding.host.ownerDocument || global.document;
+    if (!doc || !renderer || typeof renderer.renderIntoElement !== "function") {
+      return false;
+    }
+    const scratchHost = doc.createElement("div");
+    try {
+      renderer.renderIntoElement(binding.qdom, scratchHost, doc, {
+        componentRegistry: createRuntimeRenderRegistry(definitionRegistry),
+      });
+    } catch (error) {
+      return false;
+    }
+    const liveByMarker = collectModelViewScopeElementsByMarker(binding.host);
+    const scratchByMarker = collectModelViewScopeElementsByMarker(scratchHost);
+    let changed = false;
+
+    withDomMutationSyncSuppressed(binding, function replaceModelViewScopes() {
+      markers.forEach(function eachMarker(markerValue) {
+        const marker = String(markerValue || "").trim();
+        if (!marker) {
+          return;
+        }
+        const live = liveByMarker.get(marker) || [];
+        const fresh = scratchByMarker.get(marker) || [];
+        const replaceCount = Math.min(live.length, fresh.length);
+        for (let i = 0; i < replaceCount; i += 1) {
+          const liveScope = live[i];
+          const freshScope = fresh[i];
+          if (!liveScope || liveScope.nodeType !== 1 || !freshScope || freshScope.nodeType !== 1) {
+            continue;
+          }
+          const parentNode = liveScope.parentNode;
+          if (!parentNode || typeof parentNode.replaceChild !== "function") {
+            continue;
+          }
+          terminateWasmRuntimesInNode(liveScope);
+          parentNode.replaceChild(freshScope.cloneNode(true), liveScope);
+          changed = true;
+        }
+        for (let i = replaceCount; i < live.length; i += 1) {
+          const liveScope = live[i];
+          if (!liveScope || liveScope.nodeType !== 1) {
+            continue;
+          }
+          terminateWasmRuntimesInNode(liveScope);
+          const parentNode = liveScope.parentNode;
+          if (parentNode && typeof parentNode.removeChild === "function") {
+            parentNode.removeChild(liveScope);
+            changed = true;
+          }
+        }
+      });
+    });
+
+    if (!changed) {
+      return false;
+    }
+    hydrateRegisteredComponentHostsInNode(binding.host, binding.doc);
+    attachDomQDomAccessors(binding);
+    attachDomControlSync(binding);
+    attachDomMutationSync(binding);
+    detachAllScriptListeners(binding);
+    attachScriptRules(binding);
+    scheduleTemplatePersistence(binding);
+    return true;
+  }
+
   function ensureBindingModelMutationQueueState(binding) {
     if (!binding || typeof binding !== "object") {
       return null;
@@ -10361,6 +10598,12 @@
       const changedNames = state.names && typeof state.names.values === "function" ? Array.from(state.names.values()) : [];
       if (state.names && typeof state.names.clear === "function") {
         state.names.clear();
+      }
+      const modelViewRepeaterMatches = collectModelViewRepeatersForModelNames(binding, changedNames);
+      const modelViewMarkers = syncModelViewRepeaterEntriesFromModel(modelViewRepeaterMatches);
+      const refreshedModelViewScopes = refreshModelViewScopesFromModels(binding, modelViewMarkers);
+      if (refreshedModelViewScopes) {
+        return;
       }
       const sourceSignal =
         changedNames.length > 0 ? "q-model:" + changedNames.join(",") : "q-model";
