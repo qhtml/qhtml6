@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.1.5
+# QHTML.js v6.1.6
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,14 +12,12 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.1.5
+## Whats New in v6.1.6
 
-- Fixed signal callback host binding so `.connect(function(){ ... })` now runs against the live component instance (`this`) during dispatch.
-- Fixed `on<signal>` attribute handling in component definitions to resolve case-insensitively and route through the same signal `.connect(...)` path (with DOM-event fallback for non-signal events).
-- Improved `on<Property>changed` normalization so lowercase/mixed-case handlers (for example `onmypropchanged`) map correctly to `mypropChanged`.
-- Improved queued-mode declarative signal subscription timing by deferring registration until component UUID availability, and preserving cleanup metadata for detach/replace.
-- Updated `dist/test.html` test 49 to use a lower-overhead `q-model-view` randomization scenario with explicit `Start timers` control.
-- Marked unstable test 39 as deprecated; active test board reports all current non-deprecated tests passing.
+- Added declarative `q-logger { ... }` support with scoped categories for runtime debugging (`q-property`, `q-signal`, `q-component`, `function`, `slot`, `model`, `instantiation`, `all`).
+- Added and expanded `dist/test.html` coverage for logger categories and multi-scope logger behavior.
+- Improved `qdom().qmap(...)` keyword extraction for component metadata (including `q-property` declarations) and instance mapping behavior.
+- Stabilized parser/runtime updates around `q-model`, `q-model-view`, and signal/property change flows; current non-deprecated tests pass.
 
 
 ## 1. Quick Start
@@ -1146,6 +1144,21 @@ document.querySelector("q-html").update();
 document.querySelector("q-html").invalidate({ forceBindings: true });
 ```
 
+### `q-logger` (scoped debug logging)
+
+```qhtml
+q-component my-comp {
+  q-logger { q-signal q-property }
+  q-property count: 0
+  q-signal ping(value)
+}
+```
+
+- `q-logger` scope is lexical:
+  - inside a `q-component` definition: applies to all instances of that component
+  - inside a specific instance block: applies to that instance only
+- Supported categories: `q-property`, `q-signal`, `q-component`, `function`, `slot`, `model`, `instantiation`, `all`
+
 ## 12. Optional Tag Libraries (`w3-tags.js`, `bs-tags.js`) [DEPRECATED]
 
 These libraries are now obsolete as their functionality has been fully merged into the core modules through various means.  
@@ -1206,6 +1219,15 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 - `modules/release-bundle/README.md`
 
 # Past Changes
+## Whats New in v6.1.5
+
+- Fixed signal callback host binding so `.connect(function(){ ... })` now runs against the live component instance (`this`) during dispatch.
+- Fixed `on<signal>` attribute handling in component definitions to resolve case-insensitively and route through the same signal `.connect(...)` path (with DOM-event fallback for non-signal events).
+- Improved `on<Property>changed` normalization so lowercase/mixed-case handlers (for example `onmypropchanged`) map correctly to `mypropChanged`.
+- Improved queued-mode declarative signal subscription timing by deferring registration until component UUID availability, and preserving cleanup metadata for detach/replace.
+- Updated `dist/test.html` test 49 to use a lower-overhead `q-model-view` randomization scenario with explicit `Start timers` control.
+- Marked unstable test 39 as deprecated; active test board reports all current non-deprecated tests passing.
+
 ## Whats New in v6.1.4
 
 - Deprecated `q-bind`; assignment usage is now treated as an alias of `q-script`.
