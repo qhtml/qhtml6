@@ -1015,6 +1015,56 @@ onReady {
   model.replace(0, 10);
   model.remove(1);
 }`, e: ['add,update,remove'] }
+    ,
+      { n: 79, t: 'for keyword over q-array component property', s: `q-component for79 {
+  q-property items: q-array { "one", "two", "three" }
+  ul#t79-list {
+    for (item in this.component.items) {
+      li { text { t79-\${item} } }
+    }
+  }
+}
+
+for79 { }`, e: ['t79-one', 't79-two', 't79-three'] }
+    ,
+      { n: 80, t: 'for keyword over q-component q-property', s: `q-component forcomp80 {
+  q-property items: q-array { "aa", "bb", "cc" }
+  ul {
+    for (item in this.component.items) {
+      li { text { t80-\${item} } }
+    }
+  }
+}
+
+forcomp80 { }`, e: ['t80-aa', 't80-bb', 't80-cc'] }
+    ,
+      { n: 81, t: 'for keyword over object keys and value lookup', s: `q-component for81 {
+  q-property bag: q-script { return { alpha: "A", beta: "B" } }
+  div#t81-out {
+    for (k in this.component.bag) {
+      span { text { t81-\${k}:\${this.component.bag[k]} } }
+    }
+  }
+}
+
+for81 { }`, e: ['t81-alpha:A', 't81-beta:B'] }
+    ,
+      { n: 82, t: 'for keyword over function-returned array source', s: `q-component for82 {
+  function rowItems() { return ["r1c1", "r1c2", "r2c1", "r2c2"] }
+  div#t82-out {
+    for (cell in this.component.rowItems()) {
+      span { text { t82-\${cell} } }
+    }
+  }
+}
+
+for82 { }`, e: ['t82-r1c1', 't82-r1c2', 't82-r2c1', 't82-r2c2'] }
+    ,
+      { n: 83, t: 'for keyword with primitive iterable source', s: `div#t83-out {
+  for (item in "solo") {
+    span { text { t83-\${item} } }
+  }
+}`, e: ['t83-solo'] }
     ];
 
     function normalize(input) {

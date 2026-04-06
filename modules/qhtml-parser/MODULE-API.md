@@ -61,6 +61,10 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - applying the style merges classes into `class` and declarations into `style`
     - repeater and iterable model support:
       - `q-repeater` and `q-foreach` blocks
+      - `for (alias in source) { ... }` blocks lowered to repeater QDom (`keyword: "for"`) with:
+        - inline alias from loop header (`alias`)
+        - dynamic model source from loop header expression (`source`)
+        - template body from loop block children
       - `q-model` definitions (named + anonymous) as reusable iterable model sources
       - `q-model-view` is the base model/delegate syntax and is lowered to repeater QDom (`keyword: "q-model-view"`) with:
         - model source from one or more anonymous `q-model { ... }` blocks

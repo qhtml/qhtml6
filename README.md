@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.1.6
+# QHTML.js v6.1.7
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,12 +12,12 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.1.6
+## Whats New in v6.1.7
 
-- Added declarative `q-logger { ... }` support with scoped categories for runtime debugging (`q-property`, `q-signal`, `q-component`, `function`, `slot`, `model`, `instantiation`, `all`).
-- Added and expanded `dist/test.html` coverage for logger categories and multi-scope logger behavior.
-- Improved `qdom().qmap(...)` keyword extraction for component metadata (including `q-property` declarations) and instance mapping behavior.
-- Stabilized parser/runtime updates around `q-model`, `q-model-view`, and signal/property change flows; current non-deprecated tests pass.
+- Added `for (alias in source) { ... }` keyword-level iteration syntax.
+- Added runtime support for `for` source evaluation through inline expression scope (including component-scoped references like `this.component.items`).
+- Added `dist/test.html` coverage for multiple `for` use cases (array, object/map-style keys, function-returned arrays, primitive source).
+- Updated docs with `for` syntax and accepted source patterns.
 
 
 ## 1. Quick Start
@@ -576,6 +576,34 @@ q-model-view {
   div { text { ${item && item.name ? item.name : item} } }
 }
 ```
+
+### `for` keyword (template iteration)
+
+Use `for` when you want inline repeated template expansion without creating a `q-model-view` node:
+
+```qhtml
+q-component list-demo {
+  q-property items: q-array { "one", "two", "three" }
+  ul {
+    for (item in this.component.items) {
+      li { text { ${item} } }
+    }
+  }
+}
+```
+
+Accepted `source` inputs:
+
+- q-array and JS arrays (for example `this.component.items`)
+- q-map / plain object (iterates keys)
+- `q-model` helpers such as `.values()` / `.keys()`
+- function return values that evaluate to arrays/objects (for example `this.component.getItems()`)
+- primitive values (treated as single-entry iteration)
+
+Notes:
+
+- `for` expression scope follows runtime inline expression rules.
+- For component state, prefer explicit component references (`this.component.<name>`).
 
 ### `q-timer` (keyword-level timer)
 
@@ -1219,6 +1247,13 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 - `modules/release-bundle/README.md`
 
 # Past Changes
+## Whats New in v6.1.6
+
+- Added declarative `q-logger { ... }` support with scoped categories for runtime debugging (`q-property`, `q-signal`, `q-component`, `function`, `slot`, `model`, `instantiation`, `all`).
+- Added and expanded `dist/test.html` coverage for logger categories and multi-scope logger behavior.
+- Improved `qdom().qmap(...)` keyword extraction for component metadata (including `q-property` declarations) and instance mapping behavior.
+- Stabilized parser/runtime updates around `q-model`, `q-model-view`, and signal/property change flows; current non-deprecated tests pass.
+
 ## Whats New in v6.1.5
 
 - Fixed signal callback host binding so `.connect(function(){ ... })` now runs against the live component instance (`this`) during dispatch.

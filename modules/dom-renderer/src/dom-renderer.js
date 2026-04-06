@@ -1636,6 +1636,83 @@
     return null;
   }
 
+  function collectInlineComponentSymbolNames(componentSource) {
+    const out = new Set();
+    if (!componentSource || (typeof componentSource !== "object" && typeof componentSource !== "function")) {
+      return out;
+    }
+    const ownKeys = Object.keys(componentSource);
+    for (let i = 0; i < ownKeys.length; i += 1) {
+      const key = String(ownKeys[i] || "").trim();
+      if (key) {
+        out.add(key);
+      }
+    }
+    const trackedState =
+      componentSource[COMPONENT_PROP_STATE_KEY] &&
+      typeof componentSource[COMPONENT_PROP_STATE_KEY] === "object" &&
+      !Array.isArray(componentSource[COMPONENT_PROP_STATE_KEY])
+        ? componentSource[COMPONENT_PROP_STATE_KEY]
+        : null;
+    if (trackedState) {
+      const trackedKeys = Object.keys(trackedState);
+      for (let i = 0; i < trackedKeys.length; i += 1) {
+        const key = String(trackedKeys[i] || "").trim();
+        if (key) {
+          out.add(key);
+        }
+      }
+    }
+    let qdomNode = null;
+    try {
+      qdomNode = typeof componentSource.qdom === "function" ? componentSource.qdom() : null;
+    } catch (ignoredReadComponentQdom) {
+      qdomNode = null;
+    }
+    if (qdomNode && typeof qdomNode === "object") {
+      const props = qdomNode.props && typeof qdomNode.props === "object" ? qdomNode.props : null;
+      if (props) {
+        const propKeys = Object.keys(props);
+        for (let i = 0; i < propKeys.length; i += 1) {
+          const key = String(propKeys[i] || "").trim();
+          if (key) {
+            out.add(key);
+          }
+        }
+      }
+      const declared =
+        qdomNode.meta &&
+        typeof qdomNode.meta === "object" &&
+        Array.isArray(qdomNode.meta.__qhtmlDeclaredProperties)
+          ? qdomNode.meta.__qhtmlDeclaredProperties
+          : [];
+      for (let i = 0; i < declared.length; i += 1) {
+        const key = String(declared[i] || "").trim();
+        if (key) {
+          out.add(key);
+        }
+      }
+    }
+    return out;
+  }
+
+  function injectInlineComponentSymbols(scope, componentSource) {
+    if (!scope || typeof scope !== "object" || !componentSource) {
+      return;
+    }
+    const symbolNames = collectInlineComponentSymbolNames(componentSource);
+    symbolNames.forEach(function exposeSymbol(name) {
+      if (!name || Object.prototype.hasOwnProperty.call(scope, name)) {
+        return;
+      }
+      try {
+        scope[name] = componentSource[name];
+      } catch (error) {
+        // no-op
+      }
+    });
+  }
+
   function isQHtmlHostElement(node) {
     if (!node || node.nodeType !== 1) {
       return false;
@@ -1864,6 +1941,7 @@
     if (resolvedComponent) {
       scope.component = resolvedComponent;
       ensureInlineComponentQdom(resolvedComponent, scope);
+      injectInlineComponentSymbols(scope, resolvedComponent);
     }
     if (scope.component && (typeof thisArg === "object" || typeof thisArg === "function") && thisArg) {
       try {
@@ -4398,6 +4476,14 @@
 
   function applyRepeaterEntryToValue(value, slotName, entry, options) {
     if (typeof value === "string") {
+      const text = String(value == null ? "" : value);
+      const escapedSlotName = String(slotName || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (escapedSlotName && !hasInlineReferenceExpressions(text)) {
+        const wholeSlotPattern = new RegExp("^\\s*" + escapedSlotName + "\\s*$");
+        if (wholeSlotPattern.test(text)) {
+          return stringifyRepeaterEntry(entry, options);
+        }
+      }
       return replaceRepeaterPlaceholderText(value, slotName, entry, options);
     }
     if (Array.isArray(value)) {
@@ -4545,13 +4631,126 @@
     };
   }
 
+  function toRuntimeRepeaterPrimitiveEntries(values) {
+    const list = Array.isArray(values) ? values : [];
+    const out = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const value = list[i];
+      out.push({
+        kind: "primitive",
+        value: value,
+        text: String(value == null ? "" : value),
+      });
+    }
+    return out;
+  }
+
+  function readForExpressionSource(repeaterNode) {
+    if (!repeaterNode || typeof repeaterNode !== "object") {
+      return "";
+    }
+    if (
+      repeaterNode.meta &&
+      typeof repeaterNode.meta === "object" &&
+      typeof repeaterNode.meta.sourceExpression === "string" &&
+      repeaterNode.meta.sourceExpression.trim()
+    ) {
+      return repeaterNode.meta.sourceExpression.trim();
+    }
+    if (typeof repeaterNode.modelSource === "string" && repeaterNode.modelSource.trim()) {
+      return repeaterNode.modelSource.trim();
+    }
+    if (
+      repeaterNode.model &&
+      typeof repeaterNode.model === "object" &&
+      typeof repeaterNode.model.source === "string" &&
+      repeaterNode.model.source.trim()
+    ) {
+      return repeaterNode.model.source.trim();
+    }
+    return "";
+  }
+
+  function resolveForIterableValues(modelValue) {
+    if (modelValue == null) {
+      return [];
+    }
+    if (modelValue && typeof modelValue === "object" && modelValue.__qhtmlIsQModel === true) {
+      const mode = typeof modelValue.mode === "function" ? String(modelValue.mode() || "").trim().toLowerCase() : "";
+      if (mode === "map" && typeof modelValue.keys === "function") {
+        return modelValue.keys();
+      }
+      if (typeof modelValue.values === "function") {
+        return modelValue.values();
+      }
+      if (typeof modelValue.toArray === "function") {
+        return modelValue.toArray();
+      }
+      if (typeof modelValue.toObject === "function") {
+        const objectValue = modelValue.toObject();
+        return objectValue && typeof objectValue === "object" ? Object.keys(objectValue) : [];
+      }
+      return [];
+    }
+    if (Array.isArray(modelValue)) {
+      return modelValue.slice();
+    }
+    if (modelValue && typeof modelValue === "object") {
+      if (typeof modelValue.toArray === "function") {
+        const arrayValue = modelValue.toArray();
+        return Array.isArray(arrayValue) ? arrayValue.slice() : [];
+      }
+      if (typeof modelValue.toObject === "function") {
+        const objectValue = modelValue.toObject();
+        return objectValue && typeof objectValue === "object" ? Object.keys(objectValue) : [];
+      }
+      return Object.keys(modelValue);
+    }
+    return [modelValue];
+  }
+
+  function resolveForRuntimeModelEntries(repeaterNode, parent, context) {
+    const sourceExpression = readForExpressionSource(repeaterNode);
+    if (!sourceExpression) {
+      const fallbackModelNode =
+        core.NODE_TYPES.model &&
+        repeaterNode &&
+        repeaterNode.model &&
+        typeof repeaterNode.model === "object" &&
+        repeaterNode.model.kind === core.NODE_TYPES.model
+          ? repeaterNode.model
+          : null;
+      return fallbackModelNode && Array.isArray(fallbackModelNode.entries)
+        ? fallbackModelNode.entries
+        : Array.isArray(repeaterNode && repeaterNode.modelEntries)
+          ? repeaterNode.modelEntries
+          : [];
+    }
+    const interpolationScope = buildInterpolationScope(context, parent);
+    const thisArg =
+      interpolationScope && interpolationScope.component
+        ? interpolationScope.component
+        : parent && parent.nodeType === 1
+          ? parent
+          : null;
+    const modelValue = evaluateInlineReferenceExpression(
+      sourceExpression,
+      thisArg,
+      interpolationScope,
+      "qhtml for model source evaluation failed:"
+    );
+    const iterableValues = resolveForIterableValues(modelValue);
+    return toRuntimeRepeaterPrimitiveEntries(iterableValues);
+  }
+
   function renderRepeaterNode(repeaterNode, parent, targetDocument, context) {
     const keyword = String(repeaterNode && repeaterNode.keyword || "").trim().toLowerCase();
     const isModelView = keyword === "q-model-view";
+    const isFor = keyword === "for";
     const suppressModelViewWrapper = !!(context && context.suppressModelViewWrapper === true);
 
     function resolveModelViewInstanceMarker(node) {
-      if (!isModelView) {
+      if (!(isModelView || isFor)) {
         return "";
       }
       if (node && node.meta && typeof node.meta === "object") {
@@ -4581,7 +4780,7 @@
         activeContext && typeof activeContext.modelViewInstanceMarker === "string"
           ? String(activeContext.modelViewInstanceMarker || "").trim()
           : "";
-      if (!marker) {
+      if (!marker || !(isModelView || isFor)) {
         return;
       }
       element.setAttribute(Q_MODEL_VIEW_INSTANCE_ATTR, marker);
@@ -4589,7 +4788,7 @@
 
     const modelViewInstanceMarker = resolveModelViewInstanceMarker(repeaterNode);
     let renderParent = parent;
-    if (isModelView && !suppressModelViewWrapper && parent && typeof parent.appendChild === "function") {
+    if (isModelView && !isFor && !suppressModelViewWrapper && parent && typeof parent.appendChild === "function") {
       const scopeElement = targetDocument.createElement(Q_MODEL_VIEW_SCOPE_TAG);
       if (modelViewInstanceMarker) {
         scopeElement.setAttribute(Q_MODEL_VIEW_INSTANCE_ATTR, modelViewInstanceMarker);
@@ -4621,11 +4820,13 @@
       repeaterNode.model.kind === core.NODE_TYPES.model
         ? repeaterNode.model
         : null;
-    const modelEntries = modelNode && Array.isArray(modelNode.entries)
-      ? modelNode.entries
-      : Array.isArray(repeaterNode && repeaterNode.modelEntries)
-        ? repeaterNode.modelEntries
-        : [];
+    const modelEntries = isFor
+      ? resolveForRuntimeModelEntries(repeaterNode, parent, context)
+      : modelNode && Array.isArray(modelNode.entries)
+        ? modelNode.entries
+        : Array.isArray(repeaterNode && repeaterNode.modelEntries)
+          ? repeaterNode.modelEntries
+          : [];
     for (let i = 0; i < modelEntries.length; i += 1) {
       const entry = modelEntries[i];
       const expanded = materializeRepeaterTemplateNodes(repeaterNode, entry);
@@ -4662,6 +4863,78 @@
     return scope;
   }
 
+  function readPathValueFromBase(base, pathParts) {
+    let cursor = base;
+    if (typeof cursor === "undefined") {
+      return { found: false, value: undefined };
+    }
+    const parts = Array.isArray(pathParts) ? pathParts : [];
+    for (let i = 0; i < parts.length; i += 1) {
+      if (cursor == null) {
+        return { found: false, value: undefined };
+      }
+      const key = String(parts[i] || "").trim();
+      if (!key) {
+        return { found: false, value: undefined };
+      }
+      let nextValue;
+      try {
+        nextValue = cursor[key];
+      } catch (error) {
+        return { found: false, value: undefined };
+      }
+      if (typeof nextValue === "undefined") {
+        return { found: false, value: undefined };
+      }
+      cursor = nextValue;
+    }
+    return { found: true, value: cursor };
+  }
+
+  function tryResolveDirectSymbolValue(rawExpression, context, parent) {
+    const expression = String(rawExpression || "").trim();
+    if (!expression) {
+      return { matched: false, found: false, value: undefined };
+    }
+    const simplePathPattern = /^(?:this\.component\.|component\.|this\.)?[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
+    if (!simplePathPattern.test(expression)) {
+      return { matched: false, found: false, value: undefined };
+    }
+    const scope = buildInterpolationScope(context, parent);
+    const componentSource = resolveInlineComponentSource(parent, scope);
+    const source = expression;
+    if (source.indexOf("this.component.") === 0) {
+      return Object.assign({ matched: true }, readPathValueFromBase(componentSource, source.slice("this.component.".length).split(".")));
+    }
+    if (source.indexOf("component.") === 0) {
+      return Object.assign({ matched: true }, readPathValueFromBase(componentSource, source.slice("component.".length).split(".")));
+    }
+    if (source.indexOf("this.") === 0) {
+      return Object.assign(
+        { matched: true },
+        readPathValueFromBase(parent && parent.nodeType === 1 ? parent : null, source.slice("this.".length).split("."))
+      );
+    }
+    const parts = source.split(".");
+    const head = String(parts[0] || "").trim();
+    if (!head) {
+      return { matched: true, found: false, value: undefined };
+    }
+    if (Object.prototype.hasOwnProperty.call(scope, head)) {
+      return Object.assign({ matched: true }, readPathValueFromBase(scope[head], parts.slice(1)));
+    }
+    if (componentSource && (typeof componentSource === "object" || typeof componentSource === "function")) {
+      let baseValue;
+      try {
+        baseValue = componentSource[head];
+      } catch (error) {
+        return { matched: true, found: false, value: undefined };
+      }
+      return Object.assign({ matched: true }, readPathValueFromBase(baseValue, parts.slice(1)));
+    }
+    return { matched: true, found: false, value: undefined };
+  }
+
   function renderNode(node, parent, targetDocument, context) {
     if (!node || typeof node !== "object") {
       return;
@@ -4691,6 +4964,11 @@
             buildInterpolationScope(context, parent),
             "qhtml text interpolation failed:"
           );
+        } else {
+          const directReference = tryResolveDirectSymbolValue(textValue, context, parent);
+          if (directReference.matched && directReference.found) {
+            textValue = String(directReference.value == null ? "" : directReference.value);
+          }
         }
         parent.appendChild(targetDocument.createTextNode(textValue));
         return;

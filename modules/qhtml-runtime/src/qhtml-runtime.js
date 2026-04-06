@@ -4340,6 +4340,13 @@
     if (subscribers.length === 0) {
       return;
     }
+    const ownerLookup = globalUuidLookupRegistry.get(ownerUuid);
+    const ownerHost =
+      ownerLookup && ownerLookup.host && ownerLookup.host.nodeType === 1
+        ? ownerLookup.host
+        : ownerLookup && ownerLookup.dom && ownerLookup.dom.nodeType === 1 && typeof ownerLookup.dom.closest === "function"
+          ? ownerLookup.dom.closest("q-html")
+          : null;
     for (let i = 0; i < subscribers.length; i += 1) {
       const targetUuid = normalizeQDomUuidValue(subscribers[i]);
       if (!targetUuid) {
@@ -4351,7 +4358,7 @@
           ? lookup.host
           : lookup && lookup.dom && lookup.dom.nodeType === 1 && typeof lookup.dom.closest === "function"
             ? lookup.dom.closest("q-html")
-            : null;
+            : ownerHost;
       if (!host || host.nodeType !== 1) {
         continue;
       }
@@ -8766,6 +8773,53 @@
     return Array.from(references);
   }
 
+  function extractComponentPropertyReferencesFromSimpleExpression(expressionSource) {
+    const expression = String(expressionSource || "").trim();
+    if (!expression) {
+      return [];
+    }
+    const refs = new Set();
+    const directPropMatch = expression.match(/^(?:this\.component\.|component\.)([A-Za-z_$][A-Za-z0-9_$]*)(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*$/);
+    if (directPropMatch) {
+      const propertyName = normalizeComponentPropertyReferenceName(directPropMatch[1]);
+      if (propertyName) {
+        refs.add(propertyName);
+      }
+      return Array.from(refs);
+    }
+    const scopedMatch = expression.match(/^([A-Za-z_$][A-Za-z0-9_$]*)(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*$/);
+    if (scopedMatch) {
+      const rootName = String(scopedMatch[1] || "").trim();
+      const reserved = new Set([
+        "this",
+        "component",
+        "window",
+        "document",
+        "globalthis",
+        "math",
+        "number",
+        "string",
+        "boolean",
+        "array",
+        "object",
+        "json",
+      ]);
+      const normalizedRoot = normalizeComponentPropertyReferenceName(rootName);
+      if (normalizedRoot && !reserved.has(normalizedRoot)) {
+        refs.add(normalizedRoot);
+      }
+    }
+    return Array.from(refs);
+  }
+
+  function extractComponentPropertyReferencesFromModelSource(sourceText) {
+    const source = String(sourceText || "").trim();
+    if (!source) {
+      return [];
+    }
+    return extractComponentPropertyReferencesFromSimpleExpression(source);
+  }
+
   function extractInlineReferenceExpressions(sourceText) {
     const source = String(sourceText || "");
     if (!source || source.indexOf("${") === -1) {
@@ -8877,6 +8931,34 @@
       }
     }
 
+    const nodeKind = String(qdomNode.kind || "").trim().toLowerCase();
+    if (nodeKind === "repeater") {
+      const modelSourceCandidates = [];
+      if (typeof qdomNode.modelSource === "string") {
+        modelSourceCandidates.push(qdomNode.modelSource);
+      }
+      if (
+        qdomNode.model &&
+        typeof qdomNode.model === "object" &&
+        typeof qdomNode.model.source === "string"
+      ) {
+        modelSourceCandidates.push(qdomNode.model.source);
+      }
+      if (
+        qdomNode.meta &&
+        typeof qdomNode.meta === "object" &&
+        typeof qdomNode.meta.sourceExpression === "string"
+      ) {
+        modelSourceCandidates.push(qdomNode.meta.sourceExpression);
+      }
+      for (let i = 0; i < modelSourceCandidates.length; i += 1) {
+        const sourceReferences = extractComponentPropertyReferencesFromModelSource(modelSourceCandidates[i]);
+        for (let j = 0; j < sourceReferences.length; j += 1) {
+          addPropertyReference(sourceReferences[j]);
+        }
+      }
+    }
+
     const inlineCandidates = [];
     if (typeof qdomNode.textContent === "string") {
       inlineCandidates.push(qdomNode.textContent);
@@ -8919,6 +9001,10 @@
         const expressionReferences = extractComponentPropertyReferencesFromScript(expressions[j]);
         for (let k = 0; k < expressionReferences.length; k += 1) {
           addPropertyReference(expressionReferences[k]);
+        }
+        const scopedReferences = extractComponentPropertyReferencesFromSimpleExpression(expressions[j]);
+        for (let k = 0; k < scopedReferences.length; k += 1) {
+          addPropertyReference(scopedReferences[k]);
         }
       }
     }
@@ -10355,7 +10441,7 @@
         return;
       }
       const keyword = String(node.keyword || "").trim().toLowerCase();
-      if (keyword !== "q-model-view") {
+      if (keyword !== "q-model-view" && keyword !== "for") {
         return;
       }
       const sourceParts = [];
@@ -10454,7 +10540,7 @@
     if (!rootNode || rootNode.nodeType !== 1 || typeof rootNode.querySelectorAll !== "function") {
       return map;
     }
-    const selector = Q_MODEL_VIEW_SCOPE_TAG + "[" + Q_MODEL_VIEW_INSTANCE_ATTR + "]";
+    const selector = "[" + Q_MODEL_VIEW_INSTANCE_ATTR + "]";
     const elements = rootNode.querySelectorAll(selector);
     for (let i = 0; i < elements.length; i += 1) {
       const element = elements[i];
@@ -10463,6 +10549,18 @@
       }
       const marker = String(element.getAttribute(Q_MODEL_VIEW_INSTANCE_ATTR) || "").trim();
       if (!marker) {
+        continue;
+      }
+      let parent = element.parentElement;
+      let nestedUnderSameMarker = false;
+      while (parent && parent.nodeType === 1) {
+        if (String(parent.getAttribute(Q_MODEL_VIEW_INSTANCE_ATTR) || "").trim() === marker) {
+          nestedUnderSameMarker = true;
+          break;
+        }
+        parent = parent.parentElement;
+      }
+      if (nestedUnderSameMarker) {
         continue;
       }
       if (!map.has(marker)) {

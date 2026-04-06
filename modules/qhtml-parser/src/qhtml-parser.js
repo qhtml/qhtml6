@@ -22,6 +22,7 @@
   const LIFECYCLE_BLOCKS = new Set(["onready", "onload", "onloaded"]);
   const BINDING_EXPRESSION_KEYWORDS = new Set(["q-bind", "q-script"]);
   const REPEATER_KEYWORDS = new Set(["q-repeater", "q-foreach"]);
+  const FOR_KEYWORDS = new Set(["for"]);
   const MODEL_KEYWORDS = new Set(["q-model"]);
   const MODEL_VIEW_KEYWORDS = new Set(["q-model-view"]);
   const ITERATIVE_MODEL_KEYWORDS = new Set(["q-array", "q-object", "q-map"]);
@@ -51,6 +52,7 @@
     "q-repeater",
     "q-foreach",
     "q-model-view",
+    "for",
     "q-timer",
     "q-import",
     "q-logger",
@@ -2058,6 +2060,95 @@
     return nestedItems;
   }
 
+  function parseForHeader(parser) {
+    skipWhitespace(parser);
+    if (peek(parser) !== "(") {
+      throw ParseError("Expected '(' after for", parser.index);
+    }
+    consume(parser);
+    skipWhitespace(parser);
+    const alias = String(parseIdentifier(parser) || "").trim();
+    if (!alias) {
+      throw ParseError("Expected loop alias in for (...) header", parser.index);
+    }
+    skipWhitespace(parser);
+    const inKeyword = String(parseIdentifier(parser) || "").trim().toLowerCase();
+    if (inKeyword !== "in") {
+      throw ParseError("Expected 'in' in for (...) header", parser.index);
+    }
+    skipWhitespace(parser);
+    const sourceStart = parser.index;
+    let quote = "";
+    let parenDepth = 0;
+    while (!eof(parser)) {
+      const ch = peek(parser);
+      if (quote) {
+        if (ch === "\\") {
+          parser.index += 2;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        parser.index += 1;
+        continue;
+      }
+      if (ch === "'" || ch === '"' || ch === "`") {
+        quote = ch;
+        parser.index += 1;
+        continue;
+      }
+      if (ch === "(") {
+        parenDepth += 1;
+        parser.index += 1;
+        continue;
+      }
+      if (ch === ")") {
+        if (parenDepth === 0) {
+          break;
+        }
+        parenDepth -= 1;
+        parser.index += 1;
+        continue;
+      }
+      parser.index += 1;
+    }
+    if (eof(parser)) {
+      throw ParseError("Unterminated for (...) header", sourceStart);
+    }
+    const sourceExpression = String(parser.source.slice(sourceStart, parser.index) || "").trim();
+    if (!sourceExpression) {
+      throw ParseError("Expected iterable source in for (...) header", sourceStart);
+    }
+    expect(parser, ")");
+    return {
+      alias: alias,
+      sourceExpression: sourceExpression,
+    };
+  }
+
+  function parseForDefinitionItem(parser, scopedKeywordAliases, keywordSnapshot, itemStart) {
+    const header = parseForHeader(parser);
+    skipWhitespace(parser);
+    if (peek(parser) !== "{") {
+      throw ParseError("Expected '{' after for (...) header", parser.index);
+    }
+    consume(parser);
+    const forItems = parseBlockItems(parser, scopedKeywordAliases);
+    expect(parser, "}");
+    return {
+      type: "ForDefinition",
+      keyword: "for",
+      slotName: String(header.alias || "").trim() || "item",
+      sourceExpression: String(header.sourceExpression || "").trim(),
+      items: forItems,
+      keywords: keywordSnapshot,
+      start: itemStart,
+      end: parser.index,
+      raw: parser.source.slice(itemStart, parser.index),
+    };
+  }
+
   function parseBlockItems(parser, keywordAliases) {
     const scopedKeywordAliases = cloneKeywordAliases(keywordAliases);
     const items = [];
@@ -2106,6 +2197,10 @@
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
         const nextChar = peek(parser);
+        if (FOR_KEYWORDS.has(nameLower) && nextChar === "(") {
+          items.push(parseForDefinitionItem(parser, scopedKeywordAliases, keywordSnapshot, itemStart));
+          continue;
+        }
         if (nameLower === "q-array" && nextChar !== "{" && nextChar !== ",") {
           const arrayName = parseIdentifier(parser);
           skipWhitespace(parser);
@@ -2926,6 +3021,11 @@
         }
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
+
+        if (FOR_KEYWORDS.has(firstLower) && peek(parser) === "(") {
+          body.push(parseForDefinitionItem(parser, scopedKeywordAliases, keywordSnapshot, start));
+          continue;
+        }
 
         if (LIFECYCLE_BLOCKS.has(firstLower) && peek(parser) === "{") {
           consume(parser);
@@ -8979,6 +9079,89 @@
     };
   }
 
+  function isSimpleForSourceExpression(sourceExpression) {
+    const source = String(sourceExpression || "").trim();
+    if (!source) {
+      return false;
+    }
+    return /^(?:this\.component\.|component\.)?[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(source);
+  }
+
+  function isUnresolvedForSourceEntries(entries, sourceExpression) {
+    const list = Array.isArray(entries) ? entries : [];
+    const source = String(sourceExpression || "").trim();
+    if (!source || !isSimpleForSourceExpression(source)) {
+      return false;
+    }
+    if (list.length !== 1) {
+      return false;
+    }
+    const entry = list[0];
+    if (!entry || typeof entry !== "object") {
+      return false;
+    }
+    if (Object.prototype.hasOwnProperty.call(entry, "value")) {
+      return String(entry.value == null ? "" : entry.value).trim() === source;
+    }
+    if (Object.prototype.hasOwnProperty.call(entry, "text")) {
+      return String(entry.text == null ? "" : entry.text).trim() === source;
+    }
+    return false;
+  }
+
+  function buildForNodeFromAst(forItem, source, context) {
+    const scopedContext = createScopedConversionContext(context);
+    const items = Array.isArray(forItem && forItem.items) ? forItem.items : [];
+    const templateNodes = [];
+    for (let i = 0; i < items.length; i += 1) {
+      const nodes = convertAstItemToNodes(items[i], source, createScopedConversionContext(scopedContext));
+      for (let j = 0; j < nodes.length; j += 1) {
+        templateNodes.push(nodes[j]);
+      }
+    }
+    const slotName = String(forItem && forItem.slotName || "item").trim() || "item";
+    const sourceExpression = String(forItem && forItem.sourceExpression || "").trim();
+    const seedItems = sourceExpression
+      ? [{ type: "BareWord", name: sourceExpression, raw: sourceExpression }]
+      : [];
+    let resolvedEntries = resolveRepeaterModelEntries(seedItems, scopedContext, forItem);
+    if (isUnresolvedForSourceEntries(resolvedEntries, sourceExpression)) {
+      resolvedEntries = [];
+    }
+    for (let i = 0; i < resolvedEntries.length; i += 1) {
+      resolvedEntries[i] = normalizeRepeaterModelEntry(resolvedEntries[i], source, scopedContext);
+    }
+    const modelNode = core.createModelNode({
+      entries: resolvedEntries,
+      source: sourceExpression,
+      meta: {
+        generated: true,
+        dynamicSource: true,
+      },
+    });
+    const forNode = core.createRepeaterNode({
+      repeaterId: "",
+      keyword: "for",
+      slotName: slotName,
+      model: modelNode,
+      modelEntries: resolvedEntries,
+      modelSource: sourceExpression,
+      templateNodes: templateNodes,
+      meta: {
+        aliasNames: [slotName],
+        dynamicModelSource: true,
+        sourceExpression: sourceExpression,
+        originalSource: forItem && typeof forItem.raw === "string" ? forItem.raw : null,
+        sourceRange:
+          forItem && typeof forItem.start === "number" && typeof forItem.end === "number"
+            ? [forItem.start, forItem.end]
+            : null,
+      },
+    });
+    applyKeywordAliasesToNode(forNode, forItem ? forItem.keywords : null);
+    return forNode;
+  }
+
   function buildRepeaterNodeFromAst(repeaterItem, source, context) {
     const modelViewBase = buildModelViewNodeFromAst(repeaterItem, source, context);
     modelViewBase.repeaterId = String(repeaterItem && repeaterItem.name || "").trim();
@@ -9179,7 +9362,7 @@
       if (registerQModelDefinitionItem({ qArrays: qArrayContext, qObjects: qObjectContext, qModels: qModelContext, repeaterScope: repeaterScope }, item)) {
         continue;
       }
-      if (item && item.type === "RepeaterDefinition") {
+      if (item && (item.type === "RepeaterDefinition" || item.type === "ForDefinition")) {
         const repeatedNodes = convertAstItemToNodes(item, source, {
           qColors: colorContext,
           qStyles: styleContext,
@@ -9626,7 +9809,7 @@
       if (registerQModelDefinitionItem(scopedContext, item)) {
         continue;
       }
-      if (item && item.type === "RepeaterDefinition") {
+      if (item && (item.type === "RepeaterDefinition" || item.type === "ForDefinition")) {
         const repeatedNodes = convertAstItemToNodes(item, source, scopedContext);
         for (let ri = 0; ri < repeatedNodes.length; ri += 1) {
           templateNodes.push(repeatedNodes[ri]);
@@ -10161,6 +10344,10 @@
       return buildRepeaterNodeFromAst(item, source, context);
     }
 
+    if (item.type === "ForDefinition") {
+      return buildForNodeFromAst(item, source, context);
+    }
+
     if (item.type === "HtmlBlock") {
       const htmlNode = core.createRawHtmlNode({
         html: item.html,
@@ -10376,7 +10563,7 @@
       if (registerQModelDefinitionItem(conversionContext, item)) {
         continue;
       }
-      if (item.type === "RepeaterDefinition") {
+      if (item.type === "RepeaterDefinition" || item.type === "ForDefinition") {
         const repeatedNodes = convertAstItemToNodes(item, evaluatedSource, createScopedConversionContext(conversionContext));
         for (let ri = 0; ri < repeatedNodes.length; ri += 1) {
           doc.nodes.push(repeatedNodes[ri]);
@@ -10853,11 +11040,11 @@
           ? "q-foreach"
           : normalizedKeyword === "q-model-view"
             ? "q-model-view"
-            : "q-repeater";
+            : normalizedKeyword === "for"
+              ? "for"
+              : "q-repeater";
       const repeaterId = String(node.repeaterId || "").trim();
       const slotName = String(node.slotName || "item").trim() || "item";
-      const modelHead = keyword === "q-model-view" ? "q-model" : "model";
-      const slotHead = keyword === "q-model-view" ? "as" : "slot";
       const modelNode =
         core.NODE_TYPES.model &&
         node.model &&
@@ -10865,9 +11052,21 @@
         node.model.kind === core.NODE_TYPES.model
           ? node.model
           : null;
+      const modelSource = modelNode && typeof modelNode.source === "string" ? modelNode.source.trim() : "";
+      if (keyword === "for") {
+        const headerSource = modelSource || "[]";
+        const lines = [indent + "for (" + slotName + " in " + headerSource + ") {"];
+        const templateNodes = Array.isArray(node.templateNodes) ? node.templateNodes : [];
+        for (let i = 0; i < templateNodes.length; i += 1) {
+          lines.push(serializeNode(templateNodes[i], indentLevel + 1));
+        }
+        lines.push(indent + "}");
+        return lines.join("\n");
+      }
+      const modelHead = keyword === "q-model-view" ? "q-model" : "model";
+      const slotHead = keyword === "q-model-view" ? "as" : "slot";
       const lines = [indent + (repeaterId ? keyword + " " + repeaterId + " {" : keyword + " {")];
       lines.push(indent + "  " + modelHead + " {");
-      const modelSource = modelNode && typeof modelNode.source === "string" ? modelNode.source.trim() : "";
       if (modelSource) {
         const sourceLines = modelSource.split("\n");
         for (let i = 0; i < sourceLines.length; i += 1) {

@@ -29,7 +29,10 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - Repeater render now carries per-row inline scope:
   - alias variable from repeater/model-view slot name (for example `item`)
   - `index` for the current row
+- `for (...)` repeaters evaluate source expressions at render-time and expand inline without a wrapper scope element.
+- `for` map/object/QModel(map-mode) iteration yields keys; array/QModel(array-mode) iteration yields values.
 - Inline expressions in text/attributes can read scoped values directly (for example `${item}` and `${item.name}`).
+- Direct symbol text is also resolved for simple scoped identifiers/paths (for example `li { item }`).
 - `q-model-view` repeaters prefer model-value interpolation (`[object Object]` for object rows) instead of q-object source-string substitution.
 
 ## Component host assignment behavior
