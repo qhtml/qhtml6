@@ -6993,6 +6993,121 @@
     clearKeywordTimerExports(binding);
   }
 
+  function setNamedCanvasRuntimeValue(binding, name, value) {
+    const bindingName = String(name || "").trim();
+    if (!binding || !bindingName || !binding.host) {
+      return;
+    }
+    if (!binding.host.__qhtmlNamedRuntimeValues || typeof binding.host.__qhtmlNamedRuntimeValues !== "object") {
+      binding.host.__qhtmlNamedRuntimeValues = Object.create(null);
+    }
+    binding.host.__qhtmlNamedRuntimeValues[bindingName] = value;
+    try {
+      binding.host[bindingName] = value;
+    } catch (ignoredHostRuntimeValueAssign) {
+      // no-op
+    }
+    if (!binding.keywordCanvasGlobalNames || !(binding.keywordCanvasGlobalNames instanceof Set)) {
+      binding.keywordCanvasGlobalNames = new Set();
+    }
+    binding.keywordCanvasGlobalNames.add(bindingName);
+    try {
+      global[bindingName] = value;
+    } catch (ignoredGlobalRuntimeValueAssign) {
+      // no-op
+    }
+  }
+
+  function clearKeywordCanvasExports(binding) {
+    if (!binding || !(binding.keywordCanvasGlobalNames instanceof Set)) {
+      return;
+    }
+    binding.keywordCanvasGlobalNames.forEach(function clearNamedCanvas(name) {
+      const bindingName = String(name || "").trim();
+      if (!bindingName) {
+        return;
+      }
+      if (binding.host && binding.host.__qhtmlNamedRuntimeValues && typeof binding.host.__qhtmlNamedRuntimeValues === "object") {
+        delete binding.host.__qhtmlNamedRuntimeValues[bindingName];
+      }
+      try {
+        delete global[bindingName];
+      } catch (ignoredGlobalCanvasDelete) {
+        try {
+          global[bindingName] = null;
+        } catch (ignoredGlobalCanvasNull) {
+          // no-op
+        }
+      }
+    });
+    binding.keywordCanvasGlobalNames.clear();
+  }
+
+  function clearKeywordCanvases(binding) {
+    if (!binding || !Array.isArray(binding.keywordCanvases)) {
+      clearKeywordCanvasExports(binding);
+      return;
+    }
+    binding.keywordCanvases.length = 0;
+    clearKeywordCanvasExports(binding);
+  }
+
+  function attachCanvasContextHelper(canvasElement, contextValue) {
+    if (!canvasElement || canvasElement.nodeType !== 1) {
+      return;
+    }
+    try {
+      Object.defineProperty(canvasElement, "context", {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: contextValue || null,
+      });
+    } catch (error) {
+      canvasElement.context = contextValue || null;
+    }
+  }
+
+  function syncKeywordCanvases(binding) {
+    if (!binding || !binding.host || typeof binding.host.querySelectorAll !== "function") {
+      clearKeywordCanvases(binding);
+      return;
+    }
+    clearKeywordCanvases(binding);
+    if (!Array.isArray(binding.keywordCanvases)) {
+      binding.keywordCanvases = [];
+    }
+    const nodes = binding.host.querySelectorAll("canvas[q-canvas='1'][q-canvas-name]");
+    if (!nodes || nodes.length === 0) {
+      return;
+    }
+    for (let i = 0; i < nodes.length; i += 1) {
+      const canvasElement = nodes[i];
+      if (!canvasElement || canvasElement.nodeType !== 1) {
+        continue;
+      }
+      const canvasName = String(canvasElement.getAttribute("q-canvas-name") || "").trim();
+      if (!canvasName) {
+        continue;
+      }
+      let contextValue = null;
+      if (typeof canvasElement.getContext === "function") {
+        try {
+          contextValue = canvasElement.getContext("2d");
+        } catch (ignoredCanvasContextError) {
+          contextValue = null;
+        }
+      }
+      attachCanvasContextHelper(canvasElement, contextValue);
+      binding.keywordCanvases.push({
+        name: canvasName,
+        element: canvasElement,
+        context: contextValue,
+      });
+      setNamedCanvasRuntimeValue(binding, canvasName, canvasElement);
+    }
+  }
+
   function createKeywordTimerExecutor(binding, declaration) {
     const scriptBody = transformScriptBody(String(declaration && declaration.onTimeout || ""));
     if (!scriptBody.trim()) {
@@ -10889,6 +11004,7 @@
       });
       attachDomControlSync(binding);
       attachDomMutationSync(binding);
+      syncKeywordCanvases(binding);
       runHostLifecycleHooks(binding);
       syncKeywordTimers(binding);
       attachScriptRules(binding);
@@ -14600,6 +14716,8 @@
       domMutationSyncSuppressDepth: 0,
       keywordTimers: [],
       keywordTimerGlobalNames: new Set(),
+      keywordCanvases: [],
+      keywordCanvasGlobalNames: new Set(),
       withObservedMutationsSuppressed: null,
       disconnect: function noop() {},
       ready: null,
@@ -14811,6 +14929,7 @@
     clearBindingGlobalPropertySubscribers(binding);
     clearBindingGlobalUuidPointers(binding);
     clearKeywordTimers(binding);
+    clearKeywordCanvases(binding);
     clearBindingModelSubscriptions(binding);
     terminateWasmRuntimesInNode(binding.host);
     bindings.delete(qHtmlElement);

@@ -29,6 +29,10 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - instance-level `q-property` declarations are retained in node metadata (`meta.__qhtmlDeclaredProperties`) and used when mapping invocation assignments/bindings into `component-instance.props`
     - inherited `q-property` declarations from multi-`extends` chains are included when mapping invocation assignments into `component-instance.props`
     - `component-instance.props` populated when invocation keys match declared component properties
+    - typed named component instance invocation syntax:
+      - `my-component myInstance { ... }`
+      - parsed as component invocation with instance alias metadata (`meta.__qhtmlInstanceAlias`)
+      - valid only for `q-component` invocations (throws for non-component targets)
     - declared properties can be authored with either:
       - `q-property name: value`
       - `property name: value` (shorthand alias)

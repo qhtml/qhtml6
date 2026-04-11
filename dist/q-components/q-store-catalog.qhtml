@@ -71,7 +71,7 @@ q-component q-store-catalog {
     .q-store-catalog-items { q-store-catalog-items-style }
   }
 
-  q-property { state itemsHost cartCountNode cartTotalNode cartJsonNode }
+  q-property { state visibleItems emptyMessages cartCountText cartTotalText cartJsonText }
   q-signal cartChanged(lastItem, items, totalCount, subtotal, subtotalFormatted)
   q-signal checkoutRequested(items, subtotal)
 
@@ -87,13 +87,11 @@ q-component q-store-catalog {
     return this.__qStoreCatalogState;
   }
 
-  itemsHost: q-bind {
-    return this.querySelector("[q-store-catalog-items='1']");
-  }
-
-  cartCountNode: q-bind { return this.querySelector("[q-store-cart-count='1']"); }
-  cartTotalNode: q-bind { return this.querySelector("[q-store-cart-total='1']"); }
-  cartJsonNode: q-bind { return this.querySelector("[q-store-catalog-cart-json='1']"); }
+  visibleItems: q-array { }
+  emptyMessages: q-array { "Catalog is empty." }
+  cartCountText: "0"
+  cartTotalText: "$0.00"
+  cartJsonText: "[]"
 
   function normalizeNumber(value, fallback) {
     const n = Number(value);
@@ -269,27 +267,16 @@ q-component q-store-catalog {
   }
 
   function updateCartSummary() {
-    const countNode = this.component.cartCountNode;
-    const totalNode = this.component.cartTotalNode;
-    const cartJsonNode = this.component.cartJsonNode;
-
     const items = this.getCartItems();
     let totalCount = 0;
     for (let i = 0; i < items.length; i += 1) {
       totalCount += this.normalizeNumber(items[i].quantity, 0);
     }
     const subtotal = this.getCartSubtotal();
-
-    if (countNode) {
-      countNode.textContent = String(totalCount);
-    }
-    if (totalNode) {
-      totalNode.textContent = this.formatCurrency(subtotal);
-    }
-    if (cartJsonNode) {
-      cartJsonNode.value = JSON.stringify(items);
-      cartJsonNode.textContent = cartJsonNode.value;
-    }
+    this.component.cartCountText = String(totalCount);
+    this.component.cartTotalText = this.formatCurrency(subtotal);
+    this.component.cartJsonText = JSON.stringify(items);
+    this.requestRender();
   }
 
   function parseJsonEntries(jsonEntries) {
@@ -324,27 +311,23 @@ q-component q-store-catalog {
     return this.setCatalogItems(parsed);
   }
 
-  function getItemsHostNode() {
-    return this.component.itemsHost;
-  }
-
-  function clearNodeChildren(node) {
-    if (!node || typeof node.removeChild !== "function") {
-      return;
-    }
-    while (node.firstChild) {
-      node.removeChild(node.firstChild);
+  function requestRender() {
+    const host =
+      (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) ||
+      this.closest("q-html");
+    const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
+    const uuid = qdomNode && qdomNode.UUID ? String(qdomNode.UUID || "").trim() : "";
+    if (host && typeof host.update === "function") {
+      if (uuid) {
+        host.update(uuid);
+      } else {
+        host.update();
+      }
     }
   }
 
   function renderCatalog() {
     const state = this.ensureState();
-
-    const itemsHost = this.getItemsHostNode();
-    if (!itemsHost) {
-      return;
-    }
-
     const query = state.filterText;
     const source = this.getCatalogItems();
     const list = query
@@ -354,35 +337,11 @@ q-component q-store-catalog {
         })
       : source;
 
-    this.__qStoreCatalogRenderInProgress = true;
-    try {
-      this.clearNodeChildren(itemsHost);
-      if (!list.length) {
-        const emptyPanel = document.createElement("div");
-        emptyPanel.className = "w3-col s12 w3-panel w3-border w3-round-large";
-        emptyPanel.textContent = query ? "No catalog items matched your filter." : "Catalog is empty.";
-        itemsHost.appendChild(emptyPanel);
-        return;
-      }
-
-      for (let i = 0; i < list.length; i += 1) {
-        const item = this.normalizeItem(list[i]);
-        const wrapper = document.createElement("div");
-        wrapper.className = "w3-col l4 m6 s12 w3-margin-bottom";
-
-        const catalogItem = document.createElement("q-store-catalog-item");
-        catalogItem.setAttribute("qhtml-external-component-instance", "1");
-        catalogItem.setAttribute("data-item-id", item.id || "");
-        catalogItem.setAttribute("data-item-name", item.name);
-        catalogItem.setAttribute("data-item-description", item.description || "No description provided.");
-        catalogItem.setAttribute("data-item-price", String(this.normalizeNumber(item.price, 0)));
-
-        wrapper.appendChild(catalogItem);
-        itemsHost.appendChild(wrapper);
-      }
-    } finally {
-      this.__qStoreCatalogRenderInProgress = false;
-    }
+    this.component.visibleItems = list.map((item) => this.normalizeItem(item));
+    this.component.emptyMessages = list.length
+      ? []
+      : [query ? "No catalog items matched your filter." : "Catalog is empty."];
+    this.requestRender();
   }
 
   function requestCheckout() {
@@ -436,14 +395,14 @@ q-component q-store-catalog {
               text { Cart items: }
               span.q-store-catalog-badge {
                 q-store-cart-count: "1"
-                text { 0 }
+                text { ${this.component.cartCountText} }
               }
             }
             div.q-store-catalog-muted {
               text { Subtotal: }
               span.q-store-catalog-total-value {
                 q-store-cart-total: "1"
-                text { $0.00 }
+                text { ${this.component.cartTotalText} }
               }
             }
           }
@@ -464,6 +423,22 @@ q-component q-store-catalog {
           div {
             q-store-catalog-items: "1"
             class: "q-store-catalog-items"
+            for (message in this.component.emptyMessages) {
+              div.w3-col.s12.w3-panel.w3-border.w3-round-large {
+                text { ${message} }
+              }
+            }
+            for (item in this.component.visibleItems) {
+              div.w3-col.l4.m6.s12.w3-margin-bottom {
+                q-store-catalog-item {
+                  qhtml-external-component-instance: "1"
+                  data-item-id: "${item.id || ''}"
+                  data-item-name: "${item.name || 'Untitled item'}"
+                  data-item-description: "${item.description || 'No description provided.'}"
+                  data-item-price: "${this.component.normalizeNumber(item.price, 0)}"
+                }
+              }
+            }
             slot { catalog-items }
           }
         }
@@ -472,6 +447,7 @@ q-component q-store-catalog {
       textarea {
         q-store-catalog-cart-json: "1";
         style { display: none; }
+        text { ${this.component.cartJsonText} }
       }
     }
   }

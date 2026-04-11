@@ -34,10 +34,16 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - Inline expressions in text/attributes can read scoped values directly (for example `${item}` and `${item.name}`).
 - Direct symbol text is also resolved for simple scoped identifiers/paths (for example `li { item }`).
 - `q-model-view` repeaters prefer model-value interpolation (`[object Object]` for object rows) instead of q-object source-string substitution.
+- Named typed component instances participate in interpolation scope using lexical block scoping:
+  - aliases declared as `mycomp myinstance { ... }` resolve by nearest scope, with later declarations shadowing earlier ones.
+  - aliases are available to subsequent siblings and descendants in the same block.
 
 ## Component host assignment behavior
 - `component-instance.attributes` map to DOM attributes.
 - `component-instance.props` map to direct host element property assignment (`host[propName] = value`).
+- For declared component properties only, bare dotted references (for example `myinstance.myprop1`) are resolved against interpolation scope without `${...}`.
+  - unresolved references are coerced to empty string.
+  - unresolved/overwrite warnings are emitted only when `q-logger { q-property }` is enabled in scope.
 - `q-component ... extends ... extends ...` chains are resolved at render time:
   - inherited properties/methods/signals/aliases/lifecycle hooks are merged base→child.
   - multiple bases are merged in declaration order (`extends baseA extends baseB`, then child).

@@ -1065,6 +1065,244 @@ for82 { }`, e: ['t82-r1c1', 't82-r1c2', 't82-r2c1', 't82-r2c2'] }
     span { text { t83-\${item} } }
   }
 }`, e: ['t83-solo'] }
+    ,
+      { n: 84, t: 'q-canvas screensaver bounce (start/stop button)', m: true, ms: '#t84-done', s: `button#t84-toggle {
+  type: "button"
+  text { start }
+  onclick {
+    window.__t84Active = !window.__t84Active;
+    this.textContent = window.__t84Active ? "stop" : "start";
+  }
+}
+q-canvas myCanvas84 {
+  width: 180
+  height: 96
+}
+
+div#t84-out { text { waiting } }
+div#t84-meta { text { frames=0|bounces=0 } }
+div#t84-done { text { 0 } }
+
+onReady { window.__t84Active = false; }
+
+q-timer t84Timer {
+  interval: 20
+  repeat: true
+  running: true
+  ontimeout {
+    if (!window.__t84Active) { return; }
+    var c = myCanvas84;
+    if (!c || !c.context) { return; }
+    if (!window.__t84) {
+      window.__t84 = { x: 60, y: 34, vx: 1, vy: -1, r: 14, rv: 1, rr: 40, gg: 120, bb: 210, dr: 1, dg: 1, db: 1, f: 0, b: 0 };
+    }
+    var s = window.__t84;
+    var w = Number(c.width || 180);
+    var h = Number(c.height || 96);
+
+    s.x = s.x + s.vx;
+    s.y = s.y + s.vy;
+    if (s.x - s.r <= 0 || s.x + s.r >= w) { s.vx = -s.vx; s.b = s.b + 1; }
+    if (s.y - s.r <= 0 || s.y + s.r >= h) { s.vy = -s.vy; s.b = s.b + 1; }
+    if (s.x - s.r < 0) { s.x = s.r; }
+    if (s.x + s.r > w) { s.x = w - s.r; }
+    if (s.y - s.r < 0) { s.y = s.r; }
+    if (s.y + s.r > h) { s.y = h - s.r; }
+
+    var edgeLimit = Math.floor(Math.min(s.x, w - s.x, s.y, h - s.y) - 1);
+    if (!Number.isFinite(edgeLimit)) { edgeLimit = 6; }
+    if (edgeLimit < 6) { edgeLimit = 6; }
+    if (edgeLimit > 22) { edgeLimit = 22; }
+    if (s.r > edgeLimit) { s.r = edgeLimit; s.rv = -Math.abs(s.rv); }
+    s.r = s.r + s.rv;
+    if (s.r >= edgeLimit) { s.r = edgeLimit; s.rv = -Math.abs(s.rv); }
+    if (s.r <= 6) { s.r = 6; s.rv = Math.abs(s.rv); }
+
+    s.rr = s.rr + s.dr; if (s.rr >= 255 || s.rr <= 0) { s.dr = -s.dr; }
+    s.gg = s.gg + s.dg; if (s.gg >= 255 || s.gg <= 0) { s.dg = -s.dg; }
+    s.bb = s.bb + s.db; if (s.bb >= 255 || s.bb <= 0) { s.db = -s.db; }
+
+    var ctx = c.context;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "rgba(" + s.rr + "," + s.gg + "," + s.bb + ",0.85)";
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    s.f = s.f + 1;
+    $("#t84-meta").textContent = "frames=" + s.f + "|bounces=" + s.b;
+    if (s.f > 44 && s.b > 0) {
+      $("#t84-out").textContent = "t84-ok";
+      $("#t84-done").textContent = "1";
+      window.__t84Active = false;
+      $("#t84-toggle").textContent = "start";
+    }
+  }
+}`, e: ['t84-ok', 'frames='] }
+    ,
+      { n: 85, t: 'q-canvas diagonal pixel-runner (start/stop button)', m: true, ms: '#t85-done', s: `button#t85-toggle {
+  type: "button"
+  text { start }
+  onclick {
+    window.__t85Active = !window.__t85Active;
+    this.textContent = window.__t85Active ? "stop" : "start";
+  }
+}
+q-canvas myCanvas85 {
+  width: 164
+  height: 92
+}
+
+div#t85-out { text { waiting } }
+div#t85-done { text { 0 } }
+
+onReady { window.__t85Active = false; }
+
+q-timer t85Timer {
+  interval: 22
+  repeat: true
+  running: true
+  ontimeout {
+    if (!window.__t85Active) { return; }
+    var c = myCanvas85;
+    if (!c || !c.context) { return; }
+    if (!window.__t85) { window.__t85 = { x: 2, y: 2, vx: 1, vy: 1, rr: 120, gg: 40, bb: 180, dr: 1, dg: -1, db: 1, f: 0, b: 0 }; }
+    var s = window.__t85;
+    var w = Number(c.width || 164);
+    var h = Number(c.height || 92);
+    s.x = s.x + s.vx;
+    s.y = s.y + s.vy;
+    if (s.x <= 0 || s.x >= w - 2) { s.vx = -s.vx; s.b = s.b + 1; }
+    if (s.y <= 0 || s.y >= h - 2) { s.vy = -s.vy; s.b = s.b + 1; }
+    s.rr = s.rr + s.dr; if (s.rr <= 0 || s.rr >= 255) { s.dr = -s.dr; }
+    s.gg = s.gg + s.dg; if (s.gg <= 0 || s.gg >= 255) { s.dg = -s.dg; }
+    s.bb = s.bb + s.db; if (s.bb <= 0 || s.bb >= 255) { s.db = -s.db; }
+    c.context.clearRect(0, 0, w, h);
+    c.context.fillStyle = "rgba(" + s.rr + "," + s.gg + "," + s.bb + ",0.9)";
+    c.context.fillRect(s.x, s.y, 2, 2);
+    s.f = s.f + 1;
+    if (s.f > 42 && s.b > 0) {
+      $("#t85-out").textContent = "t85-ok";
+      $("#t85-done").textContent = "1";
+      window.__t85Active = false;
+      $("#t85-toggle").textContent = "start";
+    }
+  }
+}`, e: ['t85-ok'] }
+    ,
+      { n: 86, t: 'q-canvas transparent overlay (start/stop button)', m: true, ms: '#t86-done', s: `button#t86-toggle {
+  type: "button"
+  text { start }
+  onclick {
+    window.__t86Active = !window.__t86Active;
+    this.textContent = window.__t86Active ? "stop" : "start";
+  }
+}
+div#t86-wrap {
+  style {
+    position: relative;
+    width: 180px;
+    height: 96px;
+    border: 1px solid #94a3b8;
+    background-color: #e2e8f0;
+  }
+  div#t86-base { text { base-86 } }
+}
+
+q-canvas myCanvas86 {
+  width: 180
+  height: 96
+}
+
+div#t86-out { text { waiting } }
+div#t86-done { text { 0 } }
+
+onReady { window.__t86Active = false; }
+
+q-timer t86Timer {
+  interval: 24
+  repeat: true
+  running: true
+  ontimeout {
+    if (!window.__t86Active) { return; }
+    var c = myCanvas86;
+    var wrap = $("#t86-wrap");
+    if (!c || !c.context || !wrap) { return; }
+    if (c.parentNode !== wrap) {
+      c.style.position = "absolute";
+      c.style.left = "0px";
+      c.style.top = "0px";
+      c.style.pointerEvents = "none";
+      c.style.backgroundColor = "transparent";
+      wrap.appendChild(c);
+    }
+    if (!window.__t86) { window.__t86 = { x: 9, y: 9, vx: 1, vy: 1, f: 0 }; }
+    var s = window.__t86;
+    var w = Number(c.width || 180);
+    var h = Number(c.height || 96);
+    s.x = s.x + s.vx;
+    s.y = s.y + s.vy;
+    if (s.x <= 7 || s.x >= w - 7) { s.vx = -s.vx; }
+    if (s.y <= 7 || s.y >= h - 7) { s.vy = -s.vy; }
+    c.context.clearRect(0, 0, w, h);
+    c.context.fillStyle = "rgba(30,64,175,0.92)";
+    c.context.beginPath();
+    c.context.arc(s.x, s.y, 7, 0, Math.PI * 2);
+    c.context.fill();
+    s.f = s.f + 1;
+    if (s.f > 34) {
+      $("#t86-out").textContent = "t86-ok";
+      $("#t86-done").textContent = "1";
+      window.__t86Active = false;
+      $("#t86-toggle").textContent = "start";
+    }
+  }
+}`, e: ['base-86', 't86-ok'] }
+    ,
+      { n: 87, t: 'q-canvas independent animated surfaces (start/stop button)', m: true, ms: '#t87-done', s: `button#t87-toggle {
+  type: "button"
+  text { start }
+  onclick {
+    window.__t87Active = !window.__t87Active;
+    this.textContent = window.__t87Active ? "stop" : "start";
+  }
+}
+q-canvas myCanvas87a { width: 96 height: 48 }
+q-canvas myCanvas87b { width: 96 height: 48 }
+
+div#t87-out { text { waiting } }
+div#t87-done { text { 0 } }
+
+onReady { window.__t87Active = false; }
+
+q-timer t87Timer {
+  interval: 22
+  repeat: true
+  running: true
+  ontimeout {
+    if (!window.__t87Active) { return; }
+    var a = myCanvas87a;
+    var b = myCanvas87b;
+    if (!a || !b || !a.context || !b.context) { return; }
+    if (!window.__t87) { window.__t87 = { xa: 2, xb: 2, f: 0 }; }
+    var s = window.__t87;
+    s.xa = (s.xa + 1) % 90;
+    s.xb = (s.xb + 1) % 90;
+    a.context.clearRect(0, 0, 96, 48);
+    b.context.clearRect(0, 0, 96, 48);
+    a.context.fillStyle = "rgba(16,185,129,0.9)";
+    b.context.fillStyle = "rgba(244,63,94,0.9)";
+    a.context.fillRect(s.xa, 12, 6, 6);
+    b.context.fillRect(s.xb, 26, 6, 6);
+    s.f = s.f + 1;
+    if (s.f > 28) {
+      $("#t87-out").textContent = "t87-ok";
+      $("#t87-done").textContent = "1";
+      window.__t87Active = false;
+      $("#t87-toggle").textContent = "start";
+    }
+  }
+}`, e: ['t87-ok'] }
     ];
 
     function normalize(input) {

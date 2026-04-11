@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.1.7
+# QHTML.js v6.1.8
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,12 +12,13 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.1.7
+## Whats New in v6.1.8
 
-- Added `for (alias in source) { ... }` keyword-level iteration syntax.
-- Added runtime support for `for` source evaluation through inline expression scope (including component-scoped references like `this.component.items`).
-- Added `dist/test.html` coverage for multiple `for` use cases (array, object/map-style keys, function-returned arrays, primitive source).
-- Updated docs with `for` syntax and accepted source patterns.
+- Added initial `q-canvas` keyword support (`q-canvas <name> { ... }`) for named canvas declarations.
+- Added named canvas handle export so canvas instances are available by name on host/global scope.
+- Added `myCanvas.context` helper for direct/manual canvas API drawing (`2d` context access).
+- Added/updated `dist/test.html` q-canvas animation coverage (including transparent drawing and start/stop controls).
+- Updated docs with `q-canvas` usage patterns.
 
 
 ## 1. Quick Start
@@ -634,6 +635,33 @@ Name collisions / overwrite behavior:
 Recommendation:
 - Use unique timer names per host to avoid handle collisions.
 
+### `q-canvas` (keyword-level canvas)
+
+`q-canvas` declares a named canvas element and exports that handle by name:
+
+```qhtml
+q-canvas myCanvas {
+  width: 320
+  height: 180
+}
+```
+
+You can draw manually through the exported context helper:
+
+```qhtml
+onReady {
+  myCanvas.context.clearRect(0, 0, 320, 180);
+  myCanvas.context.fillStyle = "rgba(16,185,129,0.9)";
+  myCanvas.context.fillRect(20, 20, 120, 80);
+}
+```
+
+Notes:
+
+- `q-canvas <name>` exports the canvas handle as `window.<name>` and host-scoped `<name>`.
+- `<name>.context` points to the `2d` rendering context for that specific canvas.
+- Canvas rendering can be timer-driven (`q-timer`) or signal-driven depending on your component flow.
+
 ### `q-tree-view`
 
 `q-tree-view` consumes model data from the same `q-model` pipeline and renders nested branches/leaves with native `details/summary`. For the current end-to-end example, see `dist/demo.html`.
@@ -1247,6 +1275,13 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 - `modules/release-bundle/README.md`
 
 # Past Changes
+## Whats New in v6.1.7
+
+- Added `for (alias in source) { ... }` keyword-level iteration syntax.
+- Added runtime support for `for` source evaluation through inline expression scope (including component-scoped references like `this.component.items`).
+- Added `dist/test.html` coverage for multiple `for` use cases (array, object/map-style keys, function-returned arrays, primitive source).
+- Updated docs with `for` syntax and accepted source patterns.
+
 ## Whats New in v6.1.6
 
 - Added declarative `q-logger { ... }` support with scoped categories for runtime debugging (`q-property`, `q-signal`, `q-component`, `function`, `slot`, `model`, `instantiation`, `all`).

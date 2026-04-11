@@ -56,7 +56,7 @@ q-component q-checkout-modal {
     .q-checkout-clear-btn { q-checkout-clear-btn-style }
   }
 
-  q-property { items modalHost linesNode subtotalNode countNode payloadNode }
+  q-property { items modalHost totalCount subtotalText payloadJson }
   q-signal itemsChanged(items, totalCount, subtotal)
 
   items: q-bind {
@@ -68,10 +68,9 @@ q-component q-checkout-modal {
   }
 
   modalHost: q-bind { return this.querySelector("q-modal"); }
-  linesNode: q-bind { return this.querySelector("[q-checkout-lines='1']"); }
-  subtotalNode: q-bind { return this.querySelector("[q-checkout-subtotal='1']"); }
-  countNode: q-bind { return this.querySelector("[q-checkout-count='1']"); }
-  payloadNode: q-bind { return this.querySelector("[q-checkout-payload='1']"); }
+  totalCount: "0"
+  subtotalText: "$0.00"
+  payloadJson: "[]"
 
   function normalizeNumber(value, fallback) {
     const n = Number(value);
@@ -181,63 +180,33 @@ q-component q-checkout-modal {
     this.component.modalHost.hide();
   }
 
-  function renderItems() {
-    const listNode = this.component.linesNode;
-    const subtotalNode = this.component.subtotalNode;
-    const countNode = this.component.countNode;
-    const payloadNode = this.component.payloadNode;
-    if (!listNode) {
-      return;
+  function requestRender() {
+    const host =
+      (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) ||
+      this.closest("q-html");
+    const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
+    const uuid = qdomNode && qdomNode.UUID ? String(qdomNode.UUID || "").trim() : "";
+    if (host && typeof host.update === "function") {
+      if (uuid) {
+        host.update(uuid);
+      } else {
+        host.update();
+      }
     }
+  }
 
+  function renderItems() {
     const items = this.getItems();
-    listNode.innerHTML = "";
     let totalCount = 0;
     for (let i = 0; i < items.length; i += 1) {
       totalCount += this.normalizeNumber(items[i].quantity, 0);
     }
-
-    if (!items.length) {
-      const empty = document.createElement("div");
-      empty.className = "w3-panel w3-border w3-round-large";
-      empty.textContent = "Your cart is currently empty.";
-      listNode.appendChild(empty);
-    } else {
-      const table = document.createElement("table");
-      table.className = "w3-table-all w3-small";
-
-      const head = document.createElement("thead");
-      head.innerHTML = "<tr><th>Item</th><th class='w3-right-align'>Qty</th><th class='w3-right-align'>Price</th><th class='w3-right-align'>Line Total</th></tr>";
-      table.appendChild(head);
-
-      const body = document.createElement("tbody");
-      for (let i = 0; i < items.length; i += 1) {
-        const line = items[i];
-        const tr = document.createElement("tr");
-        const lineTotal = this.normalizeNumber(line.price, 0) * this.normalizeNumber(line.quantity, 1);
-        tr.innerHTML =
-          "<td>" + line.name + "</td>" +
-          "<td class='w3-right-align'>" + line.quantity + "</td>" +
-          "<td class='w3-right-align'>" + this.formatCurrency(line.price) + "</td>" +
-          "<td class='w3-right-align'><b>" + this.formatCurrency(lineTotal) + "</b></td>";
-        body.appendChild(tr);
-      }
-      table.appendChild(body);
-      listNode.appendChild(table);
-    }
-
     const subtotal = this.getSubtotalBeforeTax();
-    if (subtotalNode) {
-      subtotalNode.textContent = this.formatCurrency(subtotal);
-    }
-    if (countNode) {
-      countNode.textContent = String(totalCount);
-    }
-    if (payloadNode) {
-      payloadNode.value = JSON.stringify(items);
-      payloadNode.textContent = payloadNode.value;
-    }
+    this.component.totalCount = String(totalCount);
+    this.component.subtotalText = this.formatCurrency(subtotal);
+    this.component.payloadJson = JSON.stringify(items);
     this.component.itemsChanged(items, totalCount, subtotal);
+    this.requestRender();
   }
 
   onReady {
@@ -268,6 +237,30 @@ q-component q-checkout-modal {
                 h4 { text { Cart Items } }
                 div {
                   q-checkout-lines: "1"
+                  table.w3-table-all.w3-small {
+                    thead {
+                      tr {
+                        th { text { Item } }
+                        th.w3-right-align { text { Qty } }
+                        th.w3-right-align { text { Price } }
+                        th.w3-right-align { text { Line Total } }
+                      }
+                    }
+                    tbody {
+                      for (line in this.component.items) {
+                        tr {
+                          td { text { ${line.name} } }
+                          td.w3-right-align { text { ${line.quantity} } }
+                          td.w3-right-align { text { ${this.component.formatCurrency(line.price)} } }
+                          td.w3-right-align {
+                            b {
+                              text { ${this.component.formatCurrency((line.price || 0) * (line.quantity || 0))} }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -278,7 +271,7 @@ q-component q-checkout-modal {
                   text { Items in cart: }
                   span.q-checkout-badge {
                     q-checkout-count: "1"
-                    text { 0 }
+                    text { ${this.component.totalCount} }
                   }
                 }
                 p.q-checkout-subtotal-label {
@@ -286,7 +279,7 @@ q-component q-checkout-modal {
                 }
                 div.q-checkout-subtotal {
                   q-checkout-subtotal: "1"
-                  text { $0.00 }
+                  text { ${this.component.subtotalText} }
                 }
               }
             }
@@ -296,6 +289,7 @@ q-component q-checkout-modal {
         textarea {
           q-checkout-payload: "1"
           style { display: none; }
+          text { ${this.component.payloadJson} }
         }
       }
 

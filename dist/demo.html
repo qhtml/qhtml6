@@ -752,6 +752,89 @@ tree-demo-theme {
         </div>
       </section>
 
+      <section class="example-class" id="q-list-view" data-title="q-list-view.qhtml usage">
+        <div class="example-head">
+          <h3>q-list-view.qhtml usage</h3>
+          <p>Render a simple list from a <code>q-array</code> model using <code>for</code>.</p>
+        </div>
+        <div class="example-body">
+          <q-editor>
+q-import { q-components.qhtml }
+
+q-component demo-list-view extends q-list-view {
+  q-property model: q-array {
+    "hello world",
+    "item 2",
+    "item 3"
+  }
+}
+
+demo-list-view#my-list { }
+          </q-editor>
+        </div>
+      </section>
+
+      <section class="example-class" id="q-estore-suite" data-title="e-store component suite demo">
+        <div class="example-head">
+          <h3>e-store component suite demo</h3>
+          <p>Integrated demo using <code>q-estore-pricebox</code>, <code>q-store-catalog</code>, and <code>q-checkout-modal</code>.</p>
+        </div>
+        <div class="example-body">
+          <q-editor>
+q-import { q-components.qhtml }
+
+div.w3-panel.w3-border.w3-round-large {
+  h4 { text { e-store quick demo } }
+  p { text { Add items from the catalog, then click Checkout. } }
+  p#estore-status.w3-small { text { cart status: idle } }
+}
+
+q-estore-pricebox {
+  pricebox-content { text { Featured: Night Lamp } }
+  pricebox-price { text { $39.99 } }
+  pricebox-add-button {
+    button {
+      text { Add featured to cart }
+      onclick {
+        document.querySelector("#estoreCatalog").addToCart({
+          id: "featured-night-lamp",
+          name: "Night Lamp",
+          description: "Warm ambient desk lamp",
+          price: 39.99
+        }, 1);
+      }
+    }
+  }
+}
+
+q-store-catalog#estoreCatalog { }
+q-checkout-modal#estoreCheckout { }
+
+onReady {
+  var store = document.querySelector("#estoreCatalog");
+  var checkout = document.querySelector("#estoreCheckout");
+  var status = document.querySelector("#estore-status");
+
+  store.setCatalogItems([
+    { id: "sku-100", name: "Aurora Lamp", description: "Warm ambient desk lamp", price: 39.99 },
+    { id: "sku-101", name: "Ceramic Mug", description: "Matte finish coffee mug", price: 14.50 },
+    { id: "sku-102", name: "Notebook", description: "A5 dotted journal", price: 11.25 },
+    { id: "sku-103", name: "Desk Mat", description: "Soft-touch anti-slip desk mat", price: 24.00 }
+  ]);
+
+  store.cartChanged.connect(function(lastItem, items, totalCount, subtotal, subtotalFormatted) {
+    status.textContent = "cart status: " + String(totalCount) + " item(s), subtotal " + String(subtotalFormatted);
+  });
+
+  store.checkoutRequested.connect(function(items) {
+    checkout.setItems(items);
+    checkout.show();
+  });
+}
+          </q-editor>
+        </div>
+      </section>
+
       <section class="example-class" id="q-toolbar" data-title="q-toolbar + q-toolbutton usage">
         <div class="example-head">
           <h3>q-toolbar + q-toolbutton usage</h3>

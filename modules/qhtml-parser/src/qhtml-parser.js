@@ -54,6 +54,7 @@
     "q-model-view",
     "for",
     "q-timer",
+    "q-canvas",
     "q-import",
     "q-logger",
     "q-sdml-component",
@@ -2580,6 +2581,31 @@
           continue;
           }
         }
+        if (isIdentifierStartChar(nextChar)) {
+          const instanceAliasStart = parser.index;
+          const instanceAlias = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) === "{") {
+            consume(parser);
+            const childItems = parseBlockItems(parser, scopedKeywordAliases);
+            expect(parser, "}");
+            items.push({
+              type: "Element",
+              selectors: [name],
+              instanceAlias: String(instanceAlias || "").trim(),
+              prefixDirectives: [],
+              items: childItems,
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+          parser.index = instanceAliasStart;
+          skipWhitespace(parser);
+        }
+
         if (nextChar === ":") {
           consume(parser);
           const value = parseValue(parser, scopedKeywordAliases);
@@ -3330,6 +3356,31 @@
           throw ParseError("Anonymous q-timer is not allowed", parser.index);
         }
 
+        if (firstLower === "q-canvas" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const canvasId = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-canvas id", parser.index);
+          }
+          consume(parser);
+          const canvasBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QCanvasDefinition",
+            canvasId: String(canvasId || "").trim(),
+            body: String(canvasBody || ""),
+            config: parseQCanvasDefinitionBody(String(canvasBody || ""), scopedKeywordAliases),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-canvas" && peek(parser) === "{") {
+          throw ParseError("Anonymous q-canvas is not allowed", parser.index);
+        }
+
         if (firstLower === "sdml-endpoint" && peek(parser) !== "{" && peek(parser) !== ",") {
           const endpointId = parseIdentifier(parser);
           skipWhitespace(parser);
@@ -3562,6 +3613,36 @@
         }
         if (firstLower === "q-default-theme" && peek(parser) === "{") {
           throw ParseError("Anonymous q-default-theme is not allowed", parser.index);
+        }
+
+        if (isIdentifierStartChar(peek(parser))) {
+          const instanceAliasStart = parser.index;
+          const instanceAlias = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) === "{") {
+            const prefixDirectives = parseLeadingSelectorDirectiveBlocks(parser);
+            skipWhitespace(parser);
+            if (peek(parser) !== "{") {
+              throw ParseError("Expected '{' at top level", parser.index);
+            }
+            consume(parser);
+            const items = parseBlockItems(parser, scopedKeywordAliases);
+            expect(parser, "}");
+            body.push({
+              type: "Element",
+              selectors: [firstSelector],
+              instanceAlias: String(instanceAlias || "").trim(),
+              prefixDirectives: prefixDirectives,
+              items: items,
+              keywords: keywordSnapshot,
+              start: start,
+              end: parser.index,
+              raw: parser.source.slice(start, parser.index),
+            });
+            continue;
+          }
+          parser.index = instanceAliasStart;
+          skipWhitespace(parser);
         }
 
         const selectors = parseSelectorList(parser, firstSelector);
@@ -8120,6 +8201,16 @@
     }
 
     const instanceMeta = Object.assign({}, elementNode.meta || {});
+    const instanceAlias =
+      elementNode &&
+      elementNode.meta &&
+      typeof elementNode.meta === "object" &&
+      typeof elementNode.meta.__qhtmlInstanceAlias === "string"
+        ? String(elementNode.meta.__qhtmlInstanceAlias || "").trim()
+        : "";
+    if (instanceAlias) {
+      instanceMeta.__qhtmlInstanceAlias = instanceAlias;
+    }
     if (mappedBindings.length > 0) {
       instanceMeta.qBindings = mappedBindings;
     } else if (Object.prototype.hasOwnProperty.call(instanceMeta, "qBindings")) {
@@ -8221,8 +8312,26 @@
         node.children = normalizeNodesForDefinitions(node.children, definitionRegistry);
       }
       const tag = String(node.tagName || "").trim().toLowerCase();
+      const instanceAlias =
+        node &&
+        node.meta &&
+        typeof node.meta === "object" &&
+        typeof node.meta.__qhtmlInstanceAlias === "string"
+          ? String(node.meta.__qhtmlInstanceAlias || "").trim()
+          : "";
       if (tag && tag !== "slot" && definitionRegistry.has(tag)) {
-        return convertElementInvocationToInstance(node, definitionRegistry.get(tag), definitionRegistry);
+        const definitionNode = definitionRegistry.get(tag);
+        const definitionType =
+          definitionNode && typeof definitionNode.definitionType === "string"
+            ? String(definitionNode.definitionType || "").trim().toLowerCase()
+            : "component";
+        if (instanceAlias && definitionType !== "component") {
+          throw new Error("Named typed instance syntax is only valid for q-component invocations: '" + tag + "'.");
+        }
+        return convertElementInvocationToInstance(node, definitionNode, definitionRegistry);
+      }
+      if (instanceAlias) {
+        throw new Error("Named typed instance syntax is only valid for q-component invocations: '" + tag + "'.");
       }
       return node;
     }
@@ -8295,6 +8404,20 @@
     return coercePropertyValue(value);
   }
 
+  function coerceQCanvasPropertyValue(value) {
+    if (isBindingExpressionValue(value)) {
+      const expressionType = String(value.type || "").trim().toLowerCase();
+      if (expressionType === "qscriptexpression") {
+        const staticValue = tryResolveStaticQScript(value.script || "");
+        if (staticValue !== null) {
+          return staticValue;
+        }
+      }
+      return null;
+    }
+    return coercePropertyValue(value);
+  }
+
   function parseQTimerDefinitionBody(bodyText, keywordAliases) {
     const body = String(bodyText || "");
     const parser = parserFor(body);
@@ -8346,6 +8469,94 @@
       }
     }
     return config;
+  }
+
+  function parseQCanvasDefinitionBody(bodyText, keywordAliases) {
+    const body = String(bodyText || "");
+    const parser = parserFor(body);
+    const items = parseBlockItems(parser, cloneKeywordAliases(keywordAliases));
+    const config = {
+      width: 0,
+      height: 0,
+      onPaint: "",
+    };
+
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type === "Property") {
+        const assignment = parseAssignmentName(item.name);
+        const key = normalizePropertyName(assignment.name);
+        if (!key) {
+          continue;
+        }
+        const value = coerceQCanvasPropertyValue(item.value);
+        if (key === "width") {
+          const numeric = Number(value);
+          config.width = Number.isFinite(numeric) && numeric >= 0 ? Math.floor(numeric) : 0;
+          continue;
+        }
+        if (key === "height") {
+          const numeric = Number(value);
+          config.height = Number.isFinite(numeric) && numeric >= 0 ? Math.floor(numeric) : 0;
+          continue;
+        }
+        continue;
+      }
+      if (item.type === "EventBlock") {
+        const blockName = String(item.name || "").trim().toLowerCase();
+        if (blockName === "onpaint") {
+          config.onPaint = compactScriptBody(item.script || "");
+        }
+      }
+    }
+    return config;
+  }
+
+  function buildQCanvasKeywordNode(canvasItem) {
+    const item = canvasItem && typeof canvasItem === "object" ? canvasItem : {};
+    const canvasId = String(item.canvasId || "").trim();
+    const config = item.config && typeof item.config === "object" ? item.config : {};
+    const width = Number(config.width);
+    const height = Number(config.height);
+    const onPaint = String(config.onPaint || "").trim();
+    const attributes = {
+      "q-canvas": "1",
+    };
+    if (canvasId) {
+      attributes["q-canvas-name"] = canvasId;
+    }
+    if (Number.isFinite(width) && width > 0) {
+      attributes.width = String(Math.floor(width));
+    }
+    if (Number.isFinite(height) && height > 0) {
+      attributes.height = String(Math.floor(height));
+    }
+    if (onPaint) {
+      attributes.onpaint = onPaint;
+    }
+    return core.createElementNode({
+      tagName: "canvas",
+      selectorMode: "single",
+      selectorChain: ["canvas"],
+      attributes: attributes,
+      children: [],
+      meta: {
+        originalSource: item.raw || "",
+        sourceRange:
+          typeof item.start === "number" && typeof item.end === "number"
+            ? [item.start, item.end]
+            : null,
+        __qhtmlCanvasConfig: {
+          name: canvasId,
+          width: Number.isFinite(width) && width > 0 ? Math.floor(width) : 0,
+          height: Number.isFinite(height) && height > 0 ? Math.floor(height) : 0,
+          onPaint: onPaint,
+        },
+      },
+    });
   }
 
   function parseQColorSchemaEntriesFromAstItems(items) {
@@ -10196,6 +10407,7 @@
       return null;
     }
     const selectorMode = detectSelectorMode(selectorTokens);
+    const instanceAlias = String(astElement && astElement.instanceAlias || "").trim();
 
     if (selectorMode === "class-shorthand") {
       const last = selectorTokens[selectorTokens.length - 1];
@@ -10231,6 +10443,12 @@
       attachRuntimeThemeRulesToElementNode(leaf, leafContext.qStyles);
       processElementItems(leaf, astElement.items, source, leafContext);
       applyKeywordAliasesToNode(leaf, astElement.keywords);
+      if (instanceAlias) {
+        if (!leaf.meta || typeof leaf.meta !== "object") {
+          leaf.meta = {};
+        }
+        leaf.meta.__qhtmlInstanceAlias = instanceAlias;
+      }
       return leaf;
     }
 
@@ -10287,6 +10505,12 @@
       appendActiveQTheme(leafContext.qStyles, themesForLeaf[ti]);
     }
     processElementItems(leaf, astElement.items, source, leafContext);
+    if (instanceAlias) {
+      if (!leaf.meta || typeof leaf.meta !== "object") {
+        leaf.meta = {};
+      }
+      leaf.meta.__qhtmlInstanceAlias = instanceAlias;
+    }
 
     return chain[0];
   }
@@ -10346,6 +10570,12 @@
 
     if (item.type === "ForDefinition") {
       return buildForNodeFromAst(item, source, context);
+    }
+
+    if (item.type === "QCanvasDefinition") {
+      const canvasNode = buildQCanvasKeywordNode(item);
+      applyKeywordAliasesToNode(canvasNode, item.keywords);
+      return canvasNode;
     }
 
     if (item.type === "HtmlBlock") {
@@ -11173,7 +11403,15 @@
 
     if (node.kind === core.NODE_TYPES.componentInstance || node.kind === core.NODE_TYPES.templateInstance) {
       const tagName = String(node.tagName || node.componentId || "div").trim().toLowerCase();
-      const lines = [indent + tagName + " {"];
+      const instanceAlias =
+        node &&
+        node.meta &&
+        typeof node.meta === "object" &&
+        typeof node.meta.__qhtmlInstanceAlias === "string"
+          ? String(node.meta.__qhtmlInstanceAlias || "").trim()
+          : "";
+      const head = instanceAlias ? tagName + " " + instanceAlias + " {" : tagName + " {";
+      const lines = [indent + head];
 
       const attrs = node.attributes || {};
       const attrBindings = collectNodeBindingsByTarget(node, "attributes");

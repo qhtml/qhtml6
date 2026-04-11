@@ -11,6 +11,7 @@
   const COMPONENT_PROP_STATE_KEY = "__qhtmlDeclaredPropertyState";
   const QLOGGER_META_KEY = "__qhtmlLoggerCategories";
   const QDOM_UUID_META_KEY = typeof core.QDOM_UUID_KEY === "string" ? core.QDOM_UUID_KEY : "uuid";
+  const QINSTANCE_ALIAS_META_KEY = "__qhtmlInstanceAlias";
   const Q_MODEL_VIEW_INSTANCE_ATTR = "q-model-view-instance";
   const Q_MODEL_VIEW_SCOPE_TAG = "q-model-view-scope";
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
@@ -1124,6 +1125,31 @@
     return "";
   }
 
+  function readInheritedCanvasKeyword(definitionNode) {
+    if (
+      definitionNode &&
+      definitionNode.meta &&
+      typeof definitionNode.meta === "object" &&
+      definitionNode.meta.__qhtmlInheritedCanvasConfig &&
+      typeof definitionNode.meta.__qhtmlInheritedCanvasConfig === "object" &&
+      definitionNode.meta.__qhtmlInheritedCanvasConfig.enabled === true
+    ) {
+      return true;
+    }
+    const inheritedIds = readInheritedComponentIds(definitionNode);
+    for (let ii = 0; ii < inheritedIds.length; ii += 1) {
+      const inheritedLower = String(inheritedIds[ii] || "").trim().toLowerCase();
+      if (inheritedLower === "q-canvas") {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function componentNodeHasCanvasSemantics(componentNode) {
+    return readInheritedCanvasKeyword(componentNode) === true;
+  }
+
   function readPlainNodeText(node) {
     if (!node || typeof node !== "object") {
       return "";
@@ -1216,6 +1242,7 @@
 
     if (chain.length <= 1) {
       const directKeywordRepeater = readInheritedRepeaterKeyword(componentNode);
+      const directCanvasSemantics = componentNodeHasCanvasSemantics(componentNode);
       const directConfig = readComponentRepeaterConfig(componentNode);
       const hasDirectRepeaterSemantics =
         !!directKeywordRepeater ||
@@ -1224,7 +1251,7 @@
           directConfig.explicitModel ||
           directConfig.explicitSlot
         ));
-      if (!hasDirectRepeaterSemantics) {
+      if (!hasDirectRepeaterSemantics && !directCanvasSemantics) {
         if (cacheMap) {
           cacheMap.set(cacheKey, componentNode);
         }
@@ -1266,6 +1293,7 @@
     const aliasIndex = new Map();
     const lifecycleIndex = new Map();
     let mergedRepeaterConfig = null;
+    let mergedCanvasSemantics = false;
 
     function mergeNamedEntries(target, sourceEntries, indexMap) {
       const list = Array.isArray(sourceEntries) ? sourceEntries : [];
@@ -1350,6 +1378,7 @@
       }
 
       mergedRepeaterConfig = mergeRepeaterConfig(mergedRepeaterConfig, readComponentRepeaterConfig(node));
+      mergedCanvasSemantics = mergedCanvasSemantics || componentNodeHasCanvasSemantics(node);
       if (!mergedRepeaterConfig) {
         const fallbackKeyword = readInheritedRepeaterKeyword(node);
         if (fallbackKeyword) {
@@ -1436,6 +1465,15 @@
           ? mergedRepeaterConfig.modelEntries.slice()
           : [],
         modelSource: String(mergedRepeaterConfig.modelSource || "").trim(),
+      };
+    }
+
+    if (mergedCanvasSemantics) {
+      if (!merged.meta || typeof merged.meta !== "object") {
+        merged.meta = {};
+      }
+      merged.meta.__qhtmlInheritedCanvasConfig = {
+        enabled: true,
       };
     }
 
@@ -2845,18 +2883,52 @@
     }
   }
 
-  function setElementProperties(element, props) {
+  function setElementProperties(element, props, options) {
     if (!props || typeof props !== "object") {
       return;
     }
+    const opts = options || {};
+    const declaredProperties =
+      opts.declaredProperties instanceof Set ? opts.declaredProperties : new Set();
+    const directScope = opts.scope && typeof opts.scope === "object" ? opts.scope : null;
+    const loggerHost =
+      opts.hostElement && opts.hostElement.nodeType === 1 ? opts.hostElement : element && element.nodeType === 1 ? element : null;
+    const componentNode = opts.componentNode && typeof opts.componentNode === "object" ? opts.componentNode : null;
+    const instanceNode = opts.instanceNode && typeof opts.instanceNode === "object" ? opts.instanceNode : null;
+    const thisArg = opts.thisArg || element || null;
     const keys = Object.keys(props);
     for (let i = 0; i < keys.length; i += 1) {
       const key = keys[i];
       if (!key) {
         continue;
       }
+      let nextValue = props[key];
+      const normalizedProperty = String(key || "").trim().toLowerCase();
+      const shouldResolveDirectReference =
+        declaredProperties.has(normalizedProperty) &&
+        typeof nextValue === "string" &&
+        nextValue.indexOf(".") !== -1 &&
+        !hasInlineReferenceExpressions(nextValue);
+      if (shouldResolveDirectReference) {
+        const referenceSource = String(nextValue || "");
+        const directReference = tryResolveDirectSymbolValue(referenceSource, { inlineScope: directScope || {} }, thisArg);
+        if (directReference && directReference.matched) {
+          if (directReference.found) {
+            nextValue = directReference.value;
+          } else {
+            nextValue = "";
+            if (
+              shouldLogQLoggerCategory(loggerHost, componentNode, instanceNode, "q-property") &&
+              global.console &&
+              typeof global.console.log === "function"
+            ) {
+              global.console.log("qhtml property reference unresolved:", referenceSource, "for property", key);
+            }
+          }
+        }
+      }
       try {
-        element[key] = props[key];
+        element[key] = nextValue;
       } catch (error) {
         if (global.console && typeof global.console.error === "function") {
           global.console.error("qhtml component property assignment failed:", key, error);
@@ -3646,6 +3718,7 @@
     const componentAttributes = componentNode.attributes && typeof componentNode.attributes === "object"
       ? componentNode.attributes
       : {};
+    const hasCanvasSemantics = componentNodeHasCanvasSemantics(componentNode);
     const instanceAttributes =
       instanceNode && instanceNode.attributes && typeof instanceNode.attributes === "object"
         ? instanceNode.attributes
@@ -4362,6 +4435,12 @@
         parameters: ["value"],
       });
     }
+    if (hasCanvasSemantics && !implicitSignalMap.has("paint")) {
+      implicitSignalMap.set("paint", {
+        name: "paint",
+        parameters: ["event"],
+      });
+    }
     const runtimeSignals = Array.from(implicitSignalMap.values());
     for (let i = 0; i < runtimeSignals.length; i += 1) {
       const signalDecl = runtimeSignals[i] || {};
@@ -4424,6 +4503,22 @@
         doc: hostElement.ownerDocument || global.document || null,
         scopeRoot: null,
       });
+    }
+
+    if (hasCanvasSemantics) {
+      const onPaintSource = String(componentAttributes.onpaint || "").trim();
+      if (onPaintSource) {
+        try {
+          Object.defineProperty(hostElement, "__qhtmlCanvasOnPaintSource", {
+            configurable: true,
+            enumerable: false,
+            writable: true,
+            value: onPaintSource,
+          });
+        } catch (error) {
+          hostElement.__qhtmlCanvasOnPaintSource = onPaintSource;
+        }
+      }
     }
 
     bindComponentWasm(componentNode, hostElement);
@@ -4562,6 +4657,82 @@
     inlineScope.index = Number(index) || 0;
     next.inlineScope = inlineScope;
     return next;
+  }
+
+  function ensureInstanceAliasScopeStack(context) {
+    if (!context || typeof context !== "object") {
+      return [Object.create(null)];
+    }
+    if (!Array.isArray(context.instanceAliasScopeStack)) {
+      context.instanceAliasScopeStack = [Object.create(null)];
+    } else if (context.instanceAliasScopeStack.length === 0) {
+      context.instanceAliasScopeStack.push(Object.create(null));
+    }
+    return context.instanceAliasScopeStack;
+  }
+
+  function pushInstanceAliasScope(context) {
+    const stack = ensureInstanceAliasScopeStack(context);
+    const frame = Object.create(null);
+    stack.push(frame);
+    return frame;
+  }
+
+  function popInstanceAliasScope(context) {
+    if (!context || !Array.isArray(context.instanceAliasScopeStack) || context.instanceAliasScopeStack.length === 0) {
+      return;
+    }
+    if (context.instanceAliasScopeStack.length === 1) {
+      context.instanceAliasScopeStack[0] = Object.create(null);
+      return;
+    }
+    context.instanceAliasScopeStack.pop();
+  }
+
+  function mergeInstanceAliasesIntoScope(scope, context) {
+    if (!scope || typeof scope !== "object" || !context || !Array.isArray(context.instanceAliasScopeStack)) {
+      return;
+    }
+    const stack = context.instanceAliasScopeStack;
+    for (let i = 0; i < stack.length; i += 1) {
+      const frame = stack[i];
+      if (!frame || typeof frame !== "object") {
+        continue;
+      }
+      const names = Object.keys(frame);
+      for (let j = 0; j < names.length; j += 1) {
+        const name = String(names[j] || "").trim();
+        if (!name) {
+          continue;
+        }
+        scope[name] = frame[name];
+      }
+    }
+  }
+
+  function registerNamedInstanceAlias(context, hostElement, componentNode, instanceNode) {
+    if (!context || !hostElement || !instanceNode || !instanceNode.meta || typeof instanceNode.meta !== "object") {
+      return;
+    }
+    const alias = String(instanceNode.meta[QINSTANCE_ALIAS_META_KEY] || "").trim();
+    if (!alias) {
+      return;
+    }
+    const stack = ensureInstanceAliasScopeStack(context);
+    const frame = stack[stack.length - 1] || Object.create(null);
+    if (frame !== stack[stack.length - 1]) {
+      stack[stack.length - 1] = frame;
+    }
+    const hasExisting = Object.prototype.hasOwnProperty.call(frame, alias);
+    frame[alias] = hostElement;
+    if (
+      hasExisting &&
+      shouldLogQLoggerCategory(hostElement, componentNode, instanceNode, "q-property") &&
+      global.console &&
+      typeof global.console.log === "function"
+    ) {
+      global.console.log("qhtml named instance alias overwritten:", alias);
+    }
   }
 
   function bindRepeaterEntryToComponentHost(context, repeaterNode, entry, index) {
@@ -4835,6 +5006,7 @@
         entryContext.modelViewInstanceMarker = modelViewInstanceMarker;
       }
       const restoreBinding = bindRepeaterEntryToComponentHost(entryContext, repeaterNode, entry, i);
+      pushInstanceAliasScope(entryContext);
       try {
         for (let j = 0; j < expanded.length; j += 1) {
           // Mark all DOM created under this q-model-view instantiation scope.
@@ -4844,6 +5016,7 @@
           renderNode(expanded[j], renderParent, targetDocument, entryContext);
         }
       } finally {
+        popInstanceAliasScope(entryContext);
         restoreBinding();
       }
     }
@@ -4851,6 +5024,7 @@
 
   function buildInterpolationScope(context, fallbackNode) {
     const scope = {};
+    mergeInstanceAliasesIntoScope(scope, context);
     if (context && context.inlineScope && typeof context.inlineScope === "object") {
       const keys = Object.keys(context.inlineScope);
       for (let i = 0; i < keys.length; i += 1) {
@@ -5046,8 +5220,13 @@
       }
 
       if (Array.isArray(node.children)) {
-        for (let i = 0; i < node.children.length; i += 1) {
-          renderNode(node.children[i], element, targetDocument, context);
+        pushInstanceAliasScope(context);
+        try {
+          for (let i = 0; i < node.children.length; i += 1) {
+            renderNode(node.children[i], element, targetDocument, context);
+          }
+        } finally {
+          popInstanceAliasScope(context);
         }
       }
       applyRuntimeThemeRulesToHost(element, node);
@@ -5139,8 +5318,13 @@
       hostElement.removeChild(hostElement.firstChild);
     }
 
-    for (let i = 0; i < expanded.length; i += 1) {
-      renderNode(expanded[i], hostElement, targetDocument, context);
+    pushInstanceAliasScope(context);
+    try {
+      for (let i = 0; i < expanded.length; i += 1) {
+        renderNode(expanded[i], hostElement, targetDocument, context);
+      }
+    } finally {
+      popInstanceAliasScope(context);
     }
   }
 
@@ -5244,6 +5428,30 @@
     }
   }
 
+  function collectDeclaredComponentPropertySet(componentNode, instanceNode) {
+    const out = new Set();
+    const componentProperties = Array.isArray(componentNode && componentNode.properties) ? componentNode.properties : [];
+    for (let i = 0; i < componentProperties.length; i += 1) {
+      const propertyName = String(componentProperties[i] || "").trim().toLowerCase();
+      if (propertyName) {
+        out.add(propertyName);
+      }
+    }
+    const instanceDeclaredProperties =
+      instanceNode &&
+      instanceNode.meta &&
+      Array.isArray(instanceNode.meta.__qhtmlDeclaredProperties)
+        ? instanceNode.meta.__qhtmlDeclaredProperties
+        : [];
+    for (let i = 0; i < instanceDeclaredProperties.length; i += 1) {
+      const propertyName = String(instanceDeclaredProperties[i] || "").trim().toLowerCase();
+      if (propertyName) {
+        out.add(propertyName);
+      }
+    }
+    return out;
+  }
+
   function renderComponentHostInstance(componentNode, instanceNode, parent, targetDocument, context) {
     const stack = context.componentStack;
     const key = String(componentNode.componentId || instanceNode.tagName || "").toLowerCase();
@@ -5259,16 +5467,28 @@
     ) {
       context.__applyModelViewMarker(hostElement, context);
     }
+    const interpolationScope = buildInterpolationScope(context, parent);
     setElementAttributes(hostElement, instanceNode.attributes, {
       thisArg: hostElement,
-      scope: buildInterpolationScope(context, parent),
+      scope: interpolationScope,
     });
-    setElementProperties(hostElement, instanceNode.props);
+    setElementProperties(hostElement, instanceNode.props, {
+      declaredProperties: collectDeclaredComponentPropertySet(componentNode, instanceNode),
+      scope: interpolationScope,
+      thisArg: hostElement,
+      hostElement: hostElement,
+      componentNode: componentNode,
+      instanceNode: instanceNode,
+    });
     if (key) {
       hostElement.setAttribute("q-component", key);
       hostElement.setAttribute("qhtml-component-instance", "1");
     }
+    if (componentNodeHasCanvasSemantics(componentNode)) {
+      hostElement.setAttribute("q-canvas-host", "1");
+    }
     parent.appendChild(hostElement);
+    registerNamedInstanceAlias(context, hostElement, componentNode, instanceNode);
 
     if (context.capture) {
       if (context.capture.nodeMap) {
@@ -5442,6 +5662,7 @@
       componentQdomStack: [],
       slotStack: [],
       inlineScope: {},
+      instanceAliasScopeStack: [Object.create(null)],
       disableLifecycleHooks: !!opts.disableLifecycleHooks,
       suppressModelViewWrapper: !!opts.suppressModelViewWrapper,
       capture: opts.capture ? opts.capture : null,
@@ -5589,6 +5810,7 @@
         opts.inlineScope && typeof opts.inlineScope === "object"
           ? Object.assign({}, opts.inlineScope)
           : {},
+      instanceAliasScopeStack: [Object.create(null)],
       disableLifecycleHooks: !!opts.disableLifecycleHooks,
     };
     const effectiveComponentNode = resolveInheritedComponentDefinition(

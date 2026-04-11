@@ -182,3 +182,4 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - SDML helper component/template/signal definitions from remote blocks are scoped to their owning alias definition via internal prefixed ids, avoiding global definition collisions.
 - When parser metadata contains top-level named `q-model` definitions (`doc.meta.qModels`), mount syncs them onto host properties as `QModel` instances and subscribes host updates to model mutations.
 - Marker-based model-view refresh now groups by `[q-model-view-instance]` roots, so wrapperless repeater output (such as `for (...)`) can participate in model-driven refresh replacement.
+- Named `q-canvas` keywords (`q-canvas <name> { ... }`) publish the canvas element to host/global scope under `<name>` and attach `<name>.context` as the resolved 2D context helper for manual drawing access.

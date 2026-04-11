@@ -1,0 +1,8 @@
+q-component q-list-view {
+  q-property model: q-array { }
+  ul {
+    for (item in this.component.model) {
+      li { item }
+    }
+  }
+}

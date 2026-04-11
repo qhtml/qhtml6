@@ -3,6 +3,7 @@ q-import { q-components/q-form.qhtml }
 q-import { q-components/q-modal.qhtml }
 q-import { q-components/q-grid.qhtml }
 q-import { q-components/q-tabs.qhtml }
+q-import { q-components/q-list-view.qhtml }
 q-import { q-components/q-tree-view.qhtml?v=tree-css-28 }
 q-import { q-components/q-dom-tree.qhtml?v=dom-tree-3 }
 q-import { q-components/q-store-catalog-item.qhtml }
