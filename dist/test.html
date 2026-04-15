@@ -332,6 +332,7 @@ onReady {
   $("#src47").run();
 }`, e: ['forward-ok'] },
       { n: 48, t: 'q-signal disconnect after first emit', s: `q-component emitter48 {
+  q-logger { q-signal q-property function }
   q-signal tick()
   function fireTwice() {
     this.tick();
@@ -395,7 +396,7 @@ q-model-view {
 
 q-timer t49MainTimer {
   repeat: true
-  interval: 10
+  interval: 250
   running: true
   ontimeout {
     if (!window.__t49Active) {
@@ -414,7 +415,7 @@ q-timer t49MainTimer {
 
 q-timer t49EndTimer {
   repeat: true
-  interval: 500
+  interval: 2000
   running: true
   ontimeout {
     if (!window.__t49Active) {
@@ -461,11 +462,13 @@ onReady {
   em.fireNow();
 }`, e: ['payload-7'] },
       { n: 51, t: 'q-signal .connect cross-component receiver', s: `q-component emitter51 {
+  q-logger { q-signal q-property function }
   q-signal done(msg)
   function run() { this.done("cross-ok"); }
 }
 
 q-component receiver51 {
+  q-logger { q-signal q-property function }
   onReady {
     $("#t51-em").done.connect(function(msg) {
       $("#t51-out").textContent = msg;
@@ -508,6 +511,7 @@ onReady {
 }`, e: ['count=0|disconnect-ok'] }
 ,
       { n: 53, t: 'q-property changed: declarative + manual subscription (multi-change)', s: `q-component prop53 {
+  q-logger { q-signal q-property function }
   q-property count: 0
 
   function appendValue(nodeId, value) {
@@ -559,6 +563,7 @@ onReady {
 }`, e: ['prop53-ok'] }
 ,
       { n: 54, t: 'lowercase on<property>changed + q-timer property mutation', s: `q-component mycomp54 {
+  q-logger { q-signal q-property function }
   q-property myprop
   onmypropchanged {
     this.querySelector("div").innerHTML = String(this.component.myprop);
@@ -569,8 +574,8 @@ onReady {
 mycomp54#mycomp54 { }
 
 q-timer mytimer54 {
-  repeat: true
-  interval: 10000
+  repeat: false
+  interval: 500
   ontimeout {
     document.querySelector("#mycomp54").myprop = "prop54-ok";
   }
@@ -1086,7 +1091,7 @@ div#t84-done { text { 0 } }
 onReady { window.__t84Active = false; }
 
 q-timer t84Timer {
-  interval: 20
+  interval: 30
   repeat: true
   running: true
   ontimeout {
@@ -1159,7 +1164,7 @@ div#t85-done { text { 0 } }
 onReady { window.__t85Active = false; }
 
 q-timer t85Timer {
-  interval: 22
+  interval: 30
   repeat: true
   running: true
   ontimeout {
@@ -1220,7 +1225,7 @@ div#t86-done { text { 0 } }
 onReady { window.__t86Active = false; }
 
 q-timer t86Timer {
-  interval: 24
+  interval: 30
   repeat: true
   running: true
   ontimeout {
@@ -1276,7 +1281,7 @@ div#t87-done { text { 0 } }
 onReady { window.__t87Active = false; }
 
 q-timer t87Timer {
-  interval: 22
+  interval: 30
   repeat: true
   running: true
   ontimeout {
@@ -1303,6 +1308,380 @@ q-timer t87Timer {
     }
   }
 }`, e: ['t87-ok'] }
+    ,
+      { n: 88, t: 'UUID maps + uuidFor/qdomForUuid/elementForUuid', s: `div#t88-node {
+  text { uuid-target }
+}
+div#t88-out { text { waiting } }
+onReady {
+  var host = this;
+  var node = $("#t88-node");
+  var uuid = host.uuidFor(node);
+  var hasMap = !!(window.QHTML_UUID_MAP && uuid && window.QHTML_UUID_MAP.has(uuid));
+  var hasLookup = !!(window.QHTML_UUID_LOOKUP_MAP && uuid && window.QHTML_UUID_LOOKUP_MAP.has(uuid));
+  var q = uuid ? host.qdomForUuid(uuid) : null;
+  var sameElement = uuid ? host.elementForUuid(uuid) === node : false;
+  var ok =
+    !!uuid &&
+    hasMap &&
+    hasLookup &&
+    !!(q && String(q.tagName || "").toLowerCase() === "div") &&
+    sameElement;
+  $("#t88-out").textContent = ok ? "uuid|map|lookup|qdom|element" : "fail";
+}`, e: ['uuid|map|lookup|qdom|element'] }
+    ,
+      { n: 89, t: 'declaration UUID lookup coverage (q-property/q-signal)', s: `q-component decl89 {
+  q-property count
+  q-signal done(value)
+  div { text { decl89 } }
+}
+decl89#t89-inst { }
+div#t89-out { text { waiting } }
+onReady {
+  var map = window.QHTML_UUID_LOOKUP_MAP;
+  var prop = 0;
+  var sig = 0;
+  if (map && typeof map.forEach === "function") {
+    map.forEach(function(entry) {
+      var t = String(entry && entry.entityType || "");
+      if (t === "q-property-declaration") { prop = prop + 1; }
+      if (t === "q-signal-declaration") { sig = sig + 1; }
+    });
+  }
+  $("#t89-out").textContent = (prop > 0 && sig > 0) ? "prop-uuid|signal-uuid|lookup-prop|lookup-signal" : "fail";
+}`, e: ['prop-uuid|signal-uuid|lookup-prop|lookup-signal'] }
+    ,
+      { n: 90, t: 'lookupUuid facade children()', s: `div#t90-parent {
+  span#t90-child { text { child90 } }
+}
+div#t90-out { text { waiting } }
+onReady {
+  var host = this;
+  var parent = $("#t90-parent");
+  var uuid = host.uuidFor(parent);
+  var proxy = uuid ? host.lookupUuid(uuid) : null;
+  var kids = proxy ? proxy.children().toArray() : [];
+  var first = kids.length > 0 ? kids[0] : null;
+  var ok = kids.length === 1 && first && String(first.tagName || "").toLowerCase() === "span";
+  $("#t90-out").textContent = ok ? "children-ok" : "fail";
+}`, e: ['children-ok'] }
+    ,
+      { n: 91, t: 'UUID lookup miss soft-fail', s: `div#t91-out { text { waiting } }
+onReady {
+  var host = this;
+  var a = host.lookupUuid("missing-uuid-value");
+  var b = host.qdomForUuid("missing-uuid-value");
+  var c = host.elementForUuid("missing-uuid-value");
+  $("#t91-out").textContent = (a === null && b === null && c === null) ? "miss-ok" : "miss-fail";
+}`, e: ['miss-ok'] }
+    ,
+      { n: 92, t: 'q-signal fan-out with q-array driven instances (50/100/250/500/1000)', m: true, ms: '#t92-done', s: `q-component test-component92-1 {
+  q-property currentText: "0"
+  function mutate() {
+    console.log("[t92][target] mutate() called", this.component && this.component.id ? this.component.id : "(no-id)");
+    this.component.currentText = String(Math.random());
+  }
+  function setInnerText(newText) {
+    var node = this.querySelector(".t92-text");
+    console.log("[t92][target] setInnerText()", newText, !!node);
+    if (node) {
+      node.innerText = String(newText);
+    }
+  }
+  oncurrentTextchanged {
+    console.log("[t92][target] oncurrentTextchanged", this.component.currentText);
+    this.component.setInnerText(this.component.currentText);
+  }
+  div,span.t92-text { text { \${this.component.currentText} } }
+}
+
+q-component test-component92-2 {
+  q-signal mysignal()
+  q-property instances: q-array { }
+
+  div.t92-list {
+    for (item in this.component.instances.values()) {
+      test-component92-1 { }
+    }
+  }
+
+  function clearConnections() {
+    var handlers = this.component.__t92Handlers;
+    console.log("[t92][hub] clearConnections()", Array.isArray(handlers) ? handlers.length : 0);
+    if (!Array.isArray(handlers) || typeof this.component.mysignal !== "function") {
+      this.component.__t92Handlers = [];
+      return;
+    }
+    for (var i = 0; i < handlers.length; i += 1) {
+      this.component.mysignal.disconnect(handlers[i]);
+    }
+    this.component.__t92Handlers = [];
+  }
+
+  function createConnections() {
+    this.component.clearConnections();
+    var handlers = [];
+    var targets = Array.from(document.querySelectorAll("#t92-hub test-component92-1"));
+    var signal = this.component.mysignal;
+    console.log("[t92][hub] createConnections() targets=", targets.length, "signalFn=", typeof signal);
+    targets.forEach(function(target) {
+      if (!target || typeof target.mutate !== "function") {
+        console.log("[t92][hub] skip target (no mutate)", target);
+        return;
+      }
+      var h = function() { target.mutate(); };
+      handlers.push(h);
+      signal.connect(h);
+    });
+    this.component.__t92Handlers = handlers;
+    return targets.length;
+  }
+}
+
+div#t92-controls {
+  button#t92-start-50 { type: "button" text { start 50 } }
+  button#t92-start-100 { type: "button" text { start 100 } }
+  button#t92-start-250 { type: "button" text { start 250 } }
+  button#t92-start-500 { type: "button" text { start 500 } }
+  button#t92-start-1000 { type: "button" text { start 1000 } }
+}
+div#t92-status { text { waiting } }
+div#t92-results { text { waiting } }
+div#t92-done { text { 0 } }
+test-component92-2#t92-hub { }
+
+onReady {
+  var sizes = [50, 100, 250, 500, 1000];
+  var hub = $("#t92-hub");
+  var statusNode = $("#t92-status");
+  var resultsNode = $("#t92-results");
+  var doneNode = $("#t92-done");
+  var running = false;
+  var stats = {};
+  console.log("[t92] onReady hub=", hub);
+
+  function setButtonsDisabled(disabled) {
+    sizes.forEach(function(size) {
+      var btn = $("#t92-start-" + size);
+      if (btn) {
+        btn.disabled = !!disabled;
+      }
+    });
+  }
+
+  function renderStats() {
+    var lines = [];
+    sizes.forEach(function(size) {
+      var row = stats[size];
+      if (!row) {
+        lines.push("size=" + size + "|pending");
+        return;
+      }
+      lines.push("size=" + size + "|connected=" + row.connected + "|mutated=" + row.mutated + "|ms=" + row.ms.toFixed(3));
+    });
+    resultsNode.textContent = lines.join("\\n");
+  }
+
+  function runSize(size) {
+    console.log("[t92] runSize() requested", size, "running=", running, "hub=", !!hub);
+    if (running || !hub) {
+      return;
+    }
+    running = true;
+    doneNode.textContent = "0";
+    statusNode.textContent = "building-" + size;
+    setButtonsDisabled(true);
+
+    var values = [];
+    for (var i = 0; i < size; i += 1) {
+      values.push(i);
+    }
+    console.log("[t92] assigning instances", size);
+    hub.instances = QArray(values);
+    if (typeof hub.update === "function") {
+      console.log("[t92] calling hub.update()");
+      hub.update();
+    }
+
+    window.setTimeout(function() {
+      var childCount = document.querySelectorAll("#t92-hub test-component92-1").length;
+      console.log("[t92] after render wait, child count=", childCount, "list=", !!hub.querySelector(".t92-list"));
+      if (childCount === 0) {
+        console.log("[t92] hub.innerHTML snapshot", String(hub.innerHTML || "").slice(0, 500));
+      }
+      var connected = hub.createConnections();
+      console.log("[t92] connected handlers=", connected);
+      var startedAt = performance.now();
+      window.setTimeout(function() {
+        console.log("[t92] emitting mysignal()");
+        hub.mysignal();
+      }, 60);
+      window.setTimeout(function() {
+        var elapsed = performance.now() - startedAt;
+        var rows = document.querySelectorAll("#t92-hub .t92-text");
+        var mutated = 0;
+        for (var j = 0; j < rows.length; j += 1) {
+          var text = String(rows[j].textContent || "").trim();
+          if (text !== "0" && text !== "") {
+            mutated = mutated + 1;
+          }
+        }
+        console.log("[t92] post-emit scan", { size: size, rows: rows.length, mutated: mutated, elapsed: elapsed });
+        stats[size] = {
+          connected: connected,
+          mutated: mutated,
+          ms: elapsed
+        };
+        renderStats();
+        statusNode.textContent = "connections-ready|size=" + size;
+        doneNode.textContent = "1";
+        running = false;
+        setButtonsDisabled(false);
+      }, 220);
+    }, 120);
+  }
+
+  sizes.forEach(function(size) {
+    var btn = $("#t92-start-" + size);
+    if (!btn) {
+      return;
+    }
+    btn.onclick = function() {
+      console.log("[t92] button click", size);
+      runSize(size);
+    };
+  });
+
+  renderStats();
+}`, e: ['connections-ready', 'size=', 'connected=', 'mutated='] }
+    ,
+      { n: 93, t: 'QArray JS assignment + mutate fetched model + reassign', s: `q-component array93 {
+  q-property items: q-array { }
+  div#t93-out { text { waiting } }
+  function run() {
+    var arr = QArray([0, 1, 2]);
+    arr.push(3);
+    arr.push(4);
+    this.items = arr;
+
+    var fetched = this.items;
+    fetched.push(5);
+    this.items = fetched;
+
+    this.querySelector("#t93-out").textContent = this.items.values().join("|");
+  }
+  onReady {
+    this.run();
+  }
+}
+
+array93#t93-host { }
+`, e: ['0|1|2|3|4|5'] }
+    ,
+      { n: 94, t: 'q-map JS assignment + mutate fetched model + reassign', s: `q-component map94 {
+  q-property bag: q-map { }
+  div#t94-out { text { waiting } }
+  function run() {
+    var map = QModel({ alpha: "A", beta: "B" });
+    this.bag = map;
+
+    var fetched = this.bag;
+    fetched.set("gamma", "C");
+    fetched.set("delta", "D");
+    this.bag = fetched;
+
+    var obj = this.bag.toObject();
+    this.querySelector("#t94-out").textContent = String(obj.alpha) + "|" + String(obj.beta) + "|" + String(obj.gamma) + "|" + String(obj.delta);
+  }
+  onReady {
+    this.run();
+  }
+}
+
+map94#t94-host { }
+`, e: ['A|B|C|D'] }
+    ,
+      { n: 95, t: 'q-callback keyword + property reference assignment + lazy execute', s: `q-callback mycallback95(v1, v2) {
+  if (v1 > v2) {
+    return "gt";
+  }
+  return "lte";
+}
+
+q-component mycomp95 {
+  q-property myprop: ""
+  div#t95-out { text { waiting } }
+}
+
+mycomp95#t95-host {
+  myprop: mycallback95
+}
+
+button#t95-btn {
+  onclick {
+    var host = document.querySelector("#t95-host");
+    host.querySelector("#t95-out").textContent = String(host.myprop(5, 2));
+  }
+  text { run }
+}
+
+onReady {
+  document.querySelector("#t95-btn").click();
+}`, e: ['gt'] }
+    ,
+      { n: 96, t: 'q-callback preserves creator this.component scope when passed cross-component', s: `q-component maker96 {
+  q-property count: 0
+  q-callback bump(step) {
+    this.component.count = Number(this.component.count || 0) + Number(step || 1);
+    return this.component.count;
+  }
+  div#t96-maker-count { text { \${this.component.count} } }
+}
+
+q-component runner96 {
+  q-property cb: ""
+  function run() {
+    var value = this.cb(2);
+    document.querySelector("#t96-run").textContent = String(value);
+  }
+}
+
+maker96#t96-maker { }
+runner96#t96-runner { }
+div#t96-run { text { waiting } }
+
+onReady {
+  var maker = document.querySelector("#t96-maker");
+  var runner = document.querySelector("#t96-runner");
+  runner.cb = maker.bump;
+  runner.run();
+}`, e: ['2', 'id="t96-maker-count"'] }
+    ,
+      { n: 97, t: 'QCallback JS constructor assignment works on q-property', s: `q-component host97 {
+  q-property cb: ""
+  div#t97-out { text { waiting } }
+  function run() {
+    this.cb = QCallback(function(a, b) {
+      return String(Number(a) + Number(b));
+    }, { creator: this });
+    this.querySelector("#t97-out").textContent = this.cb(2, 5);
+  }
+  onReady {
+    this.run();
+  }
+}
+
+host97 { }
+`, e: ['7'] }
+    ,
+      { n: 98, t: 'q-callback declarative invocation renders qhtml(...) fragment', s: `q-callback frag98() {
+  return qhtml("span#t98-frag { text { frag-ok } }");
+}
+
+div#t98-host {
+  frag98()
+}
+`, e: ['frag-ok', 'id="t98-frag"'] }
     ];
 
     function normalize(input) {
@@ -1312,6 +1691,83 @@ q-timer t87Timer {
     function buildBoard() {
       const container = document.querySelector('#tests');
       const active = [];
+      const traceTests = new Set([48, 51, 53, 54, 65]);
+      const traceLogs = [];
+      const traceKeywordByTest = {
+        48: /t48|emitter48|tick|disconnect|qhtml/i,
+        51: /t51|emitter51|receiver51|done|cross-ok|qhtml/i,
+        53: /t53|prop53|countchanged|countChanged|qhtml/i,
+        54: /mycomp54|myprop|mytimer54|t54|prop54|qhtml/i,
+        65: /t65|mappump65|payload|statuschanged|payloadupdated|map65|qhtml/i
+      };
+
+      function stringifyLogArg(value) {
+        if (typeof value === 'string') return value;
+        try { return JSON.stringify(value); } catch (_) { return String(value); }
+      }
+
+      function installConsoleTraceCapture() {
+        if (window.__qhtmlTestConsoleCaptureInstalled === true) return;
+        const original = {
+          log: console.log,
+          warn: console.warn,
+          error: console.error
+        };
+        function push(level, argsLike) {
+          const args = Array.prototype.slice.call(argsLike || []);
+          const line = `${new Date().toISOString()} [${level}] ${args.map(stringifyLogArg).join(' ')}`;
+          traceLogs.push(line);
+          if (traceLogs.length > 500) {
+            traceLogs.splice(0, traceLogs.length - 500);
+          }
+        }
+        console.log = function patchedConsoleLog() {
+          push('log', arguments);
+          return original.log.apply(console, arguments);
+        };
+        console.warn = function patchedConsoleWarn() {
+          push('warn', arguments);
+          return original.warn.apply(console, arguments);
+        };
+        console.error = function patchedConsoleError() {
+          push('error', arguments);
+          return original.error.apply(console, arguments);
+        };
+        window.__qhtmlTestConsoleCaptureInstalled = true;
+      }
+
+      function collectTraceData(entry) {
+        const testNo = Number(entry && entry.test && entry.test.n);
+        const host = entry && entry.host;
+        if (!traceTests.has(testNo) || !host) {
+          return '';
+        }
+        const expectedText = Array.isArray(entry.test.e) ? entry.test.e.join(' | ') : '';
+        const actualRaw = String(host.innerHTML || '').trim();
+        const actualText = actualRaw.length > 900 ? actualRaw.slice(0, 900) + '…' : actualRaw;
+        const fieldPairs = [];
+        const prefix = `t${testNo}-`;
+        const idNodes = host.querySelectorAll('[id]');
+        for (let i = 0; i < idNodes.length; i += 1) {
+          const node = idNodes[i];
+          const id = String(node.id || '').trim();
+          if (!id) continue;
+          if (id.indexOf(prefix) !== 0 && !(testNo === 54 && id === 'mycomp54')) continue;
+          fieldPairs.push(`${id}=${normalize(node.textContent || '')}`);
+        }
+        const matcher = traceKeywordByTest[testNo] || /qhtml/i;
+        const logLines = traceLogs.filter((line) => matcher.test(line)).slice(-30);
+        return (
+          `${testNo}. ${entry.test.t}\n` +
+          `  expected: ${expectedText}\n` +
+          `  status:   ${String(entry.statusNode && entry.statusNode.textContent || '').trim()}\n` +
+          `  fields:   ${fieldPairs.length ? fieldPairs.join(' | ') : '(none)'}\n` +
+          `  actual:   ${actualText}\n` +
+          `  logs:\n${logLines.length ? logLines.map((line) => `    ${line}`).join('\n') : '    (no matching logs)'}`
+        );
+      }
+
+      installConsoleTraceCapture();
 
       tests.forEach((test) => {
         const article = document.createElement('article');
@@ -1369,6 +1825,7 @@ q-timer t87Timer {
         let passed = 0;
         let total = 0;
         const failedLines = [];
+        const traceLines = [];
 
         active.forEach((entry) => {
           if (entry.test.m === true) {
@@ -1399,12 +1856,21 @@ q-timer t87Timer {
               `${entry.test.n}. ${entry.test.t}\n  expected: ${expectedText}\n  actual:   ${actualText}`
             );
           }
+          const trace = collectTraceData(entry);
+          if (trace) {
+            traceLines.push(trace);
+          }
         });
 
         document.querySelector('#summary-total').textContent = `Total: ${total}`;
         document.querySelector('#summary-passed').textContent = `Passed: ${passed}`;
         document.querySelector('#summary-failed').textContent = `Failed: ${total - passed}`;
-        document.querySelector('#failed-tests-list').textContent = failedLines.length ? failedLines.join('\n\n') : 'none';
+        let failedText = failedLines.length ? failedLines.join('\n\n') : 'none';
+        if (traceLines.length) {
+          failedText += `\n\n--- trace 48/51/53/54/65 ---\n\n${traceLines.join('\n\n')}`;
+        }
+        document.querySelector('#failed-tests-list').textContent = failedText;
+        return total - passed;
       }
 
       function wireCopyFailedButton() {
@@ -1423,8 +1889,12 @@ q-timer t87Timer {
         });
       }
 
-      document.addEventListener('QHTMLContentLoaded', runChecks);
-      window.setInterval(runChecks, 5000);
+      function runChecksWithFollowup() {
+        runChecks();
+        window.setTimeout(runChecks, 1500);
+      }
+
+      document.addEventListener('QHTMLContentLoaded', runChecksWithFollowup);
       wireCopyFailedButton();
     }
 

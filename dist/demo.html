@@ -214,72 +214,6 @@ tiny-card { }
         </div>
       </section>
 
-      <section class="example-class" id="q-builder" data-title="q-builder.qhtml usage">
-        <div class="example-head">
-          <h3>q-builder.qhtml usage</h3>
-          <p>Always-on builder scoped to the preview container.</p>
-        </div>
-        <div class="example-body">
-          <q-editor>
-q-import { q-components/q-modal.qhtml }
-q-import { q-components/q-builder.qhtml }
-
-q-style builder-preview-style {
-  background-color: #f5f8ff
-  color: #0f172a
-  border: 1px solid #c8d8f2
-}
-
-q-style builder-action-style {
-  background-color: #1d4ed8
-  color: #f8fafc
-  border: 1px solid #1e40af
-}
-
-q-theme builder-demo-theme {
-  .builder-preview { builder-preview-style }
-  .builder-action { builder-action-style }
-}
-
-onReady {
-  var host = this;
-  if (!window.qbuilder || typeof qbuilder.inspect !== "function") {
-    return;
-  }
-  qbuilder.inspect(host, true);
-  var builder = host.querySelector("q-builder[q-builder-runtime='1']");
-  if (!builder) {
-    return;
-  }
-  host.setAttribute("data-page-edit-mode", "1");
-  var palette = builder.querySelector("q-builder-palette");
-  if (palette) {
-    palette.remove();
-  }
-}
-
-builder-demo-theme {
-  q-builder {
-    id: "page-builder"
-    q-builder-runtime: "1"
-  }
-
-  div.w3-container.w3-border.w3-round-large.w3-padding.w3-margin-top {
-    h4 { text { Builder Demo } }
-    div#builder-preview-root.builder-preview.w3-panel.w3-border.w3-round-large.w3-margin-top {
-      h4 { text { Preview Scope } }
-      p { text { q-builder is always enabled in this example. Click here to inspect/edit. } }
-      button.builder-action.w3-button.w3-small {
-        type: "button"
-        text { Inner Action }
-      }
-    }
-  }
-}
-          </q-editor>
-        </div>
-      </section>
-
       <section class="example-class" id="q-form" data-title="q-form.qhtml usage">
         <div class="example-head">
           <h3>q-form.qhtml usage</h3>
@@ -777,60 +711,153 @@ demo-list-view#my-list { }
       <section class="example-class" id="q-estore-suite" data-title="e-store component suite demo">
         <div class="example-head">
           <h3>e-store component suite demo</h3>
-          <p>Integrated demo using <code>q-estore-pricebox</code>, <code>q-store-catalog</code>, and <code>q-checkout-modal</code>.</p>
+          <p>Integrated demo using <code>q-estore-pricebox</code> and <code>q-checkout-modal</code>.</p>
         </div>
         <div class="example-body">
           <q-editor>
 q-import { q-components.qhtml }
 
-div.w3-panel.w3-border.w3-round-large {
-  h4 { text { e-store quick demo } }
-  p { text { Add items from the catalog, then click Checkout. } }
-  p#estore-status.w3-small { text { cart status: idle } }
-}
+q-component estore-demo-shell {
+  q-property items: q-array { }
+  q-signal cartItemsChanged(items)
+  q-signal checkoutItemsChanged(items)
 
-q-estore-pricebox {
-  pricebox-content { text { Featured: Night Lamp } }
-  pricebox-price { text { $39.99 } }
-  pricebox-add-button {
-    button {
-      text { Add featured to cart }
+  function normalizeArrayModel(input) {
+    if (input && typeof input === "object" && input.__qhtmlIsQModel === true) {
+      if (typeof input.mode === "function" && input.mode() === "array") {
+        return input;
+      }
+      if (typeof input.toArray === "function") {
+        return QArray(input.toArray());
+      }
+    }
+    if (Array.isArray(input)) {
+      return QArray(input);
+    }
+    if (input && typeof input === "object" && typeof input.toArray === "function") {
+      return QArray(input.toArray());
+    }
+    return QArray([]);
+  }
+
+  function rowsFrom(input) {
+    var model = this.normalizeArrayModel(input);
+    if (model && typeof model.values === "function") {
+      return model.values();
+    }
+    return [];
+  }
+
+  function subtotal(input) {
+    var rows = this.rowsFrom(input);
+    var sum = 0;
+    var i = 0;
+    while (i < rows.length) {
+      sum += Number(rows[i] && rows[i].price !== undefined ? rows[i].price : 0);
+      i += 1;
+    }
+    return sum;
+  }
+
+  function syncCart(input) {
+    var model = this.normalizeArrayModel(input);
+    this.component.items = model;
+    this.refreshStatus();
+    var modal = this.querySelector("#checkoutmodal");
+    if (modal && modal.items !== model) {
+      modal.items = model;
+    }
+    return model;
+  }
+
+  function refreshStatus() {
+    var status = this.querySelector("#estore-status");
+    if (!status) {
+      return;
+    }
+    var rows = this.rowsFrom(this.component.items);
+    status.textContent =
+      "cart status: " +
+      String(rows.length) +
+      " item(s), subtotal $" +
+      String(this.subtotal(rows).toFixed(2));
+  }
+
+  function addToCart(name, price) {
+    var model = this.normalizeArrayModel(this.component.items);
+    var rowModel = QModel({
+      name: String(name || "Item"),
+      price: Number(price || 0)
+    });
+    if (typeof model.push === "function") {
+      model.push(rowModel.toObject());
+    }
+    this.cartItemsChanged(model);
+  }
+
+  onitemsChanged {
+    this.cartItemsChanged(this.component.items);
+  }
+
+  div.w3-panel.w3-border.w3-round-large {
+    h4 { text { e-store quick demo } }
+    p { text { Add items from the catalog, then click Checkout. } }
+    p#estore-status.w3-small { text { cart status: 0 item(s), subtotal $0.00 } }
+    button#estore-checkout-btn.w3-button.w3-small.w3-border.w3-round {
+      type: "button"
+      text { Checkout }
       onclick {
-        document.querySelector("#estoreCatalog").addToCart({
-          id: "featured-night-lamp",
-          name: "Night Lamp",
-          description: "Warm ambient desk lamp",
-          price: 39.99
-        }, 1);
+        var host = this.closest("estore-demo-shell");
+        if (!host) {
+          return;
+        }
+        var modal = host.querySelector("#checkoutmodal");
+        if (!modal) {
+          return;
+        }
+        host.checkoutItemsChanged(host.items);
+        modal = host.querySelector("#checkoutmodal");
+        if (modal && typeof modal.show === "function") {
+          modal.show();
+        }
       }
     }
   }
+
+  q-estore-pricebox {
+    pricebox-content { text { Featured: Night Lamp } }
+    pricebox-price { text { $39.99 } }
+    pricebox-add-button {
+      button {
+        text { Add featured to cart }
+        onclick { this.closest("estore-demo-shell").addToCart("Night Lamp", 39.99); }
+      }
+    }
+  }
+
+  q-checkout-modal#checkoutmodal {
+    onitemsChanged {
+      var host = this.closest("estore-demo-shell");
+      if (!host) {
+        return;
+      }
+      host.checkoutItemsChanged(this.component.items);
+    }
+  }
+
+  onReady {
+    var host = this;
+    this.cartItemsChanged.connect(function(nextItems) {
+      host.syncCart(nextItems);
+    });
+    this.checkoutItemsChanged.connect(function(nextItems) {
+      host.cartItemsChanged(nextItems);
+    });
+    host.cartItemsChanged(host.items);
+  }
 }
 
-q-store-catalog#estoreCatalog { }
-q-checkout-modal#estoreCheckout { }
-
-onReady {
-  var store = document.querySelector("#estoreCatalog");
-  var checkout = document.querySelector("#estoreCheckout");
-  var status = document.querySelector("#estore-status");
-
-  store.setCatalogItems([
-    { id: "sku-100", name: "Aurora Lamp", description: "Warm ambient desk lamp", price: 39.99 },
-    { id: "sku-101", name: "Ceramic Mug", description: "Matte finish coffee mug", price: 14.50 },
-    { id: "sku-102", name: "Notebook", description: "A5 dotted journal", price: 11.25 },
-    { id: "sku-103", name: "Desk Mat", description: "Soft-touch anti-slip desk mat", price: 24.00 }
-  ]);
-
-  store.cartChanged.connect(function(lastItem, items, totalCount, subtotal, subtotalFormatted) {
-    status.textContent = "cart status: " + String(totalCount) + " item(s), subtotal " + String(subtotalFormatted);
-  });
-
-  store.checkoutRequested.connect(function(items) {
-    checkout.setItems(items);
-    checkout.show();
-  });
-}
+estore-demo-shell { }
           </q-editor>
         </div>
       </section>

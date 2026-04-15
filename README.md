@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.1.8
+# QHTML.js v6.1.9
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,13 +12,39 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.1.8
+## Whats New in v6.1.9
 
-- Added initial `q-canvas` keyword support (`q-canvas <name> { ... }`) for named canvas declarations.
-- Added named canvas handle export so canvas instances are available by name on host/global scope.
-- Added `myCanvas.context` helper for direct/manual canvas API drawing (`2d` context access).
-- Added/updated `dist/test.html` q-canvas animation coverage (including transparent drawing and start/stop controls).
-- Updated docs with `q-canvas` usage patterns.
+- Added `q-callback` declarations for lazy, pass-by-reference callback flow in QHTML and component scope.
+- Added typed named component instances (`mycomp myinstance { ... }`) with lexical alias scope and direct reference support.
+- Added runtime callback helpers `QCallback(...)` and `qhtml(...)` for cross-component callback invocation and QHTML-fragment returns.
+- Added `QArray(...)` constructor and expanded `QModel` assignment behavior for JS-to-QHTML typed model property assignment.
+- Improved `for (alias in source)` runtime source resolution (component-scoped paths/method chains) and iterable coercion.
+- Improved queued runtime/event-loop behavior:
+  - signal routing uses UUID-targeted subscriber delivery
+  - timer enqueue dedupe (`pending` guard) reduces timeout queue spam
+  - queue turn order now prioritizes existing queued work before adding due timers
+
+Language examples added this round:
+
+```qhtml
+q-callback mycallback(v1, v2) {
+  if (v1 > v2) { return true }
+  return false
+}
+```
+
+```qhtml
+q-component mycomp {
+  q-property myprop1: "hello world"
+}
+mycomp myinstance { }
+```
+
+```qhtml
+onReady {
+  this.component.items = QArray([1, 2, 3, 4]);
+}
+```
 
 
 ## 1. Quick Start
@@ -1275,6 +1301,14 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 - `modules/release-bundle/README.md`
 
 # Past Changes
+## Whats New in v6.1.8
+
+- Added initial `q-canvas` keyword support (`q-canvas <name> { ... }`) for named canvas declarations.
+- Added named canvas handle export so canvas instances are available by name on host/global scope.
+- Added `myCanvas.context` helper for direct/manual canvas API drawing (`2d` context access).
+- Added/updated `dist/test.html` q-canvas animation coverage (including transparent drawing and start/stop controls).
+- Updated docs with `q-canvas` usage patterns.
+
 ## Whats New in v6.1.7
 
 - Added `for (alias in source) { ... }` keyword-level iteration syntax.

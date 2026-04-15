@@ -36,6 +36,7 @@
     "q-bind",
     "q-property",
     "q-signal",
+    "q-callback",
     "q-alias",
     "q-wasm",
     "q-style",
@@ -64,6 +65,64 @@
     "text",
     "html",
   ]);
+
+  function createParserUuid() {
+    if (global.crypto && typeof global.crypto.randomUUID === "function") {
+      try {
+        const generated = String(global.crypto.randomUUID() || "").trim();
+        if (generated) {
+          return generated;
+        }
+      } catch (error) {
+        // fallback below
+      }
+    }
+    if (global.crypto && typeof global.crypto.getRandomValues === "function" && typeof Uint8Array === "function") {
+      try {
+        const bytes = new Uint8Array(16);
+        global.crypto.getRandomValues(bytes);
+        bytes[6] = (bytes[6] & 0x0f) | 0x40;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        const hex = [];
+        for (let i = 0; i < bytes.length; i += 1) {
+          hex.push(bytes[i].toString(16).padStart(2, "0"));
+        }
+        return (
+          hex.slice(0, 4).join("") +
+          "-" +
+          hex.slice(4, 6).join("") +
+          "-" +
+          hex.slice(6, 8).join("") +
+          "-" +
+          hex.slice(8, 10).join("") +
+          "-" +
+          hex.slice(10, 16).join("")
+        );
+      } catch (error) {
+        // fallback below
+      }
+    }
+    const time = Date.now().toString(16).padStart(12, "0");
+    const rand = Math.floor(Math.random() * 0xffffffffffff).toString(16).padStart(12, "0");
+    return (
+      time.slice(-8) +
+      "-" +
+      time.slice(0, 4) +
+      "-4" +
+      rand.slice(0, 3) +
+      "-a" +
+      rand.slice(3, 6) +
+      "-" +
+      rand.slice(6, 12)
+    );
+  }
+
+  function createDeclarationMeta(baseMeta) {
+    const meta = baseMeta && typeof baseMeta === "object" && !Array.isArray(baseMeta) ? Object.assign({}, baseMeta) : {};
+    const uuid = String(meta.uuid || "").trim() || createParserUuid();
+    meta.uuid = uuid;
+    return meta;
+  }
 
   function normalizeWasmMode(value) {
     const mode = String(value || "").trim().toLowerCase();
@@ -2331,6 +2390,44 @@
           });
           continue;
         }
+        if (nameLower === "q-callback" && nextChar !== "{" && nextChar !== ",") {
+          const callbackName = parseIdentifier(parser);
+          const normalizedCallbackName = String(callbackName || "").trim();
+          if (!normalizedCallbackName) {
+            throw ParseError("Expected callback name after q-callback", parser.index);
+          }
+          let parameterSource = "";
+          let parameterNames = [];
+          skipInlineWhitespace(parser);
+          if (peek(parser) === "(") {
+            consume(parser);
+            parameterSource = readBalancedParenthesizedContent(parser);
+            parameterNames = parseSignalParameterNames(parameterSource);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-callback declaration", parser.index);
+          }
+          consume(parser);
+          const callbackBody = readBalancedBlockContent(parser);
+          const signature =
+            normalizedCallbackName +
+            "(" +
+            (parameterSource || parameterNames.join(", ")) +
+            ")";
+          items.push({
+            type: "CallbackDeclaration",
+            name: normalizedCallbackName,
+            signature: signature,
+            parameters: parameterNames,
+            body: compactScriptBody(callbackBody || ""),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (nameLower === "q-property" && nextChar !== "{") {
           const propertyNameStart = parser.index;
           const propertyName = parseIdentifier(parser);
@@ -3323,6 +3420,45 @@
             type: "SignalDefinition",
             signalId: signalId,
             items: items,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-callback" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const callbackName = parseIdentifier(parser);
+          const normalizedCallbackName = String(callbackName || "").trim();
+          if (!normalizedCallbackName) {
+            throw ParseError("Expected callback name after q-callback", parser.index);
+          }
+          let parameterSource = "";
+          let parameterNames = [];
+          skipInlineWhitespace(parser);
+          if (peek(parser) === "(") {
+            consume(parser);
+            parameterSource = readBalancedParenthesizedContent(parser);
+            parameterNames = parseSignalParameterNames(parameterSource);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-callback declaration", parser.index);
+          }
+          consume(parser);
+          const callbackBody = readBalancedBlockContent(parser);
+          const signature =
+            normalizedCallbackName +
+            "(" +
+            (parameterSource || parameterNames.join(", ")) +
+            ")";
+          body.push({
+            type: "CallbackDeclaration",
+            name: normalizedCallbackName,
+            signature: signature,
+            parameters: parameterNames,
+            body: compactScriptBody(callbackBody || ""),
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -9922,6 +10058,7 @@
     const propertyDefinitions = [];
     const methods = [];
     const signalDeclarations = [];
+    const callbackDeclarations = [];
     const aliasDeclarations = [];
     let componentLoggerCategories = null;
     let wasmConfig = null;
@@ -10174,9 +10311,15 @@
               propertyNodes.push(propertyNode);
             }
           }
+          const declarationMeta = createDeclarationMeta({
+            declarationKind: "q-property",
+            declarationName: propertyName,
+          });
           propertyDefinitions.push({
             name: propertyName,
             nodes: propertyNodes,
+            uuid: declarationMeta.uuid,
+            meta: declarationMeta,
           });
         }
         continue;
@@ -10203,10 +10346,36 @@
         if (definitionType === "component") {
           const signalName = String(item.name || "").trim();
           if (signalName) {
+            const declarationMeta = createDeclarationMeta({
+              declarationKind: "q-signal",
+              declarationName: signalName,
+            });
             signalDeclarations.push({
               name: signalName,
               signature: String(item.signature || "").trim(),
               parameters: Array.isArray(item.parameters) ? item.parameters.slice() : [],
+              uuid: declarationMeta.uuid,
+              meta: declarationMeta,
+            });
+          }
+        }
+        continue;
+      }
+      if (item.type === "CallbackDeclaration") {
+        if (definitionType === "component") {
+          const callbackName = String(item.name || "").trim();
+          if (callbackName) {
+            const declarationMeta = createDeclarationMeta({
+              declarationKind: "q-callback",
+              declarationName: callbackName,
+            });
+            callbackDeclarations.push({
+              name: callbackName,
+              signature: String(item.signature || "").trim(),
+              parameters: Array.isArray(item.parameters) ? item.parameters.slice() : [],
+              body: compactScriptBody(item.body || ""),
+              uuid: declarationMeta.uuid,
+              meta: declarationMeta,
             });
           }
         }
@@ -10278,6 +10447,7 @@
       methods: methods,
       propertyDefinitions: propertyDefinitions,
       signalDeclarations: signalDeclarations,
+      callbackDeclarations: callbackDeclarations,
       aliasDeclarations: aliasDeclarations,
       wasmConfig: wasmConfig,
       lifecycleScripts: lifecycleScripts,
@@ -10576,6 +10746,27 @@
       const canvasNode = buildQCanvasKeywordNode(item);
       applyKeywordAliasesToNode(canvasNode, item.keywords);
       return canvasNode;
+    }
+
+    if (item.type === "CallbackDeclaration") {
+      const callbackName = String(item.name || "").trim();
+      const callbackNode = {
+        kind: "callback",
+        callbackId: callbackName,
+        name: callbackName,
+        signature: String(item.signature || "").trim(),
+        parameters: Array.isArray(item.parameters) ? item.parameters.slice() : [],
+        body: compactScriptBody(item.body || ""),
+        meta: {
+          originalSource: item.raw,
+          sourceRange:
+            typeof item.start === "number" && typeof item.end === "number"
+              ? [item.start, item.end]
+              : null,
+        },
+      };
+      applyKeywordAliasesToNode(callbackNode, item.keywords);
+      return callbackNode;
     }
 
     if (item.type === "HtmlBlock") {
@@ -10996,6 +11187,30 @@
     return lines.join("\n");
   }
 
+  function serializeCallbackDeclarationBlock(callbackDecl, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    if (!callbackDecl || typeof callbackDecl !== "object") {
+      return "";
+    }
+    const name = String(callbackDecl.name || "").trim();
+    if (!name) {
+      return "";
+    }
+    const parameters = Array.isArray(callbackDecl.parameters)
+      ? callbackDecl.parameters.map(function mapParam(entry) { return String(entry || "").trim(); }).filter(Boolean)
+      : [];
+    const body = String(callbackDecl.body || "").trim();
+    const lines = [indent + "q-callback " + name + "(" + parameters.join(", ") + ") {"];
+    if (body) {
+      const chunks = body.split("\n");
+      for (let i = 0; i < chunks.length; i += 1) {
+        lines.push(indent + "  " + chunks[i]);
+      }
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
   function serializeWasmConfigBlock(wasmConfig, indentLevel) {
     const config =
       wasmConfig && typeof wasmConfig === "object" && !Array.isArray(wasmConfig)
@@ -11319,6 +11534,10 @@
       return lines.join("\n");
     }
 
+    if (String(node.kind || "").trim().toLowerCase() === "callback") {
+      return serializeCallbackDeclarationBlock(node, indentLevel);
+    }
+
     if (node.kind === core.NODE_TYPES.component) {
       const explicitDefinitionType = String(node.definitionType || "").trim().toLowerCase();
       const definitionType =
@@ -11373,6 +11592,14 @@
             const serializedAliasDeclaration = serializeAliasDeclarationBlock(node.aliasDeclarations[i], indentLevel + 1);
             if (serializedAliasDeclaration) {
               lines.push(serializedAliasDeclaration);
+            }
+          }
+        }
+        if (Array.isArray(node.callbackDeclarations)) {
+          for (let i = 0; i < node.callbackDeclarations.length; i += 1) {
+            const serializedCallbackDeclaration = serializeCallbackDeclarationBlock(node.callbackDeclarations[i], indentLevel + 1);
+            if (serializedCallbackDeclaration) {
+              lines.push(serializedCallbackDeclaration);
             }
           }
         }

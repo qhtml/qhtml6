@@ -193,6 +193,7 @@
       this.propertyDefinitions = Array.isArray(opts.propertyDefinitions) ? opts.propertyDefinitions : [];
       this.methods = Array.isArray(opts.methods) ? opts.methods : [];
       this.signalDeclarations = Array.isArray(opts.signalDeclarations) ? opts.signalDeclarations : [];
+      this.callbackDeclarations = Array.isArray(opts.callbackDeclarations) ? opts.callbackDeclarations : [];
       this.aliasDeclarations = Array.isArray(opts.aliasDeclarations) ? opts.aliasDeclarations : [];
       this.wasmConfig =
         opts.wasmConfig && typeof opts.wasmConfig === "object" && !Array.isArray(opts.wasmConfig)
@@ -805,8 +806,40 @@
     return out;
   }
 
+  function createQDomSerializationReplacer() {
+    const seen = typeof WeakSet === "function" ? new WeakSet() : null;
+    return function qdomSerializationReplacer(key, value) {
+      if (typeof value === "function") {
+        return undefined;
+      }
+      if (!value || typeof value !== "object") {
+        return value;
+      }
+      const keyText = String(key || "");
+      if (keyText && (keyText.indexOf("__qhtml") === 0 || keyText.indexOf("__QHTML") === 0)) {
+        return undefined;
+      }
+      if (typeof value.nodeType === "number") {
+        return undefined;
+      }
+      if (
+        typeof value.dispatchEvent === "function" &&
+        typeof value.addEventListener === "function"
+      ) {
+        return undefined;
+      }
+      if (seen) {
+        if (seen.has(value)) {
+          return undefined;
+        }
+        seen.add(value);
+      }
+      return value;
+    };
+  }
+
   function serializeQDomCompressed(documentNode) {
-    const text = JSON.stringify(documentNode);
+    const text = JSON.stringify(documentNode, createQDomSerializationReplacer());
     const bytes = new TextEncoder().encode(text);
     const binary = binaryStringFromBytes(bytes);
     const codes = lzwCompressBinaryString(binary);
@@ -925,6 +958,7 @@
         propertyDefinitions: reviveQDomTree(Array.isArray(value.propertyDefinitions) ? value.propertyDefinitions : []),
         methods: reviveQDomTree(Array.isArray(value.methods) ? value.methods : []),
         signalDeclarations: reviveQDomTree(Array.isArray(value.signalDeclarations) ? value.signalDeclarations : []),
+        callbackDeclarations: reviveQDomTree(Array.isArray(value.callbackDeclarations) ? value.callbackDeclarations : []),
         aliasDeclarations: reviveQDomTree(Array.isArray(value.aliasDeclarations) ? value.aliasDeclarations : []),
         wasmConfig: reviveQDomTree(
           value.wasmConfig && typeof value.wasmConfig === "object" && !Array.isArray(value.wasmConfig)
@@ -1217,6 +1251,9 @@
       const localPath = Array.isArray(path) ? path.slice() : [];
       const proxy = new Proxy(target, {
         get(obj, prop, receiver) {
+          if (prop === "__qhtmlSourceNode") {
+            return obj;
+          }
           if (prop === "qdom") {
             const kind = obj && typeof obj.kind === "string" ? obj.kind : "";
             if (qdomMethodKinds.has(kind)) {

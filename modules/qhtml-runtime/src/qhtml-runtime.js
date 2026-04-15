@@ -830,6 +830,124 @@
     return api;
   }
 
+  function createQArray(input) {
+    if (input && typeof input === "object" && input.__qhtmlIsQModel === true) {
+      if (typeof input.mode === "function" && input.mode() === "array") {
+        return input;
+      }
+      if (typeof input.toArray === "function") {
+        return createQModel(input.toArray());
+      }
+    }
+    if (Array.isArray(input)) {
+      return createQModel(input);
+    }
+    if (input && typeof input === "object" && typeof input.toArray === "function") {
+      return createQModel(input.toArray());
+    }
+    return createQModel([]);
+  }
+
+  function createQHtmlFragment(source) {
+    return {
+      __qhtmlFragment: true,
+      source: String(source == null ? "" : source),
+    };
+  }
+
+  function readCallbackHostUuid(hostElement) {
+    const host = hostElement && hostElement.nodeType === 1 ? hostElement : null;
+    if (!host) {
+      return "";
+    }
+    try {
+      const qdomNode = typeof host.qdom === "function" ? host.qdom() : null;
+      if (qdomNode && typeof qdomNode === "object") {
+        return normalizeQDomUuidValue(ensureQDomNodeUuid(qdomNode));
+      }
+    } catch (readQdomError) {
+      // fallback below
+    }
+    return normalizeQDomUuidValue(readUuidForDomElementByLookup(host) || "");
+  }
+
+  function createQCallback(input, options) {
+    if (typeof input === "function" && input.__qhtmlIsQCallback === true) {
+      return input;
+    }
+    if (typeof input !== "function") {
+      return null;
+    }
+    const opts = options && typeof options === "object" ? options : {};
+    const callbackName = String(opts.name || "").trim();
+    const creatorHost = opts.creator && opts.creator.nodeType === 1 ? opts.creator : null;
+    const creatorUuid = readCallbackHostUuid(creatorHost);
+    const wrapped = function qhtmlCallbackProxy() {
+      const args = Array.prototype.slice.call(arguments);
+      const runtimeApi = global.QHtml && typeof global.QHtml === "object" ? global.QHtml : null;
+      let callerHost = null;
+      if (runtimeApi && typeof runtimeApi.getCurrentExecutionHost === "function") {
+        try {
+          const current = runtimeApi.getCurrentExecutionHost();
+          if (current && current.nodeType === 1) {
+            callerHost = current;
+          }
+        } catch (readCurrentHostError) {
+          callerHost = null;
+        }
+      }
+      if (!callerHost && this && this.nodeType === 1) {
+        callerHost = this;
+      }
+      const callerUuid = readCallbackHostUuid(callerHost);
+      const callerMeta = {
+        caller: callerHost,
+        callerUuid: callerUuid,
+        callerTag: callerHost ? String(callerHost.tagName || "").trim().toLowerCase() : "",
+        timestamp: Date.now(),
+      };
+      const executionHost = creatorHost && creatorHost.nodeType === 1 ? creatorHost : null;
+      return runWithRuntimeExecutionHost(executionHost, function invokeQCallbackProxy() {
+        return input.apply(executionHost || null, args.concat([callerMeta]));
+      });
+    };
+    try {
+      Object.defineProperty(wrapped, "__qhtmlIsQCallback", {
+        value: true,
+        configurable: true,
+        writable: true,
+        enumerable: false,
+      });
+    } catch (error) {
+      wrapped.__qhtmlIsQCallback = true;
+    }
+    if (callbackName) {
+      try {
+        Object.defineProperty(wrapped, "__qhtmlCallbackName", {
+          value: callbackName,
+          configurable: true,
+          writable: true,
+          enumerable: false,
+        });
+      } catch (error) {
+        wrapped.__qhtmlCallbackName = callbackName;
+      }
+    }
+    if (creatorUuid) {
+      try {
+        Object.defineProperty(wrapped, "__qhtmlCallbackCreatorUuid", {
+          value: creatorUuid,
+          configurable: true,
+          writable: true,
+          enumerable: false,
+        });
+      } catch (error) {
+        wrapped.__qhtmlCallbackCreatorUuid = creatorUuid;
+      }
+    }
+    return wrapped;
+  }
+
   function normalizeQMapFilters(input) {
     if (Array.isArray(input)) {
       const out = [];
@@ -3552,6 +3670,20 @@
           });
         }
       }
+      if (
+        entry &&
+        entry.runtimeSignalReference &&
+        global.QHtml &&
+        typeof global.QHtml.unregisterSignalReference === "function"
+      ) {
+        const runtimeRef = entry.runtimeSignalReference;
+        if (runtimeRef && runtimeRef.emitterUuid && runtimeRef.referenceKey) {
+          global.QHtml.unregisterSignalReference({
+            emitterUuid: runtimeRef.emitterUuid,
+            referenceKey: runtimeRef.referenceKey,
+          });
+        }
+      }
       const eventNames = Array.isArray(entry.eventNames) && entry.eventNames.length > 0
         ? entry.eventNames
         : [entry.eventName];
@@ -3640,10 +3772,14 @@
       try {
         ensureScopedSelectorShortcut(element, host);
         if (compiled) {
-          return compiled.call(element, event, doc);
+          return runWithRuntimeExecutionHost(element, function invokeCompiledInlineHandler() {
+            return compiled.call(element, event, doc);
+          });
         }
         const dynamic = new Function("event", "document", withScopedSelectorPrelude(executableSource));
-        return dynamic.call(element, event, doc);
+        return runWithRuntimeExecutionHost(element, function invokeDynamicInlineHandler() {
+          return dynamic.call(element, event, doc);
+        });
       } catch (error) {
         reportLifecycleHookFailure("qhtml event handler failed:", element, transformedSource, error);
         return undefined;
@@ -3668,20 +3804,42 @@
     };
     element.addEventListener("q-signal", signalBridge);
     let runtimeSignalRegistration = null;
+    let runtimeSignalReference = null;
     const runtimeApi = global.QHtml && typeof global.QHtml === "object" ? global.QHtml : null;
     const loweredRawEventName = String(rawEventName || "").trim().toLowerCase();
+    const registerDeclarativeSignalReference = function registerDeclarativeSignalReference(emitterUuid, subscriberUuid) {
+      if (
+        !runtimeApi ||
+        typeof runtimeApi.registerSignalReference !== "function" ||
+        !emitterUuid ||
+        !subscriberUuid ||
+        !loweredRawEventName
+      ) {
+        return null;
+      }
+      return runtimeApi.registerSignalReference({
+        emitterUuid: emitterUuid,
+        signalName: loweredRawEventName,
+        subscriberUuid: subscriberUuid,
+        routeKey: "attr:" + key + ":" + loweredRawEventName + ":" + subscriberUuid,
+      });
+    };
+    const emitterUuidForReference = normalizeQDomUuidValue(resolveSignalEmitterUuid(element, {}));
+    const subscriberUuidForReference = normalizeQDomUuidValue(resolveSignalSubscriberUuid(element) || emitterUuidForReference);
+    runtimeSignalReference = registerDeclarativeSignalReference(emitterUuidForReference, subscriberUuidForReference);
     if (
       runtimeApi &&
       typeof runtimeApi.getEventLoopMode === "function" &&
       runtimeApi.getEventLoopMode() === "queued" &&
       typeof runtimeApi.registerSignalSubscriber === "function" &&
-      loweredRawEventName.endsWith("changed")
+      loweredRawEventName
     ) {
       const tryRegisterDeclarativeSignal = function tryRegisterDeclarativeSignal() {
         if (runtimeSignalRegistration) {
           return true;
         }
         const emitterUuid = normalizeQDomUuidValue(resolveSignalEmitterUuid(element, {}));
+        const subscriberUuid = normalizeQDomUuidValue(resolveSignalSubscriberUuid(element) || emitterUuid);
         if (!emitterUuid) {
           return false;
         }
@@ -3698,7 +3856,7 @@
         const registration = runtimeApi.registerSignalSubscriber({
           emitterUuid: emitterUuid,
           signalName: loweredRawEventName,
-          subscriberUuid: emitterUuid,
+          subscriberUuid: subscriberUuid,
           handler: queuedWrapped,
           mode: "declarative",
           attributeName: key,
@@ -3736,6 +3894,7 @@
       source: transformedSource,
       signalBridge: signalBridge,
       runtimeSignalRegistration: runtimeSignalRegistration,
+      runtimeSignalReference: runtimeSignalReference,
     };
     return true;
   }
@@ -3924,8 +4083,11 @@
   };
   const globalUuidPointerRegistry = new Map();
   const globalUuidLookupRegistry = new Map();
-  const globalPropertySubscriberRegistry = new Map();
+  const globalQDomDataRegistry = new Map();
   const globalSignalSubscriberRegistry = new Map();
+  const globalSignalReferenceRegistry = new Map();
+  const globalSignalExplicitReferenceRegistry = new Map();
+  const runtimeExecutionHostStack = [];
   const globalSignalSubscriptionByToken = new Map();
   let globalSignalSubscriptionCounter = 1;
 
@@ -3941,7 +4103,7 @@
       // no-op
     }
     try {
-      global.QHTML_PROPERTY_SUBSCRIBER_MAP = globalPropertySubscriberRegistry;
+      global.QHTML_QDOM_DATA_MAP = globalQDomDataRegistry;
     } catch (error) {
       // no-op
     }
@@ -3949,6 +4111,254 @@
       global.QHTML_SIGNAL_SUBSCRIBER_MAP = globalSignalSubscriberRegistry;
     } catch (error) {
       // no-op
+    }
+    try {
+      global.QHTML_SIGNAL_REFERENCE_MAP = globalSignalReferenceRegistry;
+    } catch (error) {
+      // no-op
+    }
+  }
+
+  function describeRuntimeDebugTarget(target) {
+    if (target == null) {
+      return null;
+    }
+    if (target && typeof target === "object" && target.nodeType === 1) {
+      const tagName = String(target.tagName || "").trim().toLowerCase();
+      const id = typeof target.getAttribute === "function" ? String(target.getAttribute("id") || "").trim() : "";
+      const className =
+        typeof target.getAttribute === "function" ? String(target.getAttribute("class") || "").trim() : "";
+      let uuid = "";
+      try {
+        uuid = normalizeQDomUuidValue(readUuidForDomElementByLookup(target) || "");
+      } catch (readUuidError) {
+        uuid = "";
+      }
+      return {
+        type: "element",
+        tagName: tagName || "",
+        id: id || "",
+        className: className || "",
+        uuid: uuid || "",
+      };
+    }
+    if (target && typeof target === "object") {
+      return {
+        type: "object",
+        constructor: target.constructor && target.constructor.name ? String(target.constructor.name) : "",
+      };
+    }
+    return {
+      type: typeof target,
+      value: target,
+    };
+  }
+
+  function cloneRuntimeDebugValue(value, depth, seen) {
+    const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+    const maxDepth = 4;
+    if (value == null) {
+      return value;
+    }
+    const primitiveType = typeof value;
+    if (primitiveType === "string" || primitiveType === "number" || primitiveType === "boolean") {
+      return value;
+    }
+    if (primitiveType === "bigint") {
+      return String(value) + "n";
+    }
+    if (primitiveType === "function") {
+      return "[Function " + String(value.name || "anonymous") + "]";
+    }
+    if (primitiveType === "symbol") {
+      return String(value);
+    }
+    if (level >= maxDepth) {
+      return "[MaxDepth]";
+    }
+    if (!value || primitiveType !== "object") {
+      return String(value);
+    }
+    if (seen.has(value)) {
+      return "[Circular]";
+    }
+    seen.add(value);
+    if (Array.isArray(value)) {
+      const outArray = [];
+      for (let i = 0; i < value.length; i += 1) {
+        outArray.push(cloneRuntimeDebugValue(value[i], level + 1, seen));
+      }
+      seen.delete(value);
+      return outArray;
+    }
+    if (value && value.nodeType === 1) {
+      const outTarget = describeRuntimeDebugTarget(value);
+      seen.delete(value);
+      return outTarget;
+    }
+    const outObject = {};
+    const keys = Object.keys(value);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "");
+      if (!key) {
+        continue;
+      }
+      if (key === "process") {
+        continue;
+      }
+      outObject[key] = cloneRuntimeDebugValue(value[key], level + 1, seen);
+    }
+    seen.delete(value);
+    return outObject;
+  }
+
+  function snapshotRuntimeQueueEntry(entry, includePayload) {
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+    const out = {
+      id: Number(entry.id) || 0,
+      type: String(entry.type || "").trim() || "runtime-event",
+      createdAt: Number(entry.createdAt) || 0,
+      target: describeRuntimeDebugTarget(entry.target),
+      hasProcess: typeof entry.process === "function",
+    };
+    if (includePayload === true && Object.prototype.hasOwnProperty.call(entry, "payload")) {
+      out.payload = cloneRuntimeDebugValue(entry.payload, 0, new Set());
+    }
+    return out;
+  }
+
+  function getEventLoopSnapshot(options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const includePayload = opts.includePayload !== false;
+    const includeTimers = opts.includeTimers !== false;
+    const limitRaw = Number(opts.limit);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.floor(limitRaw) : 200;
+    const queueSource = Array.isArray(runtimeEventLoopState.queue) ? runtimeEventLoopState.queue : [];
+    const transactionSource = Array.isArray(runtimeEventLoopState.transactionQueue)
+      ? runtimeEventLoopState.transactionQueue
+      : [];
+    const queueStart = queueSource.length > limit ? queueSource.length - limit : 0;
+    const txStart = transactionSource.length > limit ? transactionSource.length - limit : 0;
+    const queue = [];
+    const transactionQueue = [];
+    for (let i = queueStart; i < queueSource.length; i += 1) {
+      const entry = snapshotRuntimeQueueEntry(queueSource[i], includePayload);
+      if (entry) {
+        queue.push(entry);
+      }
+    }
+    for (let i = txStart; i < transactionSource.length; i += 1) {
+      const entry = snapshotRuntimeQueueEntry(transactionSource[i], includePayload);
+      if (entry) {
+        transactionQueue.push(entry);
+      }
+    }
+    const timers = [];
+    const now = Date.now();
+    if (includeTimers && runtimeEventLoopState.timers instanceof Map) {
+      runtimeEventLoopState.timers.forEach(function eachTimer(record, key) {
+        if (!record || typeof record !== "object") {
+          return;
+        }
+        const nextAt = Number(record.nextAt);
+        const msUntilNext = Number.isFinite(nextAt) ? Math.max(0, nextAt - now) : null;
+        timers.push({
+          key: String(key || ""),
+          token: Number(record.token) || 0,
+          name: String(record.name || ""),
+          interval: Number(record.interval) || 0,
+          repeat: record.repeat === true,
+          running: record.running === true,
+          nextAt: Number.isFinite(nextAt) ? nextAt : null,
+          msUntilNext: msUntilNext,
+        });
+      });
+    }
+    return {
+      mode: getRuntimeEventLoopMode(),
+      now: now,
+      processing: runtimeEventLoopState.processing === true,
+      transactionDepth: Number(runtimeEventLoopState.transactionDepth) || 0,
+      scheduleDueAt: Number(runtimeEventLoopState.scheduleDueAt) || 0,
+      hasScheduledHandle: runtimeEventLoopState.scheduleHandle != null,
+      mountedHosts: mountedQHtmlHostCount,
+      queueLength: queueSource.length,
+      transactionQueueLength: transactionSource.length,
+      queue: queue,
+      transactionQueue: transactionQueue,
+      timersLength: timers.length,
+      timers: timers,
+    };
+  }
+
+  function printEventLoopSnapshot(options) {
+    const snapshot = getEventLoopSnapshot(options);
+    if (global.console && typeof global.console.groupCollapsed === "function") {
+      global.console.groupCollapsed(
+        "[QHTML][event-loop] mode=" +
+          String(snapshot.mode || "") +
+          " queue=" +
+          String(snapshot.queueLength) +
+          " tx=" +
+          String(snapshot.transactionQueueLength) +
+          " timers=" +
+          String(snapshot.timersLength)
+      );
+    }
+    if (global.console && typeof global.console.log === "function") {
+      global.console.log("summary", {
+        mode: snapshot.mode,
+        processing: snapshot.processing,
+        transactionDepth: snapshot.transactionDepth,
+        hasScheduledHandle: snapshot.hasScheduledHandle,
+        scheduleDueAt: snapshot.scheduleDueAt,
+        mountedHosts: snapshot.mountedHosts,
+        queueLength: snapshot.queueLength,
+        transactionQueueLength: snapshot.transactionQueueLength,
+        timersLength: snapshot.timersLength,
+      });
+    }
+    if (global.console && typeof global.console.table === "function") {
+      if (Array.isArray(snapshot.queue) && snapshot.queue.length > 0) {
+        global.console.table(snapshot.queue);
+      }
+      if (Array.isArray(snapshot.transactionQueue) && snapshot.transactionQueue.length > 0) {
+        global.console.table(snapshot.transactionQueue);
+      }
+      if (Array.isArray(snapshot.timers) && snapshot.timers.length > 0) {
+        global.console.table(snapshot.timers);
+      }
+    } else if (global.console && typeof global.console.log === "function") {
+      global.console.log("queue", snapshot.queue);
+      global.console.log("transactionQueue", snapshot.transactionQueue);
+      global.console.log("timers", snapshot.timers);
+    }
+    if (global.console && typeof global.console.groupEnd === "function") {
+      global.console.groupEnd();
+    }
+    return snapshot;
+  }
+
+  function getCurrentRuntimeExecutionHost() {
+    if (runtimeExecutionHostStack.length === 0) {
+      return null;
+    }
+    const candidate = runtimeExecutionHostStack[runtimeExecutionHostStack.length - 1];
+    return candidate && candidate.nodeType === 1 ? candidate : null;
+  }
+
+  function runWithRuntimeExecutionHost(host, callback) {
+    if (typeof callback !== "function") {
+      return undefined;
+    }
+    const targetHost = host && host.nodeType === 1 ? host : null;
+    runtimeExecutionHostStack.push(targetHost);
+    try {
+      return callback();
+    } finally {
+      runtimeExecutionHostStack.pop();
     }
   }
 
@@ -3965,7 +4375,384 @@
     if (!(binding.globalSignalSubscriptionTokens instanceof Set)) {
       binding.globalSignalSubscriptionTokens = new Set();
     }
+    if (!(binding.globalQDomRecordUuids instanceof Set)) {
+      binding.globalQDomRecordUuids = new Set();
+    }
     return binding;
+  }
+
+  function pushUniqueString(out, value) {
+    const normalized = normalizeQDomUuidValue(value);
+    if (!normalized) {
+      return;
+    }
+    if (out.indexOf(normalized) >= 0) {
+      return;
+    }
+    out.push(normalized);
+  }
+
+  function shallowCloneQDomDataRecord(record) {
+    if (!record || typeof record !== "object") {
+      return null;
+    }
+    return {
+      uuid: normalizeQDomUuidValue(record.uuid),
+      kind: String(record.kind || "").trim().toLowerCase(),
+      tagName: String(record.tagName || "").trim().toLowerCase(),
+      componentId: String(record.componentId || "").trim().toLowerCase(),
+      definitionType: String(record.definitionType || "").trim().toLowerCase(),
+      declarationName: String(record.declarationName || "").trim(),
+      declarationKind: String(record.declarationKind || "").trim().toLowerCase(),
+      ownerUuid: normalizeQDomUuidValue(record.ownerUuid),
+      parentUuid: normalizeQDomUuidValue(record.parentUuid),
+      childUuids: Array.isArray(record.childUuids) ? record.childUuids.slice() : [],
+      propertyUuids: Array.isArray(record.propertyUuids) ? record.propertyUuids.slice() : [],
+      signalUuids: Array.isArray(record.signalUuids) ? record.signalUuids.slice() : [],
+      callbackUuids: Array.isArray(record.callbackUuids) ? record.callbackUuids.slice() : [],
+      propertyNames: Array.isArray(record.propertyNames) ? record.propertyNames.slice() : [],
+      signalNames: Array.isArray(record.signalNames) ? record.signalNames.slice() : [],
+      callbackNames: Array.isArray(record.callbackNames) ? record.callbackNames.slice() : [],
+      methodNames: Array.isArray(record.methodNames) ? record.methodNames.slice() : [],
+      signalSubscribers:
+        record.signalSubscribers && typeof record.signalSubscribers === "object" && !Array.isArray(record.signalSubscribers)
+          ? cloneSignalSubscriberRecordObject(record.signalSubscribers)
+          : {},
+      propertySubscribers:
+        record.propertySubscribers &&
+        typeof record.propertySubscribers === "object" &&
+        !Array.isArray(record.propertySubscribers)
+          ? cloneStringArrayMap(record.propertySubscribers)
+          : {},
+      hostId: String(record.hostId || "").trim(),
+      hostTag: String(record.hostTag || "").trim().toLowerCase(),
+    };
+  }
+
+  function cloneSignalSubscriberRecordObject(value) {
+    const out = {};
+    if (!value || typeof value !== "object") {
+      return out;
+    }
+    const keys = Object.keys(value);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = normalizeSignalName(keys[i]);
+      if (!key) {
+        continue;
+      }
+      const entries = Array.isArray(value[keys[i]]) ? value[keys[i]] : Array.isArray(value[key]) ? value[key] : [];
+      const normalizedEntries = [];
+      for (let j = 0; j < entries.length; j += 1) {
+        const entry = entries[j];
+        if (!entry || typeof entry !== "object") {
+          continue;
+        }
+        const routeKey = String(entry.routeKey || "").trim();
+        const subscriberUuid = normalizeQDomUuidValue(entry.subscriberUuid || "");
+        if (!routeKey || !subscriberUuid) {
+          continue;
+        }
+        normalizedEntries.push({
+          routeKey: routeKey,
+          subscriberUuid: subscriberUuid,
+          mode: String(entry.mode || "connect").trim().toLowerCase() || "connect",
+          attributeName: String(entry.attributeName || "").trim(),
+          token: entry.token != null && Number.isFinite(Number(entry.token)) ? Number(entry.token) : null,
+          createdAt: Number.isFinite(Number(entry.createdAt)) ? Number(entry.createdAt) : Date.now(),
+        });
+      }
+      if (normalizedEntries.length > 0) {
+        out[key] = normalizedEntries;
+      }
+    }
+    return out;
+  }
+
+  function cloneStringArrayMap(value) {
+    const out = {};
+    if (!value || typeof value !== "object") {
+      return out;
+    }
+    const keys = Object.keys(value);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim().toLowerCase();
+      if (!key) {
+        continue;
+      }
+      const values = Array.isArray(value[keys[i]]) ? value[keys[i]] : [];
+      const normalized = [];
+      for (let j = 0; j < values.length; j += 1) {
+        const uuid = normalizeQDomUuidValue(values[j]);
+        if (!uuid || normalized.indexOf(uuid) >= 0) {
+          continue;
+        }
+        normalized.push(uuid);
+      }
+      if (normalized.length > 0) {
+        out[key] = normalized;
+      }
+    }
+    return out;
+  }
+
+  function upsertGlobalQDomDataRecord(uuid, record) {
+    const normalizedUuid = normalizeQDomUuidValue(uuid);
+    if (!normalizedUuid || !record || typeof record !== "object") {
+      return null;
+    }
+    const existing = resolveQDomDataRecord(normalizedUuid);
+    const merged = Object.assign({}, existing || {}, record || {}, { uuid: normalizedUuid });
+    if (existing && existing.signalSubscribers && !record.signalSubscribers) {
+      merged.signalSubscribers = existing.signalSubscribers;
+    }
+    if (existing && existing.propertySubscribers && !record.propertySubscribers) {
+      merged.propertySubscribers = existing.propertySubscribers;
+    }
+    const normalizedRecord = shallowCloneQDomDataRecord(merged);
+    if (!normalizedRecord) {
+      return null;
+    }
+    globalQDomDataRegistry.set(normalizedUuid, normalizedRecord);
+    return normalizedRecord;
+  }
+
+  function createHostDescriptorForQDomData(binding) {
+    const host = binding && binding.host && binding.host.nodeType === 1 ? binding.host : null;
+    if (!host) {
+      return { hostId: "", hostTag: "" };
+    }
+    const hostId = typeof host.getAttribute === "function" ? String(host.getAttribute("id") || "").trim() : "";
+    const hostTag = String(host.tagName || "").trim().toLowerCase();
+    return { hostId: hostId, hostTag: hostTag };
+  }
+
+  function createBaseQDomDataRecordForNode(node, parentUuid, hostDescriptor) {
+    const source = sourceNodeOf(node) || node;
+    if (!source || typeof source !== "object") {
+      return null;
+    }
+    const uuid = normalizeQDomUuidValue(ensureQDomNodeUuid(source));
+    if (!uuid) {
+      return null;
+    }
+    const meta = source.meta && typeof source.meta === "object" ? source.meta : null;
+    const tagName = typeof source.tagName === "string" ? source.tagName : "";
+    const componentId = typeof source.componentId === "string" ? source.componentId : "";
+    const definitionType = typeof source.definitionType === "string" ? source.definitionType : "";
+    return {
+      uuid: uuid,
+      kind: String(source.kind || "").trim().toLowerCase(),
+      tagName: String(tagName || "").trim().toLowerCase(),
+      componentId: String(componentId || "").trim().toLowerCase(),
+      definitionType: String(definitionType || "").trim().toLowerCase(),
+      declarationName: "",
+      declarationKind: "",
+      ownerUuid: "",
+      parentUuid: normalizeQDomUuidValue(parentUuid),
+      childUuids: [],
+      propertyUuids: [],
+      signalUuids: [],
+      callbackUuids: [],
+      propertyNames: [],
+      signalNames: [],
+      callbackNames: [],
+      methodNames: [],
+      signalSubscribers: {},
+      propertySubscribers: {},
+      hostId: hostDescriptor && hostDescriptor.hostId ? hostDescriptor.hostId : "",
+      hostTag: hostDescriptor && hostDescriptor.hostTag ? hostDescriptor.hostTag : "",
+      instanceId:
+        meta && typeof meta.instanceId === "string" ? String(meta.instanceId || "").trim() : "",
+    };
+  }
+
+  function syncGlobalQDomDataRegistryForBinding(binding) {
+    if (!binding || !binding.qdom || typeof core.walkQDom !== "function") {
+      return;
+    }
+    const trackedBinding = ensureBindingGlobalTrackingState(binding);
+    const previous = trackedBinding && trackedBinding.globalQDomRecordUuids instanceof Set ? trackedBinding.globalQDomRecordUuids : new Set();
+    const next = new Set();
+    const hostDescriptor = createHostDescriptorForQDomData(binding);
+    const recordsByUuid = new Map();
+
+    core.walkQDom(binding.qdom, function indexQDomNode(candidate, parent) {
+      const source = sourceNodeOf(candidate) || candidate;
+      if (!source || typeof source !== "object") {
+        return false;
+      }
+      const parentSource = sourceNodeOf(parent) || parent;
+      const parentUuid =
+        parentSource &&
+        typeof parentSource === "object" &&
+        String(parentSource.kind || "").trim().toLowerCase() !== "document"
+          ? normalizeQDomUuidValue(ensureQDomNodeUuid(parentSource))
+          : "";
+      const record = createBaseQDomDataRecordForNode(source, parentUuid, hostDescriptor);
+      if (!record) {
+        return false;
+      }
+      recordsByUuid.set(record.uuid, record);
+      next.add(record.uuid);
+      return false;
+    });
+
+    recordsByUuid.forEach(function linkChildren(record) {
+      const parentUuid = normalizeQDomUuidValue(record.parentUuid);
+      if (!parentUuid) {
+        return;
+      }
+      const parentRecord = recordsByUuid.get(parentUuid);
+      if (!parentRecord) {
+        return;
+      }
+      pushUniqueString(parentRecord.childUuids, record.uuid);
+    });
+
+    recordsByUuid.forEach(function enrichRecord(record) {
+      const lookup = globalUuidLookupRegistry.get(record.uuid);
+      const pointer =
+        lookup && lookup.pointer && typeof lookup.pointer === "object" ? lookup.pointer : resolveLiveQDomNodeByUuid(binding, record.uuid);
+      const source = sourceNodeOf(pointer) || pointer;
+      if (!source || typeof source !== "object") {
+        return;
+      }
+      if (source.kind === "component") {
+        const propertyDefs = listComponentPropertyDeclarationEntries(source);
+        for (let i = 0; i < propertyDefs.length; i += 1) {
+          const entry = propertyDefs[i];
+          if (!entry || typeof entry !== "object") {
+            continue;
+          }
+          const declarationUuid = ensureDeclarationUuid(entry);
+          if (!declarationUuid) {
+            continue;
+          }
+          pushUniqueString(record.propertyUuids, declarationUuid);
+          const declarationName = String(entry.name || "").trim();
+          if (declarationName && record.propertyNames.indexOf(declarationName) < 0) {
+            record.propertyNames.push(declarationName);
+          }
+          upsertGlobalQDomDataRecord(declarationUuid, {
+            kind: "q-property-declaration",
+            declarationKind: "q-property",
+            declarationName: declarationName,
+            ownerUuid: record.uuid,
+            parentUuid: record.uuid,
+            hostId: record.hostId,
+            hostTag: record.hostTag,
+          });
+          next.add(declarationUuid);
+        }
+        const signalDefs = Array.isArray(source.signalDeclarations) ? source.signalDeclarations : [];
+        for (let i = 0; i < signalDefs.length; i += 1) {
+          const entry = signalDefs[i];
+          if (!entry || typeof entry !== "object") {
+            continue;
+          }
+          const declarationUuid = ensureDeclarationUuid(entry);
+          if (!declarationUuid) {
+            continue;
+          }
+          pushUniqueString(record.signalUuids, declarationUuid);
+          const declarationName = String(entry.name || "").trim();
+          if (declarationName && record.signalNames.indexOf(declarationName) < 0) {
+            record.signalNames.push(declarationName);
+          }
+          upsertGlobalQDomDataRecord(declarationUuid, {
+            kind: "q-signal-declaration",
+            declarationKind: "q-signal",
+            declarationName: declarationName,
+            ownerUuid: record.uuid,
+            parentUuid: record.uuid,
+            hostId: record.hostId,
+            hostTag: record.hostTag,
+          });
+          next.add(declarationUuid);
+        }
+        const callbackDefs = Array.isArray(source.callbackDeclarations) ? source.callbackDeclarations : [];
+        for (let i = 0; i < callbackDefs.length; i += 1) {
+          const entry = callbackDefs[i];
+          if (!entry || typeof entry !== "object") {
+            continue;
+          }
+          const declarationUuid = ensureDeclarationUuid(entry);
+          if (!declarationUuid) {
+            continue;
+          }
+          pushUniqueString(record.callbackUuids, declarationUuid);
+          const declarationName = String(entry.name || "").trim();
+          if (declarationName && record.callbackNames.indexOf(declarationName) < 0) {
+            record.callbackNames.push(declarationName);
+          }
+          upsertGlobalQDomDataRecord(declarationUuid, {
+            kind: "q-callback-declaration",
+            declarationKind: "q-callback",
+            declarationName: declarationName,
+            ownerUuid: record.uuid,
+            parentUuid: record.uuid,
+            hostId: record.hostId,
+            hostTag: record.hostTag,
+          });
+          next.add(declarationUuid);
+        }
+      }
+      const props = source.props && typeof source.props === "object" && !Array.isArray(source.props) ? source.props : null;
+      if (props) {
+        const propertyKeys = Object.keys(props);
+        for (let i = 0; i < propertyKeys.length; i += 1) {
+          const propertyName = String(propertyKeys[i] || "").trim();
+          if (!propertyName) {
+            continue;
+          }
+          if (record.propertyNames.indexOf(propertyName) < 0) {
+            record.propertyNames.push(propertyName);
+          }
+        }
+      }
+      const methods = Array.isArray(source.methods) ? source.methods : [];
+      for (let i = 0; i < methods.length; i += 1) {
+        const method = methods[i];
+        const methodName = method && typeof method === "object" ? String(method.name || "").trim() : "";
+        if (!methodName) {
+          continue;
+        }
+        if (record.methodNames.indexOf(methodName) < 0) {
+          record.methodNames.push(methodName);
+        }
+      }
+    });
+
+    recordsByUuid.forEach(function persistRecord(record) {
+      upsertGlobalQDomDataRecord(record.uuid, record);
+    });
+
+    if (previous && previous.size > 0) {
+      previous.forEach(function clearStaleUuid(staleUuid) {
+        const normalizedStale = normalizeQDomUuidValue(staleUuid);
+        if (!normalizedStale || next.has(normalizedStale)) {
+          return;
+        }
+        const staleRecord = globalQDomDataRegistry.get(normalizedStale);
+        if (
+          staleRecord &&
+          typeof staleRecord === "object" &&
+          staleRecord.hostId &&
+          hostDescriptor.hostId &&
+          staleRecord.hostId !== hostDescriptor.hostId
+        ) {
+          return;
+        }
+        globalQDomDataRegistry.delete(normalizedStale);
+      });
+    }
+
+    if (trackedBinding && trackedBinding.globalQDomRecordUuids instanceof Set) {
+      trackedBinding.globalQDomRecordUuids.clear();
+      next.forEach(function registerTrackedQDomRecordUuid(uuid) {
+        trackedBinding.globalQDomRecordUuids.add(uuid);
+      });
+    }
   }
 
   function normalizeSignalName(value) {
@@ -3985,6 +4772,232 @@
     return emitterEntry;
   }
 
+  function ensureQDomDataRecordForUuid(uuid) {
+    const normalizedUuid = normalizeQDomUuidValue(uuid);
+    if (!normalizedUuid) {
+      return null;
+    }
+    const existing = resolveQDomDataRecord(normalizedUuid);
+    if (existing) {
+      return existing;
+    }
+    return upsertGlobalQDomDataRecord(normalizedUuid, {
+      kind: "qdom-node",
+      parentUuid: "",
+      childUuids: [],
+      propertyUuids: [],
+      signalUuids: [],
+      callbackUuids: [],
+      propertyNames: [],
+      signalNames: [],
+      callbackNames: [],
+      methodNames: [],
+      signalSubscribers: {},
+      propertySubscribers: {},
+      hostId: "",
+      hostTag: "",
+    });
+  }
+
+  function upsertQDomSignalSubscriberRoute(emitterUuid, signalName, routeEntry) {
+    const normalizedEmitterUuid = normalizeQDomUuidValue(emitterUuid);
+    const normalizedSignal = normalizeSignalName(signalName);
+    if (!normalizedEmitterUuid || !normalizedSignal || !routeEntry || typeof routeEntry !== "object") {
+      return;
+    }
+    const routeKey = String(routeEntry.routeKey || "").trim();
+    const subscriberUuid = normalizeQDomUuidValue(routeEntry.subscriberUuid || "");
+    if (!routeKey || !subscriberUuid) {
+      return;
+    }
+    const record = ensureQDomDataRecordForUuid(normalizedEmitterUuid);
+    if (!record) {
+      return;
+    }
+    if (!record.signalSubscribers || typeof record.signalSubscribers !== "object" || Array.isArray(record.signalSubscribers)) {
+      record.signalSubscribers = {};
+    }
+    const existingList = Array.isArray(record.signalSubscribers[normalizedSignal]) ? record.signalSubscribers[normalizedSignal] : [];
+    const nextList = [];
+    let replaced = false;
+    for (let i = 0; i < existingList.length; i += 1) {
+      const existing = existingList[i];
+      if (!existing || typeof existing !== "object") {
+        continue;
+      }
+      const existingRouteKey = String(existing.routeKey || "").trim();
+      if (existingRouteKey && existingRouteKey === routeKey) {
+        nextList.push({
+          routeKey: routeKey,
+          subscriberUuid: subscriberUuid,
+          mode: String(routeEntry.mode || "connect").trim().toLowerCase() || "connect",
+          attributeName: String(routeEntry.attributeName || "").trim(),
+          token: routeEntry.token != null && Number.isFinite(Number(routeEntry.token)) ? Number(routeEntry.token) : null,
+          createdAt: Number.isFinite(Number(routeEntry.createdAt)) ? Number(routeEntry.createdAt) : Date.now(),
+        });
+        replaced = true;
+      } else {
+        nextList.push(existing);
+      }
+    }
+    if (!replaced) {
+      nextList.push({
+        routeKey: routeKey,
+        subscriberUuid: subscriberUuid,
+        mode: String(routeEntry.mode || "connect").trim().toLowerCase() || "connect",
+        attributeName: String(routeEntry.attributeName || "").trim(),
+        token: routeEntry.token != null && Number.isFinite(Number(routeEntry.token)) ? Number(routeEntry.token) : null,
+        createdAt: Number.isFinite(Number(routeEntry.createdAt)) ? Number(routeEntry.createdAt) : Date.now(),
+      });
+    }
+    record.signalSubscribers[normalizedSignal] = nextList;
+    upsertGlobalQDomDataRecord(normalizedEmitterUuid, record);
+  }
+
+  function removeQDomSignalSubscriberRoute(emitterUuid, signalName, routeKey) {
+    const normalizedEmitterUuid = normalizeQDomUuidValue(emitterUuid);
+    const normalizedSignal = normalizeSignalName(signalName);
+    const normalizedRouteKey = String(routeKey || "").trim();
+    if (!normalizedEmitterUuid || !normalizedSignal || !normalizedRouteKey) {
+      return;
+    }
+    const record = resolveQDomDataRecord(normalizedEmitterUuid);
+    if (!record || !record.signalSubscribers || typeof record.signalSubscribers !== "object") {
+      return;
+    }
+    const existingList = Array.isArray(record.signalSubscribers[normalizedSignal]) ? record.signalSubscribers[normalizedSignal] : [];
+    if (existingList.length === 0) {
+      return;
+    }
+    const nextList = existingList.filter(function keepSignalRoute(entry) {
+      return !(entry && String(entry.routeKey || "").trim() === normalizedRouteKey);
+    });
+    if (nextList.length > 0) {
+      record.signalSubscribers[normalizedSignal] = nextList;
+    } else {
+      delete record.signalSubscribers[normalizedSignal];
+    }
+    upsertGlobalQDomDataRecord(normalizedEmitterUuid, record);
+  }
+
+  function readQDomSignalSubscriberRoutes(emitterUuid, signalName) {
+    const normalizedEmitterUuid = normalizeQDomUuidValue(emitterUuid);
+    const normalizedSignal = normalizeSignalName(signalName);
+    if (!normalizedEmitterUuid || !normalizedSignal) {
+      return [];
+    }
+    const record = resolveQDomDataRecord(normalizedEmitterUuid);
+    if (!record || !record.signalSubscribers || typeof record.signalSubscribers !== "object") {
+      return [];
+    }
+    const list = record.signalSubscribers[normalizedSignal];
+    return Array.isArray(list) ? list.slice() : [];
+  }
+
+  function clearQDomSignalSubscribersForEmitter(emitterUuid) {
+    const normalizedEmitterUuid = normalizeQDomUuidValue(emitterUuid);
+    if (!normalizedEmitterUuid) {
+      return;
+    }
+    const record = resolveQDomDataRecord(normalizedEmitterUuid);
+    if (!record) {
+      return;
+    }
+    record.signalSubscribers = {};
+    upsertGlobalQDomDataRecord(normalizedEmitterUuid, record);
+  }
+
+  function syncSignalReferenceListForEmitter(emitterUuid) {
+    const normalizedEmitterUuid = normalizeQDomUuidValue(emitterUuid);
+    if (!normalizedEmitterUuid) {
+      return [];
+    }
+    const out = new Set();
+    const record = resolveQDomDataRecord(normalizedEmitterUuid);
+    if (record && record.signalSubscribers && typeof record.signalSubscribers === "object") {
+      const signalNames = Object.keys(record.signalSubscribers);
+      for (let i = 0; i < signalNames.length; i += 1) {
+        const signalName = normalizeSignalName(signalNames[i]);
+        if (!signalName) {
+          continue;
+        }
+        const routes = Array.isArray(record.signalSubscribers[signalName]) ? record.signalSubscribers[signalName] : [];
+        for (let j = 0; j < routes.length; j += 1) {
+          const routeEntry = routes[j];
+          if (!routeEntry || typeof routeEntry !== "object") {
+            continue;
+          }
+          const subscriberUuid = normalizeQDomUuidValue(routeEntry.subscriberUuid || "");
+          if (subscriberUuid) {
+            out.add(subscriberUuid);
+          }
+        }
+      }
+    }
+    const explicit = globalSignalExplicitReferenceRegistry.get(normalizedEmitterUuid);
+    if (explicit instanceof Map) {
+      explicit.forEach(function eachExplicitRef(subscriberUuidRaw) {
+        const subscriberUuid = normalizeQDomUuidValue(subscriberUuidRaw || "");
+        if (subscriberUuid) {
+          out.add(subscriberUuid);
+        }
+      });
+    }
+    if (out.size === 0) {
+      globalSignalReferenceRegistry.delete(normalizedEmitterUuid);
+      return [];
+    }
+    const list = Array.from(out.values());
+    globalSignalReferenceRegistry.set(normalizedEmitterUuid, list);
+    return list;
+  }
+
+  function registerSignalReferenceRuntime(options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const emitterUuid = normalizeQDomUuidValue(opts.emitterUuid || opts.uuid || "");
+    const subscriberUuid = normalizeQDomUuidValue(opts.subscriberUuid || opts.targetUuid || "");
+    if (!emitterUuid || !subscriberUuid) {
+      return null;
+    }
+    let explicit = globalSignalExplicitReferenceRegistry.get(emitterUuid);
+    if (!(explicit instanceof Map)) {
+      explicit = new Map();
+      globalSignalExplicitReferenceRegistry.set(emitterUuid, explicit);
+    }
+    const signalName = normalizeSignalName(opts.signalName || opts.signal || "");
+    const routePart = String(opts.routeKey || opts.referenceKey || "").trim();
+    const referenceKey = routePart || "ref:" + signalName + ":" + subscriberUuid;
+    explicit.set(referenceKey, subscriberUuid);
+    syncSignalReferenceListForEmitter(emitterUuid);
+    return {
+      emitterUuid: emitterUuid,
+      subscriberUuid: subscriberUuid,
+      referenceKey: referenceKey,
+    };
+  }
+
+  function unregisterSignalReferenceRuntime(options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const emitterUuid = normalizeQDomUuidValue(opts.emitterUuid || opts.uuid || "");
+    if (!emitterUuid) {
+      return false;
+    }
+    const explicit = globalSignalExplicitReferenceRegistry.get(emitterUuid);
+    if (!(explicit instanceof Map)) {
+      return false;
+    }
+    const referenceKey = String(opts.referenceKey || opts.routeKey || "").trim();
+    if (!referenceKey) {
+      return false;
+    }
+    const removed = explicit.delete(referenceKey);
+    if (explicit.size === 0) {
+      globalSignalExplicitReferenceRegistry.delete(emitterUuid);
+    }
+    syncSignalReferenceListForEmitter(emitterUuid);
+    return removed;
+  }
+
   function removeSignalSubscriptionEntry(emitterUuid, normalizedSignalName, routeKey) {
     const normalizedEmitterUuid = normalizeQDomUuidValue(emitterUuid);
     const normalizedSignal = normalizeSignalName(normalizedSignalName);
@@ -3992,35 +5005,40 @@
     if (!normalizedEmitterUuid || !normalizedSignal || !key) {
       return false;
     }
+    let removed = false;
     const emitterEntry = globalSignalSubscriberRegistry.get(normalizedEmitterUuid);
-    if (!(emitterEntry instanceof Map)) {
-      return false;
+    if (emitterEntry instanceof Map) {
+      const signalEntry = emitterEntry.get(normalizedSignal);
+      if (signalEntry instanceof Map) {
+        const existing = signalEntry.get(key);
+        if (existing && typeof existing === "object") {
+          if (existing.token != null) {
+            globalSignalSubscriptionByToken.delete(existing.token);
+          }
+          signalEntry.delete(key);
+          removed = true;
+        }
+        if (signalEntry.size === 0) {
+          emitterEntry.delete(normalizedSignal);
+        }
+      }
+      if (emitterEntry.size === 0) {
+        globalSignalSubscriberRegistry.delete(normalizedEmitterUuid);
+      }
     }
-    const signalEntry = emitterEntry.get(normalizedSignal);
-    if (!(signalEntry instanceof Map)) {
-      return false;
-    }
-    const existing = signalEntry.get(key);
-    if (!existing || typeof existing !== "object") {
-      return false;
-    }
-    if (existing.token != null) {
-      globalSignalSubscriptionByToken.delete(existing.token);
-    }
-    signalEntry.delete(key);
-    if (signalEntry.size === 0) {
-      emitterEntry.delete(normalizedSignal);
-    }
-    if (emitterEntry.size === 0) {
-      globalSignalSubscriberRegistry.delete(normalizedEmitterUuid);
-    }
-    return true;
+    removeQDomSignalSubscriberRoute(normalizedEmitterUuid, normalizedSignal, key);
+    syncSignalReferenceListForEmitter(normalizedEmitterUuid);
+    return removed;
   }
 
   function listSignalSubscribers(emitterUuid, signalName) {
     const normalizedEmitterUuid = normalizeQDomUuidValue(emitterUuid);
     const normalizedSignal = normalizeSignalName(signalName);
     if (!normalizedEmitterUuid || !normalizedSignal) {
+      return [];
+    }
+    const routesFromRecord = readQDomSignalSubscriberRoutes(normalizedEmitterUuid, normalizedSignal);
+    if (routesFromRecord.length === 0) {
       return [];
     }
     const emitterEntry = globalSignalSubscriberRegistry.get(normalizedEmitterUuid);
@@ -4032,12 +5050,18 @@
       return [];
     }
     const out = [];
-    signalEntry.forEach(function eachSignalEntry(entry) {
+    for (let i = 0; i < routesFromRecord.length; i += 1) {
+      const route = routesFromRecord[i];
+      const routeKey = route && typeof route === "object" ? String(route.routeKey || "").trim() : "";
+      if (!routeKey) {
+        continue;
+      }
+      const entry = signalEntry.get(routeKey);
       if (!entry || typeof entry.handler !== "function") {
-        return;
+        continue;
       }
       out.push(entry);
-    });
+    }
     return out;
   }
 
@@ -4063,6 +5087,9 @@
       });
     });
     globalSignalSubscriberRegistry.delete(normalizedEmitterUuid);
+    clearQDomSignalSubscribersForEmitter(normalizedEmitterUuid);
+    globalSignalExplicitReferenceRegistry.delete(normalizedEmitterUuid);
+    globalSignalReferenceRegistry.delete(normalizedEmitterUuid);
     return removed;
   }
 
@@ -4119,6 +5146,8 @@
       createdAt: Date.now(),
     };
     signalEntry.set(routeKey, entry);
+    upsertQDomSignalSubscriberRoute(emitterUuid, normalizedSignalName, entry);
+    syncSignalReferenceListForEmitter(emitterUuid);
     if (entry.token != null) {
       globalSignalSubscriptionByToken.set(entry.token, {
         emitterUuid: emitterUuid,
@@ -4177,21 +5206,186 @@
     return removed;
   }
 
-  function registerGlobalUuidPointer(binding, uuid, pointer, domElement) {
+  function registerGlobalUuidPointer(binding, uuid, pointer, domElement, metadata) {
     const normalizedUuid = normalizeQDomUuidValue(uuid);
     if (!normalizedUuid) {
       return;
     }
+    const extra = metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : null;
     globalUuidPointerRegistry.set(normalizedUuid, pointer || null);
-    globalUuidLookupRegistry.set(normalizedUuid, {
+    const lookup = {
       pointer: pointer || null,
       dom: domElement && domElement.nodeType === 1 ? domElement : null,
       host: binding && binding.host && binding.host.nodeType === 1 ? binding.host : null,
-    });
+    };
+    if (extra) {
+      const keys = Object.keys(extra);
+      for (let i = 0; i < keys.length; i += 1) {
+        const key = String(keys[i] || "").trim();
+        if (!key || key === "pointer" || key === "dom" || key === "host") {
+          continue;
+        }
+        lookup[key] = extra[key];
+      }
+    }
+    globalUuidLookupRegistry.set(normalizedUuid, lookup);
     const trackedBinding = ensureBindingGlobalTrackingState(binding);
     if (trackedBinding && trackedBinding.globalRegisteredUuids instanceof Set) {
       trackedBinding.globalRegisteredUuids.add(normalizedUuid);
     }
+  }
+
+  function ensureDeclarationUuid(entry) {
+    if (!entry || typeof entry !== "object") {
+      return "";
+    }
+    const direct = normalizeQDomUuidValue(entry.uuid);
+    if (direct) {
+      entry.uuid = direct;
+      if (!entry.meta || typeof entry.meta !== "object") {
+        entry.meta = {};
+      }
+      entry.meta.uuid = direct;
+      return direct;
+    }
+    if (!entry.meta || typeof entry.meta !== "object") {
+      entry.meta = {};
+    }
+    const metaUuid = normalizeQDomUuidValue(entry.meta.uuid);
+    if (metaUuid) {
+      entry.meta.uuid = metaUuid;
+      entry.uuid = metaUuid;
+      return metaUuid;
+    }
+    const generated = createRuntimeQDomUuid();
+    entry.meta.uuid = generated;
+    entry.uuid = generated;
+    return generated;
+  }
+
+  function listComponentPropertyDeclarationEntries(node) {
+    if (!node || typeof node !== "object") {
+      return [];
+    }
+    const out = [];
+    const seen = new Set();
+    const propertyDefinitions = Array.isArray(node.propertyDefinitions) ? node.propertyDefinitions : [];
+    for (let i = 0; i < propertyDefinitions.length; i += 1) {
+      const entry = propertyDefinitions[i];
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const name = String(entry.name || "").trim();
+      if (name) {
+        seen.add(name.toLowerCase());
+      }
+      out.push(entry);
+    }
+    const declared = Array.isArray(node.properties) ? node.properties : [];
+    if (declared.length === 0) {
+      return out;
+    }
+    if (!node.__qhtmlPropertyDeclarationMap || typeof node.__qhtmlPropertyDeclarationMap !== "object" || Array.isArray(node.__qhtmlPropertyDeclarationMap)) {
+      node.__qhtmlPropertyDeclarationMap = {};
+    }
+    const map = node.__qhtmlPropertyDeclarationMap;
+    for (let i = 0; i < declared.length; i += 1) {
+      const propertyName = String(declared[i] || "").trim();
+      if (!propertyName) {
+        continue;
+      }
+      const normalized = propertyName.toLowerCase();
+      if (seen.has(normalized)) {
+        continue;
+      }
+      let entry = map[normalized];
+      if (!entry || typeof entry !== "object") {
+        entry = {
+          name: propertyName,
+          nodes: [],
+          synthetic: true,
+          meta: {
+            declarationKind: "q-property",
+            declarationName: propertyName,
+            synthetic: true,
+          },
+        };
+        map[normalized] = entry;
+      }
+      ensureDeclarationUuid(entry);
+      out.push(entry);
+      seen.add(normalized);
+    }
+    return out;
+  }
+
+  function registerGlobalDeclarationPointersForNode(binding, node, domElement) {
+    if (!binding || !node || typeof node !== "object") {
+      return;
+    }
+    const kind = String(node.kind || "").trim().toLowerCase();
+    if (kind !== "component") {
+      return;
+    }
+    const ownerUuid = normalizeQDomUuidValue(ensureQDomNodeUuid(node));
+    const propertyDefs = listComponentPropertyDeclarationEntries(node);
+    for (let i = 0; i < propertyDefs.length; i += 1) {
+      const entry = propertyDefs[i];
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const uuid = ensureDeclarationUuid(entry);
+      if (!uuid) {
+        continue;
+      }
+      registerGlobalUuidPointer(binding, uuid, entry, domElement, {
+        entityType: "q-property-declaration",
+        ownerUuid: ownerUuid,
+        declarationName: String(entry.name || "").trim(),
+        declarationKind: "q-property",
+      });
+    }
+    const signalDefs = Array.isArray(node.signalDeclarations) ? node.signalDeclarations : [];
+    for (let i = 0; i < signalDefs.length; i += 1) {
+      const entry = signalDefs[i];
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const uuid = ensureDeclarationUuid(entry);
+      if (!uuid) {
+        continue;
+      }
+      registerGlobalUuidPointer(binding, uuid, entry, domElement, {
+        entityType: "q-signal-declaration",
+        ownerUuid: ownerUuid,
+        declarationName: String(entry.name || "").trim(),
+        declarationKind: "q-signal",
+      });
+    }
+  }
+
+  function registerGlobalUuidPointersForBinding(binding) {
+    if (!binding || !binding.qdom || typeof binding !== "object") {
+      return;
+    }
+    const state = ensureBindingUuidMapState(binding);
+    if (!(state.liveUuidToQdom instanceof Map) || state.liveUuidToQdom.size === 0) {
+      reindexBindingLiveQDomUuids(binding);
+    }
+    state.liveUuidToQdom.forEach(function eachLiveNode(node, uuid) {
+      const normalizedUuid = normalizeQDomUuidValue(uuid);
+      if (!normalizedUuid) {
+        return;
+      }
+      const domElement = state.uuidToDom.get(normalizedUuid) || null;
+      const kind = String(node && node.kind ? node.kind : "").trim().toLowerCase();
+      registerGlobalUuidPointer(binding, normalizedUuid, node || null, domElement, {
+        entityType: "qdom-node",
+        qdomKind: kind || "",
+      });
+      registerGlobalDeclarationPointersForNode(binding, node, domElement);
+    });
+    syncGlobalQDomDataRegistryForBinding(binding);
   }
 
   function clearBindingGlobalUuidPointers(binding) {
@@ -4213,6 +5407,29 @@
       globalUuidLookupRegistry.delete(normalizedUuid);
     });
     trackedBinding.globalRegisteredUuids.clear();
+    if (trackedBinding.globalQDomRecordUuids instanceof Set && trackedBinding.globalQDomRecordUuids.size > 0) {
+      trackedBinding.globalQDomRecordUuids.forEach(function clearQDomDataUuid(uuid) {
+        const normalizedUuid = normalizeQDomUuidValue(uuid);
+        if (!normalizedUuid) {
+          return;
+        }
+        const staleRecord = globalQDomDataRegistry.get(normalizedUuid);
+        if (
+          staleRecord &&
+          typeof staleRecord === "object" &&
+          staleRecord.hostId &&
+          binding &&
+          binding.host &&
+          typeof binding.host.getAttribute === "function" &&
+          String(staleRecord.hostId || "").trim() &&
+          String(staleRecord.hostId || "").trim() !== String(binding.host.getAttribute("id") || "").trim()
+        ) {
+          return;
+        }
+        globalQDomDataRegistry.delete(normalizedUuid);
+      });
+      trackedBinding.globalQDomRecordUuids.clear();
+    }
   }
 
   function makeGlobalPropertyRefKey(ownerUuid, propertyName, targetUuid) {
@@ -4236,6 +5453,84 @@
     };
   }
 
+  function upsertQDomPropertySubscriber(ownerUuid, propertyName, targetUuid) {
+    const owner = normalizeQDomUuidValue(ownerUuid);
+    const property = normalizeComponentPropertyReferenceName(propertyName);
+    const target = normalizeQDomUuidValue(targetUuid);
+    if (!owner || !property || !target) {
+      return;
+    }
+    const record = ensureQDomDataRecordForUuid(owner);
+    if (!record) {
+      return;
+    }
+    if (!record.propertySubscribers || typeof record.propertySubscribers !== "object" || Array.isArray(record.propertySubscribers)) {
+      record.propertySubscribers = {};
+    }
+    const existing = Array.isArray(record.propertySubscribers[property]) ? record.propertySubscribers[property] : [];
+    const next = [];
+    for (let i = 0; i < existing.length; i += 1) {
+      const candidate = normalizeQDomUuidValue(existing[i]);
+      if (!candidate || next.indexOf(candidate) >= 0) {
+        continue;
+      }
+      next.push(candidate);
+    }
+    if (next.indexOf(target) < 0) {
+      next.push(target);
+    }
+    record.propertySubscribers[property] = next;
+    upsertGlobalQDomDataRecord(owner, record);
+  }
+
+  function removeQDomPropertySubscriber(ownerUuid, propertyName, targetUuid) {
+    const owner = normalizeQDomUuidValue(ownerUuid);
+    const property = normalizeComponentPropertyReferenceName(propertyName);
+    const target = normalizeQDomUuidValue(targetUuid);
+    if (!owner || !property || !target) {
+      return;
+    }
+    const record = resolveQDomDataRecord(owner);
+    if (!record || !record.propertySubscribers || typeof record.propertySubscribers !== "object") {
+      return;
+    }
+    const existing = Array.isArray(record.propertySubscribers[property]) ? record.propertySubscribers[property] : [];
+    if (existing.length === 0) {
+      return;
+    }
+    const next = existing.filter(function keepPropertySubscriber(entryUuid) {
+      return normalizeQDomUuidValue(entryUuid) !== target;
+    });
+    if (next.length > 0) {
+      record.propertySubscribers[property] = next;
+    } else {
+      delete record.propertySubscribers[property];
+    }
+    upsertGlobalQDomDataRecord(owner, record);
+  }
+
+  function readQDomPropertySubscribers(ownerUuid, propertyName) {
+    const owner = normalizeQDomUuidValue(ownerUuid);
+    const property = normalizeComponentPropertyReferenceName(propertyName);
+    if (!owner || !property) {
+      return [];
+    }
+    const record = resolveQDomDataRecord(owner);
+    if (!record || !record.propertySubscribers || typeof record.propertySubscribers !== "object") {
+      return [];
+    }
+    const existing = Array.isArray(record.propertySubscribers[property]) ? record.propertySubscribers[property] : [];
+    const out = [];
+    for (let i = 0; i < existing.length; i += 1) {
+      const normalized = normalizeQDomUuidValue(existing[i]);
+      if (!normalized || out.indexOf(normalized) >= 0) {
+        continue;
+      }
+      out.push(normalized);
+    }
+    return out;
+  }
+
   function registerGlobalPropertySubscriber(binding, ownerUuid, propertyName, targetUuid) {
     const owner = normalizeQDomUuidValue(ownerUuid);
     const property = normalizeComponentPropertyReferenceName(propertyName);
@@ -4243,17 +5538,7 @@
     if (!owner || !property || !target) {
       return;
     }
-    let ownerMap = globalPropertySubscriberRegistry.get(owner);
-    if (!(ownerMap instanceof Map)) {
-      ownerMap = new Map();
-      globalPropertySubscriberRegistry.set(owner, ownerMap);
-    }
-    let subscriberSet = ownerMap.get(property);
-    if (!(subscriberSet instanceof Set)) {
-      subscriberSet = new Set();
-      ownerMap.set(property, subscriberSet);
-    }
-    subscriberSet.add(target);
+    upsertQDomPropertySubscriber(owner, property, target);
     const trackedBinding = ensureBindingGlobalTrackingState(binding);
     if (!(trackedBinding && trackedBinding.globalPropertyRefKeys instanceof Set)) {
       return;
@@ -4271,21 +5556,7 @@
       if (!parsed) {
         return;
       }
-      const ownerMap = globalPropertySubscriberRegistry.get(parsed.ownerUuid);
-      if (!(ownerMap instanceof Map)) {
-        return;
-      }
-      const subscriberSet = ownerMap.get(parsed.propertyName);
-      if (!(subscriberSet instanceof Set)) {
-        return;
-      }
-      subscriberSet.delete(parsed.targetUuid);
-      if (subscriberSet.size === 0) {
-        ownerMap.delete(parsed.propertyName);
-      }
-      if (ownerMap.size === 0) {
-        globalPropertySubscriberRegistry.delete(parsed.ownerUuid);
-      }
+      removeQDomPropertySubscriber(parsed.ownerUuid, parsed.propertyName, parsed.targetUuid);
     });
     trackedBinding.globalPropertyRefKeys.clear();
   }
@@ -4296,15 +5567,8 @@
     if (!owner || !property) {
       return [];
     }
-    const ownerMap = globalPropertySubscriberRegistry.get(owner);
-    if (!(ownerMap instanceof Map)) {
-      return [];
-    }
-    const subscriberSet = ownerMap.get(property);
-    if (!(subscriberSet instanceof Set) || subscriberSet.size === 0) {
-      return [];
-    }
-    return Array.from(subscriberSet.values()).map(normalizeQDomUuidValue).filter(Boolean);
+    const fromRecord = readQDomPropertySubscribers(owner, property);
+    return fromRecord;
   }
 
   function readUuidForDomElementByLookup(element) {
@@ -4340,25 +5604,13 @@
     if (subscribers.length === 0) {
       return;
     }
-    const ownerLookup = globalUuidLookupRegistry.get(ownerUuid);
-    const ownerHost =
-      ownerLookup && ownerLookup.host && ownerLookup.host.nodeType === 1
-        ? ownerLookup.host
-        : ownerLookup && ownerLookup.dom && ownerLookup.dom.nodeType === 1 && typeof ownerLookup.dom.closest === "function"
-          ? ownerLookup.dom.closest("q-html")
-          : null;
+    const ownerHost = resolveDispatchHostForUuid(ownerUuid, null);
     for (let i = 0; i < subscribers.length; i += 1) {
       const targetUuid = normalizeQDomUuidValue(subscribers[i]);
       if (!targetUuid) {
         continue;
       }
-      const lookup = globalUuidLookupRegistry.get(targetUuid);
-      const host =
-        lookup && lookup.host && lookup.host.nodeType === 1
-          ? lookup.host
-          : lookup && lookup.dom && lookup.dom.nodeType === 1 && typeof lookup.dom.closest === "function"
-            ? lookup.dom.closest("q-html")
-            : ownerHost;
+      const host = resolveDispatchHostForUuid(targetUuid, ownerHost);
       if (!host || host.nodeType !== 1) {
         continue;
       }
@@ -4422,14 +5674,22 @@
       componentId: String(detail.componentId || detail.component || "").trim(),
       componentTag: String(detail.componentTag || "").trim(),
       componentUuid: componentUuid,
+      emitterUuid: componentUuid,
       property: propertyName,
       value: value,
       args: [value],
+      parameters: [value],
       source: "q-property",
       timestamp: Number.isFinite(Number(detail.timestamp)) ? Number(detail.timestamp) : Date.now(),
       params: {
         value: value,
       },
+      signalParameters: [
+        {
+          name: "value",
+          value: value,
+        },
+      ],
     };
     return {
       signalName: signalName,
@@ -4562,7 +5822,7 @@
     if (runtimeEventLoopState.processing) {
       return;
     }
-    if (!eventLoopHasPendingWork() && mountedQHtmlHostCount <= 0) {
+    if (!eventLoopHasPendingWork()) {
       clearEventLoopScheduledHandle();
       return;
     }
@@ -4627,38 +5887,39 @@
       if (!timerRecord || timerRecord.running !== true) {
         return;
       }
+      if (timerRecord.pending === true) {
+        return;
+      }
       const interval = Math.max(EVENT_LOOP_TIMER_MIN_INTERVAL_MS, Math.floor(Number(timerRecord.interval) || 0));
-      let fired = 0;
-      while (timerRecord.running === true && Number(timerRecord.nextAt) <= nowTimestamp) {
-        enqueueRuntimeEvent(
-          "timer-timeout",
-          function processQueuedTimerTimeout() {
-            try {
-              timerRecord.onTimeout(timerRecord.runtime || null);
-            } catch (error) {
-              if (global.console && typeof global.console.error === "function") {
-                global.console.error("qhtml queued timer execution failed:", error);
-              }
+      if (Number(timerRecord.nextAt) > nowTimestamp) {
+        return;
+      }
+      timerRecord.pending = true;
+      enqueueRuntimeEvent(
+        "timer-timeout",
+        function processQueuedTimerTimeout() {
+          try {
+            timerRecord.onTimeout(timerRecord.runtime || null);
+          } catch (error) {
+            if (global.console && typeof global.console.error === "function") {
+              global.console.error("qhtml queued timer execution failed:", error);
             }
-          },
-          {
-            target: timerRecord.binding && timerRecord.binding.host ? timerRecord.binding.host : null,
-            payload: {
-              timerName: timerRecord.name || "",
-              key: key,
-            },
+          } finally {
+            if (timerRecord && typeof timerRecord === "object") {
+              timerRecord.pending = false;
+            }
           }
-        );
-        fired += 1;
-        if (timerRecord.repeat !== true) {
-          timerRecord.running = false;
-          runtimeEventLoopState.timers.delete(key);
-          break;
+        },
+        {
+          target: timerRecord.binding && timerRecord.binding.host ? timerRecord.binding.host : null,
+          payload: {
+            timerName: timerRecord.name || "",
+            key: key,
+          },
         }
-        timerRecord.nextAt += interval;
-        if (fired >= EVENT_LOOP_TIMER_CATCHUP_CAP) {
-          break;
-        }
+      );
+      if (timerRecord.repeat === true) {
+        timerRecord.nextAt = nowTimestamp + interval;
       }
     });
   }
@@ -4708,8 +5969,11 @@
     let processed = 0;
     try {
       while (processed < maxEvents && nowMs() - startedAt <= maxTimeMs) {
-        processQueuedTimerDueEntries(Date.now());
-        const next = runtimeEventLoopState.queue.length > 0 ? runtimeEventLoopState.queue.shift() : null;
+        let next = runtimeEventLoopState.queue.length > 0 ? runtimeEventLoopState.queue.shift() : null;
+        if (!next) {
+          processQueuedTimerDueEntries(Date.now());
+          next = runtimeEventLoopState.queue.length > 0 ? runtimeEventLoopState.queue.shift() : null;
+        }
         if (!next) {
           break;
         }
@@ -4719,10 +5983,11 @@
     } finally {
       runtimeEventLoopState.processing = false;
     }
-    if (eventLoopHasPendingWork() || runtimeEventLoopState.queue.length > 0) {
+    if (runtimeEventLoopState.queue.length > 0 || runtimeEventLoopState.transactionQueue.length > 0) {
       scheduleRuntimeEventLoop(0);
-    } else if (mountedQHtmlHostCount > 0 && isQueuedEventLoopEnabled()) {
-      scheduleRuntimeEventLoop(EVENT_LOOP_IDLE_TICK_MS);
+    } else if (hasRunningQueuedTimers()) {
+      const nextDelay = computeNextQueuedTimerDelay();
+      scheduleRuntimeEventLoop(nextDelay == null ? EVENT_LOOP_IDLE_TICK_MS : nextDelay);
     } else {
       clearEventLoopScheduledHandle();
     }
@@ -4745,6 +6010,7 @@
       interval: intervalValue,
       repeat: runtime && runtime.repeat === true,
       running: runtime && runtime.running !== false,
+      pending: false,
       nextAt: Date.now() + intervalValue,
       onTimeout: function executeQueuedTimerTimeout(currentRuntime) {
         runTimeout(currentRuntime || runtime || null);
@@ -4787,6 +6053,7 @@
     }
     runtime.timerId = null;
     runtime.running = false;
+    runtime.pending = false;
     return true;
   }
 
@@ -4826,6 +6093,31 @@
     }
     if (target.nodeType === 1) {
       const uuidFromLookup = readUuidForDomElementByLookup(target);
+      if (uuidFromLookup) {
+        return uuidFromLookup;
+      }
+    }
+    return "";
+  }
+
+  function resolveSignalSubscriberUuid(target) {
+    if (!target || typeof target !== "object") {
+      return "";
+    }
+    let candidate = target;
+    if (candidate && candidate.nodeType === 1 && candidate.component && candidate.component.nodeType === 1) {
+      candidate = candidate.component;
+    }
+    try {
+      const qdomNode = typeof candidate.qdom === "function" ? candidate.qdom() : null;
+      if (qdomNode && typeof qdomNode === "object") {
+        return ensureQDomNodeUuid(qdomNode);
+      }
+    } catch (ignoredReadSubscriberQdomError) {
+      // fallback to lookup map
+    }
+    if (candidate && candidate.nodeType === 1) {
+      const uuidFromLookup = readUuidForDomElementByLookup(candidate);
       if (uuidFromLookup) {
         return uuidFromLookup;
       }
@@ -4912,22 +6204,76 @@
     return out;
   }
 
+  function resolveQDomDataRecord(uuid) {
+    const normalizedUuid = normalizeQDomUuidValue(uuid);
+    if (!normalizedUuid) {
+      return null;
+    }
+    const record = globalQDomDataRegistry.get(normalizedUuid);
+    return record && typeof record === "object" ? record : null;
+  }
+
+  function resolveHostElementById(hostId) {
+    const normalizedHostId = String(hostId || "").trim();
+    if (!normalizedHostId || !global.document || typeof global.document.getElementById !== "function") {
+      return null;
+    }
+    const element = global.document.getElementById(normalizedHostId);
+    if (!element || element.nodeType !== 1) {
+      return null;
+    }
+    if (String(element.tagName || "").trim().toLowerCase() === "q-html") {
+      return element;
+    }
+    if (typeof element.closest === "function") {
+      const closestHost = element.closest("q-html");
+      if (closestHost && closestHost.nodeType === 1) {
+        return closestHost;
+      }
+    }
+    return null;
+  }
+
+  function resolveDispatchHostForUuid(uuid, fallbackHost) {
+    const normalizedUuid = normalizeQDomUuidValue(uuid);
+    if (!normalizedUuid) {
+      return fallbackHost && fallbackHost.nodeType === 1 ? fallbackHost : null;
+    }
+    const record = resolveQDomDataRecord(normalizedUuid);
+    if (record && record.hostId) {
+      const hostFromRecord = resolveHostElementById(record.hostId);
+      if (hostFromRecord && hostFromRecord.nodeType === 1) {
+        return hostFromRecord;
+      }
+    }
+    return fallbackHost && fallbackHost.nodeType === 1 ? fallbackHost : null;
+  }
+
+  function resolveDispatchTargetForUuid(uuid) {
+    const normalizedUuid = normalizeQDomUuidValue(uuid);
+    if (!normalizedUuid) {
+      return null;
+    }
+    const host = resolveDispatchHostForUuid(normalizedUuid, null);
+    if (host && typeof host.elementForUuid === "function") {
+      try {
+        const mapped = host.elementForUuid(normalizedUuid);
+        if (mapped && mapped.nodeType === 1) {
+          return mapped;
+        }
+      } catch (error) {
+        // no-op
+      }
+    }
+    return host && host.nodeType === 1 ? host : null;
+  }
+
   function resolveQLoggerTargetForEmitterUuid(emitterUuid) {
     const normalizedUuid = normalizeQDomUuidValue(emitterUuid);
     if (!normalizedUuid) {
       return null;
     }
-    const lookup = globalUuidLookupRegistry.get(normalizedUuid);
-    if (!lookup || typeof lookup !== "object") {
-      return null;
-    }
-    if (lookup.dom && lookup.dom.nodeType === 1) {
-      return lookup.dom;
-    }
-    if (lookup.host && lookup.host.nodeType === 1) {
-      return lookup.host;
-    }
-    return null;
+    return resolveDispatchTargetForUuid(normalizedUuid);
   }
 
   function shouldLogQSignalForTarget(target) {
@@ -4968,10 +6314,44 @@
       enqueueRuntimeEvent(
         "signal-handler-call",
         function processSignalHandlerCall() {
+          const subscriberUuid = normalizeQDomUuidValue(subscriber.subscriberUuid || "");
+          let signalTarget = resolveDispatchTargetForUuid(subscriberUuid);
+          if (subscriberUuid) {
+            if (!signalTarget && subscriber.routeKey) {
+              const normalizedEmitterUuid = normalizeQDomUuidValue(emitterUuid);
+              const normalizedSignalName = normalizeSignalName(
+                subscriber.signalNameNormalized || subscriber.signalName || signalName
+              );
+              if (normalizedEmitterUuid && normalizedSignalName) {
+                removeSignalSubscriptionEntry(normalizedEmitterUuid, normalizedSignalName, subscriber.routeKey);
+              }
+            }
+          }
+          const sourcePayload = payload && typeof payload === "object" ? payload : {};
+          const signalPayload = Object.assign({}, sourcePayload);
+          if (!Number.isFinite(Number(signalPayload.timestamp))) {
+            signalPayload.timestamp = Date.now();
+          }
+          const normalizedEmitterUuid = normalizeQDomUuidValue(
+            signalPayload.emitterUuid || signalPayload.componentUuid || emitterUuid
+          );
+          if (normalizedEmitterUuid) {
+            signalPayload.emitterUuid = normalizedEmitterUuid;
+            signalPayload.componentUuid = normalizedEmitterUuid;
+          }
+          signalPayload.receiverUuid = subscriberUuid || "";
+          const signalParameters = Array.isArray(sourcePayload.signalParameters)
+            ? sourcePayload.signalParameters.slice()
+            : [];
+          signalParameters.push({
+            name: "receiverUuid",
+            value: signalPayload.receiverUuid,
+          });
+          signalPayload.signalParameters = signalParameters;
           try {
-            subscriberHandler(payload, signalName, emitterUuid);
+            subscriberHandler.call(signalTarget || null, signalPayload, signalName, emitterUuid);
           } catch (error) {
-            const logTarget = resolveQLoggerTargetForEmitterUuid(emitterUuid);
+            const logTarget = signalTarget || resolveQLoggerTargetForEmitterUuid(emitterUuid);
             if (shouldLogQSignalForTarget(logTarget) && global.console && typeof global.console.log === "function") {
               global.console.log("qhtml queued signal subscriber failed:", error);
             }
@@ -5004,8 +6384,11 @@
       qSignal: false,
       named: false,
     };
+    const opts = arguments.length > 3 && arguments[3] && typeof arguments[3] === "object" ? arguments[3] : {};
+    const bubbles = Object.prototype.hasOwnProperty.call(opts, "bubbles") ? opts.bubbles === true : true;
+    const composed = Object.prototype.hasOwnProperty.call(opts, "composed") ? opts.composed === true : true;
     try {
-      target.dispatchEvent(createRuntimeEventLoopDispatch(target, "q-signal", payload, { bubbles: true, composed: true }));
+      target.dispatchEvent(createRuntimeEventLoopDispatch(target, "q-signal", payload, { bubbles: bubbles, composed: composed }));
       out.qSignal = true;
     } catch (error) {
       if (shouldLogQSignalForTarget(target) && global.console && typeof global.console.log === "function") {
@@ -5019,8 +6402,8 @@
     try {
       target.dispatchEvent(
         createRuntimeEventLoopDispatch(target, normalizedSignalName, payload, {
-          bubbles: true,
-          composed: true,
+          bubbles: bubbles,
+          composed: composed,
         })
       );
       out.named = true;
@@ -5056,7 +6439,10 @@
     enqueueRuntimeEvent(
       "signal-dispatch",
       function processSignalDispatch() {
-        dispatchSignalPayloadNow(target, resolvedSignalName, resolvedPayload);
+        dispatchSignalPayloadNow(target, resolvedSignalName, resolvedPayload, {
+          bubbles: false,
+          composed: false,
+        });
         if (emitterUuid && resolvedSignalName) {
           queueSignalSubscriberDispatch(emitterUuid, resolvedSignalName, resolvedPayload);
         }
@@ -5458,7 +6844,9 @@
       );
       ensureScopedSelectorShortcut(target || {}, null);
       const fn = new Function("event", "document", withScopedSelectorPrelude(executableSource));
-      fn.call(target, null, doc);
+      runWithRuntimeExecutionHost(target, function invokeLifecycleHookBody() {
+        fn.call(target, null, doc);
+      });
     } catch (error) {
       reportLifecycleHookFailure(errorLabel, target, source, error);
     }
@@ -6983,6 +8371,9 @@
         if (typeof global.clearInterval === "function") {
           global.clearInterval(runtime.timerId);
         }
+        if (typeof global.clearTimeout === "function") {
+          global.clearTimeout(runtime.timerId);
+        }
       } else if (typeof global.clearTimeout === "function") {
         global.clearTimeout(runtime.timerId);
       }
@@ -7158,7 +8549,9 @@
         );
         try {
           const dynamic = new Function("event", "document", withScopedSelectorPrelude(executableSource));
-          dynamic.call(host, eventPayload, doc);
+          runWithRuntimeExecutionHost(host, function invokeKeywordTimerDynamic() {
+            dynamic.call(host, eventPayload, doc);
+          });
         } catch (error) {
           if (global.console && typeof global.console.error === "function") {
             global.console.error("qhtml q-timer execution failed:", error);
@@ -7167,7 +8560,9 @@
         return;
       }
       try {
-        executor.call(host, eventPayload, doc);
+        runWithRuntimeExecutionHost(host, function invokeKeywordTimerExecutor() {
+          executor.call(host, eventPayload, doc);
+        });
       } catch (error) {
         if (global.console && typeof global.console.error === "function") {
           global.console.error("qhtml q-timer execution failed:", error);
@@ -7226,6 +8621,9 @@
             if (typeof global.clearInterval === "function") {
               global.clearInterval(runtime.timerId);
             }
+            if (typeof global.clearTimeout === "function") {
+              global.clearTimeout(runtime.timerId);
+            }
           } else if (typeof global.clearTimeout === "function") {
             global.clearTimeout(runtime.timerId);
           }
@@ -7243,14 +8641,22 @@
         runtime.stop();
         runtime.running = true;
         const tick = function keywordTimerTick() {
+          if (runtime.running !== true) {
+            return;
+          }
           runTimeout(runtime);
-          if (runtime.repeat !== true) {
+          if (runtime.repeat !== true || runtime.running !== true) {
             runtime.stop();
+            return;
+          }
+          if (typeof global.setTimeout === "function") {
+            runtime.timerId = global.setTimeout(tick, runtime.interval);
+            publishTimerHandle();
           }
         };
         if (runtime.repeat === true) {
-          runtime.timerId = typeof global.setInterval === "function"
-            ? global.setInterval(tick, runtime.interval)
+          runtime.timerId = typeof global.setTimeout === "function"
+            ? global.setTimeout(tick, runtime.interval)
             : null;
         } else {
           runtime.timerId = typeof global.setTimeout === "function"
@@ -7331,7 +8737,9 @@
                 "document",
                 withScopedSelectorPrelude(interpolatedBody)
               );
-              return dynamicExecutor.call(target, event, doc);
+              return runWithRuntimeExecutionHost(target, function invokeScriptDynamicExecutor() {
+                return dynamicExecutor.call(target, event, doc);
+              });
             } catch (error) {
               if (global.console && typeof global.console.error === "function") {
                 global.console.error("qhtml q-script rule compile failed:", error);
@@ -7340,7 +8748,9 @@
             }
           }
           ensureScopedSelectorShortcut(target, binding.host);
-          return executor.call(target, event, doc);
+          return runWithRuntimeExecutionHost(target, function invokeScriptExecutor() {
+            return executor.call(target, event, doc);
+          });
         };
         target.addEventListener(eventName, handler);
         binding.listeners.push({
@@ -11385,6 +12795,73 @@
       return proxy;
     }
 
+    function listNodePropertyEntries(targetNode) {
+      const sourceTarget = sourceNodeOf(targetNode) || targetNode;
+      if (!sourceTarget || typeof sourceTarget !== "object") {
+        return [];
+      }
+      const out = [];
+      const ownerUuid = normalizeQDomUuidValue(ensureQDomNodeUuid(sourceTarget));
+      const definitions =
+        String(sourceTarget.kind || "").trim().toLowerCase() === "component"
+          ? listComponentPropertyDeclarationEntries(sourceTarget)
+          : Array.isArray(sourceTarget.propertyDefinitions)
+            ? sourceTarget.propertyDefinitions
+            : [];
+      for (let i = 0; i < definitions.length; i += 1) {
+        const entry = definitions[i];
+        if (!entry || typeof entry !== "object") {
+          continue;
+        }
+        out.push({
+          uuid: ensureDeclarationUuid(entry),
+          type: "q-property-declaration",
+          name: String(entry.name || "").trim(),
+          ownerUuid: ownerUuid,
+          value: entry,
+        });
+      }
+      const values = Array.isArray(sourceTarget.properties) ? sourceTarget.properties : [];
+      for (let i = 0; i < values.length; i += 1) {
+        const entry = values[i];
+        if (!entry || typeof entry !== "object") {
+          continue;
+        }
+        out.push({
+          uuid: "",
+          type: "q-property-value",
+          name: String(entry.name || "").trim(),
+          ownerUuid: ownerUuid,
+          value: Object.prototype.hasOwnProperty.call(entry, "value") ? entry.value : undefined,
+        });
+      }
+      return out;
+    }
+
+    function listNodeSignalEntries(targetNode) {
+      const sourceTarget = sourceNodeOf(targetNode) || targetNode;
+      if (!sourceTarget || typeof sourceTarget !== "object") {
+        return [];
+      }
+      const out = [];
+      const ownerUuid = normalizeQDomUuidValue(ensureQDomNodeUuid(sourceTarget));
+      const declarations = Array.isArray(sourceTarget.signalDeclarations) ? sourceTarget.signalDeclarations : [];
+      for (let i = 0; i < declarations.length; i += 1) {
+        const entry = declarations[i];
+        if (!entry || typeof entry !== "object") {
+          continue;
+        }
+        out.push({
+          uuid: ensureDeclarationUuid(entry),
+          type: "q-signal-declaration",
+          name: String(entry.name || "").trim(),
+          ownerUuid: ownerUuid,
+          value: entry,
+        });
+      }
+      return out;
+    }
+
       function isQDomTypedNode(value) {
         return !!(value && typeof value === "object" && typeof value.kind === "string");
       }
@@ -12602,6 +14079,58 @@
           });
         },
       });
+      Object.defineProperty(node, "listChildren", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function listChildren() {
+          return createQDomNodeList(readNodeChildrenList(sourceNodeOf(node) || node));
+        },
+      });
+      Object.defineProperty(node, "listProperties", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function listProperties() {
+          return listNodePropertyEntries(sourceNodeOf(node) || node);
+        },
+      });
+      Object.defineProperty(node, "listSignals", {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function listSignals() {
+          return listNodeSignalEntries(sourceNodeOf(node) || node);
+        },
+      });
+      if (typeof node.signals !== "function") {
+        Object.defineProperty(node, "signals", {
+          configurable: true,
+          enumerable: false,
+          writable: false,
+          value: function signals() {
+            return listNodeSignalEntries(sourceNodeOf(node) || node);
+          },
+        });
+      }
+      if (typeof node.properties !== "function" && !Array.isArray(node.properties)) {
+        Object.defineProperty(node, "properties", {
+          configurable: true,
+          enumerable: false,
+          writable: false,
+          value: function properties() {
+            return listNodePropertyEntries(sourceNodeOf(node) || node);
+          },
+        });
+      }
+      if (typeof node.children !== "function" && !Array.isArray(node.children)) {
+        Object.defineProperty(node, "children", {
+          configurable: true,
+          enumerable: false,
+          writable: false,
+          value: createChildrenAccessor(node),
+        });
+      }
       Object.defineProperty(node, "root", {
         configurable: true,
         enumerable: false,
@@ -13953,6 +15482,119 @@
     host.root = function hostRootAccessor() {
       return host;
     };
+    function toDeclarationFacade(entry, fallbackType, ownerUuid) {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+      const declarationUuid = ensureDeclarationUuid(entry);
+      const declarationType = String(fallbackType || "").trim();
+      if (declarationUuid && !globalUuidLookupRegistry.has(declarationUuid)) {
+        registerGlobalUuidPointer(binding, declarationUuid, entry, null, {
+          entityType: declarationType || "declaration",
+          ownerUuid: normalizeQDomUuidValue(ownerUuid),
+          declarationName: String(entry.name || "").trim(),
+        });
+      }
+      return {
+        uuid: declarationUuid,
+        type: declarationType || "declaration",
+        name: String(entry.name || "").trim(),
+        ownerUuid: normalizeQDomUuidValue(ownerUuid),
+        value: entry,
+      };
+    }
+
+    function readNodePropertyFacades(node) {
+      const source = sourceNodeOf(node) || node;
+      if (!source || typeof source !== "object") {
+        return [];
+      }
+      const out = [];
+      const ownerUuid = normalizeQDomUuidValue(ensureQDomNodeUuid(source));
+      const defs =
+        String(source.kind || "").trim().toLowerCase() === "component"
+          ? listComponentPropertyDeclarationEntries(source)
+          : Array.isArray(source.propertyDefinitions)
+            ? source.propertyDefinitions
+            : [];
+      for (let i = 0; i < defs.length; i += 1) {
+        const facade = toDeclarationFacade(defs[i], "q-property-declaration", ownerUuid);
+        if (facade) {
+          out.push(facade);
+        }
+      }
+      const properties = Array.isArray(source.properties) ? source.properties : [];
+      for (let i = 0; i < properties.length; i += 1) {
+        const entry = properties[i];
+        if (!entry || typeof entry !== "object") {
+          continue;
+        }
+        out.push({
+          uuid: "",
+          type: "q-property-value",
+          name: String(entry.name || "").trim(),
+          ownerUuid: ownerUuid,
+          value: entry.value,
+        });
+      }
+      return out;
+    }
+
+    function readNodeSignalFacades(node) {
+      const source = sourceNodeOf(node) || node;
+      if (!source || typeof source !== "object") {
+        return [];
+      }
+      const out = [];
+      const ownerUuid = normalizeQDomUuidValue(ensureQDomNodeUuid(source));
+      const defs = Array.isArray(source.signalDeclarations) ? source.signalDeclarations : [];
+      for (let i = 0; i < defs.length; i += 1) {
+        const facade = toDeclarationFacade(defs[i], "q-signal-declaration", ownerUuid);
+        if (facade) {
+          out.push(facade);
+        }
+      }
+      return out;
+    }
+
+    function createUuidLookupFacade(uuid, pointer, lookup) {
+      const normalizedUuid = normalizeQDomUuidValue(uuid);
+      if (!normalizedUuid) {
+        return null;
+      }
+      const source = sourceNodeOf(pointer) || pointer;
+      const entry = lookup && typeof lookup === "object" ? lookup : globalUuidLookupRegistry.get(normalizedUuid) || null;
+      const kindFromPointer = source && typeof source === "object" ? String(source.kind || "").trim().toLowerCase() : "";
+      return {
+        uuid: normalizedUuid,
+        kind: String(entry && entry.entityType ? entry.entityType : kindFromPointer || "").trim(),
+        qdomKind: String(entry && entry.qdomKind ? entry.qdomKind : kindFromPointer || "").trim(),
+        ownerUuid: normalizeQDomUuidValue(entry && entry.ownerUuid),
+        qdom: function qdomAccessor() {
+          return source && typeof source === "object" ? installQDomFactories(source) : null;
+        },
+        element: function elementAccessor() {
+          const mapped = resolveScopeElementByUuid(binding, normalizedUuid);
+          if (mapped && mapped.nodeType === 1) {
+            return mapped;
+          }
+          return entry && entry.dom && entry.dom.nodeType === 1 ? entry.dom : null;
+        },
+        children: function childrenAccessor() {
+          if (!source || typeof source !== "object") {
+            return createQDomNodeList([]);
+          }
+          return createQDomNodeList(readNodeChildrenList(source));
+        },
+        properties: function propertiesAccessor() {
+          return readNodePropertyFacades(source);
+        },
+        signals: function signalsAccessor() {
+          return readNodeSignalFacades(source);
+        },
+      };
+    }
+
     host.uuidFor = function hostUuidForAccessor(value) {
       if (!value || typeof value !== "object") {
         return "";
@@ -13980,6 +15622,33 @@
       const node = state.uuidToQdom.get(normalized);
       return node && typeof node === "object" ? installQDomFactories(node) : null;
     };
+    host.lookupUuid = function hostLookupUuidAccessor(uuid) {
+      const normalized = normalizeQDomUuidValue(uuid);
+      if (!normalized) {
+        return null;
+      }
+      const state = ensureBindingUuidMapState(binding);
+      const lookup = globalUuidLookupRegistry.get(normalized) || null;
+      const liveNode = resolveLiveQDomNodeByUuid(binding, normalized);
+      const pointer =
+        (liveNode && typeof liveNode === "object" ? liveNode : null) ||
+        (state.uuidToQdom.get(normalized) && typeof state.uuidToQdom.get(normalized) === "object"
+          ? state.uuidToQdom.get(normalized)
+          : null) ||
+        (lookup && lookup.pointer && typeof lookup.pointer === "object" ? lookup.pointer : null);
+      if (!pointer && !(lookup && typeof lookup === "object")) {
+        return null;
+      }
+      return createUuidLookupFacade(normalized, pointer, lookup);
+    };
+    host.qdomDataForUuid = function hostQDomDataForUuidAccessor(uuid) {
+      return getQDomDataForUuid(uuid);
+    };
+    host.qdomDataSnapshot = function hostQDomDataSnapshotAccessor(options) {
+      return getQDomDataSnapshot(options);
+    };
+    host.uuidLookup = host.lookupUuid;
+    host.qdomProxyForUuid = host.lookupUuid;
     host.component = null;
 
     function setSlotContextAccessor(element, slotNode, dynamicResolver) {
@@ -14557,6 +16226,8 @@
       const slotNode = binding.slotMap && binding.slotMap.get(element);
       setSlotContextAccessor(element, slotNode || null, resolveNearestSlotNode);
     }
+
+    registerGlobalUuidPointersForBinding(binding);
   }
 
   function createObservedBinding(binding) {
@@ -15303,6 +16974,34 @@
     return out;
   }
 
+  function getQDomDataForUuid(uuid) {
+    const normalized = normalizeQDomUuidValue(uuid);
+    if (!normalized) {
+      return null;
+    }
+    const record = globalQDomDataRegistry.get(normalized);
+    return shallowCloneQDomDataRecord(record);
+  }
+
+  function getQDomDataSnapshot(options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const asObject = opts.asObject === true;
+    const outObject = {};
+    const outArray = [];
+    globalQDomDataRegistry.forEach(function eachQDomDataRecord(record, uuid) {
+      const cloned = shallowCloneQDomDataRecord(record);
+      if (!cloned) {
+        return;
+      }
+      if (asObject) {
+        outObject[uuid] = cloned;
+      } else {
+        outArray.push(cloned);
+      }
+    });
+    return asObject ? outObject : outArray;
+  }
+
   const runtimeApi = {
     SIGNALS: {
       QHTMLContentLoaded: QHTML_CONTENT_LOADED_EVENT,
@@ -15319,11 +17018,22 @@
     enqueueRuntimeEvent: enqueueRuntimeEvent,
     registerSignalSubscriber: registerSignalSubscriberRuntime,
     unregisterSignalSubscriber: unregisterSignalSubscriberRuntime,
+    registerSignalReference: registerSignalReferenceRuntime,
+    unregisterSignalReference: unregisterSignalReferenceRuntime,
+    runWithExecutionHost: runWithRuntimeExecutionHost,
+    getCurrentExecutionHost: getCurrentRuntimeExecutionHost,
     clearSignalSubscribersForEmitter: clearSignalSubscribersForEmitter,
     getEventLoopMode: getRuntimeEventLoopMode,
     dispatchSignalPayload: dispatchSignalPayloadRuntime,
     dispatchPropertyChangedEvent: dispatchPropertyChangedEventRuntime,
+    getEventLoopSnapshot: getEventLoopSnapshot,
+    printEventLoopSnapshot: printEventLoopSnapshot,
     createQModel: createQModel,
+    createQArray: createQArray,
+    createQCallback: createQCallback,
+    getQDomDataForUuid: getQDomDataForUuid,
+    getQDomDataSnapshot: getQDomDataSnapshot,
+    qhtml: createQHtmlFragment,
     qmapNode: createQMapNodeTree,
     hydrateComponentElement: hydrateComponentElement,
     setDomMutationObserversEnabled: setDomMutationSyncEnabled,
@@ -15341,6 +17051,9 @@
   exposeGlobalRuntimeMaps();
   global.QHtml = runtimeApi;
   global.QModel = createQModel;
+  global.QArray = createQArray;
+  global.QCallback = createQCallback;
+  global.qhtml = createQHtmlFragment;
 
   if (global.document && global.document.readyState === "loading") {
     global.document.addEventListener("DOMContentLoaded", function onReady() {

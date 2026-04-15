@@ -1,6 +1,7 @@
 (function attachDomRenderer(global) {
   const modules = global.QHtmlModules || (global.QHtmlModules = {});
   const core = modules.qdomCore;
+  const parser = modules.qhtmlParser;
   const RENDER_SLOT_REF = typeof Symbol === "function" ? Symbol("qhtml.render.slotRef") : "__qhtmlRenderSlotRef__";
 
   if (!core) {
@@ -15,6 +16,9 @@
   const Q_MODEL_VIEW_INSTANCE_ATTR = "q-model-view-instance";
   const Q_MODEL_VIEW_SCOPE_TAG = "q-model-view-scope";
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
+  const Q_CALLBACK_NODE_KIND = "callback";
+  const QHTML_FRAGMENT_MARKER = "__qhtmlFragment";
+  const QHTML_NAMED_CALLBACKS_KEY = "__qhtmlNamedCallbacks";
   const INLINE_REFERENCE_PATTERN = /\$\{\s*([^}]+?)\s*\}/g;
   const INLINE_REFERENCE_ESCAPE_TOKEN = "__QHTML_ESCAPED_INLINE_REF__";
   const WASM_DEFAULT_TIMEOUT_MS = 15000;
@@ -161,6 +165,65 @@
     return value.replace(/[A-Z]/g, function toDash(letter) {
       return "-" + letter.toLowerCase();
     });
+  }
+
+  function readNamedCallbackStore() {
+    const existing = global && typeof global[QHTML_NAMED_CALLBACKS_KEY] === "object"
+      ? global[QHTML_NAMED_CALLBACKS_KEY]
+      : null;
+    if (existing) {
+      return existing;
+    }
+    const created = Object.create(null);
+    try {
+      global[QHTML_NAMED_CALLBACKS_KEY] = created;
+    } catch (error) {
+      // fallback
+    }
+    return global && typeof global[QHTML_NAMED_CALLBACKS_KEY] === "object"
+      ? global[QHTML_NAMED_CALLBACKS_KEY]
+      : created;
+  }
+
+  function registerNamedCallbackRuntime(name, callbackFn) {
+    const callbackName = String(name || "").trim();
+    if (!callbackName || typeof callbackFn !== "function") {
+      return;
+    }
+    const store = readNamedCallbackStore();
+    store[callbackName] = callbackFn;
+    const lowerName = callbackName.toLowerCase();
+    if (lowerName && lowerName !== callbackName) {
+      store[lowerName] = callbackFn;
+    }
+  }
+
+  function resolveNamedCallbackRuntime(name) {
+    const callbackName = String(name || "").trim();
+    if (!callbackName) {
+      return null;
+    }
+    const store = readNamedCallbackStore();
+    if (Object.prototype.hasOwnProperty.call(store, callbackName) && typeof store[callbackName] === "function") {
+      return store[callbackName];
+    }
+    const lowerName = callbackName.toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(store, lowerName) && typeof store[lowerName] === "function") {
+      return store[lowerName];
+    }
+    return null;
+  }
+
+  function resolveCallbackReferenceValue(value) {
+    if (typeof value !== "string") {
+      return value;
+    }
+    const reference = String(value || "").trim();
+    if (!reference) {
+      return value;
+    }
+    const callback = resolveNamedCallbackRuntime(reference);
+    return typeof callback === "function" ? callback : value;
   }
 
   function getRuntimeThemeRules(instanceNode) {
@@ -1278,6 +1341,7 @@
       propertyDefinitions: [],
       methods: [],
       signalDeclarations: [],
+      callbackDeclarations: [],
       aliasDeclarations: [],
       wasmConfig: null,
       lifecycleScripts: [],
@@ -1290,6 +1354,7 @@
     const propertyDefinitionIndex = new Map();
     const methodIndex = new Map();
     const signalIndex = new Map();
+    const callbackIndex = new Map();
     const aliasIndex = new Map();
     const lifecycleIndex = new Map();
     let mergedRepeaterConfig = null;
@@ -1344,6 +1409,7 @@
       mergeNamedEntries(merged.propertyDefinitions, node.propertyDefinitions, propertyDefinitionIndex);
       mergeNamedEntries(merged.methods, node.methods, methodIndex);
       mergeNamedEntries(merged.signalDeclarations, node.signalDeclarations, signalIndex);
+      mergeNamedEntries(merged.callbackDeclarations, node.callbackDeclarations, callbackIndex);
       mergeNamedEntries(merged.aliasDeclarations, node.aliasDeclarations, aliasIndex);
 
       if (Array.isArray(node.lifecycleScripts) && node.lifecycleScripts.length > 0) {
@@ -1820,6 +1886,17 @@
     return null;
   }
 
+  function escapeIdForQuery(rawId) {
+    const value = String(rawId || "").trim();
+    if (!value) {
+      return "";
+    }
+    if (typeof CSS !== "undefined" && CSS && typeof CSS.escape === "function") {
+      return CSS.escape(value);
+    }
+    return value.replace(/([ #;?%&,.+*~':"!^$[\]()=>|/\\])/g, "\\$1");
+  }
+
   function createScopedSelectorShortcut(thisArg, explicitRoot) {
     return function qhtmlScopedSelectorShortcut(selector) {
       const query = String(selector == null ? "" : selector).trim();
@@ -1859,6 +1936,147 @@
     return shortcut;
   }
 
+  function createQHtmlFragmentToken(source) {
+    return {
+      __qhtmlFragment: true,
+      source: String(source == null ? "" : source),
+    };
+  }
+
+  function isQHtmlFragmentToken(value) {
+    return !!(
+      value &&
+      typeof value === "object" &&
+      value[QHTML_FRAGMENT_MARKER] === true &&
+      typeof value.source === "string"
+    );
+  }
+
+  function resolveLiveComponentHostElement(currentHost) {
+    if (!currentHost || currentHost.nodeType !== 1) {
+      return null;
+    }
+    if (typeof currentHost.isConnected === "boolean" && currentHost.isConnected) {
+      return currentHost;
+    }
+    let rootHost = null;
+    try {
+      rootHost = typeof currentHost.qhtmlRoot === "function" ? currentHost.qhtmlRoot() : null;
+    } catch (readRootError) {
+      rootHost = null;
+    }
+    let qdomUuid = "";
+    try {
+      const qdomNode = typeof currentHost.qdom === "function" ? currentHost.qdom() : null;
+      qdomUuid =
+        qdomNode &&
+        qdomNode.meta &&
+        typeof qdomNode.meta === "object" &&
+        typeof qdomNode.meta.uuid === "string"
+          ? String(qdomNode.meta.uuid).trim()
+          : "";
+    } catch (readUuidError) {
+      qdomUuid = "";
+    }
+    if (rootHost && typeof rootHost.elementForUuid === "function" && qdomUuid) {
+      try {
+        const mappedByUuid = rootHost.elementForUuid(qdomUuid);
+        if (mappedByUuid && mappedByUuid.nodeType === 1) {
+          return mappedByUuid;
+        }
+      } catch (resolveByUuidError) {
+        // fallback to id selector below
+      }
+    }
+    if (rootHost && typeof rootHost.querySelector === "function") {
+      const hostId = String(currentHost.id || "").trim();
+      if (hostId) {
+        try {
+          const mappedById = rootHost.querySelector("#" + escapeIdForQuery(hostId));
+          if (mappedById && mappedById.nodeType === 1) {
+            return mappedById;
+          }
+        } catch (resolveByIdError) {
+          // no-op
+        }
+      }
+    }
+    return currentHost;
+  }
+
+  function createQCallbackWrapper(callbackFn, options) {
+    if (typeof callbackFn !== "function") {
+      return null;
+    }
+    const opts = options && typeof options === "object" ? options : {};
+    const callbackName = String(opts.name || "").trim();
+    const creatorHost = opts.creatorHost && opts.creatorHost.nodeType === 1 ? opts.creatorHost : null;
+    const factory = typeof global.QCallback === "function" ? global.QCallback : null;
+    if (factory) {
+      try {
+        const created = factory(callbackFn, {
+          name: callbackName,
+          creator: creatorHost,
+        });
+        if (created && typeof created === "function") {
+          return created;
+        }
+      } catch (error) {
+        // fallback below
+      }
+    }
+    const wrapped = function qhtmlCallbackFallbackProxy() {
+      const args = Array.prototype.slice.call(arguments);
+      const runtimeApi = global.QHtml && typeof global.QHtml === "object" ? global.QHtml : null;
+      const caller =
+        runtimeApi && typeof runtimeApi.getCurrentExecutionHost === "function"
+          ? runtimeApi.getCurrentExecutionHost()
+          : this && this.nodeType === 1
+            ? this
+            : null;
+      const callerHost = caller && caller.nodeType === 1 ? resolveLiveComponentHostElement(caller) || caller : null;
+      const callerUuid = callerHost ? String(readHostQDomUuid(callerHost) || "").trim() : "";
+      const callerMeta = {
+        caller: callerHost,
+        callerUuid: callerUuid,
+        callerTag: callerHost ? String(callerHost.tagName || "").trim().toLowerCase() : "",
+        timestamp: Date.now(),
+      };
+      const executionHost = creatorHost ? resolveLiveComponentHostElement(creatorHost) || creatorHost : null;
+      ensureScopedSelectorShortcut(executionHost || {}, null);
+      return invokeWithRuntimeExecutionHost(executionHost, function invokeQCallbackFallback() {
+        return callbackFn.apply(executionHost || null, args.concat([callerMeta]));
+      });
+    };
+    try {
+      Object.defineProperty(wrapped, "__qhtmlIsQCallback", {
+        value: true,
+        configurable: true,
+        writable: true,
+        enumerable: false,
+      });
+    } catch (error) {
+      wrapped.__qhtmlIsQCallback = true;
+    }
+    if (callbackName) {
+      try {
+        Object.defineProperty(wrapped, "__qhtmlCallbackName", {
+          value: callbackName,
+          configurable: true,
+          writable: true,
+          enumerable: false,
+        });
+      } catch (error) {
+        wrapped.__qhtmlCallbackName = callbackName;
+      }
+    }
+    return wrapped;
+  }
+
+  function isQCallbackFunction(value) {
+    return !!(typeof value === "function" && value.__qhtmlIsQCallback === true);
+  }
+
   function withScopedSelectorPrelude(body) {
     const source = String(body == null ? "" : body);
     if (!source.trim()) {
@@ -1867,6 +2085,8 @@
     return (
       "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
       " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
+      "const qhtml = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtml === \"function\")" +
+      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n" +
       source
     );
   }
@@ -2507,6 +2727,20 @@
           });
         }
       }
+      if (
+        entry &&
+        entry.runtimeSignalReference &&
+        global.QHtml &&
+        typeof global.QHtml.unregisterSignalReference === "function"
+      ) {
+        const runtimeRef = entry.runtimeSignalReference;
+        if (runtimeRef.emitterUuid && runtimeRef.referenceKey) {
+          global.QHtml.unregisterSignalReference({
+            emitterUuid: runtimeRef.emitterUuid,
+            referenceKey: runtimeRef.referenceKey,
+          });
+        }
+      }
       const eventNames = Array.isArray(entry.eventNames) && entry.eventNames.length > 0
         ? entry.eventNames
         : [entry.eventName];
@@ -2524,6 +2758,17 @@
       // ignore listener detach failures
     }
     delete store[key];
+  }
+
+  function invokeWithRuntimeExecutionHost(host, callback) {
+    if (typeof callback !== "function") {
+      return undefined;
+    }
+    const runtimeApi = global.QHtml && typeof global.QHtml === "object" ? global.QHtml : null;
+    if (runtimeApi && typeof runtimeApi.runWithExecutionHost === "function") {
+      return runtimeApi.runWithExecutionHost(host && host.nodeType === 1 ? host : null, callback);
+    }
+    return callback();
   }
 
   function rewriteHashSelectorShorthand(source) {
@@ -2738,10 +2983,14 @@
       try {
         ensureScopedSelectorShortcut(element, scopeRoot);
         if (compiled) {
-          return compiled.call(element, event, doc);
+          return invokeWithRuntimeExecutionHost(element, function invokeCompiledInlineHandler() {
+            return compiled.call(element, event, doc);
+          });
         }
         const dynamic = new Function("event", "document", withScopedSelectorPrelude(executableSource));
-        return dynamic.call(element, event, doc);
+        return invokeWithRuntimeExecutionHost(element, function invokeDynamicInlineHandler() {
+          return dynamic.call(element, event, doc);
+        });
       } catch (error) {
         if (global.console && typeof global.console.error === "function") {
           global.console.error("qhtml event handler failed:", error);
@@ -2768,14 +3017,48 @@
     };
     element.addEventListener("q-signal", signalBridge);
     let runtimeSignalRegistration = null;
+    let runtimeSignalReference = null;
     const runtimeApi = global.QHtml && typeof global.QHtml === "object" ? global.QHtml : null;
     const loweredRawEventName = String(rawEventName || "").trim().toLowerCase();
+    const resolveSignalSubscriberUuid = function resolveSignalSubscriberUuid(target) {
+      if (!target || target.nodeType !== 1) {
+        return "";
+      }
+      let candidate = target;
+      if (candidate.component && candidate.component.nodeType === 1) {
+        candidate = candidate.component;
+      }
+      return String(readHostQDomUuid(candidate) || "").trim();
+    };
+    const registerDeclarativeSignalReference = function registerDeclarativeSignalReference(emitterUuid, subscriberUuid) {
+      if (
+        !runtimeApi ||
+        typeof runtimeApi.registerSignalReference !== "function" ||
+        !emitterUuid ||
+        !subscriberUuid ||
+        !loweredRawEventName
+      ) {
+        return null;
+      }
+      return runtimeApi.registerSignalReference({
+        emitterUuid: emitterUuid,
+        signalName: loweredRawEventName,
+        subscriberUuid: subscriberUuid,
+        routeKey: "attr:" + key + ":" + loweredRawEventName + ":" + subscriberUuid,
+      });
+    };
+    const emitterUuidForReference = String(readHostQDomUuid(element) || "").trim();
+    const subscriberUuidForReference = resolveSignalSubscriberUuid(element) || emitterUuidForReference;
+    runtimeSignalReference = registerDeclarativeSignalReference(
+      emitterUuidForReference,
+      subscriberUuidForReference
+    );
     if (
       runtimeApi &&
       typeof runtimeApi.getEventLoopMode === "function" &&
       runtimeApi.getEventLoopMode() === "queued" &&
       typeof runtimeApi.registerSignalSubscriber === "function" &&
-      loweredRawEventName.endsWith("changed")
+      loweredRawEventName
     ) {
       const tryRegisterDeclarativeSignal = function tryRegisterDeclarativeSignal() {
         if (runtimeSignalRegistration) {
@@ -2803,7 +3086,7 @@
         const registration = runtimeApi.registerSignalSubscriber({
           emitterUuid: emitterUuid,
           signalName: loweredRawEventName,
-          subscriberUuid: emitterUuid,
+          subscriberUuid: resolveSignalSubscriberUuid(element) || emitterUuid,
           handler: queuedWrapped,
           mode: "declarative",
           attributeName: key,
@@ -2829,6 +3112,7 @@
           const activeEntry = activeStore && activeStore[key] ? activeStore[key] : null;
           if (activeEntry && activeEntry.source === transformedSource) {
             activeEntry.runtimeSignalRegistration = runtimeSignalRegistration;
+            activeEntry.runtimeSignalReference = runtimeSignalReference;
           }
         };
         element.addEventListener(QHTML_CONTENT_LOADED_EVENT, deferredRegistration, { once: true });
@@ -2841,6 +3125,7 @@
       signalBridge: signalBridge,
       source: transformedSource,
       runtimeSignalRegistration: runtimeSignalRegistration,
+      runtimeSignalReference: runtimeSignalReference,
     };
     return true;
   }
@@ -2904,25 +3189,41 @@
       }
       let nextValue = props[key];
       const normalizedProperty = String(key || "").trim().toLowerCase();
-      const shouldResolveDirectReference =
-        declaredProperties.has(normalizedProperty) &&
+      const declaredProperty = declaredProperties.has(normalizedProperty);
+      const shouldResolveDirectReferenceOrCall =
         typeof nextValue === "string" &&
-        nextValue.indexOf(".") !== -1 &&
         !hasInlineReferenceExpressions(nextValue);
-      if (shouldResolveDirectReference) {
+      if (shouldResolveDirectReferenceOrCall) {
         const referenceSource = String(nextValue || "");
-        const directReference = tryResolveDirectSymbolValue(referenceSource, { inlineScope: directScope || {} }, thisArg);
-        if (directReference && directReference.matched) {
-          if (directReference.found) {
-            nextValue = directReference.value;
-          } else {
-            nextValue = "";
-            if (
-              shouldLogQLoggerCategory(loggerHost, componentNode, instanceNode, "q-property") &&
-              global.console &&
-              typeof global.console.log === "function"
-            ) {
-              global.console.log("qhtml property reference unresolved:", referenceSource, "for property", key);
+        const trimmedReference = String(referenceSource || "").trim();
+        const runtimeNamedCallback =
+          trimmedReference ? resolveNamedCallbackRuntime(trimmedReference) : null;
+        if (typeof runtimeNamedCallback === "function") {
+          nextValue = runtimeNamedCallback;
+        }
+        if (
+          trimmedReference &&
+          directScope &&
+          typeof directScope === "object" &&
+          Object.prototype.hasOwnProperty.call(directScope, trimmedReference)
+        ) {
+          nextValue = directScope[trimmedReference];
+        }
+        const callableReference = tryResolveDirectCallableValue(referenceSource, { inlineScope: directScope || {} }, thisArg);
+        if (callableReference && callableReference.matched && callableReference.found) {
+          nextValue = callableReference.value;
+        } else {
+          const directReference = tryResolveDirectSymbolValue(referenceSource, { inlineScope: directScope || {} }, thisArg);
+          if (directReference && directReference.matched) {
+            if (directReference.found) {
+              nextValue = directReference.value;
+            } else if (declaredProperty && referenceSource.indexOf(".") !== -1) {
+              nextValue = "";
+            }
+          }
+          if (typeof nextValue === "string" && nextValue === referenceSource && directScope && typeof directScope === "object") {
+            if (trimmedReference && Object.prototype.hasOwnProperty.call(directScope, trimmedReference)) {
+              nextValue = directScope[trimmedReference];
             }
           }
         }
@@ -2987,7 +3288,9 @@
       );
       ensureScopedSelectorShortcut(thisArg || {}, null);
       const fn = new Function("event", "document", withScopedSelectorPrelude(hookBody));
-      fn.call(thisArg, null, targetDocument);
+      invokeWithRuntimeExecutionHost(thisArg && thisArg.nodeType === 1 ? thisArg : null, function invokeLifecycleHook() {
+        fn.call(thisArg, null, targetDocument);
+      });
     } catch (error) {
       if (global.console && typeof global.console.error === "function") {
         global.console.error(errorLabel, error);
@@ -3014,6 +3317,38 @@
       }
     }
     return store;
+  }
+
+  function ensureDocumentReadyHookState(targetDocument) {
+    if (!targetDocument || (typeof targetDocument !== "object" && typeof targetDocument !== "function")) {
+      return null;
+    }
+    let store = targetDocument.__qhtmlReadyHookGlobalState;
+    if (!store || typeof store !== "object") {
+      store = {};
+      try {
+        Object.defineProperty(targetDocument, "__qhtmlReadyHookGlobalState", {
+          value: store,
+          configurable: true,
+          writable: true,
+          enumerable: false,
+        });
+      } catch (error) {
+        targetDocument.__qhtmlReadyHookGlobalState = store;
+      }
+    }
+    return store;
+  }
+
+  function resolveReadyHookGlobalKey(thisArg, hookKey) {
+    if (!thisArg) {
+      return "";
+    }
+    const hostUuid = String(readHostQDomUuid(thisArg) || "").trim();
+    if (!hostUuid) {
+      return "";
+    }
+    return "uuid:" + hostUuid + "::" + String(hookKey || "");
   }
 
   function scheduleReadyHookExecution(callback) {
@@ -3048,20 +3383,34 @@
     const runtimeManaged = !!(state && state.runtimeManaged);
     const alreadySignaled = !!(state && Number(state.sequence || 0) > 0 && Number(state.pending || 0) === 0);
     const readyStore = ensureReadyHookState(thisArg);
+    const readyGlobalStore = ensureDocumentReadyHookState(doc);
     const key = String(hook.name || "onready") + "::" + String(hook.body || "");
+    const globalKey = resolveReadyHookGlobalKey(thisArg, key);
     if (readyStore && (readyStore[key] === "pending" || readyStore[key] === "done")) {
+      return;
+    }
+    if (readyGlobalStore && globalKey && (readyGlobalStore[globalKey] === "pending" || readyGlobalStore[globalKey] === "done")) {
       return;
     }
     if (readyStore) {
       readyStore[key] = "pending";
+    }
+    if (readyGlobalStore && globalKey) {
+      readyGlobalStore[globalKey] = "pending";
     }
 
     const execute = function executeReadyHook() {
       if (readyStore && readyStore[key] === "done") {
         return;
       }
+      if (readyGlobalStore && globalKey && readyGlobalStore[globalKey] === "done") {
+        return;
+      }
       if (readyStore) {
         readyStore[key] = "done";
+      }
+      if (readyGlobalStore && globalKey) {
+        readyGlobalStore[globalKey] = "done";
       }
       runLifecycleHookNow(hook, thisArg, doc || targetDocument, errorLabel);
     };
@@ -3768,7 +4117,7 @@
       const storageKey = "__qhtmlDeclaredPropValue__" + propertyName;
       const bindingKey = "__qhtmlDeclaredPropBinding__" + propertyName;
       const hasInitialValue = Object.prototype.hasOwnProperty.call(hostElement, propertyName);
-      const initialValue = hasInitialValue ? hostElement[propertyName] : undefined;
+      let initialValue = hasInitialValue ? hostElement[propertyName] : undefined;
       const rawDefault = Object.prototype.hasOwnProperty.call(instanceProperties, propertyName)
         ? instanceProperties[propertyName]
         : Object.prototype.hasOwnProperty.call(componentAttributes, propertyName)
@@ -3798,6 +4147,23 @@
           }
         };
         literalDefault = undefined;
+      } else if (typeof literalDefault === "string" && !hasInlineReferenceExpressions(literalDefault)) {
+        const literalReference = String(literalDefault || "").trim();
+        const hostReference =
+          literalReference &&
+          Object.prototype.hasOwnProperty.call(hostElement, literalReference)
+            ? hostElement[literalReference]
+            : undefined;
+        const resolvedReference =
+          typeof hostReference === "function"
+            ? hostReference
+            : resolveNamedCallbackRuntime(literalReference);
+        if (typeof resolvedReference === "function") {
+          literalDefault = resolvedReference;
+          if (hasInitialValue && typeof initialValue === "string" && String(initialValue || "").trim() === literalReference) {
+            initialValue = resolvedReference;
+          }
+        }
       }
       try {
         Object.defineProperty(hostElement, propertyName, {
@@ -3813,18 +4179,18 @@
             if (qdomNode && typeof qdomNode === "object") {
               if (qdomNode.props && typeof qdomNode.props === "object" && !Array.isArray(qdomNode.props)) {
                 if (Object.prototype.hasOwnProperty.call(qdomNode.props, propertyName)) {
-                  return qdomNode.props[propertyName];
+                  return resolveCallbackReferenceValue(qdomNode.props[propertyName]);
                 }
               }
               if (typeof qdomNode.property === "function") {
                 const resolvedQDomProperty = qdomNode.property(propertyName);
                 if (typeof resolvedQDomProperty !== "undefined") {
-                  return resolvedQDomProperty;
+                  return resolveCallbackReferenceValue(resolvedQDomProperty);
                 }
               }
             }
             if (Object.prototype.hasOwnProperty.call(this, storageKey)) {
-              return this[storageKey];
+              return resolveCallbackReferenceValue(this[storageKey]);
             }
             const bindingFn = this[bindingKey];
             if (typeof bindingFn === "function") {
@@ -3837,9 +4203,10 @@
                 return null;
               }
             }
-            return literalDefault;
+            return resolveCallbackReferenceValue(literalDefault);
           },
           set: function setDeclaredComponentProperty(value) {
+            const normalizedValue = resolveCallbackReferenceValue(value);
             let hadValue = false;
             let previousValue = undefined;
             const trackedState = readTrackedDeclaredProperty(this, propertyName);
@@ -3852,7 +4219,7 @@
               if (qdomNode && typeof qdomNode === "object" && qdomNode.props && typeof qdomNode.props === "object") {
                 if (Object.prototype.hasOwnProperty.call(qdomNode.props, propertyName)) {
                   hadValue = true;
-                  previousValue = qdomNode.props[propertyName];
+                  previousValue = resolveCallbackReferenceValue(qdomNode.props[propertyName]);
                 }
               }
             } catch (readQdomError) {
@@ -3864,31 +4231,36 @@
             }
             if (!hadValue) {
               try {
-                previousValue = this[propertyName];
+                previousValue = resolveCallbackReferenceValue(this[propertyName]);
                 hadValue = true;
               } catch (readPreviousValueError) {
                 // ignore getter failures and continue with write path
               }
             }
-            this[storageKey] = value;
+            this[storageKey] = normalizedValue;
             try {
               const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
-              if (qdomNode && typeof qdomNode.setProperty === "function") {
-                qdomNode.setProperty(propertyName, value);
-              } else if (qdomNode && typeof qdomNode === "object") {
-                if (!qdomNode.props || typeof qdomNode.props !== "object" || Array.isArray(qdomNode.props)) {
-                  qdomNode.props = {};
+              const qdomSourceNode =
+                qdomNode &&
+                qdomNode.__qhtmlSourceNode &&
+                typeof qdomNode.__qhtmlSourceNode === "object"
+                  ? qdomNode.__qhtmlSourceNode
+                  : null;
+              const writeTarget = qdomSourceNode || qdomNode;
+              if (writeTarget && typeof writeTarget === "object") {
+                if (!writeTarget.props || typeof writeTarget.props !== "object" || Array.isArray(writeTarget.props)) {
+                  writeTarget.props = {};
                 }
-                qdomNode.props[propertyName] = value;
+                writeTarget.props[propertyName] = normalizedValue;
               }
             } catch (syncError) {
               // best-effort qdom sync for declared property writes
             }
-            if (hadValue && Object.is(previousValue, value)) {
-              writeTrackedDeclaredProperty(this, propertyName, value);
+            if (hadValue && Object.is(previousValue, normalizedValue)) {
+              writeTrackedDeclaredProperty(this, propertyName, normalizedValue);
               return;
             }
-            writeTrackedDeclaredProperty(this, propertyName, value);
+            writeTrackedDeclaredProperty(this, propertyName, normalizedValue);
             if (hadValue) {
               if (
                 shouldLogQLoggerCategory(this, componentNode, instanceNode, "q-property") &&
@@ -3900,10 +4272,10 @@
                   componentUuid: readHostQDomUuid(this),
                   property: propertyName,
                   previousValue: previousValue,
-                  value: value,
+                  value: normalizedValue,
                 });
               }
-              emitDeclaredPropertyChangedEvent(this, componentId, propertyName, value, previousValue);
+              emitDeclaredPropertyChangedEvent(this, componentId, propertyName, normalizedValue, previousValue);
             }
           },
         });
@@ -4062,6 +4434,73 @@
       return currentHost;
     }
 
+    const callbackDeclarations = Array.isArray(componentNode.callbackDeclarations) ? componentNode.callbackDeclarations : [];
+    for (let i = 0; i < callbackDeclarations.length; i += 1) {
+      const callbackDecl = callbackDeclarations[i] || {};
+      const callbackName = String(callbackDecl.name || "").trim();
+      if (!callbackName || INVALID_METHOD_NAMES.has(callbackName)) {
+        continue;
+      }
+      const existingDescriptor = Object.getOwnPropertyDescriptor(hostElement, callbackName);
+      if (existingDescriptor && existingDescriptor.configurable === false) {
+        continue;
+      }
+      const parameterNames = Array.isArray(callbackDecl.parameters)
+        ? callbackDecl.parameters.map(function mapName(entry) { return String(entry || "").trim(); }).filter(Boolean)
+        : [];
+      const paramsSource = parameterNames.join(", ");
+      const callbackBody = String(callbackDecl.body || "").trim();
+      const hasInterpolatedBody = hasInlineReferenceExpressions(callbackBody);
+      let compiledCallback = null;
+      if (!hasInterpolatedBody) {
+        try {
+          compiledCallback = new Function(paramsSource, withScopedSelectorPrelude(callbackBody));
+        } catch (error) {
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml callback compile failed:", callbackName, error);
+          }
+          continue;
+        }
+      }
+      const callbackExecutor = function callbackExecutorProxy() {
+        const invocationHost = resolveLiveComponentHost(hostElement);
+        const invocationArgs = arguments;
+        if (hasInterpolatedBody) {
+          const interpolatedBody = interpolateInlineReferenceExpressions(
+            callbackBody,
+            invocationHost,
+            { component: invocationHost },
+            "qhtml callback interpolation failed:"
+          );
+          try {
+            ensureScopedSelectorShortcut(invocationHost, null);
+            const runtimeCallback = new Function(paramsSource, withScopedSelectorPrelude(interpolatedBody));
+            return invokeWithRuntimeExecutionHost(invocationHost, function invokeRuntimeCallback() {
+              return runtimeCallback.apply(invocationHost, invocationArgs);
+            });
+          } catch (error) {
+            if (global.console && typeof global.console.error === "function") {
+              global.console.error("qhtml callback compile failed:", callbackName, error);
+            }
+            return undefined;
+          }
+        }
+        ensureScopedSelectorShortcut(invocationHost, null);
+        return invokeWithRuntimeExecutionHost(invocationHost, function invokeCompiledCallback() {
+          return compiledCallback.apply(invocationHost, invocationArgs);
+        });
+      };
+      const wrappedCallback = createQCallbackWrapper(callbackExecutor, {
+        name: callbackName,
+        creatorHost: hostElement,
+      });
+      if (wrappedCallback && typeof wrappedCallback === "function") {
+        hostElement[callbackName] = wrappedCallback;
+      } else {
+        hostElement[callbackName] = callbackExecutor;
+      }
+    }
+
     for (let i = 0; i < methods.length; i += 1) {
       const method = methods[i];
       const name = method && typeof method.name === "string" ? method.name.trim() : "";
@@ -4086,6 +4525,7 @@
 
       hostElement[name] = function componentMethodProxy() {
         const invocationHost = resolveLiveComponentHost(hostElement);
+        const invocationArgs = arguments;
         if (hasInterpolatedBody) {
           const interpolatedBody = interpolateInlineReferenceExpressions(
             body,
@@ -4096,7 +4536,9 @@
           try {
             ensureScopedSelectorShortcut(invocationHost, null);
             const runtimeMethod = new Function(params, withScopedSelectorPrelude(interpolatedBody));
-            return runtimeMethod.apply(invocationHost, arguments);
+            return invokeWithRuntimeExecutionHost(invocationHost, function invokeRuntimeMethod() {
+              return runtimeMethod.apply(invocationHost, invocationArgs);
+            });
           } catch (error) {
             if (global.console && typeof global.console.error === "function") {
               global.console.error("qhtml component method compile failed:", name, error);
@@ -4105,7 +4547,9 @@
           }
         }
         ensureScopedSelectorShortcut(invocationHost, null);
-        return compiled.apply(invocationHost, arguments);
+        return invokeWithRuntimeExecutionHost(invocationHost, function invokeCompiledMethod() {
+          return compiled.apply(invocationHost, invocationArgs);
+        });
       };
     }
 
@@ -4148,29 +4592,80 @@
     function createComponentSignalEmitter(signalName, parameterNames) {
       const connectionMap = new Map();
       const componentId = String(componentNode.componentId || hostElement.tagName || "").trim().toLowerCase();
+      let connectionRouteCounter = 1;
+      const resolveConnectedSubscriberUuid = function resolveConnectedSubscriberUuid() {
+        let currentHost = null;
+        if (runtimeApi && typeof runtimeApi.getCurrentExecutionHost === "function") {
+          try {
+            currentHost = runtimeApi.getCurrentExecutionHost();
+          } catch (ignoredReadCurrentHostError) {
+            currentHost = null;
+          }
+        }
+        const fromCurrent = currentHost && currentHost.nodeType === 1 ? String(readHostQDomUuid(currentHost) || "").trim() : "";
+        if (fromCurrent) {
+          return fromCurrent;
+        }
+        return String(readHostQDomUuid(hostElement) || "").trim();
+      };
+      const resolveConnectedSubscriberHost = function resolveConnectedSubscriberHost(subscriberUuid, fallbackHost) {
+        const normalizedSubscriberUuid = String(subscriberUuid || "").trim();
+        if (normalizedSubscriberUuid && global.QHTML_UUID_LOOKUP_MAP instanceof Map) {
+          const lookup = global.QHTML_UUID_LOOKUP_MAP.get(normalizedSubscriberUuid);
+          if (lookup && typeof lookup === "object") {
+            if (lookup.dom && lookup.dom.nodeType === 1) {
+              const liveFromDom = resolveLiveComponentHost(lookup.dom);
+              if (liveFromDom && liveFromDom.nodeType === 1) {
+                return liveFromDom;
+              }
+              return lookup.dom;
+            }
+            if (lookup.host && lookup.host.nodeType === 1) {
+              const liveFromHost = resolveLiveComponentHost(lookup.host);
+              if (liveFromHost && liveFromHost.nodeType === 1) {
+                return liveFromHost;
+              }
+              return lookup.host;
+            }
+          }
+        }
+        const fallback = fallbackHost && fallbackHost.nodeType === 1 ? resolveLiveComponentHost(fallbackHost) || fallbackHost : null;
+        return fallback && fallback.nodeType === 1 ? fallback : null;
+      };
       const signalFn = function componentSignalProxy() {
         const args = Array.prototype.slice.call(arguments);
         const payloadSlots = {};
         const payloadSlotQDom = {};
         const payloadParams = {};
+        const signalParameters = [];
         for (let j = 0; j < parameterNames.length; j += 1) {
           const paramName = parameterNames[j];
           const value = j < args.length ? args[j] : null;
-          payloadParams[paramName] = value;
-          payloadSlots[paramName] = [serializeSignalSlotValue(value)];
+          const serializedValue = serializeSignalSlotValue(value);
+          payloadParams[paramName] = serializedValue;
+          payloadSlots[paramName] = [serializedValue];
           payloadSlotQDom[paramName] = [cloneNodeDeep(value)];
+          signalParameters.push({
+            name: paramName,
+            value: serializedValue,
+          });
         }
+        const emitterUuid = String(readSignalEmitterUuid() || "").trim();
         const payload = {
           type: "signal",
           signal: signalName,
           component: componentId,
           signalId: signalName,
-          componentUuid: readSignalEmitterUuid(),
+          componentUuid: emitterUuid,
+          emitterUuid: emitterUuid,
           source: null,
           args: args.map(serializeSignalSlotValue),
+          parameters: args.map(serializeSignalSlotValue),
+          signalParameters: signalParameters,
           params: payloadParams,
           slots: payloadSlots,
           slotQDom: payloadSlotQDom,
+          timestamp: Date.now(),
         };
         dispatchSignalPayload(hostElement, signalName, payload);
         return payload;
@@ -4183,46 +4678,126 @@
         if (connectionMap.has(handler)) {
           return handler;
         }
-        let runtimeToken = null;
-        if (runtimeQueuedSignalRoutingEnabled) {
-          const emitterUuid = readSignalEmitterUuid();
-          if (emitterUuid) {
-            const queuedWrapped = function onConnectedSignalQueued(detailPayload) {
-              const detail = detailPayload && typeof detailPayload === "object" ? detailPayload : {};
-              const invocationHost = resolveLiveComponentHost(hostElement);
-              const queuedEvent = {
-                type: signalName,
-                detail: detail,
-                target: invocationHost,
-                currentTarget: invocationHost,
-              };
-              const args = buildConnectedSignalArgs(detail, parameterNames, queuedEvent);
-              return handler.apply(invocationHost, args);
-            };
-            const registration = runtimeApi.registerSignalSubscriber({
-              emitterUuid: emitterUuid,
-              signalName: signalName,
-              subscriberUuid: emitterUuid,
-              handler: queuedWrapped,
-              mode: "connect",
-            });
-            if (registration && registration.token != null) {
-              runtimeToken = registration.token;
-            }
+        let currentExecutionHost = null;
+        if (runtimeApi && typeof runtimeApi.getCurrentExecutionHost === "function") {
+          try {
+            currentExecutionHost = runtimeApi.getCurrentExecutionHost();
+          } catch (ignoredReadCurrentExecutionHostError) {
+            currentExecutionHost = null;
           }
         }
+        const connectedSubscriberHost = currentExecutionHost && currentExecutionHost.nodeType === 1
+          ? resolveLiveComponentHost(currentExecutionHost) || currentExecutionHost
+          : null;
+        const connectedSubscriberUuid = resolveConnectedSubscriberUuid();
+        const emitterUuid = String(readSignalEmitterUuid() || "").trim();
+        const referenceRouteKey = "conn:" + String(signalName || "").trim().toLowerCase() + ":" + String(connectionRouteCounter);
+        connectionRouteCounter += 1;
+        let runtimeSignalReference = null;
+        if (
+          runtimeApi &&
+          typeof runtimeApi.registerSignalReference === "function" &&
+          emitterUuid &&
+          connectedSubscriberUuid
+        ) {
+          runtimeSignalReference = runtimeApi.registerSignalReference({
+            emitterUuid: emitterUuid,
+            signalName: signalName,
+            subscriberUuid: connectedSubscriberUuid,
+            routeKey: referenceRouteKey,
+          });
+        }
+        const invokeConnectedHandlerWithDetail = function invokeConnectedHandlerWithDetail(sourceDetail, eventCandidate) {
+          const detail = sourceDetail && typeof sourceDetail === "object" ? Object.assign({}, sourceDetail) : {};
+          if (!Number.isFinite(Number(detail.timestamp))) {
+            detail.timestamp = Date.now();
+          }
+          const resolvedEmitterUuid = String(detail.emitterUuid || detail.componentUuid || emitterUuid || "").trim();
+          if (resolvedEmitterUuid) {
+            detail.emitterUuid = resolvedEmitterUuid;
+            detail.componentUuid = resolvedEmitterUuid;
+          }
+          const invocationHost =
+            resolveConnectedSubscriberHost(connectedSubscriberUuid, connectedSubscriberHost) ||
+            resolveLiveComponentHost(hostElement);
+          const invocationUuid = String(
+            connectedSubscriberUuid || readHostQDomUuid(invocationHost) || ""
+          ).trim();
+          detail.receiverUuid = invocationUuid;
+          const signalParameters = Array.isArray(detail.signalParameters)
+            ? detail.signalParameters.slice()
+            : [];
+          signalParameters.push({
+            name: "receiverUuid",
+            value: invocationUuid,
+          });
+          detail.signalParameters = signalParameters;
+          const eventForHandler = Object.assign({}, eventCandidate || {}, {
+            detail: detail,
+            target: invocationHost || (eventCandidate && eventCandidate.target) || null,
+            currentTarget: invocationHost || (eventCandidate && eventCandidate.currentTarget) || null,
+          });
+          return handler.apply(invocationHost || null, buildConnectedSignalArgs(detail, parameterNames, eventForHandler));
+        };
+        let runtimeRegistrationToken = null;
+        if (
+          runtimeApi &&
+          typeof runtimeApi.registerSignalSubscriber === "function" &&
+          emitterUuid &&
+          connectedSubscriberUuid
+        ) {
+          const runtimeRegistration = runtimeApi.registerSignalSubscriber({
+            emitterUuid: emitterUuid,
+            signalName: signalName,
+            routeKey: referenceRouteKey,
+            subscriberUuid: connectedSubscriberUuid,
+            mode: "connect",
+            handler: function onRuntimeConnectedSignal(payload) {
+              return invokeConnectedHandlerWithDetail(payload, {
+                type: signalName,
+                detail: payload,
+                target: hostElement,
+                currentTarget: hostElement,
+              });
+            },
+          });
+          if (runtimeRegistration && Number.isFinite(Number(runtimeRegistration.token))) {
+            runtimeRegistrationToken = Number(runtimeRegistration.token);
+          }
+        }
+        if (runtimeApi && typeof runtimeApi.enqueueRuntimeEvent === "function") {
+          runtimeApi.enqueueRuntimeEvent(
+            "signal-connect",
+            function processSignalConnectAck() {},
+            {
+              target: hostElement,
+              payload: {
+                componentUuid: emitterUuid,
+                signal: signalName,
+                subscriberUuid: connectedSubscriberUuid,
+                routeKey: referenceRouteKey,
+              },
+            }
+          );
+        }
         const wrapped = function onConnectedSignal(event) {
-          const detail = event && event.detail ? event.detail : {};
-          const invocationHost = resolveLiveComponentHost(hostElement);
-          const args = buildConnectedSignalArgs(detail, parameterNames, event);
-          return handler.apply(invocationHost, args);
+          const sourceDetail = event && event.detail && typeof event.detail === "object" ? event.detail : {};
+          return invokeConnectedHandlerWithDetail(sourceDetail, event || null);
         };
         connectionMap.set(handler, {
-          mode: runtimeToken != null ? "both" : "dom",
-          token: runtimeToken,
+          mode: runtimeRegistrationToken != null ? "both" : "dom",
+          token: runtimeRegistrationToken,
           wrapped: wrapped,
+          runtimeSignalReference: runtimeSignalReference,
         });
-        if (typeof hostElement.addEventListener === "function") {
+        const useDomSignalListener =
+          !(
+            runtimeRegistrationToken != null &&
+            runtimeApi &&
+            typeof runtimeApi.getEventLoopMode === "function" &&
+            String(runtimeApi.getEventLoopMode() || "").trim().toLowerCase() === "queued"
+          );
+        if (useDomSignalListener && typeof hostElement.addEventListener === "function") {
           hostElement.addEventListener(signalName, wrapped);
         }
         return handler;
@@ -4234,6 +4809,19 @@
             const descriptor = entry && typeof entry === "object" ? entry : { mode: "dom", wrapped: entry };
             if ((descriptor.mode === "runtime" || descriptor.mode === "both") && runtimeApi && typeof runtimeApi.unregisterSignalSubscriber === "function" && descriptor.token != null) {
               runtimeApi.unregisterSignalSubscriber({ token: descriptor.token });
+            }
+            if (
+              descriptor.runtimeSignalReference &&
+              runtimeApi &&
+              typeof runtimeApi.unregisterSignalReference === "function"
+            ) {
+              const runtimeRef = descriptor.runtimeSignalReference;
+              if (runtimeRef.emitterUuid && runtimeRef.referenceKey) {
+                runtimeApi.unregisterSignalReference({
+                  emitterUuid: runtimeRef.emitterUuid,
+                  referenceKey: runtimeRef.referenceKey,
+                });
+              }
             }
             if (typeof hostElement.removeEventListener === "function" && typeof descriptor.wrapped === "function") {
               hostElement.removeEventListener(signalName, descriptor.wrapped);
@@ -4252,6 +4840,19 @@
         const descriptor = entry && typeof entry === "object" ? entry : { mode: "dom", wrapped: entry };
         if ((descriptor.mode === "runtime" || descriptor.mode === "both") && runtimeApi && typeof runtimeApi.unregisterSignalSubscriber === "function" && descriptor.token != null) {
           runtimeApi.unregisterSignalSubscriber({ token: descriptor.token });
+        }
+        if (
+          descriptor.runtimeSignalReference &&
+          runtimeApi &&
+          typeof runtimeApi.unregisterSignalReference === "function"
+        ) {
+          const runtimeRef = descriptor.runtimeSignalReference;
+          if (runtimeRef.emitterUuid && runtimeRef.referenceKey) {
+            runtimeApi.unregisterSignalReference({
+              emitterUuid: runtimeRef.emitterUuid,
+              referenceKey: runtimeRef.referenceKey,
+            });
+          }
         }
         if (typeof hostElement.removeEventListener === "function" && typeof descriptor.wrapped === "function") {
           hostElement.removeEventListener(signalName, descriptor.wrapped);
@@ -4381,10 +4982,14 @@
         try {
           ensureScopedSelectorShortcut(invocationHost, null);
           if (compiled) {
-            return compiled.call(invocationHost, event, doc);
+            return invokeWithRuntimeExecutionHost(invocationHost, function invokeCompiledSignalHandler() {
+              return compiled.call(invocationHost, event, doc);
+            });
           }
           const dynamic = new Function("event", "document", withScopedSelectorPrelude(executableSource));
-          return dynamic.call(invocationHost, event, doc);
+          return invokeWithRuntimeExecutionHost(invocationHost, function invokeDynamicSignalHandler() {
+            return dynamic.call(invocationHost, event, doc);
+          });
         } catch (error) {
           if (
             shouldLogQLoggerCategory(hostElement, componentNode, instanceNode, "q-signal") &&
@@ -4608,6 +5213,7 @@
       const templateNode = templateNodes[i];
       const cloned = cloneNodeDeep(templateNode);
       refreshQDomNodeUuidsDeep(cloned);
+      stripQDomSourceRefsDeep(cloned);
       if (
         entry &&
         typeof entry === "object" &&
@@ -4622,6 +5228,7 @@
         for (let j = 0; j < objectNodes.length; j += 1) {
           const objectClone = cloneNodeDeep(objectNodes[j]);
           refreshQDomNodeUuidsDeep(objectClone);
+          stripQDomSourceRefsDeep(objectClone);
           out.push(objectClone);
         }
         continue;
@@ -4846,6 +5453,9 @@
     if (modelValue == null) {
       return [];
     }
+    if (modelValue === "") {
+      return [];
+    }
     if (modelValue && typeof modelValue === "object" && modelValue.__qhtmlIsQModel === true) {
       const mode = typeof modelValue.mode === "function" ? String(modelValue.mode() || "").trim().toLowerCase() : "";
       if (mode === "map" && typeof modelValue.keys === "function") {
@@ -4863,6 +5473,19 @@
       }
       return [];
     }
+    if (
+      typeof Symbol === "function" &&
+      Symbol.iterator &&
+      modelValue &&
+      typeof modelValue !== "string" &&
+      typeof modelValue[Symbol.iterator] === "function"
+    ) {
+      try {
+        return Array.from(modelValue);
+      } catch (ignoredIterableCoercionError) {
+        // fall through to other coercions
+      }
+    }
     if (Array.isArray(modelValue)) {
       return modelValue.slice();
     }
@@ -4878,6 +5501,93 @@
       return Object.keys(modelValue);
     }
     return [modelValue];
+  }
+
+  function tryResolveForExpressionFromComponentScope(sourceExpression, interpolationScope) {
+    const source = String(sourceExpression || "").trim();
+    if (!source) {
+      return {
+        matched: false,
+        value: undefined,
+      };
+    }
+    const scope = interpolationScope && typeof interpolationScope === "object" ? interpolationScope : null;
+    const component = scope && scope.component ? scope.component : null;
+    if (!component || (typeof component !== "object" && typeof component !== "function")) {
+      return {
+        matched: false,
+        value: undefined,
+      };
+    }
+
+    let path = "";
+    if (source.indexOf("this.component.") === 0) {
+      path = source.slice("this.component.".length);
+    } else if (source.indexOf("component.") === 0) {
+      path = source.slice("component.".length);
+    } else if (/^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*(?:\(\))?)*$/.test(source)) {
+      const firstDot = source.indexOf(".");
+      const head = firstDot >= 0 ? source.slice(0, firstDot) : source;
+      if (Object.prototype.hasOwnProperty.call(component, head) || typeof component[head] !== "undefined") {
+        path = source;
+      }
+    }
+
+    if (!path || !/^[A-Za-z_$][A-Za-z0-9_$]*(?:\(\))?(?:\.[A-Za-z_$][A-Za-z0-9_$]*(?:\(\))?)*$/.test(path)) {
+      return {
+        matched: false,
+        value: undefined,
+      };
+    }
+
+    const parts = path.split(".");
+    let cursor = component;
+    for (let i = 0; i < parts.length; i += 1) {
+      const token = String(parts[i] || "").trim();
+      if (!token) {
+        return {
+          matched: true,
+          value: undefined,
+        };
+      }
+      const isCall = token.length > 2 && token.slice(-2) === "()";
+      const name = isCall ? token.slice(0, -2) : token;
+      if (!name) {
+        return {
+          matched: true,
+          value: undefined,
+        };
+      }
+      if (cursor == null) {
+        return {
+          matched: true,
+          value: undefined,
+        };
+      }
+      const next = cursor[name];
+      if (isCall) {
+        if (typeof next !== "function") {
+          return {
+            matched: true,
+            value: undefined,
+          };
+        }
+        try {
+          cursor = next.call(cursor);
+        } catch (ignoredForPathCallError) {
+          return {
+            matched: true,
+            value: undefined,
+          };
+        }
+      } else {
+        cursor = next;
+      }
+    }
+    return {
+      matched: true,
+      value: cursor,
+    };
   }
 
   function resolveForRuntimeModelEntries(repeaterNode, parent, context) {
@@ -4904,12 +5614,18 @@
         : parent && parent.nodeType === 1
           ? parent
           : null;
-    const modelValue = evaluateInlineReferenceExpression(
+    let modelValue;
+    const fastResolved = tryResolveForExpressionFromComponentScope(sourceExpression, interpolationScope);
+    if (fastResolved.matched) {
+      modelValue = fastResolved.value;
+    } else {
+      modelValue = evaluateInlineReferenceExpression(
       sourceExpression,
       thisArg,
       interpolationScope,
       "qhtml for model source evaluation failed:"
     );
+    }
     const iterableValues = resolveForIterableValues(modelValue);
     return toRuntimeRepeaterPrimitiveEntries(iterableValues);
   }
@@ -5037,6 +5753,165 @@
     return scope;
   }
 
+  function createChildRenderContext(context) {
+    const next = Object.assign({}, context || {});
+    next.inlineScope =
+      context && context.inlineScope && typeof context.inlineScope === "object"
+        ? Object.assign({}, context.inlineScope)
+        : {};
+    return next;
+  }
+
+  function parseCallableExpression(rawExpression) {
+    const source = String(rawExpression || "").trim();
+    if (!source) {
+      return null;
+    }
+    const match = source.match(/^([A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*)\s*\(([\s\S]*)\)$/);
+    if (!match) {
+      return null;
+    }
+    return {
+      source: source,
+      callee: String(match[1] || "").trim(),
+    };
+  }
+
+  function tryResolveDirectCallableValue(rawExpression, context, parent) {
+    const parsed = parseCallableExpression(rawExpression);
+    if (!parsed) {
+      return { matched: false, found: false, value: undefined };
+    }
+    const calleeResolution = tryResolveDirectSymbolValue(parsed.callee, context, parent);
+    if (!calleeResolution.matched || !calleeResolution.found || typeof calleeResolution.value !== "function") {
+      return { matched: true, found: false, value: undefined };
+    }
+    const interpolationScope = buildInterpolationScope(context, parent);
+    const thisArg =
+      parent && parent.nodeType === 1
+        ? parent
+        : interpolationScope.component && interpolationScope.component.nodeType === 1
+          ? interpolationScope.component
+          : null;
+    const inlineScope = resolveInlineExpressionScope(thisArg, interpolationScope);
+    return {
+      matched: true,
+      found: true,
+      value: evaluateInlineReferenceExpression(
+        parsed.source,
+        thisArg,
+        inlineScope,
+        "qhtml direct callable expression failed:"
+      ),
+    };
+  }
+
+  function registerCallbackDeclarationNode(node, parent, targetDocument, context) {
+    if (!node || String(node.kind || "").trim().toLowerCase() !== Q_CALLBACK_NODE_KIND) {
+      return false;
+    }
+    const callbackName = String(node.name || node.callbackId || "").trim();
+    if (!callbackName || INVALID_METHOD_NAMES.has(callbackName)) {
+      return true;
+    }
+    const body = String(node.body || "").trim();
+    const parameterNames = Array.isArray(node.parameters)
+      ? node.parameters.map(function mapName(entry) { return String(entry || "").trim(); }).filter(Boolean)
+      : [];
+    const paramsSource = parameterNames.join(", ");
+    const hasInterpolatedBody = hasInlineReferenceExpressions(body);
+    let compiled = null;
+    if (!hasInterpolatedBody) {
+      try {
+        compiled = new Function(paramsSource, withScopedSelectorPrelude(body));
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml callback declaration compile failed:", callbackName, error);
+        }
+        return true;
+      }
+    }
+    const declaredScope = context && context.inlineScope && typeof context.inlineScope === "object"
+      ? context.inlineScope
+      : {};
+    if (context && (!context.inlineScope || typeof context.inlineScope !== "object")) {
+      context.inlineScope = declaredScope;
+    }
+    const creatorHost = resolveComponentForInterpolation(context, parent);
+    const callbackExecutor = function callbackDeclarationExecutor() {
+      const invocationHost =
+        creatorHost && creatorHost.nodeType === 1
+          ? resolveLiveComponentHostElement(creatorHost) || creatorHost
+          : null;
+      const invocationArgs = arguments;
+      if (hasInterpolatedBody) {
+        const interpolatedBody = interpolateInlineReferenceExpressions(
+          body,
+          invocationHost,
+          {
+            component: invocationHost,
+            document: targetDocument || (invocationHost && invocationHost.ownerDocument) || global.document || null,
+          },
+          "qhtml callback interpolation failed:"
+        );
+        try {
+          ensureScopedSelectorShortcut(invocationHost || {}, null);
+          const runtimeCallback = new Function(paramsSource, withScopedSelectorPrelude(interpolatedBody));
+          return invokeWithRuntimeExecutionHost(invocationHost, function invokeInterpolatedCallback() {
+            return runtimeCallback.apply(invocationHost || null, invocationArgs);
+          });
+        } catch (error) {
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml callback declaration compile failed:", callbackName, error);
+          }
+          return undefined;
+        }
+      }
+      ensureScopedSelectorShortcut(invocationHost || {}, null);
+      return invokeWithRuntimeExecutionHost(invocationHost, function invokeCompiledCallback() {
+        return compiled.apply(invocationHost || null, invocationArgs);
+      });
+    };
+    const wrapped = createQCallbackWrapper(callbackExecutor, {
+      name: callbackName,
+      creatorHost: creatorHost && creatorHost.nodeType === 1 ? creatorHost : null,
+    });
+    const resolvedCallback = wrapped && typeof wrapped === "function" ? wrapped : callbackExecutor;
+    declaredScope[callbackName] = resolvedCallback;
+    registerNamedCallbackRuntime(callbackName, resolvedCallback);
+    return true;
+  }
+
+  function renderQHtmlFragmentToken(value, parent, targetDocument, context) {
+    if (!isQHtmlFragmentToken(value)) {
+      return false;
+    }
+    const source = String(value.source || "");
+    if (!source.trim()) {
+      return true;
+    }
+    if (!parser || typeof parser.parseQHtmlToQDom !== "function") {
+      parent.appendChild(targetDocument.createTextNode(source));
+      return true;
+    }
+    try {
+      const fragmentDoc = parser.parseQHtmlToQDom(source);
+      const nodes = fragmentDoc && Array.isArray(fragmentDoc.nodes) ? fragmentDoc.nodes : [];
+      for (let i = 0; i < nodes.length; i += 1) {
+        const nodeClone = cloneNodeDeep(nodes[i]);
+        refreshQDomNodeUuidsDeep(nodeClone);
+        stripQDomSourceRefsDeep(nodeClone);
+        renderNode(nodeClone, parent, targetDocument, context);
+      }
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml fragment render failed:", error);
+      }
+      parent.appendChild(targetDocument.createTextNode(source));
+    }
+    return true;
+  }
+
   function readPathValueFromBase(base, pathParts) {
     let cursor = base;
     if (typeof cursor === "undefined") {
@@ -5106,6 +5981,10 @@
       }
       return Object.assign({ matched: true }, readPathValueFromBase(baseValue, parts.slice(1)));
     }
+    const namedCallback = resolveNamedCallbackRuntime(head);
+    if (typeof namedCallback === "function") {
+      return Object.assign({ matched: true }, readPathValueFromBase(namedCallback, parts.slice(1)));
+    }
     return { matched: true, found: false, value: undefined };
   }
 
@@ -5129,6 +6008,11 @@
         return;
       }
 
+      if (String(node.kind || "").trim().toLowerCase() === Q_CALLBACK_NODE_KIND) {
+        registerCallbackDeclarationNode(node, parent, targetDocument, context);
+        return;
+      }
+
       if (core.NODE_TYPES.text && node.kind === core.NODE_TYPES.text) {
         let textValue = String(node.value || "");
         if (hasInlineReferenceExpressions(textValue)) {
@@ -5139,9 +6023,20 @@
             "qhtml text interpolation failed:"
           );
         } else {
-          const directReference = tryResolveDirectSymbolValue(textValue, context, parent);
-          if (directReference.matched && directReference.found) {
-            textValue = String(directReference.value == null ? "" : directReference.value);
+          const callableReference = tryResolveDirectCallableValue(textValue, context, parent);
+          if (callableReference.matched && callableReference.found) {
+            if (renderQHtmlFragmentToken(callableReference.value, parent, targetDocument, context)) {
+              return;
+            }
+            textValue = String(callableReference.value == null ? "" : callableReference.value);
+          } else {
+            const directReference = tryResolveDirectSymbolValue(textValue, context, parent);
+            if (directReference.matched && directReference.found) {
+              if (renderQHtmlFragmentToken(directReference.value, parent, targetDocument, context)) {
+                return;
+              }
+              textValue = String(directReference.value == null ? "" : directReference.value);
+            }
           }
         }
         parent.appendChild(targetDocument.createTextNode(textValue));
@@ -5220,13 +6115,14 @@
       }
 
       if (Array.isArray(node.children)) {
-        pushInstanceAliasScope(context);
+        const childContext = createChildRenderContext(context);
+        pushInstanceAliasScope(childContext);
         try {
           for (let i = 0; i < node.children.length; i += 1) {
-            renderNode(node.children[i], element, targetDocument, context);
+            renderNode(node.children[i], element, targetDocument, childContext);
           }
         } finally {
-          popInstanceAliasScope(context);
+          popInstanceAliasScope(childContext);
         }
       }
       applyRuntimeThemeRulesToHost(element, node);
@@ -5261,9 +6157,10 @@
     const expanded = materializeSlots(templateNodes, slotFills);
 
     stack.push(key);
+    const contentContext = createChildRenderContext(context);
     try {
       for (let i = 0; i < expanded.length; i += 1) {
-        renderNode(expanded[i], parent, targetDocument, context);
+        renderNode(expanded[i], parent, targetDocument, contentContext);
       }
     } finally {
       stack.pop();
@@ -5318,13 +6215,14 @@
       hostElement.removeChild(hostElement.firstChild);
     }
 
-    pushInstanceAliasScope(context);
+    const contentContext = createChildRenderContext(context);
+    pushInstanceAliasScope(contentContext);
     try {
       for (let i = 0; i < expanded.length; i += 1) {
-        renderNode(expanded[i], hostElement, targetDocument, context);
+        renderNode(expanded[i], hostElement, targetDocument, contentContext);
       }
     } finally {
-      popInstanceAliasScope(context);
+      popInstanceAliasScope(contentContext);
     }
   }
 

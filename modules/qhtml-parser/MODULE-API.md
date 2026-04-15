@@ -53,6 +53,12 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - component-local signal method declarations:
       - `q-signal name(param1, param2)` inside `q-component`
       - emitted in QDom as `component.signalDeclarations`
+      - declaration entries now carry stable identity metadata (`entry.uuid` and `entry.meta.uuid`)
+    - callback declarations:
+      - top-level `q-callback name(param1, ...) { ... }` emitted as QDom `kind: "callback"` nodes
+      - component-local `q-callback name(param1, ...) { ... }` emitted in `component.callbackDeclarations`
+    - component property definition blocks (`q-property <name> { ... }`) emitted in `component.propertyDefinitions`
+      - declaration entries now carry stable identity metadata (`entry.uuid` and `entry.meta.uuid`)
     - component alias declarations:
       - `q-alias aliasName { return ... }` inside `q-component`
       - emitted in QDom as `component.aliasDeclarations`

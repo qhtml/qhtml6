@@ -19,6 +19,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 
 ## Supported node kinds
 - `element`, `text`, `raw-html`
+- `callback` (`q-callback` declaration node; scope registration only, no direct DOM output)
 - `repeater` (runtime iteration)
 - `model` (repeater model container consumed by repeater rendering)
 - `component-instance`, `template-instance`
@@ -31,12 +32,22 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - `index` for the current row
 - `for (...)` repeaters evaluate source expressions at render-time and expand inline without a wrapper scope element.
 - `for` map/object/QModel(map-mode) iteration yields keys; array/QModel(array-mode) iteration yields values.
+- `for` runtime source resolution includes component-scoped direct paths and common no-arg method chains:
+  - `this.component.items`
+  - `component.items.values()`
+  - `items`
+  - unresolved/empty-string sources normalize to empty iteration.
+- Iterable coercion includes native iterables (`Symbol.iterator`) in addition to arrays/QModel/map/object fallbacks.
 - Inline expressions in text/attributes can read scoped values directly (for example `${item}` and `${item.name}`).
 - Direct symbol text is also resolved for simple scoped identifiers/paths (for example `li { item }`).
 - `q-model-view` repeaters prefer model-value interpolation (`[object Object]` for object rows) instead of q-object source-string substitution.
 - Named typed component instances participate in interpolation scope using lexical block scoping:
   - aliases declared as `mycomp myinstance { ... }` resolve by nearest scope, with later declarations shadowing earlier ones.
   - aliases are available to subsequent siblings and descendants in the same block.
+- `q-callback` declarations register callable symbols in render scope and runtime callback registry, enabling:
+  - direct declarative invocation (`callbackName(...)`) in text/props/templates
+  - pass-by-reference assignment into declared component properties (resolved lazily to callback functions)
+  - `qhtml(...)` fragment-return rendering when callbacks return QHTML fragment tokens
 
 ## Component host assignment behavior
 - `component-instance.attributes` map to DOM attributes.
@@ -72,11 +83,17 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - Dispatches signal events when rendering signal invocations:
   - `q-signal`
   - named event equal to signal id
+- In queued runtime mode, declarative `on<signal>` and `.connect(...)` bindings register UUID-routed subscribers through `QHtml.registerSignalSubscriber(...)` and signal-reference routes through `QHtml.registerSignalReference(...)`.
+- In queued runtime mode, `.connect(...)` also registers runtime subscriber handlers (UUID-routed) with a connect-order queue marker so immediate post-connect emits resolve deterministically.
+- Event/lifecycle/method/signal-handler execution is wrapped with runtime execution-host context (`QHtml.runWithExecutionHost(...)`) so queued signal subscriptions can attribute subscriber UUIDs to the invoking host.
 - Binds component-local signal declarations (`q-signal name(param1, ...)`) onto host instances as callable methods:
   - `instance.name(...)`
   - `instance.name.connect(fn)`
   - `instance.name.disconnect(fn?)`
   - `instance.name.emit(...)`
+- Binds component-local callback declarations (`q-callback name(param1, ...)`) onto host instances as callable methods:
+  - `instance.name(...)`
+  - host-bound callbacks execute with creator component context (`this.component` preserved)
 - Binds component alias declarations (`q-alias aliasName { return ... }`) onto host instances as computed properties (`instance.aliasName`).
 - Binds component wasm declarations (`q-wasm { ... }`) onto host instances as `instance.wasm` with:
   - `ready` Promise

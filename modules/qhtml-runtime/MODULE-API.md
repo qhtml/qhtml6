@@ -46,10 +46,31 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - Returns registration descriptor with token/route key.
 - `unregisterSignalSubscriber({ token } | { emitterUuid, signalName, routeKey })`
   - Remove one registered queued signal subscriber.
+- `registerSignalReference({ emitterUuid, signalName, subscriberUuid, routeKey? })`
+  - Register explicit signal reference metadata (`emitter -> subscriber`) used for diagnostics/target maps.
+- `unregisterSignalReference({ emitterUuid, referenceKey|routeKey })`
+  - Remove one explicit signal reference metadata row.
 - `clearSignalSubscribersForEmitter(emitterUuid)`
   - Remove all registered signal subscribers for an emitter UUID.
+- `runWithExecutionHost(hostElement, fn)`
+  - Execute `fn` with runtime execution-host context set to `hostElement` (used by signal `.connect(...)` attribution).
+- `getCurrentExecutionHost()`
+  - Returns the current execution-host element during runtime-managed script execution, otherwise `null`.
 - `getEventLoopMode()`
   - Returns active runtime mode: `queued` (default) or `compat`.
+- `getEventLoopSnapshot(options?)`
+  - Returns a readable live snapshot of queued event-loop state.
+  - Output includes:
+    - queue metadata (`mode`, `processing`, `transactionDepth`, `scheduleDueAt`)
+    - `queue` / `transactionQueue` entries (id/type/createdAt/target/payload)
+    - timer records (`interval`, `repeat`, `running`, `nextAt`, `msUntilNext`)
+  - Options:
+    - `limit` (default `200`) limits returned queue items per queue.
+    - `includePayload` (default `true`) toggles payload cloning.
+    - `includeTimers` (default `true`) toggles timer list.
+- `printEventLoopSnapshot(options?)`
+  - Console-oriented wrapper around `getEventLoopSnapshot(...)`.
+  - Prints summary + queue tables, and returns the same snapshot object.
 - `dispatchPropertyChangedEvent(target, payload)`
   - Routes declared `q-property` setter changes through per-property signal dispatch (`<property>Changed`).
   - Queued mode: enqueues targeted property-subscriber updates and signal dispatch on runtime queue.
@@ -63,10 +84,36 @@ Runtime mount/update engine for `<q-html>` in browser environments.
     - `modelChanged.connect(listener)` / `modelChanged.disconnect(listener)` / `modelChanged.emit(details?)`
     - mutators emit legacy operation events (`add|insert|update|remove`) and canonical `modelChanged` payloads (`event.op`)
   - Exposed as both `QHtml.createQModel(...)` and global `QModel(...)`.
+- `createQArray(input)`
+  - Convenience constructor for array-backed models.
+  - Accepts:
+    - native JS arrays (`[1,2,3]`)
+    - existing QModel instances (reused if already array mode; otherwise normalized via `toArray()`)
+    - model-like objects with `toArray()`
+  - Fallback for unsupported inputs is an empty array model.
+  - Exposed as both `QHtml.createQArray(...)` and global `QArray(...)`.
+- `createQCallback(fn, options?)`
+  - Wraps a function as a QHTML callback object with creator-context preservation.
+  - Options:
+    - `name` callback identifier metadata
+    - `creator` creator host component element for execution binding (`this.component` retention)
+  - Callback invocation appends caller metadata as final argument:
+    - `{ caller, callerUuid, callerTag, timestamp }`
+  - Exposed as both `QHtml.createQCallback(...)` and global `QCallback(...)`.
+- `qhtml(source)`
+  - Creates QHTML fragment tokens consumable by renderer callback/direct-call paths.
+  - Typical usage from callbacks: `return qhtml("div { text { hello } }");`
+  - Exposed as both `QHtml.qhtml(...)` and global `qhtml(...)`.
 - `qmapNode(qdomNode, options?)`
   - Normalizes a QDom node/document into a tree-shaped map object for model/tree rendering.
   - `options.filters` (array/string) narrows output to matching keywords/tags when `includeFullTree` is `false`.
   - `options.includeFullTree === true` returns the full normalized tree with keyword groups.
+- `getQDomDataForUuid(uuid)`
+  - Returns a normalized global QDOM data record for one UUID, or `null`.
+  - Record includes UUID refs for `parentUuid`, `childUuids`, `propertyUuids`, `signalUuids`, and `callbackUuids`.
+- `getQDomDataSnapshot(options?)`
+  - Returns the full global normalized QDOM data registry.
+  - Default shape is array of records; `options.asObject === true` returns `{ [uuid]: record }`.
 - `initAll(root?, options?)`
   - Mount all `<q-html>` descendants.
 - `startAutoMountObserver(root?, options?)`
@@ -99,6 +146,11 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - `uuidMaps()` returns host-bound maps (`uuidToDom`, `domToUuid`, `uuidToQdom`, `qdomToUuid`).
   - `uuidFor(value)` resolves UUID from DOM/QDom nodes.
   - `elementForUuid(uuid)` and `qdomForUuid(uuid)` resolve mapped DOM/QDom nodes.
+  - `lookupUuid(uuid)` / `uuidLookup(uuid)` / `qdomProxyForUuid(uuid)` return a UUID facade with:
+    - `qdom()`, `element()`, `children()`, `properties()`, `signals()`
+    - soft-fail `null` on missing UUID.
+  - `qdomDataForUuid(uuid)` returns normalized UUID record from global QDOM data registry.
+  - `qdomDataSnapshot(options?)` returns full normalized registry snapshot.
 - Component instance hosts expose `.update()` as shorthand for scoped `QHtml.updateQHtmlElement(hostRoot, { scopeElement: componentHost })`.
 - Component instance hosts also accept targeted UUID updates:
   - `.update(uuid)` forwards scoped refresh by UUID.
@@ -160,6 +212,14 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - Executes `meta.qBindings` scripts (canonical `q-script`; `q-bind` inputs are parser-normalized aliases) with `this` bound to each source QDom node before render/update.
 - Emits runtime signal events through `emitQSignal(...)` helpers.
 - In queued event-loop mode, routes component signal delivery through UUID subscriber maps and queues per-subscriber handler calls on the main runtime queue.
+- Queued timer scheduling is de-duplicated per timer record (`pending` guard), preventing timer-timeout backlog spam while a prior timeout is still queued/processing.
+- Runtime turn processing prioritizes already-queued work before enqueuing new due timers, reducing signal/property starvation under heavy timer load.
+- Queued signal/property target resolution is UUID-record driven via `QHTML_QDOM_DATA_MAP`.
+- Queued subscriber membership is mirrored into UUID records in `QHTML_QDOM_DATA_MAP`:
+  - `record.signalSubscribers[signalName] -> [{ routeKey, subscriberUuid, mode, attributeName, token, createdAt }]`
+  - `record.propertySubscribers[propertyName] -> [subscriberUuid, ...]`
+  - Runtime now treats UUID-record membership as authoritative for routing; legacy signal maps remain only as handler-pointer storage.
+- In queued event-loop mode, signal dispatch is strict-targeted: emitter-local signal events are dispatched without bubbling, and cross-component delivery is performed via UUID subscriber routing only.
 - Declared `q-property` writes dispatch per-property changed signals (`<property>Changed`) through the runtime dispatcher (`event.detail.params.value` / `args[0]`).
 - Component instance hydration auto-registers implicit `<property>Changed` signal emitters for declared properties (for `.connect/.disconnect/.emit` use), and `on<Property>Changed` listeners are matched case-insensitively via signal routing.
 - Runtime mode defaults to `queued`; set `window.QHTML_EVENT_LOOP_MODE = "compat"` before runtime init to use immediate compatibility mode.
@@ -174,8 +234,10 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - Exposes global runtime maps for diagnostics:
   - `QHTML_UUID_MAP`
   - `QHTML_UUID_LOOKUP_MAP`
-  - `QHTML_PROPERTY_SUBSCRIBER_MAP`
+  - `QHTML_QDOM_DATA_MAP`
   - `QHTML_SIGNAL_SUBSCRIBER_MAP`
+  - `QHTML_SIGNAL_REFERENCE_MAP`
+  - lookup coverage includes live QDOM nodes and component declaration entries (`q-property` / `q-signal`) when UUID metadata is present.
 - Maintains component-host property reference indexes (`propertyName -> Set<qdomUuid>`) derived from binding scripts that reference `this.component.<prop>` / `component.<prop>` for scoped refresh targeting APIs.
 - Property-reference indexing also tracks simple inline scoped expressions (for example `${myProp}`) and repeater model-source expressions (including `for (...)` sources) for targeted update routing.
 - Custom-element registration (`customElements.define`) now applies parsed component `q-property` defaults per instance at construction/connection time (non-binding defaults only).

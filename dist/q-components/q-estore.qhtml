@@ -1,60 +1,60 @@
 q-component q-estore-pricebox {
-  q-property currentItem: null
-
-  q-style q-estore-pricebox-style {
-    width: 40%
-    height: 60%
-  }
-
-  q-default-theme q-estore-default-theme {
-    .q-estore-pricebox-container { q-estore-pricebox-style }
-  }
-
-  q-estore-default-theme {
-    div.q-estore-pricebox-container {
-      q-grid {
-        rows: 1
-        div { slot { pricebox-content } }
-        div { slot { pricebox-price } }
-        div { slot { pricebox-add-button } }
-      }
-    }
+  div.q-estore-pricebox.w3-panel.w3-border.w3-round-large {
+    div.q-estore-pricebox-content { slot { pricebox-content } }
+    div.q-estore-pricebox-price { slot { pricebox-price } }
+    div.q-estore-pricebox-action { slot { pricebox-add-button } }
   }
 }
 
 q-component product-grid extends q-grid extends q-model-view {
   q-signal qEstoreAddedToCart(chosenItem)
-  q-property itemModel: ""
-  q-property columns: 4
-  rows: 4
-  columns: q-bind { return this.component.columns }
-  q-model { q-array { } }
+  q-property itemModel: q-array { }
+
+  q-model { this.component.itemModel }
   as { item }
 
   q-estore-pricebox {
-    currentItem: q-bind { return item }
-    style {
-      width: auto
-      height: auto
-    }
-
     pricebox-content {
-      div {
-        text { ${item && item.content !== undefined ? item.content : ""} }
-      }
+      div { text { ${item && item.content !== undefined ? item.content : ""} } }
     }
-
     pricebox-price {
-      div {
-        text { ${item && item.price !== undefined ? item.price : ""} }
-      }
+      div { text { ${item && item.price !== undefined ? item.price : ""} } }
     }
-
     pricebox-add-button {
-      button {
+      button.q-estore-add-btn {
+        data-name: "${item && item.name !== undefined ? item.name : (item && item.content !== undefined ? item.content : 'Item')}"
+        data-content: "${item && item.content !== undefined ? item.content : ''}"
+        data-price: "${item && item.price !== undefined ? item.price : 0}"
         text { Add to cart }
         onclick {
-          this.closest("product-grid").qEstoreAddedToCart(this.closest("q-estore-pricebox").currentItem)
+          var btn = this;
+          this.closest("product-grid").qEstoreAddedToCart(
+            QModel({
+              name: btn.getAttribute("data-name"),
+              content: btn.getAttribute("data-content"),
+              price: Number(btn.getAttribute("data-price") || 0)
+            }).toObject()
+          );
+        }
+      }
+    }
+  }
+}
+
+q-component q-checkout-modal extends q-modal {
+  q-property items: q-array { }
+
+  title {
+    h3 { text { Checkout } }
+  }
+
+  body {
+    ul.w3-ul.w3-border.w3-round-large {
+      for (item in this.component.items) {
+        li {
+          span { text { ${item && item.name !== undefined ? item.name : item} } }
+          text {  }
+          span { text { ${item && item.price !== undefined ? item.price : ""} } }
         }
       }
     }
