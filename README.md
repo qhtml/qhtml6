@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.1.9
+# QHTML.js v6.2.0
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,38 +12,46 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.1.9
+## Whats New in v6.2.0
 
-- Added `q-callback` declarations for lazy, pass-by-reference callback flow in QHTML and component scope.
-- Added typed named component instances (`mycomp myinstance { ... }`) with lexical alias scope and direct reference support.
-- Added runtime callback helpers `QCallback(...)` and `qhtml(...)` for cross-component callback invocation and QHTML-fragment returns.
-- Added `QArray(...)` constructor and expanded `QModel` assignment behavior for JS-to-QHTML typed model property assignment.
-- Improved `for (alias in source)` runtime source resolution (component-scoped paths/method chains) and iterable coercion.
-- Improved queued runtime/event-loop behavior:
-  - signal routing uses UUID-targeted subscriber delivery
-  - timer enqueue dedupe (`pending` guard) reduces timeout queue spam
-  - queue turn order now prioritizes existing queued work before adding due timers
+- Added `q-worker` as a first-class QHTML language construct inside `q-component` for background method execution.
+- Added worker method proxy behavior so `worker.method()` returns a Promise and resolves back to component scope.
+- Added worker-signal interoperability so worker methods can emit declared `q-signal` payloads that route back through normal signal handlers.
+- Added direct reference-path property defaults for declared component properties (for example `q-property prop2: mycomp1.prop1`).
+- Improved property reference consistency so direct JS reads (`mycomp2.prop2`) and inline interpolation (`${mycomp2.prop2}`) resolve the same bound value.
 
 Language examples added this round:
 
 ```qhtml
-q-callback mycallback(v1, v2) {
-  if (v1 > v2) { return true }
-  return false
+q-component my-worker-host {
+  q-worker myworker {
+    q-property myprops: q-array { "A", "B", "C" }
+    function dowork() {
+      var rv = [];
+      for (var i = 0; i < 3; i += 1) {
+        rv.push(this.myprops[i]);
+      }
+      return rv.join(",");
+    }
+  }
+
+  q-property result: "waiting"
+  onReady {
+    this.component.myworker.dowork().then(function(out) {
+      this.component.result = out;
+    }.bind(this));
+  }
 }
 ```
 
 ```qhtml
-q-component mycomp {
-  q-property myprop1: "hello world"
-}
-mycomp myinstance { }
-```
+q-component comp1 { q-property prop1: "something" }
+comp1 mycomp1 { prop1: "testing 1 2 3" }
 
-```qhtml
-onReady {
-  this.component.items = QArray([1, 2, 3, 4]);
+q-component comp2 extends comp1 {
+  q-property prop2: mycomp1.prop1
 }
+comp2 mycomp2 { prop1: "testing" }
 ```
 
 
@@ -481,6 +489,29 @@ q-component my-comp {
 }
 ```
 
+### `q-property` reference defaults (bound path syntax)
+
+Declared properties can reference another in-scope property path directly:
+
+```qhtml
+q-component comp1 { q-property prop1: "something" }
+comp1 mycomp1 { prop1: "testing 1 2 3" }
+
+q-component comp2 extends comp1 {
+  q-property prop2: mycomp1.prop1
+}
+comp2 mycomp2 { prop1: "testing" }
+```
+
+Behavior:
+- `mycomp2.prop1` resolves to `"testing"`.
+- `mycomp2.prop2` resolves to `"testing 1 2 3"`.
+- Direct reads and inline interpolation resolve consistently:
+  - `console.log(mycomp2.prop2)`
+  - `${mycomp2.prop2}`
+
+Use this for simple declarative value wiring between named instances without extra query/select boilerplate.
+
 ### `on<Property>Changed` auto-signals
 
 Each declared `q-property` automatically exposes a changed signal handler name in the form `on<Property>Changed`.
@@ -687,6 +718,45 @@ Notes:
 - `q-canvas <name>` exports the canvas handle as `window.<name>` and host-scoped `<name>`.
 - `<name>.context` points to the `2d` rendering context for that specific canvas.
 - Canvas rendering can be timer-driven (`q-timer`) or signal-driven depending on your component flow.
+
+### `q-worker` (component-level background worker)
+
+`q-worker` can be declared inside a `q-component` to run worker methods off the main thread.
+
+```qhtml
+q-component worker-demo {
+  q-property output: "waiting"
+
+  q-worker cruncher {
+    q-property nums: q-array { 1, 2, 3, 4 }
+    q-signal finished(total)
+
+    function sumAll() {
+      var total = 0;
+      for (var i = 0; i < this.nums.length; i += 1) {
+        total = total + Number(this.nums[i] || 0);
+      }
+      this.finished(total);
+      return total;
+    }
+  }
+
+  onFinished {
+    this.component.output = String(event.detail.params.total);
+  }
+
+  onReady {
+    this.component.cruncher.sumAll().then(function(total) {
+      this.component.output = String(total);
+    }.bind(this));
+  }
+}
+```
+
+Notes:
+- Worker methods return Promises.
+- Worker `q-property` and `q-signal` declarations are supported in worker scope.
+- Signals emitted from worker methods re-enter normal component signal handling (`on<Signal>` / `.connect(...)`).
 
 ### `q-tree-view`
 
@@ -1301,6 +1371,18 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 - `modules/release-bundle/README.md`
 
 # Past Changes
+## Whats New in v6.1.9
+
+- Added `q-callback` declarations for lazy, pass-by-reference callback flow in QHTML and component scope.
+- Added typed named component instances (`mycomp myinstance { ... }`) with lexical alias scope and direct reference support.
+- Added runtime callback helpers `QCallback(...)` and `qhtml(...)` for cross-component callback invocation and QHTML-fragment returns.
+- Added `QArray(...)` constructor and expanded `QModel` assignment behavior for JS-to-QHTML typed model property assignment.
+- Improved `for (alias in source)` runtime source resolution (component-scoped paths/method chains) and iterable coercion.
+- Improved queued runtime/event-loop behavior:
+  - signal routing uses UUID-targeted subscriber delivery
+  - timer enqueue dedupe (`pending` guard) reduces timeout queue spam
+  - queue turn order now prioritizes existing queued work before adding due timers
+
 ## Whats New in v6.1.8
 
 - Added initial `q-canvas` keyword support (`q-canvas <name> { ... }`) for named canvas declarations.

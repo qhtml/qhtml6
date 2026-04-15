@@ -4,196 +4,444 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QHTML Test Board</title>
-  <script>
-    window.QHTML_EVENT_LOOP_MODE = "queued";
-  </script>
+  <script>window.QHTML_EVENT_LOOP_MODE = "queued";</script>
   <script src="qhtml.js"></script>
   <style>
-    :root {
-      --bg: #eef4fb;
-      --panel: #ffffff;
-      --ink: #11253d;
-      --muted: #4f6078;
-      --edge: #d2deec;
-      --accent: #295a92;
-      --pass: #0f7a52;
-      --fail: #b42323;
-      --deprecated: #6b7280;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      padding: 16px;
-      background: var(--bg);
-      color: var(--ink);
-      font-family: "Fira Sans", "Segoe UI", sans-serif;
-    }
-    .page { max-width: 1600px; margin: 0 auto; display: grid; gap: 14px; }
-    .hero, .summary-shell, .test-card {
-      background: var(--panel);
-      border: 1px solid var(--edge);
-      border-radius: 10px;
-    }
-    .hero { padding: 14px 16px; }
-    .hero h1 { margin: 0 0 6px 0; color: var(--accent); font-size: 24px; }
-    .hero p { margin: 0; color: var(--muted); font-size: 14px; }
-    .summary-shell { padding: 10px 12px; }
-    .summary-row { display: flex; flex-wrap: wrap; gap: 14px; font-weight: 700; align-items: center; }
-    .summary-pass { color: var(--pass); }
-    .summary-fail { color: var(--fail); }
-    .failed-list-wrap {
-      margin-top: 8px;
-      border: 1px solid #f3c2c2;
-      background: #fff7f7;
-      border-radius: 8px;
-      padding: 8px 10px;
-    }
-    .failed-list-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 6px;
-    }
-    .failed-list-title {
-      margin: 0;
-      font-weight: 700;
-      color: var(--fail);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-    .failed-copy-btn {
-      border: 1px solid #f3bcbc;
-      background: #fff;
-      color: #8b1d1d;
-      border-radius: 6px;
-      padding: 4px 8px;
-      font-size: 11px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    #failed-tests-list {
-      margin: 0;
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-family: "Fira Code", "Cascadia Code", monospace;
-      font-size: 12px;
-      line-height: 1.35;
-      color: #8b1d1d;
-    }
-    .tests { display: grid; gap: 12px; }
-    .test-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      padding: 9px 12px;
-      background: #f7fbff;
-      border-bottom: 1px solid var(--edge);
-    }
-    .test-head h2 { margin: 0; font-size: 15px; color: var(--accent); }
-    .io-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 10px;
-      padding: 10px;
-    }
-    .cell {
-      border: 1px solid var(--edge);
-      border-radius: 8px;
-      background: #fbfdff;
-      min-height: 120px;
-      display: grid;
-      grid-template-rows: auto 1fr;
-    }
-    .cell h3 {
-      margin: 0;
-      font-size: 12px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: #34506d;
-      border-bottom: 1px solid var(--edge);
-      padding: 8px 10px;
-    }
-    pre {
-      margin: 0;
-      padding: 10px;
-      white-space: pre-wrap;
-      word-break: break-word;
-      overflow: auto;
-      font-family: "Fira Code", "Cascadia Code", monospace;
-      font-size: 12px;
-      line-height: 1.35;
-    }
-    .preview {
-      margin: 0 10px 10px 10px;
-      border: 1px dashed var(--edge);
-      border-radius: 8px;
-      background: #f8fbff;
-      padding: 8px;
-    }
-    .preview h3 {
-      margin: 0 0 8px 0;
-      font-size: 12px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: #34506d;
-    }
-    .status {
-      font-weight: 700;
-      font-size: 12px;
-      border-radius: 999px;
-      border: 1px solid var(--edge);
-      padding: 4px 8px;
-      background: #eef4fb;
-    }
-    .status.pass { color: var(--pass); border-color: #b6e3d4; background: #f0fdf8; }
-    .status.fail { color: var(--fail); border-color: #f4b8b8; background: #fff1f1; }
-    .status.deprecated { color: var(--deprecated); border-color: #d1d5db; background: #f9fafb; }
-    @media (max-width: 1120px) {
-      .io-grid { grid-template-columns: 1fr; }
-    }
+    :root { --bg:#eef4fb; --panel:#fff; --ink:#10243d; --edge:#d3deec; --pass:#0f7a52; --fail:#b42323; --dep:#6b7280; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:14px; background:var(--bg); color:var(--ink); font-family:"Fira Sans","Segoe UI",sans-serif; }
+    .page { max-width:1600px; margin:0 auto; display:grid; gap:12px; }
+    .panel { background:var(--panel); border:1px solid var(--edge); border-radius:10px; padding:10px 12px; }
+    .summary { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-weight:700; }
+    .summary .pass { color:var(--pass); } .summary .fail { color:var(--fail); }
+    #failed-list { margin:8px 0 0 0; white-space:pre-wrap; font-family:"Fira Code",monospace; font-size:12px; line-height:1.35; color:var(--fail); }
+    .actions { display:flex; gap:8px; margin-top:8px; }
+    .actions button { border:1px solid var(--edge); background:#fff; border-radius:7px; padding:6px 10px; cursor:pointer; }
+    .tests { display:grid; gap:10px; }
+    .test-card { background:var(--panel); border:1px solid var(--edge); border-radius:10px; overflow:hidden; }
+    .test-head { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; background:#f7fbff; border-bottom:1px solid var(--edge); }
+    .test-head h2 { margin:0; font-size:14px; color:#1d4e89; }
+    .badge { font-size:12px; font-weight:700; border-radius:999px; padding:3px 8px; border:1px solid var(--edge); background:#eef4fb; color:#27415f; }
+    .badge.pass { color:var(--pass); border-color:#b7e5d5; background:#f0fdf8; }
+    .badge.fail { color:var(--fail); border-color:#f4b8b8; background:#fff1f1; }
+    .badge.deprecated { color:var(--dep); border-color:#d1d5db; background:#f9fafb; }
+    .test-expected { padding:8px 10px; border-bottom:1px dashed var(--edge); font-size:12px; color:#425b78; }
+    .test-card q-html { display:block; padding:10px; }
   </style>
 </head>
 <body>
   <div class="page">
-    <section class="hero">
-      <h1>QHTML Syntax Input / Output Board</h1>
-      <p>Checks run on <code>QHTMLContentLoaded</code> and then every 5 seconds. Manual logger tests run only when their buttons are pressed.</p>
-    </section>
+    <q-html id="acc-host">
+q-component q-test-accumulator {
+  q-property manifest: q-map { }
+  q-property results: q-map { }
+  q-property manualStatus: q-map { }
+  q-signal refreshRequested()
+  q-signal resultReported(testNo, value)
+  q-signal expectedReported(testNo, expectedList)
+  q-signal passingReported(testNo, isPassing)
+  q-signal outcomeReported(testNo, isPassing, value)
 
-    <section class="summary-shell">
-      <div class="summary-row">
-        <span id="summary-total">Total: 0</span>
-        <span id="summary-passed" class="summary-pass">Passed: 0</span>
-        <span id="summary-failed" class="summary-fail">Failed: 0</span>
-      </div>
-      <div class="failed-list-wrap">
-        <div class="failed-list-head">
-          <p class="failed-list-title">Failing Tests</p>
-          <button id="copy-failed-tests" class="failed-copy-btn" type="button">Copy</button>
+  function normalize(v) {
+    return String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+  }
+
+  function bootstrapManifest() {
+    var cards = document.querySelectorAll(".test-card");
+    var data = {};
+    for (var i = 0; i < cards.length; i += 1) {
+      var card = cards[i];
+      var cardId = String(card.getAttribute("id") || "");
+      if (cardId.indexOf("card-") !== 0) { continue; }
+      var key = cardId.slice(5);
+      if (!key) { continue; }
+
+      var titleNode = card.querySelector(".test-head h2");
+      var rawTitle = titleNode ? String(titleNode.textContent || "") : ("Test " + key);
+      var title = rawTitle.replace(/^\s*\d+\.\s*/, "");
+
+      var expectedNode = card.querySelector(".test-expected");
+      var expectedText = expectedNode ? String(expectedNode.textContent || "") : "";
+      expectedText = expectedText.replace(/^Expected:\s*/i, "").trim();
+      var expected = [];
+      if (expectedText) {
+        expected = expectedText.split("|").map(function(part) {
+          return String(part || "").trim();
+        }).filter(function(part) {
+          return part.length > 0;
+        });
+      }
+      var deprecated = expected.length === 1 && expected[0].toLowerCase() === "test has been deprecated";
+      data[key] = { title: title, expected: expected, deprecated: deprecated };
+    }
+    this.component.manifest = QModel(data);
+  }
+
+  function setExpected(testNo, expectedList) {
+    var key = String(testNo);
+    var entry = this.component.manifest.value(key) || {};
+    entry.expected = Array.isArray(expectedList) ? expectedList.slice() : [String(expectedList || "")];
+    this.component.manifest.set(key, entry);
+  }
+
+  function setResult(testNo, value) {
+    this.component.results.set(String(testNo), String(value == null ? "" : value));
+  }
+
+  function setPassing(testNo, isPassing) {
+    var key = String(testNo);
+    var value = isPassing ? "pass" : "fail";
+    var store = this.component.manualStatus;
+    if (store && typeof store.set === "function") {
+      store.set(key, value);
+      return;
+    }
+    if (!store || typeof store !== "object") {
+      store = {};
+    }
+    store[key] = value;
+    this.component.manualStatus = store;
+  }
+
+  function report(testNo, isPassing, value) {
+    this.component.setPassing(testNo, isPassing);
+    if (value !== undefined) {
+      this.component.setResult(testNo, value);
+    }
+    this.component.showResults();
+  }
+
+  function evaluateOne(testNo) {
+    var key = String(testNo);
+    var entry = this.component.manifest.value(key) || {};
+    var expected = Array.isArray(entry.expected) ? entry.expected : [];
+    var deprecated = entry.deprecated === true;
+    var title = String(entry.title || "");
+    var actual = String(this.component.results.value(key) || "");
+    var manual = this.component.manualStatus;
+    var status = "";
+    if (manual && typeof manual.value === "function") {
+      status = manual.value(key);
+    } else if (manual && typeof manual === "object") {
+      status = manual[key];
+    }
+    if (status !== "pass" && status !== "fail" && status !== "deprecated") {
+      status = "pass";
+    }
+    if (status !== "pass" && status !== "fail" && deprecated) {
+      status = "deprecated";
+    }
+    if (status === "pass" && !deprecated) {
+      var normalizedActual = this.component.normalize(actual);
+      for (var i = 0; i < expected.length; i += 1) {
+        var token = this.component.normalize(expected[i]);
+        if (token && normalizedActual.indexOf(token) < 0) {
+          status = "fail";
+          break;
+        }
+      }
+    }
+    var badge = document.querySelector("#badge-" + key);
+    if (badge) {
+      badge.className = "badge " + status;
+      badge.textContent = status;
+    }
+    return { key: key, title: title, status: status, actual: actual, expected: expected };
+  }
+
+  function evaluateAll() {
+    var hosts = document.querySelectorAll("q-html[data-test-no]");
+    for (var i = 0; i < hosts.length; i += 1) {
+      var host = hosts[i];
+      var no = String(host.getAttribute("data-test-no") || "");
+      if (!no) { continue; }
+      this.component.setResult(no, host.innerHTML);
+    }
+    this.component.showResults();
+  }
+
+  function refresh() {
+    this.component.evaluateAll();
+  }
+
+  function showResults() {
+    var keys = this.component.manifest.keys();
+    var total = keys.length;
+    var passed = 0;
+    var failed = 0;
+    var lines = [];
+    for (var i = 0; i < keys.length; i += 1) {
+      var rec = this.component.evaluateOne(keys[i]);
+      if (rec.status === "pass") { passed += 1; }
+      if (rec.status === "fail") {
+        failed += 1;
+        lines.push(rec.key + ". " + rec.title + "\n  expected: " + rec.expected.join(" | ") + "\n  actual: " + this.component.normalize(rec.actual));
+      }
+    }
+    document.querySelector("#sum-total").textContent = "Total: " + String(total);
+    document.querySelector("#sum-pass").textContent = "Passed: " + String(passed);
+    document.querySelector("#sum-fail").textContent = "Failed: " + String(failed);
+    document.querySelector("#failed-list").textContent = lines.length > 0 ? lines.join("\n\n") : "none";
+  }
+
+  onrefreshRequested {
+    this.component.refresh();
+  }
+
+  onresultReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.setResult(p.testNo, p.value);
+  }
+
+  onexpectedReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.setExpected(p.testNo, p.expectedList);
+  }
+
+  onpassingReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.setPassing(p.testNo, p.isPassing);
+  }
+
+  onoutcomeReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.report(p.testNo, p.isPassing, p.value);
+  }
+
+  onReady {
+    this.component.bootstrapManifest();
+    this.refreshRequested();
+  }
+
+  div.panel {
+    div.summary {
+      span#sum-total { text { Total: 0 } }
+      span#sum-pass.pass { text { Passed: 0 } }
+      span#sum-fail.fail { text { Failed: 0 } }
+    }
+    div.actions {
+      button#btn-refresh {
+        type: "button"
+        onclick {
+          var acc = document.querySelector("#acc-main");
+          if (!acc) { return; }
+          if (typeof acc.refreshRequested === "function") { acc.refreshRequested(); }
+        }
+        text { Refresh }
+      }
+      button#btn-copy {
+        type: "button"
+        onclick {
+          var txt = document.querySelector("#failed-list").textContent;
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+            navigator.clipboard.writeText(txt);
+          }
+        }
+        text { Copy Failures }
+      }
+      button#btn-loop {
+        type: "button"
+        onclick { QHtml.printEventLoopSnapshot({ limit: 80, includePayload: false }); }
+        text { Print Event Loop }
+      }
+    }
+    pre#failed-list { text { none } }
+  }
+}
+
+q-test-accumulator#acc-main { }
+
+q-timer accRefreshTimer {
+  interval: 5000
+  repeat: true
+  running: true
+  ontimeout {
+    var acc = document.querySelector("#acc-main");
+    if (!acc) { return; }
+    if (typeof acc.refreshRequested === "function") { acc.refreshRequested(); }
+  }
+}
+    </q-html>
+
+    <section class="tests">
+      <article class="test-card" id="card-1">
+        <div class="test-head">
+          <h2>1. Braces + text block</h2>
+          <span id="badge-1" class="badge pending">pending</span>
         </div>
-        <pre id="failed-tests-list">none</pre>
-      </div>
-    </section>
+        <div class="test-expected"><strong>Expected:</strong> hello-world</div>
+        <q-html id="host-t1" data-test-no="1">
+div { text { hello-world } }
 
-    <section id="tests" class="tests"></section>
-  </div>
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(1, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-2">
+        <div class="test-head">
+          <h2>2. Selector chain + shorthand</h2>
+          <span id="badge-2" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> &lt;h2 id="id2"&gt;hello world&lt;/h2&gt;</div>
+        <q-html id="host-t2" data-test-no="2">
+div#my-id.my-class,span.my-class,h2#id2 { hello world }
 
-  <script>
-    const tests = [
-      { n: 1, t: 'Braces + text block', s: `div { text { hello-world } }`, e: ['hello-world'] },
-      { n: 2, t: 'Selector chain + shorthand', s: `div#my-id.my-class,span.my-class,h2#id2 { hello world }`, e: ['<h2 id="id2">hello world</h2>'] },
-      { n: 3, t: 'Attributes', s: `a { href: "https://example.com" target: "_blank" text { Open Example } }`, e: ['href="https://example.com"', 'Open Example'] },
-      { n: 4, t: 'Style block + text', s: `p { style { font-size: 20px; margin: 0; } text { Plain text content } }`, e: ['Plain text content', 'font-size: 20px'] },
-      { n: 5, t: 'HTML block', s: `div { html { <strong>Real HTML fragment</strong> } }`, e: ['<strong>Real HTML fragment</strong>'] },
-      { n: 6, t: 'q-bind test', d: true },
-      { n: 7, t: 'q-script inline replacement', s: `div { q-script { return "p { text { Inserted by q-script } }"; } }`, e: ['Inserted by q-script'] },
-      { n: 8, t: 'q-script assignment form', s: `div { data-note: q-script { return "n:" + (4 + 1) } text { q-script { return "script-inline"; } } }`, e: ['data-note="n:5"', 'script-inline'] },
-      { n: 9, t: 'q-macro + slot', s: `q-macro badge { slot { label } return { span.badge { text { \${this.slot("label")} } } } } div { badge { label { hello world } } }`, e: ['hello world', 'class="badge"'] },
-      { n: 10, t: 'q-component + q-property + slot', s: `q-component app-card { q-property { title } div { h3 { text { \${this.component.title} } } slot { body } } } app-card { title: "Welcome" body { p { text { Projected content. } } } }`, e: ['Welcome', 'Projected content.'] },
-      { n: 11, t: 'q-signal declarative on<Signal> + mixed-case handler', s: `q-component signal-probe {
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(2, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-3">
+        <div class="test-head">
+          <h2>3. Attributes</h2>
+          <span id="badge-3" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> href="https://example.com" | Open Example</div>
+        <q-html id="host-t3" data-test-no="3">
+a { href: "https://example.com" target: "_blank" text { Open Example } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(3, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-4">
+        <div class="test-head">
+          <h2>4. Style block + text</h2>
+          <span id="badge-4" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Plain text content | font-size: 20px</div>
+        <q-html id="host-t4" data-test-no="4">
+p { style { font-size: 20px; margin: 0; } text { Plain text content } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(4, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-5">
+        <div class="test-head">
+          <h2>5. HTML block</h2>
+          <span id="badge-5" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> &lt;strong&gt;Real HTML fragment&lt;/strong&gt;</div>
+        <q-html id="host-t5" data-test-no="5">
+div { html { <strong>Real HTML fragment</strong> } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(5, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-6">
+        <div class="test-head">
+          <h2>6. q-bind test</h2>
+          <span id="badge-6" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> test has been deprecated</div>
+        <q-html id="host-t6" data-test-no="6">
+div { text { test has been deprecated } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(6, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-7">
+        <div class="test-head">
+          <h2>7. q-script inline replacement</h2>
+          <span id="badge-7" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Inserted by q-script</div>
+        <q-html id="host-t7" data-test-no="7">
+div { q-script { return "p { text { Inserted by q-script } }"; } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(7, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-8">
+        <div class="test-head">
+          <h2>8. q-script assignment form</h2>
+          <span id="badge-8" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> data-note="n:5" | script-inline</div>
+        <q-html id="host-t8" data-test-no="8">
+div { data-note: q-script { return "n:" + (4 + 1) } text { q-script { return "script-inline"; } } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(8, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-9">
+        <div class="test-head">
+          <h2>9. q-macro + slot</h2>
+          <span id="badge-9" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> hello world | class="badge"</div>
+        <q-html id="host-t9" data-test-no="9">
+q-macro badge { slot { label } return { span.badge { text { ${this.slot("label")} } } } } div { badge { label { hello world } } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(9, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-10">
+        <div class="test-head">
+          <h2>10. q-component + q-property + slot</h2>
+          <span id="badge-10" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Welcome | Projected content.</div>
+        <q-html id="host-t10" data-test-no="10">
+q-component app-card { q-property { title } div { h3 { text { ${this.component.title} } } slot { body } } } app-card { title: "Welcome" body { p { text { Projected content. } } } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(10, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-11">
+        <div class="test-head">
+          <h2>11. q-signal declarative on&lt;Signal&gt; + mixed-case handler</h2>
+          <span id="badge-11" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> hello world</div>
+        <q-html id="host-t11" data-test-no="11">
+q-component signal-probe {
   q-signal ping(message)
   function fire() {
     this.ping("hello world")
@@ -205,35 +453,295 @@ div#t11-out { text { waiting } }
 signal-probe#t11-src {
   onPiNg {
     $("#t11-out").textContent = event.detail.params.message;
+    var acc = document.querySelector("#acc-main");
+    if (acc) { acc.setPassing(11, true); }
   }
 }
 
 onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) { acc.setPassing(11, false); }
   $("#t11-src").fire();
-}`, e: ['hello world'] },
-      { n: 12, t: 'q-alias', s: `q-component mycomp { q-alias myotherprop { return "hello world"; } div { text { \${this.component.myotherprop} } } } mycomp { }`, e: ['hello world'] },
-      { n: 13, t: 'q-keyword aliasing', s: `q-keyword component { q-component } component card-box { div { text { hello } } } card-box { }`, e: ['hello'] },
-      { n: 14, t: 'q-style direct apply', s: `q-style panel { backgroundColor: #eff6ff color: #1e293b border: 1px solid #93c5fd } panel,div { text { Styled panel } }`, e: ['Styled panel', 'border: 1px solid #93c5fd'] },
-      { n: 15, t: 'q-theme selector mapping', s: `q-style title-accent { color: #1d4ed8 } q-style body-muted { backgroundColor: #64748b } q-theme article-theme { h3 { title-accent } p { body-muted } } article-theme { div { h3 { text { Title } } p { text { Description } } } }`, e: ['Title', 'Description'] },
-      { n: 16, t: 'q-bind test', d: true },
-      { n: 17, t: 'q-bind test', d: true },
-      { n: 18, t: 'q-default-theme fallback + override', s: `q-style panel-base { backgroundColor: #eef3fb color: #0f172a } q-style panel-override { backgroundColor: #ffedd5 color: #7c2d12 } q-default-theme card-theme { .card { panel-base } } q-theme card-demo-theme { card-theme { } .card { panel-override } } card-demo-theme { div.card { text { themed card } } }`, e: ['themed card'] },
-      { n: 19, t: 'q-array as q-property', s: `q-component my-comp { q-property mydivs: q-array { "hello world", 5, q-array { "multi-dimensional", 4 } } div { text { \${this.component.mydivs[0]} } } } my-comp { }`, e: ['hello world'] },
-      { n: 20, t: 'q-map as q-property', s: `q-component my-comp { q-property settings: q-map { title: "Example" nested: q-map { enabled: true } } div { text { \${this.component.settings.nested.enabled} } } } my-comp { }`, e: ['true'] },
-      { n: 21, t: 'named q-array + q-map reuse', s: `q-array shared-items {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(11, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-12">
+        <div class="test-head">
+          <h2>12. q-alias</h2>
+          <span id="badge-12" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> hello world</div>
+        <q-html id="host-t12" data-test-no="12">
+q-component mycomp { q-alias myotherprop { return "hello world"; } div { text { ${this.component.myotherprop} } } } mycomp { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(12, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-13">
+        <div class="test-head">
+          <h2>13. q-keyword aliasing</h2>
+          <span id="badge-13" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> hello</div>
+        <q-html id="host-t13" data-test-no="13">
+q-keyword component { q-component } component card-box { div { text { hello } } } card-box { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(13, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-14">
+        <div class="test-head">
+          <h2>14. q-style direct apply</h2>
+          <span id="badge-14" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Styled panel | border: 1px solid #93c5fd</div>
+        <q-html id="host-t14" data-test-no="14">
+q-style panel { backgroundColor: #eff6ff color: #1e293b border: 1px solid #93c5fd } panel,div { text { Styled panel } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(14, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-15">
+        <div class="test-head">
+          <h2>15. q-theme selector mapping</h2>
+          <span id="badge-15" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Title | Description</div>
+        <q-html id="host-t15" data-test-no="15">
+q-style title-accent { color: #1d4ed8 } q-style body-muted { backgroundColor: #64748b } q-theme article-theme { h3 { title-accent } p { body-muted } } article-theme { div { h3 { text { Title } } p { text { Description } } } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(15, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-16">
+        <div class="test-head">
+          <h2>16. q-bind test</h2>
+          <span id="badge-16" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> test has been deprecated</div>
+        <q-html id="host-t16" data-test-no="16">
+div { text { test has been deprecated } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(16, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-17">
+        <div class="test-head">
+          <h2>17. q-bind test</h2>
+          <span id="badge-17" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> test has been deprecated</div>
+        <q-html id="host-t17" data-test-no="17">
+div { text { test has been deprecated } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(17, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-18">
+        <div class="test-head">
+          <h2>18. q-default-theme fallback + override</h2>
+          <span id="badge-18" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> themed card</div>
+        <q-html id="host-t18" data-test-no="18">
+q-style panel-base { backgroundColor: #eef3fb color: #0f172a } q-style panel-override { backgroundColor: #ffedd5 color: #7c2d12 } q-default-theme card-theme { .card { panel-base } } q-theme card-demo-theme { card-theme { } .card { panel-override } } card-demo-theme { div.card { text { themed card } } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(18, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-19">
+        <div class="test-head">
+          <h2>19. q-array as q-property</h2>
+          <span id="badge-19" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> hello world</div>
+        <q-html id="host-t19" data-test-no="19">
+q-component my-comp { q-property mydivs: q-array { "hello world", 5, q-array { "multi-dimensional", 4 } } div { text { ${this.component.mydivs[0]} } } } my-comp { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(19, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-20">
+        <div class="test-head">
+          <h2>20. q-map as q-property</h2>
+          <span id="badge-20" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> true</div>
+        <q-html id="host-t20" data-test-no="20">
+q-component my-comp { q-property settings: q-map { title: "Example" nested: q-map { enabled: true } } div { text { ${this.component.settings.nested.enabled} } } } my-comp { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(20, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-21">
+        <div class="test-head">
+          <h2>21. named q-array + q-map reuse</h2>
+          <span id="badge-21" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> 2</div>
+        <q-html id="host-t21" data-test-no="21">
+q-array shared-items {
   1, 2, 3
 }
 q-component my-comp {
   q-property mydivs: shared-items
-  div { text { \${this.component.mydivs[1]} } }
+  div { text { ${this.component.mydivs[1]} } }
 }
-my-comp { }`, e: ['2'] },
-      { n: 22, t: 'property shorthand', s: `q-component short-prop { property label: "shorthand-ok" div { text { \${this.component.label} } } } short-prop { }`, e: ['shorthand-ok'] },
-      { n: 23, t: 'q-model basics', s: `q-model my-model { q-array { 5, 10 } } div#model-count { text { pending } } onReady { var model = this["my-model"]; model.add(15); document.querySelector("#model-count").textContent = String(model.count()); }`, e: ['>3<'] },
-      { n: 24, t: 'q-model-view basics', s: `q-array my-source { 5, 10, q-map { name: "tom" } } q-model-view { q-model { my-source } as { item } div { text { \${item && item.name ? item.name : item} } } }`, e: ['5', '10', 'tom'] },
-      { n: 25, t: 'extends single inheritance', s: `q-component base-label { q-property label: "base-ok" } q-component child-label extends base-label { div { text { \${this.component.label} } } } child-label { }`, e: ['base-ok'] },
-      { n: 26, t: 'extends multiple inheritance', s: `q-component base-a { q-property a: "A" } q-component base-b { q-property b: "B" } q-component child-multi extends base-a extends base-b { div { text { \${this.component.a}-\${this.component.b} } } } child-multi { }`, e: ['A-B'] },
-      { n: 27, t: 'q-signal definition slot payload', s: `q-signal dataReady {
+my-comp { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(21, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-22">
+        <div class="test-head">
+          <h2>22. property shorthand</h2>
+          <span id="badge-22" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> shorthand-ok</div>
+        <q-html id="host-t22" data-test-no="22">
+q-component short-prop { property label: "shorthand-ok" div { text { ${this.component.label} } } } short-prop { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(22, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-23">
+        <div class="test-head">
+          <h2>23. q-model basics</h2>
+          <span id="badge-23" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> &gt;3&lt;</div>
+        <q-html id="host-t23" data-test-no="23">
+q-model my-model { q-array { 5, 10 } } div#model-count { text { pending } } onReady { var model = this["my-model"]; model.add(15); document.querySelector("#model-count").textContent = String(model.count()); }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(23, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-24">
+        <div class="test-head">
+          <h2>24. q-model-view basics</h2>
+          <span id="badge-24" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> 5 | 10 | tom</div>
+        <q-html id="host-t24" data-test-no="24">
+q-array my-source { 5, 10, q-map { name: "tom" } } q-model-view { q-model { my-source } as { item } div { text { ${item && item.name ? item.name : item} } } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(24, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-25">
+        <div class="test-head">
+          <h2>25. extends single inheritance</h2>
+          <span id="badge-25" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> base-ok</div>
+        <q-html id="host-t25" data-test-no="25">
+q-component base-label { q-property label: "base-ok" } q-component child-label extends base-label { div { text { ${this.component.label} } } } child-label { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(25, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-26">
+        <div class="test-head">
+          <h2>26. extends multiple inheritance</h2>
+          <span id="badge-26" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> A-B</div>
+        <q-html id="host-t26" data-test-no="26">
+q-component base-a { q-property a: "A" } q-component base-b { q-property b: "B" } q-component child-multi extends base-a extends base-b { div { text { ${this.component.a}-${this.component.b} } } } child-multi { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(26, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-27">
+        <div class="test-head">
+          <h2>27. q-signal definition slot payload</h2>
+          <span id="badge-27" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> slot-payload-ok</div>
+        <q-html id="host-t27" data-test-no="27">
+q-signal dataReady {
   slot { value }
 }
 
@@ -247,9 +755,41 @@ div#t27-carrier {
   dataReady {
     value { slot-payload-ok }
   }
-}`, e: ['slot-payload-ok'] },
-      { n: 28, t: 'q-rewrite template-style', s: `q-rewrite make-strong { slot { input } return { strong { q-script { return String(this.slot("input")); } } } } div { make-strong { rewrite-ok } }`, e: ['rewrite-ok', '<strong>'] },
-      { n: 29, t: 'q-signal same-component on<Signal> handler', s: `q-component probe29 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(27, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-28">
+        <div class="test-head">
+          <h2>28. q-rewrite template-style</h2>
+          <span id="badge-28" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> rewrite-ok | &lt;strong&gt;</div>
+        <q-html id="host-t28" data-test-no="28">
+q-rewrite make-strong { slot { input } return { strong { q-script { return String(this.slot("input")); } } } } div { make-strong { rewrite-ok } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(28, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-29">
+        <div class="test-head">
+          <h2>29. q-signal same-component on&lt;Signal&gt; handler</h2>
+          <span id="badge-29" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> self-ok</div>
+        <q-html id="host-t29" data-test-no="29">
+q-component probe29 {
   q-signal probe(message)
   onPrObE {
     $("#t29-out").textContent = event.detail.params.message;
@@ -264,8 +804,24 @@ div#t29-out { text { waiting } }
 
 onReady {
   $("#t29-probe").boot();
-}`, e: ['self-ok'] },
-      { n: 30, t: 'q-signal multiple subscribers receive same emit', s: `q-component emitter30 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(29, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-30">
+        <div class="test-head">
+          <h2>30. q-signal multiple subscribers receive same emit</h2>
+          <span id="badge-30" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> multi-ok-a | multi-ok-b</div>
+        <q-html id="host-t30" data-test-no="30">
+q-component emitter30 {
   q-signal ping(value)
   function fireNow() {
     this.ping("multi-ok")
@@ -285,24 +841,296 @@ onReady {
     $("#t30-b").textContent = String(value) + "-b";
   });
   em.fireNow();
-}`, e: ['multi-ok-a', 'multi-ok-b'] },
-      { n: 31, t: 'qdom serialize + deserialize style flow', s: `div#ser { text { one } } div#out { text { pending } } onReady { var s = this.qdom().find("#ser").serialize(); this.qdom().find("#out").replaceWithQHTML(s); this.update(); }`, e: ['one'] },
-      { n: 32, t: 'q-template basic', s: `q-template badge { span.badge { text { template badge } } } div { badge { } }`, e: ['template badge'] },
-      { n: 33, t: 'q-macro scoped placeholder', s: `q-macro scoped-label { slot { value } return { p { text { value=\${this.slot("value")} } } } } scoped-label { value { demo-ref } }`, e: ['value=demo-ref'] },
-      { n: 34, t: 'q-script returns QHTML', s: `q-script { return "div { text { dynamic-node } }"; }`, e: ['dynamic-node'] },
-      { n: 35, t: 'q-script returns text', s: `div { q-script { return "plain-text-node"; } }`, e: ['plain-text-node'] },
-      { n: 36, t: 'q-array nested access', s: `q-component arr-comp { q-property arr: q-array { "a", "b", q-array { "nested-a", "nested-b" } } div { text { \${this.component.arr[2][0]} } } } arr-comp { }`, e: ['nested-a'] },
-      { n: 37, t: 'q-map nested access', s: `q-component map-comp { q-property settings: q-map { title: "MapTest" nested: q-map { enabled: true } } div { text { \${this.component.settings.title} - \${this.component.settings.nested.enabled} } } } map-comp { }`, e: ['MapTest - true'] },
-      { n: 38, t: 'q-model from q-script source', s: `q-model my-model { q-array { 1, 2, 3 } } div#mv38 { text { pending } } onReady { var m = this["my-model"]; document.querySelector("#mv38").textContent = String(m.count()); }`, e: ['3'] },
-      { n: 39, t: 'q-property changed signal via .connect', d: true },
-      { n: 40, t: 'q-bind test', d: true },
-      { n: 41, t: 'q-style-class merge', s: `q-style card-shell { q-style-class { w3-card w3-round-large w3-padding } borderColor: #cbd5e1 } card-shell,div#card41 { text { class-merge } }`, e: ['class-merge', 'w3-card'] },
-      { n: 42, t: 'q-theme composition', s: `q-style button-base { backgroundColor: #0f766e color: #ffffff } q-style button-danger { backgroundColor: #b91c1c color: #ffffff } q-theme base-theme { button { button-base } } q-theme admin-theme { base-theme { } .danger { button-danger } } admin-theme { button.danger { text { Remove } } }`, e: ['Remove'] },
-      { n: 43, t: 'scoped theme application', s: `q-style title-accent { color: #1d4ed8 } q-theme article-theme { h3 { title-accent } } article-theme { div { h3 { text { Scoped Title } } } }`, e: ['Scoped Title'] },
-      { n: 44, t: 'scoped $() selector shortcut', s: `div#sender { text { sender-value } } div#result44 { text { pending } } onReady { $("#result44").textContent = $("#sender").textContent; }`, e: ['sender-value'] },
-      { n: 45, t: 'root onReady hook', s: `onReady { this.setAttribute("data-ready", "1"); } div { text { root-ready } }`, e: ['root-ready'] },
-      { n: 46, t: 'escaped brace in text', s: `div { text { hello world } }`, e: ['hello world'] },
-      { n: 47, t: 'q-signal forwarded through component method', s: `q-component source47 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(30, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-31">
+        <div class="test-head">
+          <h2>31. qdom serialize + deserialize style flow</h2>
+          <span id="badge-31" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> one</div>
+        <q-html id="host-t31" data-test-no="31">
+div#ser { text { one } } div#out { text { pending } } onReady { var s = this.qdom().find("#ser").serialize(); this.qdom().find("#out").replaceWithQHTML(s); this.update(); }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(31, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-32">
+        <div class="test-head">
+          <h2>32. q-template basic</h2>
+          <span id="badge-32" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> template badge</div>
+        <q-html id="host-t32" data-test-no="32">
+q-template badge { span.badge { text { template badge } } } div { badge { } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(32, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-33">
+        <div class="test-head">
+          <h2>33. q-macro scoped placeholder</h2>
+          <span id="badge-33" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> value=demo-ref</div>
+        <q-html id="host-t33" data-test-no="33">
+q-macro scoped-label { slot { value } return { p { text { value=${this.slot("value")} } } } } scoped-label { value { demo-ref } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(33, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-34">
+        <div class="test-head">
+          <h2>34. q-script returns QHTML</h2>
+          <span id="badge-34" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> dynamic-node</div>
+        <q-html id="host-t34" data-test-no="34">
+q-script { return "div { text { dynamic-node } }"; }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(34, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-35">
+        <div class="test-head">
+          <h2>35. q-script returns text</h2>
+          <span id="badge-35" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> plain-text-node</div>
+        <q-html id="host-t35" data-test-no="35">
+div { q-script { return "plain-text-node"; } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(35, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-36">
+        <div class="test-head">
+          <h2>36. q-array nested access</h2>
+          <span id="badge-36" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> nested-a</div>
+        <q-html id="host-t36" data-test-no="36">
+q-component arr-comp { q-property arr: q-array { "a", "b", q-array { "nested-a", "nested-b" } } div { text { ${this.component.arr[2][0]} } } } arr-comp { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(36, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-37">
+        <div class="test-head">
+          <h2>37. q-map nested access</h2>
+          <span id="badge-37" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> MapTest - true</div>
+        <q-html id="host-t37" data-test-no="37">
+q-component map-comp { q-property settings: q-map { title: "MapTest" nested: q-map { enabled: true } } div { text { ${this.component.settings.title} - ${this.component.settings.nested.enabled} } } } map-comp { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(37, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-38">
+        <div class="test-head">
+          <h2>38. q-model from q-script source</h2>
+          <span id="badge-38" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> 3</div>
+        <q-html id="host-t38" data-test-no="38">
+q-model my-model { q-array { 1, 2, 3 } } div#mv38 { text { pending } } onReady { var m = this["my-model"]; document.querySelector("#mv38").textContent = String(m.count()); }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(38, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-39">
+        <div class="test-head">
+          <h2>39. q-property changed signal via .connect</h2>
+          <span id="badge-39" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> test has been deprecated</div>
+        <q-html id="host-t39" data-test-no="39">
+div { text { test has been deprecated } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(39, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-40">
+        <div class="test-head">
+          <h2>40. q-bind test</h2>
+          <span id="badge-40" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> test has been deprecated</div>
+        <q-html id="host-t40" data-test-no="40">
+div { text { test has been deprecated } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(40, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-41">
+        <div class="test-head">
+          <h2>41. q-style-class merge</h2>
+          <span id="badge-41" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> class-merge | w3-card</div>
+        <q-html id="host-t41" data-test-no="41">
+q-style card-shell { q-style-class { w3-card w3-round-large w3-padding } borderColor: #cbd5e1 } card-shell,div#card41 { text { class-merge } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(41, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-42">
+        <div class="test-head">
+          <h2>42. q-theme composition</h2>
+          <span id="badge-42" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Remove</div>
+        <q-html id="host-t42" data-test-no="42">
+q-style button-base { backgroundColor: #0f766e color: #ffffff } q-style button-danger { backgroundColor: #b91c1c color: #ffffff } q-theme base-theme { button { button-base } } q-theme admin-theme { base-theme { } .danger { button-danger } } admin-theme { button.danger { text { Remove } } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(42, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-43">
+        <div class="test-head">
+          <h2>43. scoped theme application</h2>
+          <span id="badge-43" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Scoped Title</div>
+        <q-html id="host-t43" data-test-no="43">
+q-style title-accent { color: #1d4ed8 } q-theme article-theme { h3 { title-accent } } article-theme { div { h3 { text { Scoped Title } } } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(43, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-44">
+        <div class="test-head">
+          <h2>44. scoped $() selector shortcut</h2>
+          <span id="badge-44" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> sender-value</div>
+        <q-html id="host-t44" data-test-no="44">
+div#sender { text { sender-value } } div#result44 { text { pending } } onReady { $("#result44").textContent = $("#sender").textContent; }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(44, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-45">
+        <div class="test-head">
+          <h2>45. root onReady hook</h2>
+          <span id="badge-45" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> root-ready</div>
+        <q-html id="host-t45" data-test-no="45">
+onReady { this.setAttribute("data-ready", "1"); } div { text { root-ready } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(45, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-46">
+        <div class="test-head">
+          <h2>46. escaped brace in text</h2>
+          <span id="badge-46" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> hello world</div>
+        <q-html id="host-t46" data-test-no="46">
+div { text { hello world } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(46, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-47">
+        <div class="test-head">
+          <h2>47. q-signal forwarded through component method</h2>
+          <span id="badge-47" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> forward-ok</div>
+        <q-html id="host-t47" data-test-no="47">
+q-component source47 {
   q-signal step(value)
   function run() {
     this.step("forward-ok")
@@ -330,8 +1158,24 @@ div#t47-out { text { waiting } }
 onReady {
   $("#relay47").wire();
   $("#src47").run();
-}`, e: ['forward-ok'] },
-      { n: 48, t: 'q-signal disconnect after first emit', s: `q-component emitter48 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(47, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-48">
+        <div class="test-head">
+          <h2>48. q-signal disconnect after first emit</h2>
+          <span id="badge-48" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> count=1</div>
+        <q-html id="host-t48" data-test-no="48">
+q-component emitter48 {
   q-logger { q-signal q-property function }
   q-signal tick()
   function fireTwice() {
@@ -353,10 +1197,26 @@ onReady {
   };
   em.tick.connect(handler);
   em.fireTwice();
-}`, e: ['count=1'] },
-      { n: 49, t: 'q-model-view randomized components with timers', s: `q-component mycomp {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(48, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-49">
+        <div class="test-head">
+          <h2>49. q-model-view randomized components with timers</h2>
+          <span id="badge-49" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t49-model-view-randomize | Start timers | Status: | Ticks:</div>
+        <q-html id="host-t49" data-test-no="49">
+q-component mycomp {
   q-property randomText: "0"
-  div.randomText { text { \${this.component.randomText} } }
+  div.randomText { text { ${this.component.randomText} } }
   onrandomTextChanged {
     this.querySelector(".randomText").innerHTML = String(this.randomText)
   }
@@ -443,8 +1303,24 @@ onReady {
     document.querySelector("#host-t49 #t49-status").textContent = "running"
     start.disabled = true
   })
-}`, e: ['t49-model-view-randomize', 'Start timers', 'Status:', 'Ticks:'] },
-      { n: 50, t: 'q-signal .connect receives args', s: `q-component emitter50 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(49, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-50">
+        <div class="test-head">
+          <h2>50. q-signal .connect receives args</h2>
+          <span id="badge-50" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> payload-7</div>
+        <q-html id="host-t50" data-test-no="50">
+q-component emitter50 {
   q-signal fired(value, count)
   function fireNow() {
     this.fired("payload", 7)
@@ -460,8 +1336,24 @@ onReady {
     $("#t50-out").textContent = String(value) + "-" + String(count);
   });
   em.fireNow();
-}`, e: ['payload-7'] },
-      { n: 51, t: 'q-signal .connect cross-component receiver', s: `q-component emitter51 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(50, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-51">
+        <div class="test-head">
+          <h2>51. q-signal .connect cross-component receiver</h2>
+          <span id="badge-51" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> cross-ok</div>
+        <q-html id="host-t51" data-test-no="51">
+q-component emitter51 {
   q-logger { q-signal q-property function }
   q-signal done(msg)
   function run() { this.done("cross-ok"); }
@@ -482,8 +1374,24 @@ div#t51-out { text { waiting } }
 
 onReady {
   $("#t51-em").run();
-}`, e: ['cross-ok'] },
-      { n: 52, t: 'q-signal .disconnect removes subscriber', s: `q-component emitter52 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(51, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-52">
+        <div class="test-head">
+          <h2>52. q-signal .disconnect removes subscriber</h2>
+          <span id="badge-52" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> count=0|disconnect-ok</div>
+        <q-html id="host-t52" data-test-no="52">
+q-component emitter52 {
   q-signal done(value)
   function fireNow(value) { this.done(value); }
 }
@@ -508,9 +1416,24 @@ onReady {
       $("#t52-out").textContent = "count=0|disconnect-ok";
     }
   }, 40);
-}`, e: ['count=0|disconnect-ok'] }
-,
-      { n: 53, t: 'q-property changed: declarative + manual subscription (multi-change)', s: `q-component prop53 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(52, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-53">
+        <div class="test-head">
+          <h2>53. q-property changed: declarative + manual subscription (multi-change)</h2>
+          <span id="badge-53" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> prop53-ok</div>
+        <q-html id="host-t53" data-test-no="53">
+q-component prop53 {
   q-logger { q-signal q-property function }
   q-property count: 0
 
@@ -560,9 +1483,24 @@ div#t53-status { text { waiting } }
 
 onReady {
   $("#t53-probe").run();
-}`, e: ['prop53-ok'] }
-,
-      { n: 54, t: 'lowercase on<property>changed + q-timer property mutation', s: `q-component mycomp54 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(53, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-54">
+        <div class="test-head">
+          <h2>54. lowercase on&lt;property&gt;changed + q-timer property mutation</h2>
+          <span id="badge-54" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> prop54-ok</div>
+        <q-html id="host-t54" data-test-no="54">
+q-component mycomp54 {
   q-logger { q-signal q-property function }
   q-property myprop
   onmypropchanged {
@@ -580,9 +1518,24 @@ q-timer mytimer54 {
     document.querySelector("#mycomp54").myprop = "prop54-ok";
   }
   running: true
-}`, e: ['prop54-ok'] }
-,
-      { n: 55, t: 'q-logger q-property (manual button)', m: true, ms: '#t55-done', s: `q-component propertyTest55 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(54, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-55">
+        <div class="test-head">
+          <h2>55. q-logger q-property (manual button)</h2>
+          <span id="badge-55" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> hello world</div>
+        <q-html id="host-t55" data-test-no="55">
+q-component propertyTest55 {
   q-property myprop
   q-logger { q-property }
   button#t55-run {
@@ -598,9 +1551,24 @@ q-timer mytimer54 {
   div#t55-out { text { waiting } }
   div#t55-done { text { 0 } }
 }
-propertyTest55 { }`, e: ['hello world'] }
-,
-      { n: 56, t: 'q-logger q-signal (manual button)', m: true, ms: '#t56-done', s: `q-component signalTest56 {
+propertyTest55 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(55, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-56">
+        <div class="test-head">
+          <h2>56. q-logger q-signal (manual button)</h2>
+          <span id="badge-56" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> signal-ok</div>
+        <q-html id="host-t56" data-test-no="56">
+q-component signalTest56 {
   q-signal ping(value)
   q-logger { q-signal }
   onPing {
@@ -617,9 +1585,24 @@ propertyTest55 { }`, e: ['hello world'] }
   div#t56-out { text { waiting } }
   div#t56-done { text { 0 } }
 }
-signalTest56 { }`, e: ['signal-ok'] }
-,
-      { n: 57, t: 'q-logger q-component (manual button)', m: true, ms: '#t57-done', s: `q-component componentTest57 {
+signalTest56 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(56, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-57">
+        <div class="test-head">
+          <h2>57. q-logger q-component (manual button)</h2>
+          <span id="badge-57" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> component-ok</div>
+        <q-html id="host-t57" data-test-no="57">
+q-component componentTest57 {
   q-property status: "waiting"
   q-logger { q-component }
   button#t57-run {
@@ -635,9 +1618,24 @@ signalTest56 { }`, e: ['signal-ok'] }
   div#t57-out { text { waiting } }
   div#t57-done { text { 0 } }
 }
-componentTest57 { }`, e: ['component-ok'] }
-,
-      { n: 58, t: 'q-logger function (manual button)', m: true, ms: '#t58-done', s: `q-component functionTest58 {
+componentTest57 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(57, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-58">
+        <div class="test-head">
+          <h2>58. q-logger function (manual button)</h2>
+          <span id="badge-58" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> 1</div>
+        <q-html id="host-t58" data-test-no="58">
+q-component functionTest58 {
   q-property count: 0
   q-logger { function }
   function bump() { this.count = Number(this.count || 0) + 1; return this.count; }
@@ -653,9 +1651,24 @@ componentTest57 { }`, e: ['component-ok'] }
   div#t58-out { text { waiting } }
   div#t58-done { text { 0 } }
 }
-functionTest58 { }`, e: ['1'] }
-,
-      { n: 59, t: 'q-logger slot (manual button)', m: true, ms: '#t59-done', s: `q-component slotTest59 {
+functionTest58 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(58, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-59">
+        <div class="test-head">
+          <h2>59. q-logger slot (manual button)</h2>
+          <span id="badge-59" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> slot-ok</div>
+        <q-html id="host-t59" data-test-no="59">
+q-component slotTest59 {
   q-logger { slot }
   slot { body }
   div#t59-projected { slot { body } }
@@ -673,9 +1686,24 @@ functionTest58 { }`, e: ['1'] }
 }
 slotTest59 {
   body { slot-ok }
-}`, e: ['slot-ok'] }
-,
-      { n: 60, t: 'q-logger model (manual button)', m: true, ms: '#t60-done', s: `q-model t60-model { q-array { 1, 2, 3 } }
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(59, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-60">
+        <div class="test-head">
+          <h2>60. q-logger model (manual button)</h2>
+          <span id="badge-60" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> 4</div>
+        <q-html id="host-t60" data-test-no="60">
+q-model t60-model { q-array { 1, 2, 3 } }
 div#t60-scope { q-logger { model } }
 button#t60-run {
   type: "button"
@@ -689,9 +1717,24 @@ button#t60-run {
   text { test model log }
 }
 div#t60-out { text { waiting } }
-div#t60-done { text { 0 } }`, e: ['4'] }
-,
-      { n: 61, t: 'q-logger instantiation (manual button)', m: true, ms: '#t61-done', s: `q-component instTest61 {
+div#t60-done { text { 0 } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(60, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-61">
+        <div class="test-head">
+          <h2>61. q-logger instantiation (manual button)</h2>
+          <span id="badge-61" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> instantiation-ok</div>
+        <q-html id="host-t61" data-test-no="61">
+q-component instTest61 {
   q-property status: "waiting"
   q-logger { instantiation }
   button#t61-run {
@@ -707,9 +1750,24 @@ div#t60-done { text { 0 } }`, e: ['4'] }
   div#t61-out { text { waiting } }
   div#t61-done { text { 0 } }
 }
-instTest61 { }`, e: ['instantiation-ok'] }
-,
-      { n: 62, t: 'q-logger multi categories (manual button)', m: true, ms: '#t62-done', s: `q-component multiTest62 {
+instTest61 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(61, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-62">
+        <div class="test-head">
+          <h2>62. q-logger multi categories (manual button)</h2>
+          <span id="badge-62" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> multi-ok-1</div>
+        <q-html id="host-t62" data-test-no="62">
+q-component multiTest62 {
   q-property count: 0
   q-signal ping(value)
   q-logger { q-property q-signal function }
@@ -730,12 +1788,27 @@ instTest61 { }`, e: ['instantiation-ok'] }
   div#t62-out { text { waiting } }
   div#t62-done { text { 0 } }
 }
-multiTest62 { }`, e: ['multi-ok-1'] }
-,
-      { n: 63, t: 'q-logger multi-scope override (manual button)', m: true, ms: '#t63-done', s: `q-component scopeTest63 {
+multiTest62 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(62, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-63">
+        <div class="test-head">
+          <h2>63. q-logger multi-scope override (manual button)</h2>
+          <span id="badge-63" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> a=1|b=1</div>
+        <q-html id="host-t63" data-test-no="63">
+q-component scopeTest63 {
   q-property count: 0
   q-logger { q-property }
-  div.out { text { \${this.component.count} } }
+  div.out { text { ${this.component.count} } }
 }
 scopeTest63#t63-a { }
 scopeTest63#t63-b { q-logger { q-signal } }
@@ -753,9 +1826,24 @@ button#t63-run {
   text { test scope override }
 }
 div#t63-out { text { waiting } }
-div#t63-done { text { 0 } }`, e: ['a=1|b=1'] }
-    ,
-      { n: 64, t: 'qdom().qmap() keyword extraction', s: `q-component probe64 {
+div#t63-done { text { 0 } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(63, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-64">
+        <div class="test-head">
+          <h2>64. qdom().qmap() keyword extraction</h2>
+          <span id="badge-64" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> q-property | foo | q-signal | done</div>
+        <q-html id="host-t64" data-test-no="64">
+q-component probe64 {
   q-logger { q-signal q-property }
   q-property foo: "bar"
   q-signal done(value)
@@ -770,9 +1858,24 @@ onReady {
   var defNode = this.qdom().find("probe64");
   var mapped = defNode ? defNode.qmap(["q-property", "q-signal", "slot"], false) : {};
   $("#t64-out").textContent = JSON.stringify(mapped);
-}`, e: ['q-property', 'foo', 'q-signal', 'done'] }
-    ,
-      { n: 65, t: 'empty q-map populate + q-property change propagation', s: `q-component mapPump65 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(64, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-65">
+        <div class="test-head">
+          <h2>65. empty q-map populate + q-property change propagation</h2>
+          <span id="badge-65" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> map65-ok|</div>
+        <q-html id="host-t65" data-test-no="65">
+q-component mapPump65 {
   q-logger { q-signal q-property }
   q-property payload: q-map { }
   q-property status: "waiting"
@@ -807,9 +1910,24 @@ mapPump65#t65-host { }
 
 onReady {
   $("#t65-host").run();
-}`, e: ['map65-ok|'] }
-    ,
-      { n: 66, t: 'q-tree-view setModel from instance qdom().qmap()', s: `q-import { q-components/q-tree-view.qhtml?v=tree-css-28 }
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(65, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-66">
+        <div class="test-head">
+          <h2>66. q-tree-view setModel from instance qdom().qmap()</h2>
+          <span id="badge-66" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> q-property | count | q-signal | done | slot</div>
+        <q-html id="host-t66" data-test-no="66">
+q-import { q-components/q-tree-view.qhtml?v=tree-css-28 }
 
 q-component comp66 {
   q-property count: 1
@@ -830,15 +1948,30 @@ onReady {
   var mapped = source.qmap(["q-property", "q-signal", "slot"], true);
   $("#t66-tree").setModel(mapped);
   $("#t66-out").textContent = JSON.stringify(mapped);
-}`, e: ['q-property', 'count', 'q-signal', 'done', 'slot'] }
-    ,
-      { n: 67, t: 'extends q-model-view inheritance chain + timer probe', s: `q-import { q-components.qhtml }
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(66, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-67">
+        <div class="test-head">
+          <h2>67. extends q-model-view inheritance chain + timer probe</h2>
+          <span id="badge-67" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> inherited components that inherit components 1 | what about inherited stuff form test-comp1? 1 | hello world | testing 1 2 3</div>
+        <q-html id="host-t67" data-test-no="67">
+q-import { q-components.qhtml }
 
 q-component test-comp1 extends q-model-view {
   model { q-array { 1, 2, 3, 4, 5 } }
   as { item }
   div#test-div1 {
-    text { inherited components that inherit components \${this.component.item} }
+    text { inherited components that inherit components ${this.component.item} }
     slot { main-slot }
   }
 }
@@ -846,7 +1979,7 @@ q-component test-comp1 extends q-model-view {
 q-component test-comp2 extends test-comp1 {
   as { item2 }
   div#test-div2 {
-    text { what about inherited stuff form test-comp1? \${this.component.item2 || this.component.item} }
+    text { what about inherited stuff form test-comp1? ${this.component.item2 || this.component.item} }
   }
 }
 
@@ -863,61 +1996,151 @@ q-timer testtimer67 {
   repeat: false
   ontimeout { console.log(document.querySelector("#tc2")) }
   running: true
-}`, e: ['inherited components that inherit components 1', 'what about inherited stuff form test-comp1? 1', 'hello world', 'testing 1 2 3'] }
-    ,
-      { n: 68, t: 'q-model-view using model { q-array { ... } } + as alias', s: `q-model-view {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(67, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-68">
+        <div class="test-head">
+          <h2>68. q-model-view using model { q-array { ... } } + as alias</h2>
+          <span id="badge-68" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> model-array-as a | model-array-as b | model-array-as c</div>
+        <q-html id="host-t68" data-test-no="68">
+q-model-view {
   model { q-array { "a", "b", "c" } }
   as { item }
-  div { text { model-array-as \${item} } }
-}`, e: ['model-array-as a', 'model-array-as b', 'model-array-as c'] }
-    ,
-      { n: 69, t: 'q-model-view using slot alias keyword', s: `q-model-view {
+  div { text { model-array-as ${item} } }
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(68, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-69">
+        <div class="test-head">
+          <h2>69. q-model-view using slot alias keyword</h2>
+          <span id="badge-69" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> model-slot-alias 7 | model-slot-alias 8</div>
+        <q-html id="host-t69" data-test-no="69">
+q-model-view {
   q-model { q-array { 7, 8 } }
   slot { row }
-  div { text { model-slot-alias \${row} } }
-}`, e: ['model-slot-alias 7', 'model-slot-alias 8'] }
-    ,
-      { n: 70, t: 'q-model named from q-map + q-model-view model reference', s: `q-model my-model70 {
+  div { text { model-slot-alias ${row} } }
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(69, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-70">
+        <div class="test-head">
+          <h2>70. q-model named from q-map + q-model-view model reference</h2>
+          <span id="badge-70" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> model-map-ref alpha</div>
+        <q-html id="host-t70" data-test-no="70">
+q-model my-model70 {
   q-map { first: "alpha", second: "beta" }
 }
 
 q-model-view {
   model { my-model70 }
   as { item }
-  div { text { model-map-ref \${item.first || item.second || item} } }
-}`, e: ['model-map-ref alpha'] }
-    ,
-      { n: 71, t: 'q-model-view with q-model q-script array source', s: `q-model-view {
+  div { text { model-map-ref ${item.first || item.second || item} } }
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(70, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-71">
+        <div class="test-head">
+          <h2>71. q-model-view with q-model q-script array source</h2>
+          <span id="badge-71" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> model-script-source 11 | model-script-source 12 | model-script-source 13</div>
+        <q-html id="host-t71" data-test-no="71">
+q-model-view {
   q-model {
     q-script { return [11, 12, 13] }
   }
   as { item }
-  div { text { model-script-source \${item} } }
-}`, e: ['model-script-source 11', 'model-script-source 12', 'model-script-source 13'] }
-    ,
-      { n: 72, t: 'q-model-view inheritance: component extends q-model-view', s: `q-component base-model-view72 extends q-model-view {
+  div { text { model-script-source ${item} } }
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(71, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-72">
+        <div class="test-head">
+          <h2>72. q-model-view inheritance: component extends q-model-view</h2>
+          <span id="badge-72" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> base72 x | base72 y | child72 x | child72 y | slot72</div>
+        <q-html id="host-t72" data-test-no="72">
+q-component base-model-view72 extends q-model-view {
   q-model { q-array { "x", "y" } }
   as { item }
   div.base72 {
-    text { base72 \${this.component.item} }
+    text { base72 ${this.component.item} }
     slot { extra }
   }
 }
 
 q-component child-model-view72 extends base-model-view72 {
   div.child72 {
-    text { child72 \${this.component.item} }
+    text { child72 ${this.component.item} }
   }
 }
 
 child-model-view72#t72-inst {
   extra { span { text { slot72 } } }
-}`, e: ['base72 x', 'base72 y', 'child72 x', 'child72 y', 'slot72'] }
-    ,
-      { n: 73, t: 'deep extends precedence: lowest-level overrides ancestors', s: `q-component ancestor73 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(72, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-73">
+        <div class="test-head">
+          <h2>73. deep extends precedence: lowest-level overrides ancestors</h2>
+          <span id="badge-73" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> ancestor73-leaf-leaf | leaf73-leaf-leaf</div>
+        <q-html id="host-t73" data-test-no="73">
+q-component ancestor73 {
   q-property label: "ancestor"
   function who() { return "ancestor" }
-  div { text { ancestor73-\${this.component.label}-\${this.component.who()} } }
+  div { text { ancestor73-${this.component.label}-${this.component.who()} } }
 }
 
 q-component middle73 extends ancestor73 {
@@ -928,48 +2151,93 @@ q-component middle73 extends ancestor73 {
 q-component leaf73 extends middle73 {
   q-property label: "leaf"
   function who() { return "leaf" }
-  div { text { leaf73-\${this.component.label}-\${this.component.who()} } }
+  div { text { leaf73-${this.component.label}-${this.component.who()} } }
 }
 
-leaf73 { }`, e: ['ancestor73-leaf-leaf', 'leaf73-leaf-leaf'] }
-    ,
-      { n: 74, t: 'deep q-model-view inheritance chain', s: `q-component root74 extends q-model-view {
+leaf73 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(73, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-74">
+        <div class="test-head">
+          <h2>74. deep q-model-view inheritance chain</h2>
+          <span id="badge-74" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> root74-r1 | mid74-r1 | leaf74-r1 | root74-r2 | mid74-r2 | leaf74-r2</div>
+        <q-html id="host-t74" data-test-no="74">
+q-component root74 extends q-model-view {
   model { q-array { "r1", "r2" } }
   as { row }
-  div { text { root74-\${this.component.row} } }
+  div { text { root74-${this.component.row} } }
 }
 
 q-component mid74 extends root74 {
   as { row2 }
-  div { text { mid74-\${this.component.row2 || this.component.row} } }
+  div { text { mid74-${this.component.row2 || this.component.row} } }
 }
 
 q-component leaf74 extends mid74 {
-  div { text { leaf74-\${this.component.row2 || this.component.row} } }
+  div { text { leaf74-${this.component.row2 || this.component.row} } }
 }
 
-leaf74 { }`, e: ['root74-r1', 'mid74-r1', 'leaf74-r1', 'root74-r2', 'mid74-r2', 'leaf74-r2'] }
-    ,
-      { n: 75, t: 'double extends: component extends component extends q-model-view', s: `q-component mycomp1 extends q-model-view {
+leaf74 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(74, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-75">
+        <div class="test-head">
+          <h2>75. double extends: component extends component extends q-model-view</h2>
+          <span id="badge-75" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> mycomp1-one | mycomp2-one | mycomp1-two | mycomp2-two</div>
+        <q-html id="host-t75" data-test-no="75">
+q-component mycomp1 extends q-model-view {
   model { q-array { "one", "two" } }
   as { item }
-  div { text { mycomp1-\${this.component.item} } }
+  div { text { mycomp1-${this.component.item} } }
 }
 
 q-component mycomp2 extends mycomp1 extends q-model-view {
-  div { text { mycomp2-\${this.component.item} } }
+  div { text { mycomp2-${this.component.item} } }
 }
 
-mycomp2 { }`, e: ['mycomp1-one', 'mycomp2-one', 'mycomp1-two', 'mycomp2-two'] }
-    ,
-      { n: 76, t: 'q-model mutators update q-model-view', s: `q-model t76model {
+mycomp2 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(75, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-76">
+        <div class="test-head">
+          <h2>76. q-model mutators update q-model-view</h2>
+          <span id="badge-76" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Z0|a|B2|c | Z0 | a | B2 | c</div>
+        <q-html id="host-t76" data-test-no="76">
+q-model t76model {
   q-array { "a", "b" }
 }
 
 q-model-view {
   q-model { t76model }
   as { item }
-  div.t76-row { text { \${item} } }
+  div.t76-row { text { ${item} } }
 }
 
 div#t76-status { text { waiting } }
@@ -981,9 +2249,24 @@ onReady {
   host.t76model.set(2, "B2");
   host.t76model.replace(0, "Z0");
   document.querySelector("#t76-status").textContent = host.t76model.values().join("|");
-}`, e: ['Z0|a|B2|c', 'Z0', 'a', 'B2', 'c'] }
-    ,
-      { n: 77, t: 'q-model modelChanged.connect emits per mutation', s: `q-model t77model {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(76, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-77">
+        <div class="test-head">
+          <h2>77. q-model modelChanged.connect emits per mutation</h2>
+          <span id="badge-77" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> remove|3</div>
+        <q-html id="host-t77" data-test-no="77">
+q-model t77model {
   q-map { one: "1" }
 }
 
@@ -1000,9 +2283,24 @@ onReady {
   model.set("one", "11");
   model.set("two", "22");
   model.remove("one");
-}`, e: ['remove|3'] }
-    ,
-      { n: 78, t: 'q-model subscribe keeps legacy event types', s: `q-model t78model {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(77, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-78">
+        <div class="test-head">
+          <h2>78. q-model subscribe keeps legacy event types</h2>
+          <span id="badge-78" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> add,update,remove</div>
+        <q-html id="host-t78" data-test-no="78">
+q-model t78model {
   q-array { 1 }
 }
 
@@ -1019,59 +2317,149 @@ onReady {
   model.push(2);
   model.replace(0, 10);
   model.remove(1);
-}`, e: ['add,update,remove'] }
-    ,
-      { n: 79, t: 'for keyword over q-array component property', s: `q-component for79 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(78, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-79">
+        <div class="test-head">
+          <h2>79. for keyword over q-array component property</h2>
+          <span id="badge-79" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t79-one | t79-two | t79-three</div>
+        <q-html id="host-t79" data-test-no="79">
+q-component for79 {
   q-property items: q-array { "one", "two", "three" }
   ul#t79-list {
     for (item in this.component.items) {
-      li { text { t79-\${item} } }
+      li { text { t79-${item} } }
     }
   }
 }
 
-for79 { }`, e: ['t79-one', 't79-two', 't79-three'] }
-    ,
-      { n: 80, t: 'for keyword over q-component q-property', s: `q-component forcomp80 {
+for79 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(79, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-80">
+        <div class="test-head">
+          <h2>80. for keyword over q-component q-property</h2>
+          <span id="badge-80" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t80-aa | t80-bb | t80-cc</div>
+        <q-html id="host-t80" data-test-no="80">
+q-component forcomp80 {
   q-property items: q-array { "aa", "bb", "cc" }
   ul {
     for (item in this.component.items) {
-      li { text { t80-\${item} } }
+      li { text { t80-${item} } }
     }
   }
 }
 
-forcomp80 { }`, e: ['t80-aa', 't80-bb', 't80-cc'] }
-    ,
-      { n: 81, t: 'for keyword over object keys and value lookup', s: `q-component for81 {
+forcomp80 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(80, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-81">
+        <div class="test-head">
+          <h2>81. for keyword over object keys and value lookup</h2>
+          <span id="badge-81" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t81-alpha:A | t81-beta:B</div>
+        <q-html id="host-t81" data-test-no="81">
+q-component for81 {
   q-property bag: q-script { return { alpha: "A", beta: "B" } }
   div#t81-out {
     for (k in this.component.bag) {
-      span { text { t81-\${k}:\${this.component.bag[k]} } }
+      span { text { t81-${k}:${this.component.bag[k]} } }
     }
   }
 }
 
-for81 { }`, e: ['t81-alpha:A', 't81-beta:B'] }
-    ,
-      { n: 82, t: 'for keyword over function-returned array source', s: `q-component for82 {
+for81 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(81, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-82">
+        <div class="test-head">
+          <h2>82. for keyword over function-returned array source</h2>
+          <span id="badge-82" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t82-r1c1 | t82-r1c2 | t82-r2c1 | t82-r2c2</div>
+        <q-html id="host-t82" data-test-no="82">
+q-component for82 {
   function rowItems() { return ["r1c1", "r1c2", "r2c1", "r2c2"] }
   div#t82-out {
     for (cell in this.component.rowItems()) {
-      span { text { t82-\${cell} } }
+      span { text { t82-${cell} } }
     }
   }
 }
 
-for82 { }`, e: ['t82-r1c1', 't82-r1c2', 't82-r2c1', 't82-r2c2'] }
-    ,
-      { n: 83, t: 'for keyword with primitive iterable source', s: `div#t83-out {
-  for (item in "solo") {
-    span { text { t83-\${item} } }
+for82 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(82, this.innerHTML);
   }
-}`, e: ['t83-solo'] }
-    ,
-      { n: 84, t: 'q-canvas screensaver bounce (start/stop button)', m: true, ms: '#t84-done', s: `button#t84-toggle {
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-83">
+        <div class="test-head">
+          <h2>83. for keyword with primitive iterable source</h2>
+          <span id="badge-83" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t83-solo</div>
+        <q-html id="host-t83" data-test-no="83">
+div#t83-out {
+  for (item in "solo") {
+    span { text { t83-${item} } }
+  }
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(83, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-84">
+        <div class="test-head">
+          <h2>84. q-canvas screensaver bounce (start/stop button)</h2>
+          <span id="badge-84" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t84-ok | frames=</div>
+        <q-html id="host-t84" data-test-no="84">
+button#t84-toggle {
   type: "button"
   text { start }
   onclick {
@@ -1143,9 +2531,24 @@ q-timer t84Timer {
       $("#t84-toggle").textContent = "start";
     }
   }
-}`, e: ['t84-ok', 'frames='] }
-    ,
-      { n: 85, t: 'q-canvas diagonal pixel-runner (start/stop button)', m: true, ms: '#t85-done', s: `button#t85-toggle {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(84, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-85">
+        <div class="test-head">
+          <h2>85. q-canvas diagonal pixel-runner (start/stop button)</h2>
+          <span id="badge-85" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t85-ok</div>
+        <q-html id="host-t85" data-test-no="85">
+button#t85-toggle {
   type: "button"
   text { start }
   onclick {
@@ -1193,9 +2596,24 @@ q-timer t85Timer {
       $("#t85-toggle").textContent = "start";
     }
   }
-}`, e: ['t85-ok'] }
-    ,
-      { n: 86, t: 'q-canvas transparent overlay (start/stop button)', m: true, ms: '#t86-done', s: `button#t86-toggle {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(85, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-86">
+        <div class="test-head">
+          <h2>86. q-canvas transparent overlay (start/stop button)</h2>
+          <span id="badge-86" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> base-86 | t86-ok</div>
+        <q-html id="host-t86" data-test-no="86">
+button#t86-toggle {
   type: "button"
   text { start }
   onclick {
@@ -1262,9 +2680,24 @@ q-timer t86Timer {
       $("#t86-toggle").textContent = "start";
     }
   }
-}`, e: ['base-86', 't86-ok'] }
-    ,
-      { n: 87, t: 'q-canvas independent animated surfaces (start/stop button)', m: true, ms: '#t87-done', s: `button#t87-toggle {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(86, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-87">
+        <div class="test-head">
+          <h2>87. q-canvas independent animated surfaces (start/stop button)</h2>
+          <span id="badge-87" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t87-ok</div>
+        <q-html id="host-t87" data-test-no="87">
+button#t87-toggle {
   type: "button"
   text { start }
   onclick {
@@ -1307,9 +2740,24 @@ q-timer t87Timer {
       $("#t87-toggle").textContent = "start";
     }
   }
-}`, e: ['t87-ok'] }
-    ,
-      { n: 88, t: 'UUID maps + uuidFor/qdomForUuid/elementForUuid', s: `div#t88-node {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(87, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-88">
+        <div class="test-head">
+          <h2>88. UUID maps + uuidFor/qdomForUuid/elementForUuid</h2>
+          <span id="badge-88" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> uuid|map|lookup|qdom|element</div>
+        <q-html id="host-t88" data-test-no="88">
+div#t88-node {
   text { uuid-target }
 }
 div#t88-out { text { waiting } }
@@ -1328,9 +2776,24 @@ onReady {
     !!(q && String(q.tagName || "").toLowerCase() === "div") &&
     sameElement;
   $("#t88-out").textContent = ok ? "uuid|map|lookup|qdom|element" : "fail";
-}`, e: ['uuid|map|lookup|qdom|element'] }
-    ,
-      { n: 89, t: 'declaration UUID lookup coverage (q-property/q-signal)', s: `q-component decl89 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(88, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-89">
+        <div class="test-head">
+          <h2>89. declaration UUID lookup coverage (q-property/q-signal)</h2>
+          <span id="badge-89" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> prop-uuid|signal-uuid|lookup-prop|lookup-signal</div>
+        <q-html id="host-t89" data-test-no="89">
+q-component decl89 {
   q-property count
   q-signal done(value)
   div { text { decl89 } }
@@ -1349,9 +2812,24 @@ onReady {
     });
   }
   $("#t89-out").textContent = (prop > 0 && sig > 0) ? "prop-uuid|signal-uuid|lookup-prop|lookup-signal" : "fail";
-}`, e: ['prop-uuid|signal-uuid|lookup-prop|lookup-signal'] }
-    ,
-      { n: 90, t: 'lookupUuid facade children()', s: `div#t90-parent {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(89, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-90">
+        <div class="test-head">
+          <h2>90. lookupUuid facade children()</h2>
+          <span id="badge-90" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> children-ok</div>
+        <q-html id="host-t90" data-test-no="90">
+div#t90-parent {
   span#t90-child { text { child90 } }
 }
 div#t90-out { text { waiting } }
@@ -1364,35 +2842,62 @@ onReady {
   var first = kids.length > 0 ? kids[0] : null;
   var ok = kids.length === 1 && first && String(first.tagName || "").toLowerCase() === "span";
   $("#t90-out").textContent = ok ? "children-ok" : "fail";
-}`, e: ['children-ok'] }
-    ,
-      { n: 91, t: 'UUID lookup miss soft-fail', s: `div#t91-out { text { waiting } }
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(90, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-91">
+        <div class="test-head">
+          <h2>91. UUID lookup miss soft-fail</h2>
+          <span id="badge-91" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> miss-ok</div>
+        <q-html id="host-t91" data-test-no="91">
+div#t91-out { text { waiting } }
 onReady {
   var host = this;
   var a = host.lookupUuid("missing-uuid-value");
   var b = host.qdomForUuid("missing-uuid-value");
   var c = host.elementForUuid("missing-uuid-value");
   $("#t91-out").textContent = (a === null && b === null && c === null) ? "miss-ok" : "miss-fail";
-}`, e: ['miss-ok'] }
-    ,
-      { n: 92, t: 'q-signal fan-out with q-array driven instances (50/100/250/500/1000)', m: true, ms: '#t92-done', s: `q-component test-component92-1 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(91, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-92">
+        <div class="test-head">
+          <h2>92. q-signal fan-out with q-array driven instances (50/100/250/500/1000)</h2>
+          <span id="badge-92" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> connections-ready | size= | connected= | mutated=</div>
+        <q-html id="host-t92" data-test-no="92">
+q-component test-component92-1 {
   q-property currentText: "0"
   function mutate() {
-    console.log("[t92][target] mutate() called", this.component && this.component.id ? this.component.id : "(no-id)");
     this.component.currentText = String(Math.random());
   }
   function setInnerText(newText) {
     var node = this.querySelector(".t92-text");
-    console.log("[t92][target] setInnerText()", newText, !!node);
     if (node) {
       node.innerText = String(newText);
     }
   }
   oncurrentTextchanged {
-    console.log("[t92][target] oncurrentTextchanged", this.component.currentText);
     this.component.setInnerText(this.component.currentText);
   }
-  div,span.t92-text { text { \${this.component.currentText} } }
+  div,span.t92-text { text { ${this.component.currentText} } }
 }
 
 q-component test-component92-2 {
@@ -1407,7 +2912,6 @@ q-component test-component92-2 {
 
   function clearConnections() {
     var handlers = this.component.__t92Handlers;
-    console.log("[t92][hub] clearConnections()", Array.isArray(handlers) ? handlers.length : 0);
     if (!Array.isArray(handlers) || typeof this.component.mysignal !== "function") {
       this.component.__t92Handlers = [];
       return;
@@ -1423,10 +2927,8 @@ q-component test-component92-2 {
     var handlers = [];
     var targets = Array.from(document.querySelectorAll("#t92-hub test-component92-1"));
     var signal = this.component.mysignal;
-    console.log("[t92][hub] createConnections() targets=", targets.length, "signalFn=", typeof signal);
     targets.forEach(function(target) {
       if (!target || typeof target.mutate !== "function") {
-        console.log("[t92][hub] skip target (no mutate)", target);
         return;
       }
       var h = function() { target.mutate(); };
@@ -1439,11 +2941,14 @@ q-component test-component92-2 {
 }
 
 div#t92-controls {
+  button#t92-start-5 { type: "button" text { start 5 } }
+  button#t92-start-10 { type: "button" text { start 10 } }
   button#t92-start-50 { type: "button" text { start 50 } }
   button#t92-start-100 { type: "button" text { start 100 } }
   button#t92-start-250 { type: "button" text { start 250 } }
   button#t92-start-500 { type: "button" text { start 500 } }
   button#t92-start-1000 { type: "button" text { start 1000 } }
+  button#t92-start-2000 { type: "button" text { start 2000 } }
 }
 div#t92-status { text { waiting } }
 div#t92-results { text { waiting } }
@@ -1451,14 +2956,13 @@ div#t92-done { text { 0 } }
 test-component92-2#t92-hub { }
 
 onReady {
-  var sizes = [50, 100, 250, 500, 1000];
+  var sizes = [5, 10, 50, 100, 250, 500, 1000, 2000];
   var hub = $("#t92-hub");
   var statusNode = $("#t92-status");
   var resultsNode = $("#t92-results");
   var doneNode = $("#t92-done");
   var running = false;
   var stats = {};
-  console.log("[t92] onReady hub=", hub);
 
   function setButtonsDisabled(disabled) {
     sizes.forEach(function(size) {
@@ -1479,11 +2983,10 @@ onReady {
       }
       lines.push("size=" + size + "|connected=" + row.connected + "|mutated=" + row.mutated + "|ms=" + row.ms.toFixed(3));
     });
-    resultsNode.textContent = lines.join("\\n");
+    resultsNode.textContent = lines.join("\n");
   }
 
   function runSize(size) {
-    console.log("[t92] runSize() requested", size, "running=", running, "hub=", !!hub);
     if (running || !hub) {
       return;
     }
@@ -1496,24 +2999,16 @@ onReady {
     for (var i = 0; i < size; i += 1) {
       values.push(i);
     }
-    console.log("[t92] assigning instances", size);
     hub.instances = QArray(values);
     if (typeof hub.update === "function") {
-      console.log("[t92] calling hub.update()");
       hub.update();
     }
 
     window.setTimeout(function() {
       var childCount = document.querySelectorAll("#t92-hub test-component92-1").length;
-      console.log("[t92] after render wait, child count=", childCount, "list=", !!hub.querySelector(".t92-list"));
-      if (childCount === 0) {
-        console.log("[t92] hub.innerHTML snapshot", String(hub.innerHTML || "").slice(0, 500));
-      }
       var connected = hub.createConnections();
-      console.log("[t92] connected handlers=", connected);
       var startedAt = performance.now();
       window.setTimeout(function() {
-        console.log("[t92] emitting mysignal()");
         hub.mysignal();
       }, 60);
       window.setTimeout(function() {
@@ -1526,12 +3021,12 @@ onReady {
             mutated = mutated + 1;
           }
         }
-        console.log("[t92] post-emit scan", { size: size, rows: rows.length, mutated: mutated, elapsed: elapsed });
         stats[size] = {
           connected: connected,
           mutated: mutated,
           ms: elapsed
         };
+        console.log("[t92] summary", { size: size, connected: connected, mutated: mutated, ms: elapsed });
         renderStats();
         statusNode.textContent = "connections-ready|size=" + size;
         doneNode.textContent = "1";
@@ -1547,15 +3042,29 @@ onReady {
       return;
     }
     btn.onclick = function() {
-      console.log("[t92] button click", size);
       runSize(size);
     };
   });
 
   renderStats();
-}`, e: ['connections-ready', 'size=', 'connected=', 'mutated='] }
-    ,
-      { n: 93, t: 'QArray JS assignment + mutate fetched model + reassign', s: `q-component array93 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(92, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-93">
+        <div class="test-head">
+          <h2>93. QArray JS assignment + mutate fetched model + reassign</h2>
+          <span id="badge-93" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> 0|1|2|3|4|5</div>
+        <q-html id="host-t93" data-test-no="93">
+q-component array93 {
   q-property items: q-array { }
   div#t93-out { text { waiting } }
   function run() {
@@ -1576,9 +3085,24 @@ onReady {
 }
 
 array93#t93-host { }
-`, e: ['0|1|2|3|4|5'] }
-    ,
-      { n: 94, t: 'q-map JS assignment + mutate fetched model + reassign', s: `q-component map94 {
+
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(93, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-94">
+        <div class="test-head">
+          <h2>94. q-map JS assignment + mutate fetched model + reassign</h2>
+          <span id="badge-94" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> A|B|C|D</div>
+        <q-html id="host-t94" data-test-no="94">
+q-component map94 {
   q-property bag: q-map { }
   div#t94-out { text { waiting } }
   function run() {
@@ -1599,9 +3123,24 @@ array93#t93-host { }
 }
 
 map94#t94-host { }
-`, e: ['A|B|C|D'] }
-    ,
-      { n: 95, t: 'q-callback keyword + property reference assignment + lazy execute', s: `q-callback mycallback95(v1, v2) {
+
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(94, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-95">
+        <div class="test-head">
+          <h2>95. q-callback keyword + property reference assignment + lazy execute</h2>
+          <span id="badge-95" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> gt</div>
+        <q-html id="host-t95" data-test-no="95">
+q-callback mycallback95(v1, v2) {
   if (v1 > v2) {
     return "gt";
   }
@@ -1627,15 +3166,30 @@ button#t95-btn {
 
 onReady {
   document.querySelector("#t95-btn").click();
-}`, e: ['gt'] }
-    ,
-      { n: 96, t: 'q-callback preserves creator this.component scope when passed cross-component', s: `q-component maker96 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(95, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-96">
+        <div class="test-head">
+          <h2>96. q-callback preserves creator this.component scope when passed cross-component</h2>
+          <span id="badge-96" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> 2 | id="t96-maker-count"</div>
+        <q-html id="host-t96" data-test-no="96">
+q-component maker96 {
   q-property count: 0
   q-callback bump(step) {
     this.component.count = Number(this.component.count || 0) + Number(step || 1);
     return this.component.count;
   }
-  div#t96-maker-count { text { \${this.component.count} } }
+  div#t96-maker-count { text { ${this.component.count} } }
 }
 
 q-component runner96 {
@@ -1655,9 +3209,24 @@ onReady {
   var runner = document.querySelector("#t96-runner");
   runner.cb = maker.bump;
   runner.run();
-}`, e: ['2', 'id="t96-maker-count"'] }
-    ,
-      { n: 97, t: 'QCallback JS constructor assignment works on q-property', s: `q-component host97 {
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(96, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-97">
+        <div class="test-head">
+          <h2>97. QCallback JS constructor assignment works on q-property</h2>
+          <span id="badge-97" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> 7</div>
+        <q-html id="host-t97" data-test-no="97">
+q-component host97 {
   q-property cb: ""
   div#t97-out { text { waiting } }
   function run() {
@@ -1672,233 +3241,289 @@ onReady {
 }
 
 host97 { }
-`, e: ['7'] }
-    ,
-      { n: 98, t: 'q-callback declarative invocation renders qhtml(...) fragment', s: `q-callback frag98() {
+
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(97, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-98">
+        <div class="test-head">
+          <h2>98. q-callback declarative invocation renders qhtml(...) fragment</h2>
+          <span id="badge-98" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> frag-ok | id="t98-frag"</div>
+        <q-html id="host-t98" data-test-no="98">
+q-callback frag98() {
   return qhtml("span#t98-frag { text { frag-ok } }");
 }
 
 div#t98-host {
   frag98()
 }
-`, e: ['frag-ok', 'id="t98-frag"'] }
-    ];
 
-    function normalize(input) {
-      return String(input == null ? '' : input).replace(/\s+/g, ' ').trim();
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(98, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-99">
+        <div class="test-head">
+          <h2>99. q-worker method returns Promise + auto property resolve assignment</h2>
+          <span id="badge-99" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> A,B,C</div>
+        <q-html id="host-t99" data-test-no="99">
+q-worker myworker99 {
+  q-property myprops: q-array { "A", "B", "C" }
+  function dowork() {
+    var rv = [];
+    for (var i = 0; i < 3; i += 1) {
+      rv.push(this.component.myprops[i]);
+    }
+    return rv.join(",");
+  }
+}
+
+q-component mycomp99 {
+  q-property someprop: "waiting"
+  myworker99 worker { }
+  onReady {
+    this.component.someprop = worker.dowork();
+  }
+  div#t99-out { text { ${this.component.someprop} } }
+}
+
+mycomp99 { }
+
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(99, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-100">
+        <div class="test-head">
+          <h2>100. typed instance alias is available in script scope</h2>
+          <span id="badge-100" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> hello-world-100</div>
+        <q-html id="host-t100" data-test-no="100">
+q-component source100 {
+  q-property value: "hello-world-100"
+}
+
+source100 myinstance100 { }
+
+q-component target100 {
+  q-property output: "waiting"
+  onReady {
+    this.component.output = ${myinstance100.value};
+  }
+  div#t100-out { text { ${this.component.output} } }
+}
+
+target100 { }
+
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(100, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-101">
+        <div class="test-head">
+          <h2>101. q-worker property mutation + q-signal emission from worker call</h2>
+          <span id="badge-101" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> 5 | id="t101-signal"</div>
+        <q-html id="host-t101" data-test-no="101">
+q-worker calcworker101 {
+  q-property base: 2
+  q-signal done(result)
+  function compute(step) {
+    this.component.base = Number(this.component.base || 0) + Number(step || 0);
+    this.component.done(this.component.base);
+    return this.component.base;
+  }
+}
+
+q-component host101 {
+  q-property out: "waiting"
+  q-property signalOut: "waiting"
+  calcworker101 worker { }
+  onReady {
+    worker.done.connect(function(evt) {
+      var args = evt && Array.isArray(evt.args) ? evt.args : [];
+      this.component.signalOut = String(args.length > 0 ? args[0] : "none");
+    });
+    this.component.out = worker.compute(3);
+  }
+  div#t101-out { text { ${this.component.out} } }
+  div#t101-signal { text { ${this.component.signalOut} } }
+}
+
+host101 { }
+
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(101, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-102">
+        <div class="test-head">
+          <h2>102. q-worker + q-canvas minimal start/stop</h2>
+          <span id="badge-102" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Start | Stop | worker102inst | t102-canvas</div>
+        <q-html id="host-t102" data-test-no="102">
+q-worker worker102 {
+  q-signal updateShapeData(payload)
+  function draw(stateJson, width, height, epochMs) {
+    var st = null;
+    try { st = JSON.parse(String(stateJson || "")); } catch (e) { st = null; }
+    if (!st) {
+      st = { x: 24, y: 24, vx: 1.7, vy: 1.3, r: 14, c1: 120, c2: 80, c3: 200 };
     }
 
-    function buildBoard() {
-      const container = document.querySelector('#tests');
-      const active = [];
-      const traceTests = new Set([48, 51, 53, 54, 65]);
-      const traceLogs = [];
-      const traceKeywordByTest = {
-        48: /t48|emitter48|tick|disconnect|qhtml/i,
-        51: /t51|emitter51|receiver51|done|cross-ok|qhtml/i,
-        53: /t53|prop53|countchanged|countChanged|qhtml/i,
-        54: /mycomp54|myprop|mytimer54|t54|prop54|qhtml/i,
-        65: /t65|mappump65|payload|statuschanged|payloadupdated|map65|qhtml/i
-      };
+    var w = Math.max(80, Number(width || 320));
+    var h = Math.max(60, Number(height || 180));
+    st.x = Number(st.x || 0) + Number(st.vx || 0);
+    st.y = Number(st.y || 0) + Number(st.vy || 0);
+    st.r = Math.max(8, Math.min(30, Number(st.r || 14) + Math.sin(Number(epochMs || Date.now()) * 0.002) * 0.22));
 
-      function stringifyLogArg(value) {
-        if (typeof value === 'string') return value;
-        try { return JSON.stringify(value); } catch (_) { return String(value); }
-      }
+    if (st.x <= st.r || st.x >= (w - st.r)) { st.vx = -Number(st.vx || 0); }
+    if (st.y <= st.r || st.y >= (h - st.r)) { st.vy = -Number(st.vy || 0); }
 
-      function installConsoleTraceCapture() {
-        if (window.__qhtmlTestConsoleCaptureInstalled === true) return;
-        const original = {
-          log: console.log,
-          warn: console.warn,
-          error: console.error
-        };
-        function push(level, argsLike) {
-          const args = Array.prototype.slice.call(argsLike || []);
-          const line = `${new Date().toISOString()} [${level}] ${args.map(stringifyLogArg).join(' ')}`;
-          traceLogs.push(line);
-          if (traceLogs.length > 500) {
-            traceLogs.splice(0, traceLogs.length - 500);
-          }
-        }
-        console.log = function patchedConsoleLog() {
-          push('log', arguments);
-          return original.log.apply(console, arguments);
-        };
-        console.warn = function patchedConsoleWarn() {
-          push('warn', arguments);
-          return original.warn.apply(console, arguments);
-        };
-        console.error = function patchedConsoleError() {
-          push('error', arguments);
-          return original.error.apply(console, arguments);
-        };
-        window.__qhtmlTestConsoleCaptureInstalled = true;
-      }
+    st.c1 = (Number(st.c1 || 0) + 1) % 256;
+    st.c2 = (Number(st.c2 || 0) + 2) % 256;
+    st.c3 = (Number(st.c3 || 0) + 3) % 256;
 
-      function collectTraceData(entry) {
-        const testNo = Number(entry && entry.test && entry.test.n);
-        const host = entry && entry.host;
-        if (!traceTests.has(testNo) || !host) {
-          return '';
-        }
-        const expectedText = Array.isArray(entry.test.e) ? entry.test.e.join(' | ') : '';
-        const actualRaw = String(host.innerHTML || '').trim();
-        const actualText = actualRaw.length > 900 ? actualRaw.slice(0, 900) + '…' : actualRaw;
-        const fieldPairs = [];
-        const prefix = `t${testNo}-`;
-        const idNodes = host.querySelectorAll('[id]');
-        for (let i = 0; i < idNodes.length; i += 1) {
-          const node = idNodes[i];
-          const id = String(node.id || '').trim();
-          if (!id) continue;
-          if (id.indexOf(prefix) !== 0 && !(testNo === 54 && id === 'mycomp54')) continue;
-          fieldPairs.push(`${id}=${normalize(node.textContent || '')}`);
-        }
-        const matcher = traceKeywordByTest[testNo] || /qhtml/i;
-        const logLines = traceLogs.filter((line) => matcher.test(line)).slice(-30);
-        return (
-          `${testNo}. ${entry.test.t}\n` +
-          `  expected: ${expectedText}\n` +
-          `  status:   ${String(entry.statusNode && entry.statusNode.textContent || '').trim()}\n` +
-          `  fields:   ${fieldPairs.length ? fieldPairs.join(' | ') : '(none)'}\n` +
-          `  actual:   ${actualText}\n` +
-          `  logs:\n${logLines.length ? logLines.map((line) => `    ${line}`).join('\n') : '    (no matching logs)'}`
-        );
-      }
+    var payload = JSON.stringify(st);
+    this.component.updateShapeData(payload);
+    return payload;
+  }
+}
 
-      installConsoleTraceCapture();
+worker102 worker102inst { }
 
-      tests.forEach((test) => {
-        const article = document.createElement('article');
-        article.className = 'test-card';
-        article.innerHTML = `<div class="test-head"><h2>${test.n}. ${test.t}</h2><span class="status">pending</span></div>`;
-        const statusNode = article.querySelector('.status');
+q-canvas myCanvas102 {
+  id: "t102-canvas"
+  width: 320
+  height: 180
+}
 
-        if (test.d === true) {
-          statusNode.className = 'status deprecated';
-          statusNode.textContent = 'deprecated';
-          const grid = document.createElement('div');
-          grid.className = 'io-grid';
-          grid.innerHTML = `<section class="cell"><h3>Deprecated</h3><pre>test has been deprecated</pre></section>`;
-          article.appendChild(grid);
-          container.appendChild(article);
-          return;
-        }
+q-component host102 {
+  q-property running: false
+  q-property state: ""
 
-        const grid = document.createElement('div');
-        grid.className = 'io-grid';
-        const sourceCell = document.createElement('section');
-        sourceCell.className = 'cell';
-        sourceCell.innerHTML = `<h3>QHTML Input</h3><pre></pre>`;
-        sourceCell.querySelector('pre').textContent = test.s;
+  function drawSomeShapes(payloadJson) {
+    var cv = myCanvas102;
+    if (!cv || !cv.context) { return; }
+    var st = null;
+    try { st = JSON.parse(String(payloadJson || "")); } catch (e) { st = null; }
+    if (!st) { return; }
+    var w = Number(cv.width || 320);
+    var h = Number(cv.height || 180);
+    cv.context.clearRect(0, 0, w, h);
+    cv.context.fillStyle = "rgba(15,23,42,0.25)";
+    cv.context.fillRect(0, 0, w, h);
+    cv.context.fillStyle = "rgb(" + String(Number(st.c1 || 0)) + "," + String(Number(st.c2 || 0)) + "," + String(Number(st.c3 || 0)) + ")";
+    cv.context.beginPath();
+    cv.context.arc(Number(st.x || 0), Number(st.y || 0), Number(st.r || 10), 0, Math.PI * 2);
+    cv.context.fill();
+  }
 
-        const expectedCell = document.createElement('section');
-        expectedCell.className = 'cell';
-        expectedCell.innerHTML = `<h3>Expected Output</h3><pre></pre>`;
-        expectedCell.querySelector('pre').textContent = test.e.join('\n');
-
-        const actualCell = document.createElement('section');
-        actualCell.className = 'cell';
-        actualCell.innerHTML = `<h3>Actual Output</h3><pre></pre>`;
-        const actualPre = actualCell.querySelector('pre');
-
-        grid.appendChild(sourceCell);
-        grid.appendChild(expectedCell);
-        grid.appendChild(actualCell);
-        article.appendChild(grid);
-
-        const preview = document.createElement('section');
-        preview.className = 'preview';
-        preview.innerHTML = `<h3>Rendered Preview</h3>`;
-        const host = document.createElement('q-html');
-        host.id = `host-t${String(test.n).padStart(2, '0')}`;
-        host.textContent = test.s;
-        preview.appendChild(host);
-        article.appendChild(preview);
-
-        container.appendChild(article);
-        active.push({ test, host, actualPre, statusNode });
-      });
-
-      function runChecks() {
-        let passed = 0;
-        let total = 0;
-        const failedLines = [];
-        const traceLines = [];
-
-        active.forEach((entry) => {
-          if (entry.test.m === true) {
-            const doneSelector = String(entry.test.ms || "").trim();
-            const doneNode = doneSelector ? entry.host.querySelector(doneSelector) : null;
-            const done = doneNode && normalize(doneNode.textContent) === '1';
-            if (!done) {
-              entry.statusNode.className = 'status deprecated';
-              entry.statusNode.textContent = 'manual';
-              return;
-            }
-          }
-
-          total += 1;
-          const actualRaw = String(entry.host.innerHTML);
-          const actualNormalized = normalize(actualRaw);
-          entry.actualPre.textContent = actualRaw.trim();
-
-          const ok = entry.test.e.every((part) => actualNormalized.includes(normalize(part)));
-          entry.statusNode.className = ok ? 'status pass' : 'status fail';
-          entry.statusNode.textContent = ok ? 'pass' : 'fail';
-          if (ok) {
-            passed += 1;
-          } else {
-            const expectedText = entry.test.e.join(' | ');
-            const actualText = actualNormalized.length > 280 ? actualNormalized.slice(0, 280) + '…' : actualNormalized;
-            failedLines.push(
-              `${entry.test.n}. ${entry.test.t}\n  expected: ${expectedText}\n  actual:   ${actualText}`
-            );
-          }
-          const trace = collectTraceData(entry);
-          if (trace) {
-            traceLines.push(trace);
-          }
-        });
-
-        document.querySelector('#summary-total').textContent = `Total: ${total}`;
-        document.querySelector('#summary-passed').textContent = `Passed: ${passed}`;
-        document.querySelector('#summary-failed').textContent = `Failed: ${total - passed}`;
-        let failedText = failedLines.length ? failedLines.join('\n\n') : 'none';
-        if (traceLines.length) {
-          failedText += `\n\n--- trace 48/51/53/54/65 ---\n\n${traceLines.join('\n\n')}`;
-        }
-        document.querySelector('#failed-tests-list').textContent = failedText;
-        return total - passed;
-      }
-
-      function wireCopyFailedButton() {
-        const btn = document.querySelector('#copy-failed-tests');
-        const pre = document.querySelector('#failed-tests-list');
-        if (!btn || !pre) return;
-        btn.addEventListener('click', function() {
-          const text = String(pre.textContent || '').trim();
-          if (!text || text === 'none') return;
-          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-            navigator.clipboard.writeText(text).then(function() {
-              btn.textContent = 'Copied';
-              setTimeout(function() { btn.textContent = 'Copy'; }, 1200);
-            }).catch(function() {});
-          }
-        });
-      }
-
-      function runChecksWithFollowup() {
-        runChecks();
-        window.setTimeout(runChecks, 1500);
-      }
-
-      document.addEventListener('QHTMLContentLoaded', runChecksWithFollowup);
-      wireCopyFailedButton();
+  function draw() {
+    if (!this.component.running) { return; }
+    var next = worker102inst.draw(this.component.state, Number(myCanvas102.width || 320), Number(myCanvas102.height || 180), Date.now());
+    if (next && typeof next.then === "function") {
+      var self = this;
+      next.then(function(payload) { self.component.state = String(payload || ""); });
+    } else {
+      this.component.state = String(next || "");
     }
+  }
 
-    window.addEventListener('DOMContentLoaded', buildBoard);
-  </script>
+  onReady {
+    worker102inst.updateShapeData.connect(function(payload) {
+      this.component.state = String(payload || "");
+      this.component.drawSomeShapes(this.component.state);
+    });
+  }
+
+  div#t102-controls {
+    button#t102-start {
+      type: "button"
+      onclick {
+        host102inst.running = true;
+        $("#t102-status").textContent = "running";
+        $("#t102-done").textContent = "0";
+      }
+      text { Start }
+    }
+    button#t102-stop {
+      type: "button"
+      onclick {
+        host102inst.running = false;
+        $("#t102-status").textContent = "stopped";
+        $("#t102-done").textContent = "1";
+      }
+      text { Stop }
+    }
+    div#t102-status { text { idle } }
+    div#t102-done { text { 0 } }
+  }
+
+  div#t102-wrap { }
+}
+
+host102 host102inst { }
+
+q-timer t102Timer {
+  interval: 10
+  repeat: true
+  running: true
+  ontimeout {
+    host102inst.draw();
+  }
+}
+
+onReady {
+  var wrap = $("#t102-wrap");
+  if (wrap && myCanvas102 && myCanvas102.parentNode !== wrap) {
+    wrap.appendChild(myCanvas102);
+  }
+}
+
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(102, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+    </section>
+  </div>
 </body>
 </html>

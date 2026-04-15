@@ -27,6 +27,10 @@
   const qdomInstanceIds = new WeakMap();
   const qdomSlotOwnerIds = new WeakMap();
   let wasmWorkerScriptUrl = null;
+  let qWorkerExecutorScriptUrl = null;
+  const qWorkerRuntimeRegistryFallback = new Map();
+  const Q_WORKER_IDLE_TERMINATE_MS = 30000;
+  let qWorkerFallbackRuntimeCounter = 0;
   let wasmCallSequence = 0;
 
   function cloneNodeDeep(node) {
@@ -979,7 +983,7 @@
     }
 
     const explicit = String(definitionNode.definitionType || "").trim().toLowerCase();
-    if (explicit === "component" || explicit === "template" || explicit === "signal") {
+    if (explicit === "component" || explicit === "template" || explicit === "signal" || explicit === "worker") {
       return explicit;
     }
 
@@ -992,6 +996,9 @@
     }
     if (originalSource.startsWith("q-signal")) {
       return "signal";
+    }
+    if (originalSource.startsWith("q-worker")) {
+      return "worker";
     }
 
     return "component";
@@ -2082,13 +2089,22 @@
     if (!source.trim()) {
       return source;
     }
-    return (
+    const prelude =
       "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
       " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
       "const qhtml = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtml === \"function\")" +
-      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n" +
-      source
-    );
+      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n";
+    const scopedBlock =
+      "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
+      "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
+      "const __qhtmlScriptScope = (this && this.__qhtmlScriptScope && typeof this.__qhtmlScriptScope === \"object\")" +
+      " ? this.__qhtmlScriptScope : ((this && this.__qhtmlNamedRuntimeValues && typeof this.__qhtmlNamedRuntimeValues === \"object\") ? this.__qhtmlNamedRuntimeValues : __qhtmlRootNamedValues);\n" +
+      "if (__qhtmlScriptScope) { with(__qhtmlScriptScope) {\n" +
+      source +
+      "\n} } else {\n" +
+      source +
+      "\n}\n";
+    return prelude + scopedBlock;
   }
 
   function ensureInlineComponentQdom(componentSource, scope) {
@@ -2161,6 +2177,38 @@
     return { matched: false, value: undefined };
   }
 
+  function resolveQHtmlHostForInlineScope(thisArg, scope) {
+    const scopeObj = scope && typeof scope === "object" ? scope : null;
+    const explicitRoot = scopeObj ? scopeObj.root || scopeObj.host || null : null;
+    const direct = resolveScopedSelectorRoot(thisArg, explicitRoot);
+    if (direct) {
+      return direct;
+    }
+    if (scopeObj && isQHtmlHostElement(scopeObj.host)) {
+      return scopeObj.host;
+    }
+    return null;
+  }
+
+  function mergeNamedRuntimeValuesIntoInlineScope(scope, thisArg) {
+    if (!scope || typeof scope !== "object") {
+      return;
+    }
+    const host = resolveQHtmlHostForInlineScope(thisArg, scope);
+    if (!host || !host.__qhtmlNamedRuntimeValues || typeof host.__qhtmlNamedRuntimeValues !== "object") {
+      return;
+    }
+    const values = host.__qhtmlNamedRuntimeValues;
+    const names = Object.keys(values);
+    for (let i = 0; i < names.length; i += 1) {
+      const name = String(names[i] || "").trim();
+      if (!name || Object.prototype.hasOwnProperty.call(scope, name)) {
+        continue;
+      }
+      scope[name] = values[name];
+    }
+  }
+
   function resolveInlineExpressionScope(thisArg, extraScope) {
     const scope = Object.create(null);
     if (extraScope && typeof extraScope === "object") {
@@ -2217,6 +2265,7 @@
     if (thisArg && (typeof thisArg === "object" || typeof thisArg === "function")) {
       ensureScopedSelectorShortcut(thisArg, scope.root || scope.host || null);
     }
+    mergeNamedRuntimeValuesIntoInlineScope(scope, thisArg);
     return scope;
   }
 
@@ -2240,7 +2289,31 @@
     }
   }
 
-  function interpolateInlineReferenceExpressions(source, thisArg, extraScope, errorLabel) {
+  function formatInlineReferenceReplacement(value, options) {
+    const opts = options && typeof options === "object" ? options : null;
+    const asScriptLiteral = !!(opts && opts.scriptLiteral === true);
+    if (!asScriptLiteral) {
+      return value == null ? "" : String(value);
+    }
+    if (value === null) {
+      return "null";
+    }
+    if (typeof value === "undefined") {
+      return "undefined";
+    }
+    if (typeof value === "string") {
+      return JSON.stringify(value);
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value);
+    }
+    if (typeof value === "bigint") {
+      return String(value) + "n";
+    }
+    return String(value);
+  }
+
+  function interpolateInlineReferenceExpressions(source, thisArg, extraScope, errorLabel, options) {
     const text = String(source == null ? "" : source);
     if (!hasInlineReferenceExpressions(text)) {
       return text;
@@ -2249,10 +2322,7 @@
     const scope = resolveInlineExpressionScope(thisArg, extraScope);
     const replaced = escaped.replace(INLINE_REFERENCE_PATTERN, function replaceInlineReference(matchText, expressionText) {
       const value = evaluateInlineReferenceExpression(expressionText, thisArg, scope, errorLabel);
-      if (value == null) {
-        return "";
-      }
-      return String(value);
+      return formatInlineReferenceReplacement(value, options);
     });
     return replaced.split(INLINE_REFERENCE_ESCAPE_TOKEN).join("${");
   }
@@ -2977,7 +3047,8 @@
             document: doc,
             root: scopeRoot,
           },
-          "qhtml event interpolation failed:"
+          "qhtml event interpolation failed:",
+          { scriptLiteral: true }
         );
       }
       try {
@@ -3284,7 +3355,8 @@
               : null,
           document: targetDocument || (thisArg && thisArg.ownerDocument) || global.document || null,
         },
-        "qhtml lifecycle interpolation failed:"
+        "qhtml lifecycle interpolation failed:",
+        { scriptLiteral: true }
       );
       ensureScopedSelectorShortcut(thisArg || {}, null);
       const fn = new Function("event", "document", withScopedSelectorPrelude(hookBody));
@@ -4028,6 +4100,510 @@
     }
   }
 
+  function qWorkerIsSupported() {
+    return !!(
+      typeof global.Worker === "function" &&
+      typeof global.Blob === "function" &&
+      global.URL &&
+      typeof global.URL.createObjectURL === "function"
+    );
+  }
+
+  function qWorkerSerializeError(error) {
+    if (!error) {
+      return {
+        error: true,
+        message: "Unknown q-worker error",
+      };
+    }
+    return {
+      error: true,
+      name: String(error.name || "Error"),
+      message: String(error.message || String(error)),
+      stack: String(error.stack || ""),
+    };
+  }
+
+  function qWorkerCloneable(value, depth, seen) {
+    if (value == null) {
+      return value;
+    }
+    if (depth > 8) {
+      return null;
+    }
+    if (value && typeof value === "object" && value.__qhtmlIsQModel === true) {
+      try {
+        const mode = typeof value.mode === "function" ? String(value.mode() || "").trim().toLowerCase() : "";
+        if (mode === "array" && typeof value.toArray === "function") {
+          return qWorkerCloneable(value.toArray(), depth + 1, seen);
+        }
+        if (typeof value.toObject === "function") {
+          return qWorkerCloneable(value.toObject(), depth + 1, seen);
+        }
+      } catch (error) {
+        return null;
+      }
+    }
+    if (typeof value === "function") {
+      return null;
+    }
+    if (value && value.nodeType === 1) {
+      return null;
+    }
+    if (typeof value !== "object") {
+      return value;
+    }
+    const cache = seen instanceof WeakMap ? seen : new WeakMap();
+    if (cache.has(value)) {
+      return cache.get(value);
+    }
+    if (Array.isArray(value)) {
+      const outArray = [];
+      cache.set(value, outArray);
+      for (let i = 0; i < value.length; i += 1) {
+        outArray.push(qWorkerCloneable(value[i], depth + 1, cache));
+      }
+      return outArray;
+    }
+    const outObject = {};
+    cache.set(value, outObject);
+    const keys = Object.keys(value);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim();
+      if (!key) {
+        continue;
+      }
+      outObject[key] = qWorkerCloneable(value[key], depth + 1, cache);
+    }
+    return outObject;
+  }
+
+  function collectWorkerSnapshotState(hostElement, declaredProperties) {
+    const out = {};
+    const names = Array.isArray(declaredProperties) ? declaredProperties.slice() : [];
+    const trackedState =
+      hostElement &&
+      hostElement[COMPONENT_PROP_STATE_KEY] &&
+      typeof hostElement[COMPONENT_PROP_STATE_KEY] === "object" &&
+      !Array.isArray(hostElement[COMPONENT_PROP_STATE_KEY])
+        ? hostElement[COMPONENT_PROP_STATE_KEY]
+        : null;
+    if (trackedState) {
+      const trackedNames = Object.keys(trackedState);
+      for (let i = 0; i < trackedNames.length; i += 1) {
+        names.push(trackedNames[i]);
+      }
+    }
+    const seen = new Set();
+    for (let i = 0; i < names.length; i += 1) {
+      const name = String(names[i] || "").trim();
+      if (!name || seen.has(name)) {
+        continue;
+      }
+      seen.add(name);
+      let value = null;
+      try {
+        value = hostElement ? hostElement[name] : null;
+      } catch (error) {
+        value = null;
+      }
+      out[name] = qWorkerCloneable(value, 0, new WeakMap());
+    }
+    return out;
+  }
+
+  function coerceWorkerReturnedValue(previousValue, nextValue) {
+    if (previousValue && typeof previousValue === "object" && previousValue.__qhtmlIsQModel === true) {
+      try {
+        const mode = typeof previousValue.mode === "function" ? String(previousValue.mode() || "").trim().toLowerCase() : "";
+        if (mode === "array" && Array.isArray(nextValue) && typeof global.QArray === "function") {
+          return global.QArray(nextValue);
+        }
+        if ((mode === "map" || mode === "object") && nextValue && typeof nextValue === "object" && !Array.isArray(nextValue)) {
+          if (typeof global.QModel === "function") {
+            return global.QModel(nextValue);
+          }
+        }
+      } catch (error) {
+        return nextValue;
+      }
+    }
+    return nextValue;
+  }
+
+  function getQWorkerExecutorScriptUrl() {
+    if (qWorkerExecutorScriptUrl) {
+      return qWorkerExecutorScriptUrl;
+    }
+    if (!qWorkerIsSupported()) {
+      return "";
+    }
+    const script =
+      "function __qhtmlWorkerSerializeError(error){return {error:true,name:String(error&&error.name||'Error'),message:String(error&&error.message||String(error||'')),stack:String(error&&error.stack||'')}}\n" +
+      "function __qhtmlWorkerCloneSafe(value, seen){if(value===null||typeof value==='undefined'){return value;}var t=typeof value;if(t==='string'||t==='number'||t==='boolean'){return value;}if(t==='function'){return undefined;}if(t==='bigint'){return Number(value);}if(!seen||typeof seen.has!=='function'){seen=new Map();}if(seen.has(value)){return undefined;}if(Array.isArray(value)){seen.set(value,true);var outArr=[];for(var i=0;i<value.length;i+=1){var next=__qhtmlWorkerCloneSafe(value[i],seen);if(typeof next!=='undefined'){outArr.push(next);}}seen.delete(value);return outArr;}if(t==='object'){seen.set(value,true);var outObj={};var keys=Object.keys(value);for(var k=0;k<keys.length;k+=1){var key=keys[k];if(!key){continue;}var nextVal=__qhtmlWorkerCloneSafe(value[key],seen);if(typeof nextVal!=='undefined'){outObj[key]=nextVal;}}seen.delete(value);return outObj;}return undefined;}\n" +
+      "self.onmessage = async function(event){var data = event && event.data && typeof event.data === 'object' ? event.data : {}; if (data.type !== 'run'){ return; }\n" +
+      "var state = data.state && typeof data.state === 'object' ? data.state : {}; var emitted = []; var runtimeThis = { component: state }; var signalNames = Array.isArray(data.signalNames) ? data.signalNames : [];\n" +
+      "for (var i=0;i<signalNames.length;i+=1){(function(name){if(!name){return;} var fn=function(){emitted.push({name:name,args:Array.prototype.slice.call(arguments)})}; runtimeThis[name]=fn; runtimeThis.component[name]=fn;})(String(signalNames[i]||'').trim());}\n" +
+      "var fn=null; try{ fn = new Function(String(data.params||''), String(data.body||'')); }catch(compileError){ self.postMessage({id:data.id, ok:false, error:__qhtmlWorkerSerializeError(compileError), state:state, signals:emitted}); return; }\n" +
+      "try{ var args = Array.isArray(data.args) ? data.args : []; var result = fn.apply(runtimeThis, args); if (result && typeof result.then === 'function'){ result = await result; }\n" +
+      "var safeState=__qhtmlWorkerCloneSafe(runtimeThis.component && typeof runtimeThis.component === 'object' ? runtimeThis.component : state); var safeResult=__qhtmlWorkerCloneSafe(result); var safeSignals=__qhtmlWorkerCloneSafe(emitted); self.postMessage({id:data.id, ok:true, result:safeResult, state:safeState||{}, signals:Array.isArray(safeSignals)?safeSignals:[]}); }\n" +
+      "catch(runError){ var safeStateErr=__qhtmlWorkerCloneSafe(runtimeThis.component && typeof runtimeThis.component === 'object' ? runtimeThis.component : state); var safeSignalsErr=__qhtmlWorkerCloneSafe(emitted); self.postMessage({id:data.id, ok:false, error:__qhtmlWorkerSerializeError(runError), state:safeStateErr||{}, signals:Array.isArray(safeSignalsErr)?safeSignalsErr:[]}); }};\n";
+    const blob = new global.Blob([script], { type: "application/javascript" });
+    qWorkerExecutorScriptUrl = global.URL.createObjectURL(blob);
+    return qWorkerExecutorScriptUrl;
+  }
+
+  function getQWorkerRuntimeApi() {
+    const runtimeApi = global.QHtml && typeof global.QHtml === "object" ? global.QHtml : null;
+    if (!runtimeApi) {
+      return null;
+    }
+    return runtimeApi;
+  }
+
+  function resolveQWorkerRuntimeUuid(componentNode, hostElement) {
+    let runtimeUuid = "";
+    try {
+      runtimeUuid = String(readHostQDomUuid(hostElement) || "").trim();
+    } catch (error) {
+      runtimeUuid = "";
+    }
+    if (runtimeUuid) {
+      return runtimeUuid;
+    }
+    const existing = String(hostElement && hostElement.__qhtmlWorkerRuntimeUuid || "").trim();
+    if (existing) {
+      return existing;
+    }
+    qWorkerFallbackRuntimeCounter += 1;
+    const componentId = String(componentNode && (componentNode.componentId || hostElement.tagName) || "q-worker")
+      .trim()
+      .toLowerCase();
+    runtimeUuid = "qworker:" + componentId + ":" + String(qWorkerFallbackRuntimeCounter);
+    try {
+      hostElement.__qhtmlWorkerRuntimeUuid = runtimeUuid;
+    } catch (error) {
+      // no-op
+    }
+    return runtimeUuid;
+  }
+
+  function getQWorkerRuntimeFromRegistry(runtimeApi, runtimeUuid) {
+    if (!runtimeUuid) {
+      return null;
+    }
+    if (runtimeApi && typeof runtimeApi.getWorkerRuntime === "function") {
+      const record = runtimeApi.getWorkerRuntime(runtimeUuid);
+      return record && typeof record === "object" ? record : null;
+    }
+    const fallback = qWorkerRuntimeRegistryFallback.get(runtimeUuid);
+    return fallback && typeof fallback === "object" ? fallback : null;
+  }
+
+  function registerQWorkerRuntime(runtimeApi, runtimeUuid, record) {
+    if (!runtimeUuid || !record || typeof record !== "object") {
+      return;
+    }
+    if (runtimeApi && typeof runtimeApi.registerWorkerRuntime === "function") {
+      runtimeApi.registerWorkerRuntime(runtimeUuid, record);
+      return;
+    }
+    qWorkerRuntimeRegistryFallback.set(runtimeUuid, record);
+  }
+
+  function unregisterQWorkerRuntime(runtimeApi, runtimeUuid) {
+    if (!runtimeUuid) {
+      return;
+    }
+    if (runtimeApi && typeof runtimeApi.unregisterWorkerRuntime === "function") {
+      runtimeApi.unregisterWorkerRuntime(runtimeUuid);
+      return;
+    }
+    qWorkerRuntimeRegistryFallback.delete(runtimeUuid);
+  }
+
+  function terminateQWorkerRuntime(runtimeApi, runtimeUuid, record) {
+    if (!record || typeof record !== "object") {
+      unregisterQWorkerRuntime(runtimeApi, runtimeUuid);
+      return;
+    }
+    if (record.idleHandle != null && typeof global.clearTimeout === "function") {
+      try {
+        global.clearTimeout(record.idleHandle);
+      } catch (error) {
+        // no-op
+      }
+    }
+    record.idleHandle = null;
+    if (record.pending instanceof Map && record.pending.size > 0) {
+      const errorPayload = {
+        error: true,
+        code: "worker_terminated",
+        message: "q-worker runtime terminated before completing queued request.",
+      };
+      record.pending.forEach(function eachPending(entry) {
+        if (!entry || typeof entry.resolve !== "function") {
+          return;
+        }
+        try {
+          entry.resolve(errorPayload);
+        } catch (error) {
+          // no-op
+        }
+      });
+      record.pending.clear();
+    }
+    if (record.worker) {
+      try {
+        record.worker.terminate();
+      } catch (error) {
+        // no-op
+      }
+    }
+    record.worker = null;
+    unregisterQWorkerRuntime(runtimeApi, runtimeUuid);
+  }
+
+  function scheduleQWorkerIdleTermination(runtimeApi, runtimeUuid, record) {
+    if (!record || typeof record !== "object") {
+      return;
+    }
+    if (record.idleHandle != null && typeof global.clearTimeout === "function") {
+      try {
+        global.clearTimeout(record.idleHandle);
+      } catch (error) {
+        // no-op
+      }
+      record.idleHandle = null;
+    }
+    if (record.pending instanceof Map && record.pending.size > 0) {
+      return;
+    }
+    if (typeof global.setTimeout !== "function") {
+      return;
+    }
+    record.idleHandle = global.setTimeout(function terminateQWorkerRuntimeWhenIdle() {
+      const latest = getQWorkerRuntimeFromRegistry(runtimeApi, runtimeUuid);
+      if (!latest || latest !== record) {
+        return;
+      }
+      if (latest.pending instanceof Map && latest.pending.size > 0) {
+        return;
+      }
+      terminateQWorkerRuntime(runtimeApi, runtimeUuid, latest);
+    }, Q_WORKER_IDLE_TERMINATE_MS);
+  }
+
+  function applyQWorkerStateToHost(targetHost, detail) {
+    if (!targetHost || targetHost.nodeType !== 1) {
+      return;
+    }
+    const nextState = detail && detail.state && typeof detail.state === "object" ? detail.state : null;
+    if (nextState) {
+      const stateKeys = Object.keys(nextState);
+      for (let i = 0; i < stateKeys.length; i += 1) {
+        const key = String(stateKeys[i] || "").trim();
+        if (!key) {
+          continue;
+        }
+        let previousValue;
+        try {
+          previousValue = targetHost[key];
+        } catch (error) {
+          previousValue = undefined;
+        }
+        const coerced = coerceWorkerReturnedValue(previousValue, nextState[key]);
+        try {
+          targetHost[key] = coerced;
+        } catch (error) {
+          // no-op
+        }
+      }
+    }
+    const emittedSignals = Array.isArray(detail && detail.signals) ? detail.signals : [];
+    for (let i = 0; i < emittedSignals.length; i += 1) {
+      const signalRecord = emittedSignals[i] && typeof emittedSignals[i] === "object" ? emittedSignals[i] : null;
+      if (!signalRecord) {
+        continue;
+      }
+      const signalName = String(signalRecord.name || "").trim();
+      if (!signalName || typeof targetHost[signalName] !== "function") {
+        continue;
+      }
+      const signalArgs = Array.isArray(signalRecord.args) ? signalRecord.args : [];
+      try {
+        targetHost[signalName].apply(targetHost, signalArgs);
+      } catch (error) {
+        // no-op
+      }
+    }
+  }
+
+  function ensureQWorkerRuntime(componentNode, hostElement, runtimeApi, runtimeUuid) {
+    const existing = getQWorkerRuntimeFromRegistry(runtimeApi, runtimeUuid);
+    if (existing && typeof existing === "object" && existing.worker) {
+      existing.hostElement = hostElement;
+      return existing;
+    }
+    const workerScriptUrl = getQWorkerExecutorScriptUrl();
+    if (!workerScriptUrl) {
+      return null;
+    }
+    let worker = null;
+    try {
+      worker = new global.Worker(workerScriptUrl);
+    } catch (error) {
+      return null;
+    }
+    const record = {
+      uuid: runtimeUuid,
+      hostElement: hostElement,
+      worker: worker,
+      pending: new Map(),
+      nextRequestId: 0,
+      idleHandle: null,
+    };
+    worker.onmessage = function onQWorkerRuntimeMessage(event) {
+      const detail = event && event.data && typeof event.data === "object" ? event.data : {};
+      const requestId = Number(detail.id);
+      const pendingEntry = Number.isFinite(requestId) ? record.pending.get(requestId) : null;
+      if (!pendingEntry || typeof pendingEntry.resolve !== "function") {
+        return;
+      }
+      record.pending.delete(requestId);
+      const targetHost = pendingEntry.targetHost && pendingEntry.targetHost.nodeType === 1
+        ? pendingEntry.targetHost
+        : record.hostElement;
+      applyQWorkerStateToHost(targetHost, detail);
+      if (detail && detail.ok === true) {
+        pendingEntry.resolve(detail.result);
+      } else {
+        pendingEntry.resolve(
+          detail && detail.error && typeof detail.error === "object"
+            ? detail.error
+            : {
+                error: true,
+                code: "worker_execution_failed",
+                message: "q-worker execution failed.",
+              }
+        );
+      }
+      scheduleQWorkerIdleTermination(runtimeApi, runtimeUuid, record);
+    };
+    worker.onerror = function onQWorkerRuntimeError(error) {
+      const serialized = qWorkerSerializeError(error);
+      if (record.pending instanceof Map && record.pending.size > 0) {
+        record.pending.forEach(function eachPending(entry) {
+          if (!entry || typeof entry.resolve !== "function") {
+            return;
+          }
+          try {
+            entry.resolve(serialized);
+          } catch (resolveError) {
+            // no-op
+          }
+        });
+        record.pending.clear();
+      }
+      terminateQWorkerRuntime(runtimeApi, runtimeUuid, record);
+    };
+    registerQWorkerRuntime(runtimeApi, runtimeUuid, record);
+    return record;
+  }
+
+  function invokeQWorkerMethod(componentNode, hostElement, declaredProperties, signalNames, method, invocationArgs) {
+    if (!hostElement || typeof method !== "object") {
+      return Promise.resolve({
+        error: true,
+        code: "worker_method_invalid",
+        message: "q-worker method could not be invoked.",
+      });
+    }
+    if (!qWorkerIsSupported()) {
+      return Promise.resolve({
+        error: true,
+        code: "worker_unavailable",
+        message: "Web Worker is not available in this runtime.",
+      });
+    }
+    const params = String(method.parameters || "").trim();
+    const rawBody = String(method.body || "");
+    const executableBody = hasInlineReferenceExpressions(rawBody)
+      ? interpolateInlineReferenceExpressions(
+          rawBody,
+          hostElement,
+          { component: hostElement },
+          "qhtml q-worker interpolation failed:",
+          { scriptLiteral: true }
+        )
+      : rawBody;
+    const snapshotState = collectWorkerSnapshotState(hostElement, declaredProperties);
+    const argsArray = Array.prototype.slice.call(invocationArgs || []);
+    const runtimeApi = getQWorkerRuntimeApi();
+    const runtimeUuid = resolveQWorkerRuntimeUuid(componentNode, hostElement);
+
+    return new Promise(function resolveWorkerInvocation(resolve) {
+      const dispatch = function dispatchQWorkerInvocation() {
+        const runtimeRecord = ensureQWorkerRuntime(componentNode, hostElement, runtimeApi, runtimeUuid);
+        if (!runtimeRecord || !runtimeRecord.worker) {
+          resolve({
+            error: true,
+            code: "worker_create_failed",
+            message: "q-worker could not initialize worker runtime.",
+          });
+          return;
+        }
+        if (runtimeRecord.idleHandle != null && typeof global.clearTimeout === "function") {
+          try {
+            global.clearTimeout(runtimeRecord.idleHandle);
+          } catch (error) {
+            // no-op
+          }
+          runtimeRecord.idleHandle = null;
+        }
+        runtimeRecord.nextRequestId = Number(runtimeRecord.nextRequestId || 0) + 1;
+        const requestId = runtimeRecord.nextRequestId;
+        runtimeRecord.pending.set(requestId, {
+          resolve: resolve,
+          targetHost: hostElement,
+          createdAt: Date.now(),
+        });
+        try {
+          runtimeRecord.worker.postMessage({
+            type: "run",
+            id: requestId,
+            params: params,
+            body: executableBody,
+            args: qWorkerCloneable(argsArray, 0, new WeakMap()),
+            state: qWorkerCloneable(snapshotState, 0, new WeakMap()),
+            signalNames: Array.isArray(signalNames) ? signalNames.slice() : [],
+          });
+        } catch (error) {
+          runtimeRecord.pending.delete(requestId);
+          resolve(qWorkerSerializeError(error));
+          scheduleQWorkerIdleTermination(runtimeApi, runtimeUuid, runtimeRecord);
+          return;
+        }
+      };
+
+      if (runtimeApi && typeof runtimeApi.enqueueWorkerEvent === "function") {
+        runtimeApi.enqueueWorkerEvent(
+          "worker-method-dispatch",
+          dispatch,
+          {
+            target: hostElement,
+            payload: {
+              workerUuid: runtimeUuid,
+              methodName: String(method && method.name || "").trim(),
+            },
+          }
+        );
+      } else {
+        dispatch();
+      }
+    });
+  }
+
   function bindComponentMethods(componentNode, hostElement, instanceNode) {
     if (!componentNode || !hostElement) {
       return;
@@ -4038,6 +4614,8 @@
       // best effort
     }
     ensureScopedSelectorShortcut(hostElement, null);
+    const componentDefinitionType = inferDefinitionType(componentNode);
+    const isWorkerDefinition = componentDefinitionType === "worker";
     const componentId = String(componentNode.componentId || hostElement.tagName || "").trim().toLowerCase();
     const runtimeApi = global.QHtml && typeof global.QHtml === "object" ? global.QHtml : null;
     const runtimeQueuedSignalRoutingEnabled = !!(
@@ -4125,6 +4703,7 @@
           : undefined;
       let literalDefault = rawDefault;
       let compiledBinding = null;
+      let declaredReferenceExpression = "";
       const bindingMatch = typeof rawDefault === "string" ? rawDefault.match(/^\s*q-(bind|script)\s*\{([\s\S]*)\}\s*$/i) : null;
       if (bindingMatch) {
         const bindingBody = String(bindingMatch[2] || "");
@@ -4133,7 +4712,8 @@
             bindingBody,
             this,
             { component: this },
-            "qhtml declared property binding interpolation failed:"
+            "qhtml declared property binding interpolation failed:",
+            { scriptLiteral: true }
           );
           try {
             ensureScopedSelectorShortcut(this, null);
@@ -4149,6 +4729,10 @@
         literalDefault = undefined;
       } else if (typeof literalDefault === "string" && !hasInlineReferenceExpressions(literalDefault)) {
         const literalReference = String(literalDefault || "").trim();
+        const isPotentialReferenceExpression =
+          /^this\.[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(literalReference) ||
+          /^component\.[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(literalReference) ||
+          /^[A-Za-z_$][A-Za-z0-9_$]*\.[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(literalReference);
         const hostReference =
           literalReference &&
           Object.prototype.hasOwnProperty.call(hostElement, literalReference)
@@ -4163,6 +4747,8 @@
           if (hasInitialValue && typeof initialValue === "string" && String(initialValue || "").trim() === literalReference) {
             initialValue = resolvedReference;
           }
+        } else if (isPotentialReferenceExpression && literalReference) {
+          declaredReferenceExpression = literalReference;
         }
       }
       try {
@@ -4203,10 +4789,45 @@
                 return null;
               }
             }
+            if (declaredReferenceExpression) {
+              const scope = resolveInlineExpressionScope(this, { component: this });
+              const directPathResult = tryResolveInlineReferencePath(declaredReferenceExpression, this, scope);
+              if (directPathResult && directPathResult.matched) {
+                return resolveCallbackReferenceValue(directPathResult.value);
+              }
+              try {
+                const evaluator = new Function(
+                  "__qhtmlScope",
+                  "with(__qhtmlScope){ return (" + declaredReferenceExpression + "); }"
+                );
+                return resolveCallbackReferenceValue(evaluator.call(this || scope, scope));
+              } catch (referenceEvalError) {
+                // Fall through to literal default when the expression is unresolved.
+              }
+            }
             return resolveCallbackReferenceValue(literalDefault);
           },
           set: function setDeclaredComponentProperty(value) {
             const normalizedValue = resolveCallbackReferenceValue(value);
+            if (normalizedValue && typeof normalizedValue.then === "function") {
+              const self = this;
+              Promise.resolve(normalizedValue)
+                .then(function onResolvedPromiseValue(resolvedValue) {
+                  try {
+                    self[propertyName] = resolvedValue;
+                  } catch (error) {
+                    // no-op
+                  }
+                })
+                .catch(function onRejectedPromiseValue(error) {
+                  try {
+                    self[propertyName] = qWorkerSerializeError(error);
+                  } catch (assignErrorObjectFailure) {
+                    // no-op
+                  }
+                });
+              return;
+            }
             let hadValue = false;
             let previousValue = undefined;
             const trackedState = readTrackedDeclaredProperty(this, propertyName);
@@ -4312,7 +4933,8 @@
             aliasBody,
             this,
             { component: this },
-            "qhtml q-alias interpolation failed:"
+            "qhtml q-alias interpolation failed:",
+            { scriptLiteral: true }
           );
           try {
             ensureScopedSelectorShortcut(this, null);
@@ -4364,6 +4986,11 @@
     }
 
     const methods = Array.isArray(componentNode.methods) ? componentNode.methods : [];
+    const workerSignalNames = Array.isArray(componentNode.signalDeclarations)
+      ? componentNode.signalDeclarations.map(function mapSignalName(entry) {
+          return String(entry && entry.name ? entry.name : "").trim();
+        }).filter(Boolean)
+      : [];
 
     function escapeIdForQuery(rawId) {
       const value = String(rawId || "").trim();
@@ -4470,7 +5097,8 @@
             callbackBody,
             invocationHost,
             { component: invocationHost },
-            "qhtml callback interpolation failed:"
+            "qhtml callback interpolation failed:",
+            { scriptLiteral: true }
           );
           try {
             ensureScopedSelectorShortcut(invocationHost, null);
@@ -4507,6 +5135,19 @@
       if (!name || INVALID_METHOD_NAMES.has(name)) {
         continue;
       }
+      if (isWorkerDefinition) {
+        hostElement[name] = function qWorkerMethodProxy() {
+          return invokeQWorkerMethod(
+            componentNode,
+            hostElement,
+            declaredProperties,
+            workerSignalNames,
+            method,
+            arguments
+          );
+        };
+        continue;
+      }
       const params = method && typeof method.parameters === "string" ? method.parameters : "";
       const body = method && typeof method.body === "string" ? method.body : "";
       const hasInterpolatedBody = hasInlineReferenceExpressions(body);
@@ -4531,7 +5172,8 @@
             body,
             invocationHost,
             { component: invocationHost },
-            "qhtml component method interpolation failed:"
+            "qhtml component method interpolation failed:",
+            { scriptLiteral: true }
           );
           try {
             ensureScopedSelectorShortcut(invocationHost, null);
@@ -4691,6 +5333,8 @@
           : null;
         const connectedSubscriberUuid = resolveConnectedSubscriberUuid();
         const emitterUuid = String(readSignalEmitterUuid() || "").trim();
+        const normalizedSignalName = String(signalName || "").trim().toLowerCase();
+        const isPropertyChangedSignal = normalizedSignalName.endsWith("changed");
         const referenceRouteKey = "conn:" + String(signalName || "").trim().toLowerCase() + ":" + String(connectionRouteCounter);
         connectionRouteCounter += 1;
         let runtimeSignalReference = null;
@@ -4744,7 +5388,8 @@
           runtimeApi &&
           typeof runtimeApi.registerSignalSubscriber === "function" &&
           emitterUuid &&
-          connectedSubscriberUuid
+          connectedSubscriberUuid &&
+          !isPropertyChangedSignal
         ) {
           const runtimeRegistration = runtimeApi.registerSignalSubscriber({
             emitterUuid: emitterUuid,
@@ -4976,7 +5621,8 @@
               document: doc,
               root: null,
             },
-            "qhtml signal interpolation failed:"
+            "qhtml signal interpolation failed:",
+            { scriptLiteral: true }
           );
         }
         try {
@@ -5317,6 +5963,49 @@
     }
   }
 
+  function exportNamedAliasToHost(hostElement, aliasName, value) {
+    if (!hostElement || (typeof hostElement !== "object" && typeof hostElement !== "function")) {
+      return;
+    }
+    const name = String(aliasName || "").trim();
+    if (!name) {
+      return;
+    }
+    if (!hostElement.__qhtmlNamedRuntimeValues || typeof hostElement.__qhtmlNamedRuntimeValues !== "object") {
+      hostElement.__qhtmlNamedRuntimeValues = Object.create(null);
+    }
+    if (!hostElement.__qhtmlScriptScope || typeof hostElement.__qhtmlScriptScope !== "object") {
+      hostElement.__qhtmlScriptScope = Object.create(null);
+    }
+    hostElement.__qhtmlNamedRuntimeValues[name] = value;
+    hostElement.__qhtmlScriptScope[name] = value;
+    try {
+      hostElement[name] = value;
+    } catch (ignoredAssignNamedAlias) {
+      // no-op
+    }
+  }
+
+  function hydrateHostNamedRuntimeScope(hostElement, context) {
+    if (!hostElement || (typeof hostElement !== "object" && typeof hostElement !== "function")) {
+      return;
+    }
+    const namedValues = context && context.namedRuntimeValues && typeof context.namedRuntimeValues === "object"
+      ? context.namedRuntimeValues
+      : null;
+    if (!namedValues) {
+      return;
+    }
+    const names = Object.keys(namedValues);
+    for (let i = 0; i < names.length; i += 1) {
+      const name = String(names[i] || "").trim();
+      if (!name) {
+        continue;
+      }
+      exportNamedAliasToHost(hostElement, name, namedValues[name]);
+    }
+  }
+
   function registerNamedInstanceAlias(context, hostElement, componentNode, instanceNode) {
     if (!context || !hostElement || !instanceNode || !instanceNode.meta || typeof instanceNode.meta !== "object") {
       return;
@@ -5332,6 +6021,19 @@
     }
     const hasExisting = Object.prototype.hasOwnProperty.call(frame, alias);
     frame[alias] = hostElement;
+    const hostStack =
+      context && Array.isArray(context.componentHostStack) ? context.componentHostStack : null;
+    const ownerHost = hostStack && hostStack.length > 0 ? hostStack[hostStack.length - 1] : null;
+    if (ownerHost) {
+      exportNamedAliasToHost(ownerHost, alias, hostElement);
+    } else {
+      if (context && context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
+        context.namedRuntimeValues[alias] = hostElement;
+      }
+      if (context && context.rootHostElement) {
+        exportNamedAliasToHost(context.rootHostElement, alias, hostElement);
+      }
+    }
     if (
       hasExisting &&
       shouldLogQLoggerCategory(hostElement, componentNode, instanceNode, "q-property") &&
@@ -5741,6 +6443,16 @@
   function buildInterpolationScope(context, fallbackNode) {
     const scope = {};
     mergeInstanceAliasesIntoScope(scope, context);
+    if (context && context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
+      const names = Object.keys(context.namedRuntimeValues);
+      for (let i = 0; i < names.length; i += 1) {
+        const name = String(names[i] || "").trim();
+        if (!name) {
+          continue;
+        }
+        scope[name] = context.namedRuntimeValues[name];
+      }
+    }
     if (context && context.inlineScope && typeof context.inlineScope === "object") {
       const keys = Object.keys(context.inlineScope);
       for (let i = 0; i < keys.length; i += 1) {
@@ -5852,7 +6564,8 @@
             component: invocationHost,
             document: targetDocument || (invocationHost && invocationHost.ownerDocument) || global.document || null,
           },
-          "qhtml callback interpolation failed:"
+          "qhtml callback interpolation failed:",
+          { scriptLiteral: true }
         );
         try {
           ensureScopedSelectorShortcut(invocationHost || {}, null);
@@ -6386,6 +7099,7 @@
       hostElement.setAttribute("q-canvas-host", "1");
     }
     parent.appendChild(hostElement);
+    hydrateHostNamedRuntimeScope(hostElement, context);
     registerNamedInstanceAlias(context, hostElement, componentNode, instanceNode);
 
     if (context.capture) {
@@ -6512,6 +7226,59 @@
     dispatchSignalPayload(target, signalName, payload);
   }
 
+  function renderWorkerInstance(componentNode, instanceNode, parent, targetDocument, context) {
+    const workerTag = String(componentNode.componentId || instanceNode.tagName || "q-worker-runtime").trim().toLowerCase() || "q-worker-runtime";
+    const workerHost = targetDocument.createElement(workerTag);
+    const instanceQdomNode = sourceNodeOf(instanceNode) || instanceNode;
+    workerHost.setAttribute("q-component", workerTag);
+    workerHost.setAttribute("qhtml-component-instance", "1");
+    workerHost.setAttribute("q-worker-instance", "1");
+    if (instanceQdomNode && instanceQdomNode.meta && typeof instanceQdomNode.meta === "object") {
+      if (!instanceQdomNode.meta[QDOM_UUID_META_KEY] && typeof core.ensureNodeUuid === "function") {
+        core.ensureNodeUuid(instanceQdomNode);
+      }
+    }
+    try {
+      Object.defineProperty(workerHost, "qdom", {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: function workerRuntimeQdom() {
+          return instanceQdomNode;
+        },
+      });
+    } catch (error) {
+      workerHost.qdom = function workerRuntimeQdom() {
+        return instanceQdomNode;
+      };
+    }
+    try {
+      workerHost.component = workerHost;
+    } catch (error) {
+      // no-op
+    }
+    const interpolationScope = buildInterpolationScope(context, parent);
+    setElementAttributes(workerHost, instanceNode.attributes, {
+      thisArg: workerHost,
+      scope: interpolationScope,
+    });
+    setElementProperties(workerHost, instanceNode.props, {
+      declaredProperties: collectDeclaredComponentPropertySet(componentNode, instanceNode),
+      scope: interpolationScope,
+      thisArg: workerHost,
+      hostElement: workerHost,
+      componentNode: componentNode,
+      instanceNode: instanceNode,
+    });
+    hydrateHostNamedRuntimeScope(workerHost, context);
+    registerNamedInstanceAlias(context, workerHost, componentNode, instanceNode);
+    bindComponentMethods(componentNode, workerHost, instanceNode);
+    if (!context.disableLifecycleHooks) {
+      runLifecycleHooks(instanceNode, workerHost, targetDocument);
+      runComponentLifecycleHooks(componentNode, workerHost, targetDocument);
+    }
+  }
+
   function renderComponentInstance(componentNode, instanceNode, parent, targetDocument, context) {
     const effectiveComponentNode = resolveInheritedComponentDefinition(
       componentNode,
@@ -6525,6 +7292,10 @@
     }
     if (definitionType === "signal") {
       dispatchSignalInstance(effectiveComponentNode, instanceNode, parent, targetDocument, context);
+      return;
+    }
+    if (definitionType === "worker") {
+      renderWorkerInstance(effectiveComponentNode, instanceNode, parent, targetDocument, context);
       return;
     }
     renderComponentHostInstance(effectiveComponentNode, instanceNode, parent, targetDocument, context);
@@ -6561,6 +7332,14 @@
       slotStack: [],
       inlineScope: {},
       instanceAliasScopeStack: [Object.create(null)],
+      namedRuntimeValues:
+        opts && opts.namedRuntimeValues && typeof opts.namedRuntimeValues === "object"
+          ? opts.namedRuntimeValues
+          : null,
+      rootHostElement:
+        opts && opts.rootHostElement && opts.rootHostElement.nodeType === 1
+          ? opts.rootHostElement
+          : null,
       disableLifecycleHooks: !!opts.disableLifecycleHooks,
       suppressModelViewWrapper: !!opts.suppressModelViewWrapper,
       capture: opts.capture ? opts.capture : null,
@@ -6589,6 +7368,16 @@
     const fragment = renderDocumentToFragment(documentNode, doc, {
       capture: capture,
       componentRegistry: opts.componentRegistry instanceof Map ? opts.componentRegistry : null,
+      namedRuntimeValues:
+        opts && opts.namedRuntimeValues && typeof opts.namedRuntimeValues === "object"
+          ? opts.namedRuntimeValues
+          : null,
+      rootHostElement:
+        opts && opts.rootHostElement && opts.rootHostElement.nodeType === 1
+          ? opts.rootHostElement
+          : hostElement && hostElement.nodeType === 1
+            ? hostElement
+            : null,
     });
 
     while (hostElement.firstChild) {

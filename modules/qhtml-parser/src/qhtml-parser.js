@@ -29,6 +29,7 @@
   const DEPRECATED_FEATURE_WARNED = new Set();
   const CANONICAL_KEYWORD_TARGETS = new Set([
     "q-component",
+    "q-worker",
     "q-template",
     "q-macro",
     "q-rewrite",
@@ -3339,7 +3340,8 @@
           continue;
         }
 
-        if (firstLower === "q-component" && peek(parser) !== "{" && peek(parser) !== ",") {
+        if ((firstLower === "q-component" || firstLower === "q-worker") && peek(parser) !== "{" && peek(parser) !== ",") {
+          const declarationDefinitionType = firstLower === "q-worker" ? "worker" : "component";
           const componentIdExprStart = parser.index;
           let componentIdExpression = null;
           const extendsComponentIdExpressions = [];
@@ -3387,7 +3389,7 @@
           }
 
           if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after q-component id", parser.index);
+            throw ParseError("Expected '{' after " + firstLower + " id", parser.index);
           }
           consume(parser);
           const items = parseBlockItems(parser, scopedKeywordAliases);
@@ -3395,6 +3397,7 @@
 
           body.push({
             type: "ComponentDefinition",
+            definitionType: declarationDefinitionType,
             componentIdExpression: componentIdExpression,
             extendsComponentIdExpressions: extendsComponentIdExpressions,
             extendsComponentIdExpression: extendsComponentIdExpressions.length > 0 ? extendsComponentIdExpressions[0] : null,
@@ -8265,7 +8268,14 @@
     const explicitType = String(definitionNode && definitionNode.definitionType ? definitionNode.definitionType : "component")
       .trim()
       .toLowerCase();
-    const definitionType = explicitType === "template" ? "template" : explicitType === "signal" ? "signal" : "component";
+    const definitionType =
+      explicitType === "template"
+        ? "template"
+        : explicitType === "signal"
+          ? "signal"
+          : explicitType === "worker"
+            ? "worker"
+            : "component";
     const slotFills = splitInvocationSlotFills(elementNode, definitionNode);
     const declaredPropertyNames = collectInheritedDeclaredProperties(definitionNode, definitionRegistry, {});
     const instanceDeclaredProperties =
@@ -8461,13 +8471,13 @@
           definitionNode && typeof definitionNode.definitionType === "string"
             ? String(definitionNode.definitionType || "").trim().toLowerCase()
             : "component";
-        if (instanceAlias && definitionType !== "component") {
-          throw new Error("Named typed instance syntax is only valid for q-component invocations: '" + tag + "'.");
+        if (instanceAlias && definitionType !== "component" && definitionType !== "worker") {
+          throw new Error("Named typed instance syntax is only valid for q-component/q-worker invocations: '" + tag + "'.");
         }
         return convertElementInvocationToInstance(node, definitionNode, definitionRegistry);
       }
       if (instanceAlias) {
-        throw new Error("Named typed instance syntax is only valid for q-component invocations: '" + tag + "'.");
+        throw new Error("Named typed instance syntax is only valid for q-component/q-worker invocations: '" + tag + "'.");
       }
       return node;
     }
@@ -10063,7 +10073,16 @@
     let componentLoggerCategories = null;
     let wasmConfig = null;
     const lifecycleScripts = [];
-    const definitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
+    const requestedDefinitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
+    const definitionType =
+      requestedDefinitionType === "template"
+        ? "template"
+        : requestedDefinitionType === "signal"
+          ? "signal"
+          : requestedDefinitionType === "worker"
+            ? "worker"
+            : "component";
+    const supportsRuntimeDefinition = definitionType === "component" || definitionType === "worker";
     let componentId = String(opts.componentId || "").trim();
     const extendsComponentIds = [];
     const rawExtendsList = Array.isArray(opts.extendsComponentIds) ? opts.extendsComponentIds : [];
@@ -10289,7 +10308,7 @@
         continue;
       }
       if (item.type === "PropertyDefinitionBlock") {
-        if (definitionType === "component") {
+        if (supportsRuntimeDefinition) {
           const propertyName = String(item.name || "").trim();
           const normalized = normalizePropertyName(propertyName);
           if (propertyName && normalized && !componentPropertiesSeen.has(normalized)) {
@@ -10332,7 +10351,7 @@
         continue;
       }
       if (item.type === "FunctionBlock") {
-        if (definitionType === "component") {
+        if (supportsRuntimeDefinition) {
           methods.push({
             name: String(item.name || "").trim(),
             signature: String(item.signature || "").trim(),
@@ -10343,7 +10362,7 @@
         continue;
       }
       if (item.type === "SignalDeclaration") {
-        if (definitionType === "component") {
+        if (supportsRuntimeDefinition) {
           const signalName = String(item.name || "").trim();
           if (signalName) {
             const declarationMeta = createDeclarationMeta({
@@ -10362,7 +10381,7 @@
         continue;
       }
       if (item.type === "CallbackDeclaration") {
-        if (definitionType === "component") {
+        if (supportsRuntimeDefinition) {
           const callbackName = String(item.name || "").trim();
           if (callbackName) {
             const declarationMeta = createDeclarationMeta({
@@ -10382,7 +10401,7 @@
         continue;
       }
       if (item.type === "AliasDeclaration") {
-        if (definitionType === "component") {
+        if (supportsRuntimeDefinition) {
           const aliasName = String(item.name || "").trim();
           if (aliasName) {
             aliasDeclarations.push({
@@ -10417,14 +10436,14 @@
         continue;
       }
       if (item.type === "EventBlock") {
-        if (definitionType === "component" && item.isLifecycle) {
+        if (supportsRuntimeDefinition && item.isLifecycle) {
           lifecycleScripts.push({
             name: String(item.name || "").trim(),
             body: compactScriptBody(item.script || ""),
           });
           continue;
         }
-        if (definitionType === "component") {
+        if (supportsRuntimeDefinition) {
           const eventName = String(item.name || "").trim();
           if (eventName) {
             componentAttributes[eventName] = compactScriptBody(item.script || "");
@@ -10499,10 +10518,13 @@
       throw new Error("Element with empty selector list cannot be converted.");
     }
 
-    if (selectors.length === 1 && selectors[0].toLowerCase() === "q-component") {
-      return buildComponentNodeFromAst(astElement, source, {
-        definitionType: "component",
-      }, scopedContext);
+    if (selectors.length === 1) {
+      const definitionSelector = selectors[0].toLowerCase();
+      if (definitionSelector === "q-component" || definitionSelector === "q-worker") {
+        return buildComponentNodeFromAst(astElement, source, {
+          definitionType: definitionSelector === "q-worker" ? "worker" : "component",
+        }, scopedContext);
+      }
     }
 
     if (selectors.length === 1) {
@@ -10730,7 +10752,7 @@
         componentId: componentId,
         extendsComponentIds: extendsComponentIds,
         extendsComponentId: extendsComponentIds.length > 0 ? extendsComponentIds[0] : "",
-        definitionType: "component",
+        definitionType: String(item.definitionType || "component").trim().toLowerCase() || "component",
       }, context);
     }
 
@@ -11541,10 +11563,23 @@
     if (node.kind === core.NODE_TYPES.component) {
       const explicitDefinitionType = String(node.definitionType || "").trim().toLowerCase();
       const definitionType =
-        explicitDefinitionType === "template" ? "template" : explicitDefinitionType === "signal" ? "signal" : "component";
-      const keyword = definitionType === "template" ? "q-template" : definitionType === "signal" ? "q-signal" : "q-component";
+        explicitDefinitionType === "template"
+          ? "template"
+          : explicitDefinitionType === "signal"
+            ? "signal"
+            : explicitDefinitionType === "worker"
+              ? "worker"
+              : "component";
+      const keyword =
+        definitionType === "template"
+          ? "q-template"
+          : definitionType === "signal"
+            ? "q-signal"
+            : definitionType === "worker"
+              ? "q-worker"
+              : "q-component";
       const definitionId = String(node.componentId || "").trim();
-      const extendsComponentIds = definitionType === "component" ? readExtendsComponentIds(node) : [];
+      const extendsComponentIds = (definitionType === "component" || definitionType === "worker") ? readExtendsComponentIds(node) : [];
       const extendsClause =
         extendsComponentIds.length > 0 ? " extends " + extendsComponentIds.join(" extends ") : "";
       const definitionHead =
@@ -11570,7 +11605,7 @@
         const key = attrKeys[i];
         lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
       }
-      if (definitionType === "component" && Array.isArray(node.propertyDefinitions)) {
+      if ((definitionType === "component" || definitionType === "worker") && Array.isArray(node.propertyDefinitions)) {
         for (let i = 0; i < node.propertyDefinitions.length; i += 1) {
           const serializedPropertyDefinition = serializePropertyDefinitionBlock(node.propertyDefinitions[i], indentLevel + 1);
           if (serializedPropertyDefinition) {
@@ -11578,7 +11613,7 @@
           }
         }
       }
-      if (definitionType === "component" && Array.isArray(node.methods)) {
+      if ((definitionType === "component" || definitionType === "worker") && Array.isArray(node.methods)) {
         if (Array.isArray(node.signalDeclarations)) {
           for (let i = 0; i < node.signalDeclarations.length; i += 1) {
             const serializedSignalDeclaration = serializeSignalDeclarationBlock(node.signalDeclarations[i], indentLevel + 1);
@@ -11611,7 +11646,7 @@
           lines.push(serializeFunctionBlock(node.methods[i], indentLevel + 1));
         }
       }
-      if (definitionType === "component" && Array.isArray(node.lifecycleScripts)) {
+      if ((definitionType === "component" || definitionType === "worker") && Array.isArray(node.lifecycleScripts)) {
         for (let i = 0; i < node.lifecycleScripts.length; i += 1) {
           const hook = node.lifecycleScripts[i] || {};
           lines.push(serializeScriptBlock(hook.name, hook.body, indentLevel + 1));

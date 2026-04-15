@@ -40,6 +40,9 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - Dispatch runtime signal events (`q-signal` and optional namespaced event).
 - `createQSignalEvent(payload)`
   - Create a bubbling/composed `q-signal` event object.
+- `enqueueWorkerEvent(type, process, metadata?)`
+  - Queue worker-related dispatch tasks on the dedicated worker queue.
+  - Worker queue entries are processed in queued mode interleaved with main queue entries.
 - `registerSignalSubscriber({ emitterUuid, signalName, handler, ... })`
   - Register queued-mode UUID-routed signal subscriber metadata.
   - Supports `mode: "connect"` and `mode: "declarative"`.
@@ -63,6 +66,8 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - Output includes:
     - queue metadata (`mode`, `processing`, `transactionDepth`, `scheduleDueAt`)
     - `queue` / `transactionQueue` entries (id/type/createdAt/target/payload)
+    - `workerQueue` / `workerTransactionQueue` entries (id/type/createdAt/target/payload)
+    - `workerRecentHistory` (recent processed worker-dispatch entries)
     - timer records (`interval`, `repeat`, `running`, `nextAt`, `msUntilNext`)
   - Options:
     - `limit` (default `200`) limits returned queue items per queue.
@@ -114,6 +119,12 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - `getQDomDataSnapshot(options?)`
   - Returns the full global normalized QDOM data registry.
   - Default shape is array of records; `options.asObject === true` returns `{ [uuid]: record }`.
+- `registerWorkerRuntime(uuid, runtimeRecord)`
+  - Register one q-worker runtime record under a UUID key.
+- `unregisterWorkerRuntime(uuid)`
+  - Remove one q-worker runtime record by UUID.
+- `getWorkerRuntime(uuid)`
+  - Lookup one q-worker runtime record by UUID.
 - `initAll(root?, options?)`
   - Mount all `<q-html>` descendants.
 - `startAutoMountObserver(root?, options?)`
@@ -212,6 +223,7 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - Executes `meta.qBindings` scripts (canonical `q-script`; `q-bind` inputs are parser-normalized aliases) with `this` bound to each source QDom node before render/update.
 - Emits runtime signal events through `emitQSignal(...)` helpers.
 - In queued event-loop mode, routes component signal delivery through UUID subscriber maps and queues per-subscriber handler calls on the main runtime queue.
+- In queued event-loop mode, worker method dispatch can be routed through a dedicated worker queue (`enqueueWorkerEvent(...)`) that is interleaved with main-queue processing each turn.
 - Queued timer scheduling is de-duplicated per timer record (`pending` guard), preventing timer-timeout backlog spam while a prior timeout is still queued/processing.
 - Runtime turn processing prioritizes already-queued work before enqueuing new due timers, reducing signal/property starvation under heavy timer load.
 - Queued signal/property target resolution is UUID-record driven via `QHTML_QDOM_DATA_MAP`.
@@ -237,6 +249,7 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - `QHTML_QDOM_DATA_MAP`
   - `QHTML_SIGNAL_SUBSCRIBER_MAP`
   - `QHTML_SIGNAL_REFERENCE_MAP`
+  - `QHTML_WORKER_MAP`
   - lookup coverage includes live QDOM nodes and component declaration entries (`q-property` / `q-signal`) when UUID metadata is present.
 - Maintains component-host property reference indexes (`propertyName -> Set<qdomUuid>`) derived from binding scripts that reference `this.component.<prop>` / `component.<prop>` for scoped refresh targeting APIs.
 - Property-reference indexing also tracks simple inline scoped expressions (for example `${myProp}`) and repeater model-source expressions (including `for (...)` sources) for targeted update routing.
