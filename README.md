@@ -204,67 +204,6 @@ Resulting HTML:
 ```
 
 
-## 3. Events and Lifecycle
-
-### Inline events
-
-```qhtml
-<q-html>
-  button {
-    text { Click }
-    onclick { this.textContent = "Clicked"; }
-  }
-</q-html>
-```
-
-Resulting HTML:
-
-```html
-<q-html>
-  <button onclick="this.textContent = &quot;Clicked&quot;;">Click</button>
-</q-html>
-```
-
-### Lifecycle blocks
-
-`onReady {}` runs after the host’s content is mounted.
-
-```qhtml
-<q-html>
-  onReady { this.setAttribute("data-ready", "1"); }
-  div { text { Host ready hook executed. } }
-</q-html>
-```
-
-Resulting HTML:
-
-```html
-<q-html data-ready="1">
-  <div>Host ready hook executed.</div>
-</q-html>
-```
-
-### Scoped `$()` selector shortcut
-
-Use `$("<selector>")` inside QHTML runtime JavaScript to query within the current `<q-html>` root only.
-
-- `$("#sender")` is equivalent to `this.component.qhtmlRoot().querySelector("#sender")` (or closest `<q-html>` root).
-- For global page lookup, use `document.querySelector(...)`.
-
-```qhtml
-q-component notifier {
-  function notify(msg) { this.setAttribute("data-msg", msg); }
-  onReady { $("#sender").sendSignal.connect(this.component.notify) }
-
-}
-
-q-component sender {
-  q-signal sendSignal(message)
-
-}
-```
-
-
 ## 6. Components
 
 `q-component` defines a runtime host element with:
@@ -850,6 +789,66 @@ scoped-label {
 ```
 
 Use `slot { name }` for raw slot insertion blocks, and `${name}` for inline placeholder insertion.
+
+### Events and Lifecycle
+
+#### Inline events
+
+```qhtml
+<q-html>
+  button {
+    text { Click }
+    onclick { this.textContent = "Clicked"; }
+  }
+</q-html>
+```
+
+Resulting HTML:
+
+```html
+<q-html>
+  <button onclick="this.textContent = &quot;Clicked&quot;;">Click</button>
+</q-html>
+```
+
+#### Lifecycle blocks
+
+`onReady {}` runs after the host’s content is mounted.
+
+```qhtml
+<q-html>
+  onReady { this.setAttribute("data-ready", "1"); }
+  div { text { Host ready hook executed. } }
+</q-html>
+```
+
+Resulting HTML:
+
+```html
+<q-html data-ready="1">
+  <div>Host ready hook executed.</div>
+</q-html>
+```
+
+#### Scoped `$()` selector shortcut
+
+Use `$("<selector>")` inside QHTML runtime JavaScript to query within the current `<q-html>` root only.
+
+- `$("#sender")` is equivalent to `this.component.qhtmlRoot().querySelector("#sender")` (or closest `<q-html>` root).
+- For global page lookup, use `document.querySelector(...)`.
+
+```qhtml
+q-component notifier {
+  function notify(msg) { this.setAttribute("data-msg", msg); }
+  onReady { $("#sender").sendSignal.connect(this.component.notify) }
+
+}
+
+q-component sender {
+  q-signal sendSignal(message)
+
+}
+```
 
 ## Styles and Themes
 
