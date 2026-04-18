@@ -8467,17 +8467,10 @@
           : "";
       if (tag && tag !== "slot" && definitionRegistry.has(tag)) {
         const definitionNode = definitionRegistry.get(tag);
-        const definitionType =
-          definitionNode && typeof definitionNode.definitionType === "string"
-            ? String(definitionNode.definitionType || "").trim().toLowerCase()
-            : "component";
-        if (instanceAlias && definitionType !== "component" && definitionType !== "worker") {
-          throw new Error("Named typed instance syntax is only valid for q-component/q-worker invocations: '" + tag + "'.");
-        }
         return convertElementInvocationToInstance(node, definitionNode, definitionRegistry);
       }
       if (instanceAlias) {
-        throw new Error("Named typed instance syntax is only valid for q-component/q-worker invocations: '" + tag + "'.");
+        throw new Error("Named typed instance syntax requires a known instantiable definition: '" + tag + "'.");
       }
       return node;
     }
@@ -10508,6 +10501,47 @@
     return componentNode;
   }
 
+  function applyQCanvasSemanticsToElementNode(elementNode, canvasNameHint) {
+    const node = elementNode && typeof elementNode === "object" ? elementNode : null;
+    if (!node) {
+      return false;
+    }
+    const tag = String(node.tagName || "").trim().toLowerCase();
+    if (tag !== "q-canvas") {
+      return false;
+    }
+    if (!node.attributes || typeof node.attributes !== "object") {
+      node.attributes = {};
+    }
+    node.tagName = "canvas";
+    if (Array.isArray(node.selectorChain) && node.selectorChain.length > 0) {
+      node.selectorChain = node.selectorChain.map(function mapSelectorToken(token) {
+        const raw = String(token || "").trim();
+        return raw.toLowerCase() === "q-canvas" ? "canvas" : raw;
+      });
+    } else {
+      node.selectorChain = ["canvas"];
+    }
+    node.attributes["q-canvas"] = "1";
+    const canvasName = String(canvasNameHint || "").trim();
+    if (canvasName) {
+      node.attributes["q-canvas-name"] = canvasName;
+    }
+    const widthValue = Number(node.attributes.width);
+    const heightValue = Number(node.attributes.height);
+    const onPaintSource = String(node.attributes.onpaint || "").trim();
+    if (!node.meta || typeof node.meta !== "object") {
+      node.meta = {};
+    }
+    node.meta.__qhtmlCanvasConfig = {
+      name: canvasName,
+      width: Number.isFinite(widthValue) && widthValue > 0 ? Math.floor(widthValue) : 0,
+      height: Number.isFinite(heightValue) && heightValue > 0 ? Math.floor(heightValue) : 0,
+      onPaint: onPaintSource,
+    };
+    return true;
+  }
+
   function buildElementFromAst(astElement, source, context) {
     const scopedContext = createScopedConversionContext(context);
     const colorContext = scopedContext.qColors;
@@ -10634,8 +10668,9 @@
       applyActiveQThemesToElementNode(leaf, leafContext.qStyles);
       attachRuntimeThemeRulesToElementNode(leaf, leafContext.qStyles);
       processElementItems(leaf, astElement.items, source, leafContext);
+      const canvasApplied = applyQCanvasSemanticsToElementNode(leaf, instanceAlias);
       applyKeywordAliasesToNode(leaf, astElement.keywords);
-      if (instanceAlias) {
+      if (instanceAlias && !canvasApplied) {
         if (!leaf.meta || typeof leaf.meta !== "object") {
           leaf.meta = {};
         }
@@ -10697,7 +10732,8 @@
       appendActiveQTheme(leafContext.qStyles, themesForLeaf[ti]);
     }
     processElementItems(leaf, astElement.items, source, leafContext);
-    if (instanceAlias) {
+    const canvasApplied = applyQCanvasSemanticsToElementNode(leaf, instanceAlias);
+    if (instanceAlias && !canvasApplied) {
       if (!leaf.meta || typeof leaf.meta !== "object") {
         leaf.meta = {};
       }

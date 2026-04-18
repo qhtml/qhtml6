@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.2.0
+# QHTML.js v6.2.2
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -11,6 +11,12 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Dev testbed: https://qhtml.github.io/qhtml6/dist/test.html
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
+
+## Whats New in v6.2.2
+
+- Added/validated typed named-instance usage in demos and examples (`<type> <name> { }`) so component references can be direct (for example `demoestore.products = ...`) without selector boilerplate.
+- Clarified and documented named-instance scope/context behavior for declarative references.
+- Tightened `q-import` runtime handling so import resolution is treated as a hard barrier before parse/mount continuation.
 
 ## Whats New in v6.2.0
 
@@ -479,6 +485,56 @@ Notes:
   }
 </q-html>
 ```
+
+### `q-component` instantiation (typed named-instance syntax)
+
+Use this form when you want an in-scope reference handle:
+
+```qhtml
+q-component q-cart {
+  q-property total: "0.00"
+}
+
+q-cart myCart { total: "39.99" }
+
+button {
+  text { Print total }
+  onclick {
+    console.log(myCart.total); // "39.99"
+  }
+}
+```
+
+This is the canonical instance form:
+- Definition: `q-component <type> { ... }`
+- Instantiation with handle: `<type> <name> { ... }`
+
+### Scope and context for named instances
+
+Named instances resolve by scope/context, not by global selector lookup. A reference is valid only where that name is in scope.
+
+```qhtml
+q-component comp-a { q-property value: "hello" }
+comp-a rootA { }
+
+q-component comp-b {
+  // valid: rootA is in an outer/available scope
+  q-property fromRoot: rootA.value
+}
+comp-b rootB { }
+
+q-component parent-scope {
+  comp-a nestedA { value: "inside-parent" }
+}
+parent-scope p1 { }
+
+// invalid in root scope: nestedA only exists in p1's local scope/context
+// div { text { ${nestedA.value} } }
+```
+
+Practical rule:
+- Prefer direct named-instance references inside the same valid scope.
+- Use selectors only for generic DOM traversal tasks, not for routine component-to-component wiring.
 
 ### `q-property` syntax
 

@@ -25,8 +25,9 @@ function uuidv4() {
  function show(x,y) { this.component.style.display = "block"; this.component.style.left = x; this.component.style.top = y; this.component.classList.add("visible");
   this.component.classList.add("q-popup-menu-open");
   if (String(this.component.getAttribute("id")) == "") { this.component.setAttribute("id", this.component.uuidv4()) }
+  var popup = this.component;
  document.addEventListener("click", function(e) {
-    document.querySelector(`#${this.component.getAttribute("id")}`).hide()
+    popup.hide()
     }, { once: true })
   }
   function hide() { this.component.style.display = "none"; this.component.classList.remove("visible"); }
@@ -34,7 +35,8 @@ function uuidv4() {
 
 
 /* implementation is
-q-popup-menu#my-menu {
+q-popup-menu myMenu {
+  id: "my-menu"
   popup-contents {
     ul {
       li { text { hello world } }
@@ -46,5 +48,5 @@ q-popup-menu#my-menu {
 }
 
 
-div { oncontextmenu { document.querySelector("#my-menu").show(event.clientX, event.clientY); console.log("Context menu opened at", event.pageX, event.pageY, event) } }
+div { oncontextmenu { myMenu.show(event.clientX, event.clientY); console.log("Context menu opened at", event.pageX, event.pageY, event) } }
 */

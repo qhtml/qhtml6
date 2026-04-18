@@ -13,7 +13,7 @@
     .page { max-width:1600px; margin:0 auto; display:grid; gap:12px; }
     .panel { background:var(--panel); border:1px solid var(--edge); border-radius:10px; padding:10px 12px; }
     .summary { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-weight:700; }
-    .summary .pass { color:var(--pass); } .summary .fail { color:var(--fail); }
+    .summary .pass { color:var(--pass); } .summary .fail { color:var(--fail); } .summary .pending { color:#425b78; }
     #failed-list { margin:8px 0 0 0; white-space:pre-wrap; font-family:"Fira Code",monospace; font-size:12px; line-height:1.35; color:var(--fail); }
     .actions { display:flex; gap:8px; margin-top:8px; }
     .actions button { border:1px solid var(--edge); background:#fff; border-radius:7px; padding:6px 10px; cursor:pointer; }
@@ -44,6 +44,50 @@ q-component q-test-accumulator {
 
   function normalize(v) {
     return String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+  }
+
+  function mapKeys(store) {
+    if (store && typeof store.keys === "function") { return store.keys(); }
+    return [];
+  }
+
+  function mapGet(store, key) {
+    if (store && typeof store.value === "function") { return store.value(key); }
+    return undefined;
+  }
+
+  function ensureModelStore(targetProp) {
+    var store = this.component[targetProp];
+    if (store && typeof store.set === "function" && typeof store.value === "function" && typeof store.keys === "function") {
+      return store;
+    }
+    var seed = {};
+    if (store && typeof store === "object") {
+      var keys = Object.keys(store);
+      for (var i = 0; i < keys.length; i += 1) {
+        seed[keys[i]] = store[keys[i]];
+      }
+    }
+    this.component[targetProp] = QModel(seed);
+    return this.component[targetProp];
+  }
+
+  function mapSet(targetProp, key, value) {
+    var store = this.component.ensureModelStore(targetProp);
+    store.set(key, value);
+  }
+
+  function doneMarkerState(testNo) {
+    var key = String(testNo || "");
+    var host = document.querySelector("#host-t" + key);
+    if (!host) { return "none"; }
+    var doneNode = host.querySelector("#t" + key + "-done");
+    if (!doneNode) { return "none"; }
+    var token = String(doneNode.textContent == null ? "" : doneNode.textContent).trim().toLowerCase();
+    if (token === "1" || token === "true" || token === "done" || token === "ok" || token === "pass") {
+      return "done";
+    }
+    return "pending";
   }
 
   function bootstrapManifest() {
@@ -77,30 +121,31 @@ q-component q-test-accumulator {
     this.component.manifest = QModel(data);
   }
 
+  function ensureManifest() {
+    var manifest = this.component.ensureModelStore("manifest");
+    var currentKeys = this.component.mapKeys(manifest);
+    var cardCount = document.querySelectorAll(".test-card[id^='card-']").length;
+    if (currentKeys.length === 0 || cardCount > currentKeys.length) {
+      this.component.bootstrapManifest();
+    }
+  }
+
   function setExpected(testNo, expectedList) {
     var key = String(testNo);
-    var entry = this.component.manifest.value(key) || {};
+    var entry = this.component.mapGet(this.component.manifest, key) || {};
+    if (!entry || typeof entry !== "object") { entry = {}; }
     entry.expected = Array.isArray(expectedList) ? expectedList.slice() : [String(expectedList || "")];
-    this.component.manifest.set(key, entry);
+    this.component.mapSet("manifest", key, entry);
   }
 
   function setResult(testNo, value) {
-    this.component.results.set(String(testNo), String(value == null ? "" : value));
+    this.component.mapSet("results", String(testNo), String(value == null ? "" : value));
   }
 
   function setPassing(testNo, isPassing) {
     var key = String(testNo);
     var value = isPassing ? "pass" : "fail";
-    var store = this.component.manualStatus;
-    if (store && typeof store.set === "function") {
-      store.set(key, value);
-      return;
-    }
-    if (!store || typeof store !== "object") {
-      store = {};
-    }
-    store[key] = value;
-    this.component.manualStatus = store;
+    this.component.mapSet("manualStatus", key, value);
   }
 
   function report(testNo, isPassing, value) {
@@ -113,23 +158,28 @@ q-component q-test-accumulator {
 
   function evaluateOne(testNo) {
     var key = String(testNo);
-    var entry = this.component.manifest.value(key) || {};
+    var entry = this.component.mapGet(this.component.manifest, key) || {};
     var expected = Array.isArray(entry.expected) ? entry.expected : [];
     var deprecated = entry.deprecated === true;
     var title = String(entry.title || "");
-    var actual = String(this.component.results.value(key) || "");
-    var manual = this.component.manualStatus;
+    var actual = String(this.component.mapGet(this.component.results, key) || "");
+    var manual = this.component.ensureModelStore("manualStatus");
     var status = "";
-    if (manual && typeof manual.value === "function") {
-      status = manual.value(key);
-    } else if (manual && typeof manual === "object") {
-      status = manual[key];
+    var hasResult = false;
+    hasResult = this.component.mapKeys(this.component.ensureModelStore("results")).indexOf(key) >= 0;
+    status = this.component.mapGet(manual, key);
+    if (status !== "pass" && status !== "fail" && status !== "deprecated" && deprecated) {
+      status = "deprecated";
     }
     if (status !== "pass" && status !== "fail" && status !== "deprecated") {
-      status = "pass";
+      status = hasResult ? "pass" : "pending";
     }
-    if (status !== "pass" && status !== "fail" && deprecated) {
-      status = "deprecated";
+    var doneState = this.component.doneMarkerState(key);
+    if (status !== "pass" && status !== "fail" && status !== "deprecated" && doneState === "pending") {
+      status = "pending";
+    }
+    if (status === "pass" && doneState === "pending") {
+      status = "pending";
     }
     if (status === "pass" && !deprecated) {
       var normalizedActual = this.component.normalize(actual);
@@ -165,10 +215,11 @@ q-component q-test-accumulator {
   }
 
   function showResults() {
-    var keys = this.component.manifest.keys();
-    var total = keys.length;
+    this.component.ensureManifest();
+    var keys = this.component.mapKeys(this.component.manifest);
     var passed = 0;
     var failed = 0;
+    var pending = 0;
     var lines = [];
     for (var i = 0; i < keys.length; i += 1) {
       var rec = this.component.evaluateOne(keys[i]);
@@ -177,10 +228,11 @@ q-component q-test-accumulator {
         failed += 1;
         lines.push(rec.key + ". " + rec.title + "\n  expected: " + rec.expected.join(" | ") + "\n  actual: " + this.component.normalize(rec.actual));
       }
+      if (rec.status !== "pass" && rec.status !== "fail") { pending += 1; }
     }
-    document.querySelector("#sum-total").textContent = "Total: " + String(total);
-    document.querySelector("#sum-pass").textContent = "Passed: " + String(passed);
-    document.querySelector("#sum-fail").textContent = "Failed: " + String(failed);
+    document.querySelector("#sum-pass").textContent = "Passes: " + String(passed);
+    document.querySelector("#sum-fail").textContent = "Failures: " + String(failed);
+    document.querySelector("#sum-pending").textContent = "Pending: " + String(pending);
     document.querySelector("#failed-list").textContent = lines.length > 0 ? lines.join("\n\n") : "none";
   }
 
@@ -191,16 +243,19 @@ q-component q-test-accumulator {
   onresultReported {
     var p = event && event.detail && event.detail.params ? event.detail.params : {};
     this.component.setResult(p.testNo, p.value);
+    this.component.showResults();
   }
 
   onexpectedReported {
     var p = event && event.detail && event.detail.params ? event.detail.params : {};
     this.component.setExpected(p.testNo, p.expectedList);
+    this.component.showResults();
   }
 
   onpassingReported {
     var p = event && event.detail && event.detail.params ? event.detail.params : {};
     this.component.setPassing(p.testNo, p.isPassing);
+    this.component.showResults();
   }
 
   onoutcomeReported {
@@ -209,15 +264,44 @@ q-component q-test-accumulator {
   }
 
   onReady {
-    this.component.bootstrapManifest();
-    this.refreshRequested();
+    try {
+      if (!this.component) { return; }
+      if (typeof this.component.bootstrapManifest === "function") {
+        this.component.bootstrapManifest();
+      }
+      if (typeof this.refreshRequested === "function") {
+        this.refreshRequested();
+      } else if (typeof this.component.refresh === "function") {
+        this.component.refresh();
+      }
+      setTimeout(function() {
+        try {
+          if (this.component && typeof this.component.refresh === "function") {
+            this.component.refresh();
+          }
+        } catch (err1) {
+          console.warn("accumulator delayed refresh(250) failed", err1);
+        }
+      }.bind(this), 250);
+      setTimeout(function() {
+        try {
+          if (this.component && typeof this.component.refresh === "function") {
+            this.component.refresh();
+          }
+        } catch (err2) {
+          console.warn("accumulator delayed refresh(1000) failed", err2);
+        }
+      }.bind(this), 1000);
+    } catch (err) {
+      console.warn("accumulator onReady failed", err);
+    }
   }
 
   div.panel {
     div.summary {
-      span#sum-total { text { Total: 0 } }
-      span#sum-pass.pass { text { Passed: 0 } }
-      span#sum-fail.fail { text { Failed: 0 } }
+      span#sum-fail.fail { text { Failures: 0 } }
+      span#sum-pending.pending { text { Pending: 0 } }
+      span#sum-pass.pass { text { Passes: 0 } }
     }
     div.actions {
       button#btn-refresh {
@@ -254,7 +338,7 @@ q-test-accumulator#acc-main { }
 q-timer accRefreshTimer {
   interval: 5000
   repeat: true
-  running: true
+  running: false
   ontimeout {
     var acc = document.querySelector("#acc-main");
     if (!acc) { return; }
@@ -452,16 +536,32 @@ div#t11-out { text { waiting } }
 
 signal-probe#t11-src {
   onPiNg {
-    $("#t11-out").textContent = event.detail.params.message;
-    var acc = document.querySelector("#acc-main");
-    if (acc) { acc.setPassing(11, true); }
+    try {
+      $("#t11-out").textContent = event.detail.params.message;
+      var acc = document.querySelector("#acc-main");
+      if (acc && typeof acc.setPassing === "function") {
+        acc.setPassing(11, true);
+      } else if (acc && typeof acc.passingReported === "function") {
+        acc.passingReported(11, true);
+      }
+    } catch (err) {
+      console.warn("t11 onPiNg failed", err);
+    }
   }
 }
 
 onReady {
-  var acc = document.querySelector("#acc-main");
-  if (acc) { acc.setPassing(11, false); }
-  $("#t11-src").fire();
+  try {
+    var acc = document.querySelector("#acc-main");
+    if (acc && typeof acc.setPassing === "function") {
+      acc.setPassing(11, false);
+    } else if (acc && typeof acc.passingReported === "function") {
+      acc.passingReported(11, false);
+    }
+    $("#t11-src").fire();
+  } catch (err) {
+    console.warn("t11 onReady failed", err);
+  }
 }
 
 onReady {
@@ -1244,6 +1344,16 @@ div#t49-title { text { t49-model-view-randomize } }
 button#t49-start {
   type: "button"
   text { Start timers }
+  onclick {
+    if ($("#t49-status").textContent === "running") {
+      return
+    }
+    $("#t49-status").textContent = "running"
+    this.disabled = true
+    $("#t49-ticks").textContent = "0"
+    t49MainTimer.start()
+    t49EndTimer.start()
+  }
 }
 div { text { Status: } } div#t49-status { text { idle } }
 div { text { Ticks: } } div#t49-ticks { text { 0 } }
@@ -1257,11 +1367,8 @@ q-model-view {
 q-timer t49MainTimer {
   repeat: true
   interval: 250
-  running: true
+  running: false
   ontimeout {
-    if (!window.__t49Active) {
-      return
-    }
     var nodes = document.querySelectorAll("#host-t49 mycomp")
     var i = 0
     while (i < nodes.length) {
@@ -1274,35 +1381,19 @@ q-timer t49MainTimer {
 }
 
 q-timer t49EndTimer {
-  repeat: true
-  interval: 2000
-  running: true
+  repeat: false
+  interval: 30000
+  running: false
   ontimeout {
-    if (!window.__t49Active) {
-      return
-    }
-    if (Date.now() - Number(window.__t49StartedAt || 0) < 30000) {
-      return
-    }
-    window.__t49Active = false
-    clearInterval(t49MainTimer)
-    clearTimeout(t49MainTimer)
-    clearInterval(t49EndTimer)
-    clearTimeout(t49EndTimer)
+    t49MainTimer.stop()
     document.querySelector("#host-t49 #t49-status").textContent = "stopped"
+    document.querySelector("#host-t49 #t49-start").disabled = false
   }
 }
 
 onReady {
-  window.__t49Active = false
-  window.__t49StartedAt = 0
-  var start = document.querySelector("#host-t49 #t49-start")
-  start.addEventListener("click", function() {
-    window.__t49StartedAt = Date.now()
-    window.__t49Active = true
-    document.querySelector("#host-t49 #t49-status").textContent = "running"
-    start.disabled = true
-  })
+  document.querySelector("#host-t49 #t49-status").textContent = "idle"
+  document.querySelector("#host-t49 #t49-start").disabled = false
 }
 
 onReady {
@@ -2463,8 +2554,17 @@ button#t84-toggle {
   type: "button"
   text { start }
   onclick {
-    window.__t84Active = !window.__t84Active;
-    this.textContent = window.__t84Active ? "stop" : "start";
+    var running = String(t84Timer.running) === "true" || t84Timer.running === true || Number(t84Timer.running) === 1;
+    if (running) {
+      t84Timer.stop();
+      this.textContent = "start";
+      return;
+    }
+    window.__t84 = null;
+    $("#t84-out").textContent = "waiting";
+    $("#t84-done").textContent = "0";
+    t84Timer.start();
+    this.textContent = "stop";
   }
 }
 q-canvas myCanvas84 {
@@ -2476,14 +2576,11 @@ div#t84-out { text { waiting } }
 div#t84-meta { text { frames=0|bounces=0 } }
 div#t84-done { text { 0 } }
 
-onReady { window.__t84Active = false; }
-
 q-timer t84Timer {
   interval: 30
   repeat: true
-  running: true
+  running: false
   ontimeout {
-    if (!window.__t84Active) { return; }
     var c = myCanvas84;
     if (!c || !c.context) { return; }
     if (!window.__t84) {
@@ -2527,8 +2624,6 @@ q-timer t84Timer {
     if (s.f > 44 && s.b > 0) {
       $("#t84-out").textContent = "t84-ok";
       $("#t84-done").textContent = "1";
-      window.__t84Active = false;
-      $("#t84-toggle").textContent = "start";
     }
   }
 }
@@ -2552,8 +2647,17 @@ button#t85-toggle {
   type: "button"
   text { start }
   onclick {
-    window.__t85Active = !window.__t85Active;
-    this.textContent = window.__t85Active ? "stop" : "start";
+    var running = String(t85Timer.running) === "true" || t85Timer.running === true || Number(t85Timer.running) === 1;
+    if (running) {
+      t85Timer.stop();
+      this.textContent = "start";
+      return;
+    }
+    window.__t85 = null;
+    $("#t85-out").textContent = "waiting";
+    $("#t85-done").textContent = "0";
+    t85Timer.start();
+    this.textContent = "stop";
   }
 }
 q-canvas myCanvas85 {
@@ -2564,14 +2668,11 @@ q-canvas myCanvas85 {
 div#t85-out { text { waiting } }
 div#t85-done { text { 0 } }
 
-onReady { window.__t85Active = false; }
-
 q-timer t85Timer {
   interval: 30
   repeat: true
-  running: true
+  running: false
   ontimeout {
-    if (!window.__t85Active) { return; }
     var c = myCanvas85;
     if (!c || !c.context) { return; }
     if (!window.__t85) { window.__t85 = { x: 2, y: 2, vx: 1, vy: 1, rr: 120, gg: 40, bb: 180, dr: 1, dg: -1, db: 1, f: 0, b: 0 }; }
@@ -2592,8 +2693,6 @@ q-timer t85Timer {
     if (s.f > 42 && s.b > 0) {
       $("#t85-out").textContent = "t85-ok";
       $("#t85-done").textContent = "1";
-      window.__t85Active = false;
-      $("#t85-toggle").textContent = "start";
     }
   }
 }
@@ -2617,8 +2716,17 @@ button#t86-toggle {
   type: "button"
   text { start }
   onclick {
-    window.__t86Active = !window.__t86Active;
-    this.textContent = window.__t86Active ? "stop" : "start";
+    var running = String(t86Timer.running) === "true" || t86Timer.running === true || Number(t86Timer.running) === 1;
+    if (running) {
+      t86Timer.stop();
+      this.textContent = "start";
+      return;
+    }
+    window.__t86 = null;
+    $("#t86-out").textContent = "waiting";
+    $("#t86-done").textContent = "0";
+    t86Timer.start();
+    this.textContent = "stop";
   }
 }
 div#t86-wrap {
@@ -2640,14 +2748,11 @@ q-canvas myCanvas86 {
 div#t86-out { text { waiting } }
 div#t86-done { text { 0 } }
 
-onReady { window.__t86Active = false; }
-
 q-timer t86Timer {
   interval: 30
   repeat: true
-  running: true
+  running: false
   ontimeout {
-    if (!window.__t86Active) { return; }
     var c = myCanvas86;
     var wrap = $("#t86-wrap");
     if (!c || !c.context || !wrap) { return; }
@@ -2676,8 +2781,6 @@ q-timer t86Timer {
     if (s.f > 34) {
       $("#t86-out").textContent = "t86-ok";
       $("#t86-done").textContent = "1";
-      window.__t86Active = false;
-      $("#t86-toggle").textContent = "start";
     }
   }
 }
@@ -2701,8 +2804,17 @@ button#t87-toggle {
   type: "button"
   text { start }
   onclick {
-    window.__t87Active = !window.__t87Active;
-    this.textContent = window.__t87Active ? "stop" : "start";
+    var running = String(t87Timer.running) === "true" || t87Timer.running === true || Number(t87Timer.running) === 1;
+    if (running) {
+      t87Timer.stop();
+      this.textContent = "start";
+      return;
+    }
+    window.__t87 = null;
+    $("#t87-out").textContent = "waiting";
+    $("#t87-done").textContent = "0";
+    t87Timer.start();
+    this.textContent = "stop";
   }
 }
 q-canvas myCanvas87a { width: 96 height: 48 }
@@ -2711,14 +2823,11 @@ q-canvas myCanvas87b { width: 96 height: 48 }
 div#t87-out { text { waiting } }
 div#t87-done { text { 0 } }
 
-onReady { window.__t87Active = false; }
-
 q-timer t87Timer {
   interval: 30
   repeat: true
-  running: true
+  running: false
   ontimeout {
-    if (!window.__t87Active) { return; }
     var a = myCanvas87a;
     var b = myCanvas87b;
     if (!a || !b || !a.context || !b.context) { return; }
@@ -2736,8 +2845,6 @@ q-timer t87Timer {
     if (s.f > 28) {
       $("#t87-out").textContent = "t87-ok";
       $("#t87-done").textContent = "1";
-      window.__t87Active = false;
-      $("#t87-toggle").textContent = "start";
     }
   }
 }
@@ -3425,14 +3532,8 @@ q-worker worker102 {
 
 worker102 worker102inst { }
 
-q-canvas myCanvas102 {
-  id: "t102-canvas"
-  width: 320
-  height: 180
-}
-
 q-component host102 {
-  q-property running: false
+  q-property running: 0
   q-property state: ""
 
   function drawSomeShapes(payloadJson) {
@@ -3453,8 +3554,11 @@ q-component host102 {
   }
 
   function draw() {
-    if (!this.component.running) { return; }
-    var next = worker102inst.draw(this.component.state, Number(myCanvas102.width || 320), Number(myCanvas102.height || 180), Date.now());
+    if (Number(this.component.running || 0) !== 1) { return; }
+    var cv = myCanvas102;
+    var w = Number(cv && cv.width ? cv.width : 320);
+    var h = Number(cv && cv.height ? cv.height : 180);
+    var next = worker102inst.draw(this.component.state, w, h, Date.now());
     if (next && typeof next.then === "function") {
       var self = this;
       next.then(function(payload) { self.component.state = String(payload || ""); });
@@ -3468,13 +3572,18 @@ q-component host102 {
       this.component.state = String(payload || "");
       this.component.drawSomeShapes(this.component.state);
     });
+    var wrap = this.querySelector("#t102-wrap");
+    if (wrap && myCanvas102 && myCanvas102.parentNode !== wrap) {
+      wrap.appendChild(myCanvas102);
+    }
   }
 
   div#t102-controls {
     button#t102-start {
       type: "button"
       onclick {
-        host102inst.running = true;
+        host102inst.running = 1;
+        t102Timer.start();
         $("#t102-status").textContent = "running";
         $("#t102-done").textContent = "0";
       }
@@ -3483,7 +3592,8 @@ q-component host102 {
     button#t102-stop {
       type: "button"
       onclick {
-        host102inst.running = false;
+        host102inst.running = 0;
+        t102Timer.stop();
         $("#t102-status").textContent = "stopped";
         $("#t102-done").textContent = "1";
       }
@@ -3493,24 +3603,31 @@ q-component host102 {
     div#t102-done { text { 0 } }
   }
 
-  div#t102-wrap { }
+  div#t102-worker-ref { text { worker102inst } }
+  div#t102-wrap {
+    style {
+      width: 320px;
+      height: 180px;
+      border: 1px solid #94a3b8;
+      background-color: rgba(15,23,42,0.08);
+    }
+  }
 }
 
 host102 host102inst { }
 
+q-canvas myCanvas102 {
+  id: "t102-canvas"
+  width: 320
+  height: 180
+}
+
 q-timer t102Timer {
   interval: 10
   repeat: true
-  running: true
+  running: false
   ontimeout {
     host102inst.draw();
-  }
-}
-
-onReady {
-  var wrap = $("#t102-wrap");
-  if (wrap && myCanvas102 && myCanvas102.parentNode !== wrap) {
-    wrap.appendChild(myCanvas102);
   }
 }
 
@@ -3519,6 +3636,158 @@ onReady {
   var acc = document.querySelector("#acc-main");
   if (acc) {
     acc.resultReported(102, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-103">
+        <div class="test-head">
+          <h2>103. q-estore product + product-grid smoke test</h2>
+          <span id="badge-103" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> NL-100 | Night Lamp | DC-220 | Desk Clock</div>
+        <q-html id="host-t103" data-test-no="103">
+q-import { q-components/q-estore.qhtml }
+
+q-estore#store103 {
+  products: q-array {
+    q-map {
+      SKU: "NL-100"
+      name: "Night Lamp"
+      description: "Warm bedside glow"
+      price: "39.99"
+    },
+    q-map {
+      SKU: "DC-220"
+      name: "Desk Clock"
+      description: "Minimal analog clock"
+      price: "24.50"
+    }
+  }
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(103, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-104">
+        <div class="test-head">
+          <h2>104. rootContext property resolves in binding scope</h2>
+          <span id="badge-104" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> ctx-ok-104</div>
+        <q-html id="host-t104" data-test-no="104">
+q-component ctxprobe104 {
+  q-property out: "waiting"
+  onReady {
+    this.component.out = ${appName104};
+  }
+  div#t104-out { text { ${this.component.out} } }
+}
+
+ctxprobe104#t104-probe { }
+
+onReady {
+  if (this.getAttribute("data-t104-init") !== "1") {
+    this.setAttribute("data-t104-init", "1");
+    QHtml.rootContext.set("appName104", "ctx-ok-104");
+    this.update();
+    return;
+  }
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(104, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-105">
+        <div class="test-head">
+          <h2>105. lexical symbol shadows root context symbol</h2>
+          <span id="badge-105" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> lexical-105</div>
+        <q-html id="host-t105" data-test-no="105">
+q-component item105 {
+  q-property value: "lexical-105"
+}
+
+item105 shadowRef {
+  value: "lexical-105"
+}
+
+div#t105-out { text { ${shadowRef.value} } }
+
+onReady {
+  if (this.getAttribute("data-t105-init") !== "1") {
+    this.setAttribute("data-t105-init", "1");
+    QHtml.rootContext.set("shadowRef", QMap({ value: "root-105" }));
+    this.update();
+    return;
+  }
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(105, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-106">
+        <div class="test-head">
+          <h2>106. nested named-instance dot walk</h2>
+          <span id="badge-106" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> dotwalk-106</div>
+        <q-html id="host-t106" data-test-no="106">
+q-component leaf106 {
+  q-property value: "dotwalk-106"
+}
+
+q-component mid106 {
+  leaf106 inner106 {
+    value: "dotwalk-106"
+  }
+}
+
+mid106 outer106 { }
+
+div#t106-out { text { ${outer106.inner106.value} } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(106, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-107">
+        <div class="test-head">
+          <h2>107. unresolved reference diagnostics are deterministic</h2>
+          <span id="badge-107" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> diag-ok-107</div>
+<q-html id="host-t107" data-test-no="107">
+div#t107-inline { text { missing107 } }
+div#t107-direct { text { missing107.value } }
+div#t107-status { text { waiting } }
+
+onReady {
+  var inlineNode = this.querySelector("#t107-inline");
+  var directNode = this.querySelector("#t107-direct");
+  var statusNode = this.querySelector("#t107-status");
+  var inlineValue = inlineNode ? String(inlineNode.textContent || "").trim() : "";
+  var directValue = directNode ? String(directNode.textContent || "").trim() : "";
+  var ok = inlineValue === "missing107" && directValue === "missing107.value";
+  statusNode.textContent = ok ? "diag-ok-107" : ("diag-fail-107|" + inlineValue + "|" + directValue);
+
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(107, this.innerHTML);
   }
 }
         </q-html>

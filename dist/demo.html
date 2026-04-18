@@ -178,7 +178,7 @@
       <section class="demo-hero">
         <h1>QHTML Component Examples</h1>
         <p>This page is now mostly HTML. Each example is a plain <code>&lt;q-editor&gt;</code> with inline QHTML source.</p>
-        <p>The sidebar is built with <code>document.querySelectorAll(".example-class")</code> and links to each section anchor.</p>
+        <p>The sidebar is built with a small navigation script that links to each example section anchor.</p>
       </section>
 
       <section class="example-class" id="q-keyword" data-title="q-keyword syntax usage">
@@ -357,9 +357,9 @@ q-theme modal-demo-theme {
 modal-demo-theme {
   button.modal-open-btn.w3-button {
     text { Open Modal }
-    onclick { document.querySelector("#modal-usage").show(); }
+    onclick { modalUsage.show(); }
   }
-  q-modal {
+  q-modal modalUsage {
     id: "modal-usage"
     title { h3 { text { q-modal Usage } } }
     body {
@@ -426,9 +426,9 @@ sidebar-demo-theme {
     style { position: relative; height: 240px; overflow: hidden; padding: 8px; }
     button.w3-button.w3-margin-bottom {
       text { Toggle Sidebar }
-      onclick { this.closest("div").querySelector("q-sidebar").toggle(); }
+      onclick { demoSidebar.toggle(); }
     }
-    q-sidebar {
+    q-sidebar demoSidebar {
       sidebarWidth: "280"
       collapsedWidth: "2vw"
       open: "1"
@@ -472,12 +472,13 @@ div.w3-container.w3-border.w3-round-large.w3-padding {
     }
     oncontextmenu {
       event.preventDefault();
-      document.querySelector("#ctx-usage").show(event.clientX + "px", event.clientY + "px");
-       document.querySelector("#ctx-log").textContent = "Last open: " + String(event.clientX) + ", " + String(event.clientY);
+      ctxUsage.show(event.clientX + "px", event.clientY + "px");
+      ctxLog.textContent = "Last open: " + String(event.clientX) + ", " + String(event.clientY);
     }
 
     p { text { This context menu uses explicit show(event.clientX, event.clientY). } }
-      q-popup-menu#ctx-usage {
+      q-popup-menu ctxUsage {
+      id: "ctx-usage"
       style { position: fixed;   background-color: #f8fafc; }
       popup-contents {
         ul.w3-ul.w3-small.w3-card {
@@ -492,7 +493,12 @@ div.w3-container.w3-border.w3-round-large.w3-padding {
     }
 
   }
-  p#ctx-log.w3-small { style { color: #334155; } text { Last open: none } }
+  p ctxLog {
+    id: "ctx-log"
+    class: "w3-small"
+    style { color: #334155; }
+    text { Last open: none }
+  }
 
 }
           </q-editor>
@@ -528,9 +534,9 @@ q-theme tabs-demo-theme {
 tabs-demo-theme {
   button.tabs-show-btn.w3-button.w3-margin-bottom {
     text { Show Tab 3 }
-    onclick { document.querySelector("#tabs-usage").showTab(2); }
+    onclick { tabsUsage.showTab(2); }
   }
-  q-tabs {
+  q-tabs tabsUsage {
     id: "tabs-usage"
     q-tab { name { text { Overview } } content { p { text { Overview content } } } }
     q-tab { name { text { Details } } content { p { text { Details content } } } }
@@ -715,149 +721,23 @@ demo-list-view#my-list { }
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components.qhtml }
+q-import { q-components/q-estore.qhtml }
 
-q-component estore-demo-shell {
-  q-property items: q-array { }
-  q-signal cartItemsChanged(items)
-  q-signal checkoutItemsChanged(items)
-
-  function normalizeArrayModel(input) {
-    if (input && typeof input === "object" && input.__qhtmlIsQModel === true) {
-      if (typeof input.mode === "function" && input.mode() === "array") {
-        return input;
-      }
-      if (typeof input.toArray === "function") {
-        return QArray(input.toArray());
-      }
-    }
-    if (Array.isArray(input)) {
-      return QArray(input);
-    }
-    if (input && typeof input === "object" && typeof input.toArray === "function") {
-      return QArray(input.toArray());
-    }
-    return QArray([]);
-  }
-
-  function rowsFrom(input) {
-    var model = this.normalizeArrayModel(input);
-    if (model && typeof model.values === "function") {
-      return model.values();
-    }
-    return [];
-  }
-
-  function subtotal(input) {
-    var rows = this.rowsFrom(input);
-    var sum = 0;
-    var i = 0;
-    while (i < rows.length) {
-      sum += Number(rows[i] && rows[i].price !== undefined ? rows[i].price : 0);
-      i += 1;
-    }
-    return sum;
-  }
-
-  function syncCart(input) {
-    var model = this.normalizeArrayModel(input);
-    this.component.items = model;
-    this.refreshStatus();
-    var modal = this.querySelector("#checkoutmodal");
-    if (modal && modal.items !== model) {
-      modal.items = model;
-    }
-    return model;
-  }
-
-  function refreshStatus() {
-    var status = this.querySelector("#estore-status");
-    if (!status) {
-      return;
-    }
-    var rows = this.rowsFrom(this.component.items);
-    status.textContent =
-      "cart status: " +
-      String(rows.length) +
-      " item(s), subtotal $" +
-      String(this.subtotal(rows).toFixed(2));
-  }
-
-  function addToCart(name, price) {
-    var model = this.normalizeArrayModel(this.component.items);
-    var rowModel = QModel({
-      name: String(name || "Item"),
-      price: Number(price || 0)
-    });
-    if (typeof model.push === "function") {
-      model.push(rowModel.toObject());
-    }
-    this.cartItemsChanged(model);
-  }
-
-  onitemsChanged {
-    this.cartItemsChanged(this.component.items);
-  }
-
-  div.w3-panel.w3-border.w3-round-large {
-    h4 { text { e-store quick demo } }
-    p { text { Add items from the catalog, then click Checkout. } }
-    p#estore-status.w3-small { text { cart status: 0 item(s), subtotal $0.00 } }
-    button#estore-checkout-btn.w3-button.w3-small.w3-border.w3-round {
-      type: "button"
-      text { Checkout }
-      onclick {
-        var host = this.closest("estore-demo-shell");
-        if (!host) {
-          return;
-        }
-        var modal = host.querySelector("#checkoutmodal");
-        if (!modal) {
-          return;
-        }
-        host.checkoutItemsChanged(host.items);
-        modal = host.querySelector("#checkoutmodal");
-        if (modal && typeof modal.show === "function") {
-          modal.show();
-        }
-      }
-    }
-  }
-
-  q-estore-pricebox {
-    pricebox-content { text { Featured: Night Lamp } }
-    pricebox-price { text { $39.99 } }
-    pricebox-add-button {
-      button {
-        text { Add featured to cart }
-        onclick { this.closest("estore-demo-shell").addToCart("Night Lamp", 39.99); }
-      }
-    }
-  }
-
-  q-checkout-modal#checkoutmodal {
-    onitemsChanged {
-      var host = this.closest("estore-demo-shell");
-      if (!host) {
-        return;
-      }
-      host.checkoutItemsChanged(this.component.items);
-    }
-  }
-
-  onReady {
-    var host = this;
-    this.cartItemsChanged.connect(function(nextItems) {
-      host.syncCart(nextItems);
-    });
-    this.checkoutItemsChanged.connect(function(nextItems) {
-      host.cartItemsChanged(nextItems);
-    });
-    host.cartItemsChanged(host.items);
+button.w3-button.w3-small.w3-border.w3-round {
+  text { Load Alternate Products }
+  onclick {
+    demoestore.products = QArray([
+      { SKU: "ALT-001", name: "Travel Bottle", description: "Insulated stainless steel", price: "29.00" },
+      { SKU: "ALT-002", name: "Desk Mat", description: "Felt anti-slip surface", price: "22.50" },
+      { SKU: "ALT-003", name: "Pen Set", description: "Fine-tip gel pens", price: "12.99" },
+      { SKU: "ALT-004", name: "Cable Kit", description: "USB-C and Lightning pack", price: "18.75" }
+    ]);
   }
 }
 
-estore-demo-shell { }
+q-estore demoestore {
+  id: "demo-estore"
+}
           </q-editor>
         </div>
       </section>
@@ -876,10 +756,11 @@ div.w3-container.w3-border.w3-round-large.w3-padding {
   p { text { Drag from the top edge, resize from bottom-right corner, and click X to close. } }
   button.w3-button.w3-small.w3-border {
     text { Re-open toolbar }
-    onclick { this.closest("div").querySelector("#toolbox-main").showToolbar(); }
+    onclick { toolboxMain.showToolbar(); }
   }
 
-  q-toolbar#toolbox-main {
+  q-toolbar toolboxMain {
+    id: "toolbox-main"
     title: "Quick Tools"
     x: 160
     y: 120
@@ -941,8 +822,8 @@ tech-tag-theme {
       function buildSidebar() {
         var nav = document.getElementById("demo-nav");
         nav.innerHTML = "";
-        var cards = document.querySelectorAll(".example-class");
-        cards.forEach(function(card, index) {
+        var cards = document.getElementsByClassName("example-class");
+        Array.prototype.forEach.call(cards, function(card, index) {
           var id = String(card.id || "").trim();
           var title = String(card.getAttribute("data-title") || "Example " + String(index + 1));
           var link = document.createElement("a");
@@ -955,9 +836,12 @@ tech-tag-theme {
       }
 
       function syncActiveLink() {
-        var links = document.querySelectorAll("#demo-nav .demo-nav-link");
-        var active = String(window.location.hash || "").replace(/^#/, "") || document.querySelector(".example-class").id;
-        links.forEach(function(link) {
+        var nav = document.getElementById("demo-nav");
+        var links = nav ? nav.getElementsByClassName("demo-nav-link") : [];
+        var cards = document.getElementsByClassName("example-class");
+        var firstExampleId = cards.length > 0 ? String(cards[0].id || "") : "";
+        var active = String(window.location.hash || "").replace(/^#/, "") || firstExampleId;
+        Array.prototype.forEach.call(links, function(link) {
           var target = String(link.getAttribute("data-example-target") || "");
           if (target === active) {
             link.setAttribute("data-active", "1");

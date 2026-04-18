@@ -1,62 +1,42 @@
-q-component q-estore-pricebox {
-  div.q-estore-pricebox.w3-panel.w3-border.w3-round-large {
-    div.q-estore-pricebox-content { slot { pricebox-content } }
-    div.q-estore-pricebox-price { slot { pricebox-price } }
-    div.q-estore-pricebox-action { slot { pricebox-add-button } }
-  }
+
+
+q-component q-estore-product {
+  q-property name: ""
+  q-property description: ""
+  q-property price: 0
+  q-property SKU: ""
 }
 
-q-component product-grid extends q-grid extends q-model-view {
-  q-signal qEstoreAddedToCart(chosenItem)
-  q-property itemModel: q-array { }
-
-  q-model { this.component.itemModel }
-  as { item }
-
-  q-estore-pricebox {
-    pricebox-content {
-      div { text { ${item && item.content !== undefined ? item.content : ""} } }
+q-component q-estore {
+  q-property products: q-array {
+    q-map {
+      SKU: "NL-100"
+      name: "Night Lamp"
+      description: "Warm bedside glow"
+      price: "39.99"
+    },
+    q-map {
+      SKU: "DC-220"
+      name: "Desk Clock"
+      description: "Minimal analog clock"
+      price: "24.50"
+    },
+    q-map {
+      SKU: "MK-305"
+      name: "Ceramic Mug"
+      description: "Matte finish coffee mug"
+      price: "14.00"
+    },
+    q-map {
+      SKU: "NB-410"
+      name: "Notebook Set"
+      description: "Hardcover dotted journals"
+      price: "19.95"
     }
-    pricebox-price {
-      div { text { ${item && item.price !== undefined ? item.price : ""} } }
-    }
-    pricebox-add-button {
-      button.q-estore-add-btn {
-        data-name: "${item && item.name !== undefined ? item.name : (item && item.content !== undefined ? item.content : 'Item')}"
-        data-content: "${item && item.content !== undefined ? item.content : ''}"
-        data-price: "${item && item.price !== undefined ? item.price : 0}"
-        text { Add to cart }
-        onclick {
-          var btn = this;
-          this.closest("product-grid").qEstoreAddedToCart(
-            QModel({
-              name: btn.getAttribute("data-name"),
-              content: btn.getAttribute("data-content"),
-              price: Number(btn.getAttribute("data-price") || 0)
-            }).toObject()
-          );
-        }
-      }
-    }
+  }
+  ul {
+  for (product in products) {
+    li { text { ${product.SKU} | ${product.name} | ${product.description} | ${product.price}  }}
   }
 }
-
-q-component q-checkout-modal extends q-modal {
-  q-property items: q-array { }
-
-  title {
-    h3 { text { Checkout } }
-  }
-
-  body {
-    ul.w3-ul.w3-border.w3-round-large {
-      for (item in this.component.items) {
-        li {
-          span { text { ${item && item.name !== undefined ? item.name : item} } }
-          text {  }
-          span { text { ${item && item.price !== undefined ? item.price : ""} } }
-        }
-      }
-    }
-  }
 }

@@ -29,10 +29,15 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - instance-level `q-property` declarations are retained in node metadata (`meta.__qhtmlDeclaredProperties`) and used when mapping invocation assignments/bindings into `component-instance.props`
     - inherited `q-property` declarations from multi-`extends` chains are included when mapping invocation assignments into `component-instance.props`
     - `component-instance.props` populated when invocation keys match declared component properties
-    - typed named component instance invocation syntax:
+    - typed named instance invocation syntax:
       - `my-component myInstance { ... }`
       - parsed as component invocation with instance alias metadata (`meta.__qhtmlInstanceAlias`)
-      - valid only for `q-component` invocations (throws for non-component targets)
+      - valid for known instantiable definitions in the current parse registry (`q-component`, `q-template`, `q-signal`, `q-worker`)
+      - keyword-backed typed canvas invocation is also supported:
+        - `q-canvas myCanvas { ... }`
+        - normalized into a concrete `canvas` element node with `q-canvas="1"` and `q-canvas-name="myCanvas"`
+        - avoids unknown-instantiable normalization errors while preserving named-canvas runtime export semantics
+      - unknown typed targets with an instance alias throw a parse-time normalization error
     - declared properties can be authored with either:
       - `q-property name: value`
       - `property name: value` (shorthand alias)

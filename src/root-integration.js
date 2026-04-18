@@ -7,7 +7,7 @@
   }
 
   const api = runtime;
-  api.version = "0.1.0";
+  api.version = "6.2.2";
 
   api.parseQHtml = function parseQHtml(source) {
     return modules.qhtmlParser.parseQHtmlToQDom(source || "");
@@ -31,4 +31,3 @@
 
   global.QHtml = api;
 })(typeof globalThis !== "undefined" ? globalThis : window);
-

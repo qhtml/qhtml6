@@ -76,6 +76,12 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - `printEventLoopSnapshot(options?)`
   - Console-oriented wrapper around `getEventLoopSnapshot(...)`.
   - Prints summary + queue tables, and returns the same snapshot object.
+- Named `q-timer` runtime handles
+  - Named timer declarations (`q-timer myTimer { ... }`) are exported as runtime handle objects (not raw numeric IDs).
+  - Handle shape:
+    - methods: `start()`, `stop()`, `restart()`
+    - properties: `name`, `timerId`, `running`, `repeat`, `interval`
+  - Numeric compatibility is preserved for legacy timer-id usage via `valueOf()`/`toString()` (for APIs like `clearTimeout(...)` expecting an id).
 - `dispatchPropertyChangedEvent(target, payload)`
   - Routes declared `q-property` setter changes through per-property signal dispatch (`<property>Changed`).
   - Queued mode: enqueues targeted property-subscriber updates and signal dispatch on runtime queue.
@@ -85,6 +91,12 @@ Runtime mount/update engine for `<q-html>` in browser environments.
     - `add`, `insert`, `remove`, `set`, `replace`, `push`, `push_front`
     - `keys`, `values`, `entries`, `at`, `value`, `key`, `indexOf`, `count`, `foreach`, `forEach`, `map`, `walk`, `traverse`
     - `toArray`, `toObject`
+    - object-like property proxy access:
+      - map mode: `model.someKey` / `model.someKey = value`
+      - array mode: `model[0]` / `model[0] = value` and `model.length`
+      - method-name key collisions are supported:
+        - `model.set` (no call) resolves to data key `"set"` in expression evaluation and string interpolation contexts
+        - `model.set(...)` still resolves to the model method call
     - `subscribe(listener)` and `emit(type, details?)`
     - `modelChanged.connect(listener)` / `modelChanged.disconnect(listener)` / `modelChanged.emit(details?)`
     - mutators emit legacy operation events (`add|insert|update|remove`) and canonical `modelChanged` payloads (`event.op`)
@@ -105,6 +117,11 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - Callback invocation appends caller metadata as final argument:
     - `{ caller, callerUuid, callerTag, timestamp }`
   - Exposed as both `QHtml.createQCallback(...)` and global `QCallback(...)`.
+- Runtime type exports:
+  - `QHtml.QSignal` / global `QSignal`
+  - `QHtml.QProperty` / global `QProperty`
+  - `QHtml.QComponentInstance` / global `QComponentInstance`
+  - sourced from `dom-renderer` runtime type constructors
 - `qhtml(source)`
   - Creates QHTML fragment tokens consumable by renderer callback/direct-call paths.
   - Typical usage from callbacks: `return qhtml("div { text { hello } }");`
@@ -125,6 +142,18 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - Remove one q-worker runtime record by UUID.
 - `getWorkerRuntime(uuid)`
   - Lookup one q-worker runtime record by UUID.
+- `rootContext`
+  - Runtime-wide context frame API (QML-style root context semantics):
+    - `QHtml.rootContext.set(name, value)`
+    - `QHtml.rootContext.get(name)`
+    - `QHtml.rootContext.has(name)`
+    - `QHtml.rootContext.child()` (creates child context frame)
+    - `QHtml.rootContext.toObject()`
+  - Aliases:
+    - `QHtml.setContextProperty(name, value)`
+    - `QHtml.getContextProperty(name)`
+    - `QHtml.createChildContext(parentContext?)`
+  - Values injected into root context are propagated into mounted hosts and can be resolved by bindings/inline expressions.
 - `initAll(root?, options?)`
   - Mount all `<q-html>` descendants.
 - `startAutoMountObserver(root?, options?)`
@@ -148,6 +177,18 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - response must be strict JSON containing a non-empty `block` string
   - failures are reported as warnings and skipped (mount continues)
   - per-document URL cache dedupes fetch/parse during one page lifecycle
+
+## Scope and Context Resolution
+- Runtime resolves symbol paths through layered scope/context frames.
+- General resolution order for simple symbol paths:
+  1. expression-local scope values (inline/event/lifecycle scope object)
+  2. lexical QHTML scope frame (named instances declared in the active QHTML scope)
+  3. current scope object (`this` / `this.component` members)
+  4. current runtime context frame
+  5. parent runtime context frames
+  6. runtime root context (`QHtml.rootContext`)
+- Named instance references are UUID-backed handles and resolve lazily through UUID maps.
+- `q-template` aliases are head-only symbols (template type markers); member dot-walk on template aliases is rejected by resolver.
 
 ## `.qdom()` and node list helpers
 - `host.qdom()` / `element.qdom()` return facades over source QDom nodes.

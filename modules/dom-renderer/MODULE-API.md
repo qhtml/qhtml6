@@ -16,6 +16,10 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - Replaces host content with rendered fragment.
 - `renderComponentElement(componentNode, hostElement, targetDocument?, options?)`
   - Hydrates a concrete DOM host from a component definition.
+- Runtime type exports:
+  - `QSignal` (callable signal type with `.connect/.disconnect/.emit`)
+  - `QProperty` (declared-property backing instance type)
+  - `QComponentInstance` (component-instance metadata wrapper)
 
 ## Supported node kinds
 - `element`, `text`, `raw-html`
@@ -41,13 +45,16 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - Inline expressions in text/attributes can read scoped values directly (for example `${item}` and `${item.name}`).
 - Direct symbol text is also resolved for simple scoped identifiers/paths (for example `li { item }`).
 - `q-model-view` repeaters prefer model-value interpolation (`[object Object]` for object rows) instead of q-object source-string substitution.
-- Named typed component instances participate in interpolation scope using lexical block scoping:
-  - aliases declared as `mycomp myinstance { ... }` resolve by nearest scope, with later declarations shadowing earlier ones.
-  - aliases are available to subsequent siblings and descendants in the same block.
+- Named typed instances are registered into lexical scope/context frames:
+  - declaration form: `SomeType someName { ... }`
+  - duplicate name in the same lexical frame is a hard error.
+  - alias handles are UUID-backed runtime pointers, resolved lazily when dereferenced.
+  - nested instance names live in child lexical scope frames (visible through that instance context chain, not promoted globally).
 - `q-callback` declarations register callable symbols in render scope and runtime callback registry, enabling:
   - direct declarative invocation (`callbackName(...)`) in text/props/templates
   - pass-by-reference assignment into declared component properties (resolved lazily to callback functions)
   - `qhtml(...)` fragment-return rendering when callbacks return QHTML fragment tokens
+  - callback names are also stored in the active lexical/runtime context frame so later expressions in the same scope resolve by name.
 
 ## Component host assignment behavior
 - `component-instance.attributes` map to DOM attributes.
@@ -91,6 +98,10 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - `instance.name.connect(fn)`
   - `instance.name.disconnect(fn?)`
   - `instance.name.emit(...)`
+  - each signal callable is an instance of `QSignal` (runtime type) while preserving call syntax
+- Declared `q-property` entries register backing `QProperty` instances on host metadata map (`host.__qhtmlPropertyInstances`).
+- Component hosts register `QComponentInstance` metadata (`host.__qhtmlComponentInstanceMeta`).
+- Component execution contexts aggressively normalize `this.component` to the nearest owning component instance host before hook/event/method execution.
 - Binds component-local callback declarations (`q-callback name(param1, ...)`) onto host instances as callable methods:
   - `instance.name(...)`
   - host-bound callbacks execute with creator component context (`this.component` preserved)
