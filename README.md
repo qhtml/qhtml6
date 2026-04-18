@@ -18,49 +18,6 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Clarified and documented named-instance scope/context behavior for declarative references.
 - Tightened `q-import` runtime handling so import resolution is treated as a hard barrier before parse/mount continuation.
 
-## Whats New in v6.2.0
-
-- Added `q-worker` as a first-class QHTML language construct inside `q-component` for background method execution.
-- Added worker method proxy behavior so `worker.method()` returns a Promise and resolves back to component scope.
-- Added worker-signal interoperability so worker methods can emit declared `q-signal` payloads that route back through normal signal handlers.
-- Added direct reference-path property defaults for declared component properties (for example `q-property prop2: mycomp1.prop1`).
-- Improved property reference consistency so direct JS reads (`mycomp2.prop2`) and inline interpolation (`${mycomp2.prop2}`) resolve the same bound value.
-
-Language examples added this round:
-
-```qhtml
-q-component my-worker-host {
-  q-worker myworker {
-    q-property myprops: q-array { "A", "B", "C" }
-    function dowork() {
-      var rv = [];
-      for (var i = 0; i < 3; i += 1) {
-        rv.push(this.myprops[i]);
-      }
-      return rv.join(",");
-    }
-  }
-
-  q-property result: "waiting"
-  onReady {
-    this.component.myworker.dowork().then(function(out) {
-      this.component.result = out;
-    }.bind(this));
-  }
-}
-```
-
-```qhtml
-q-component comp1 { q-property prop1: "something" }
-comp1 mycomp1 { prop1: "testing 1 2 3" }
-
-q-component comp2 extends comp1 {
-  q-property prop2: mycomp1.prop1
-}
-comp2 mycomp2 { prop1: "testing" }
-```
-
-
 ## 1. Quick Start
 
 ### Project setup
@@ -308,155 +265,6 @@ q-component sender {
 ```
 
 
-### Escaping `{` and `}` in block content
-
-Use `\{` and `\}` when you want literal braces inside block bodies.
-
-```qhtml
-<q-html>
-  div {
-    text { hello \} world }
-  }
-</q-html>
-```
-
-Resulting HTML:
-
-```html
-<q-html>
-  <div>hello } world</div>
-</q-html>
-```
-
-## Styles and Themes
-
-`q-style` + `q-theme` are the preferred styling model for new code.
-
-### `q-style` with class import (`q-style-class`)
-
-`q-style-class` lets a style definition add CSS classes and inline properties together.
-
-```qhtml
-q-style panel-style {
-  q-style-class { w3-container w3-round-large }
-  backgroundColor: #e0f2fe
-  color: #0c4a6e
-}
-```
-
-Apply it directly:
-
-```qhtml
-panel-style,div { text { Styled panel } }
-```
-
-Or through a theme rule:
-
-```qhtml
-q-theme app-theme {
-  .panel { panel-style }
-}
-```
-
-Notes:
-- `q-style-class` merges class names into the element `class` attribute.
-- Inline `q-style` declarations are still applied via `style=""`.
-- If both class CSS and inline declarations target the same property, inline wins.
-
-### Basic reusable style
-
-```qhtml
-q-style panel {
-  backgroundColor: #eff6ff
-  color: #1e293b
-  border: 1px solid #93c5fd
-}
-```
-
-### Apply style directly in selector chain
-
-```qhtml
-panel,div { text { Styled panel } }
-```
-
-### Use `q-style-class` for utility-class composition
-
-```qhtml
-q-style card-shell {
-  q-style-class { w3-card w3-round-large w3-padding }
-  borderColor: #cbd5e1
-}
-```
-
-### Theme maps selectors to styles
-
-```qhtml
-q-style title-accent { color: #1d4ed8 }
-q-style body-muted   { backgroundColor: #64748b }
-
-q-theme article-theme {
-  h3 { title-accent body-muted }
-  p  { body-muted }
-}
-```
-
-### `q-default-theme` fallback layer
-
-`q-default-theme` is a fallback theme. It applies first, and any conflicting `q-theme` rules in scope replace it.
-
-```qhtml
-q-style panel-base { backgroundColor: #eef3fb color: #0f172a }
-q-style panel-override { backgroundColor: #ffedd5 color: #7c2d12 }
-
-q-default-theme card-theme {
-  .card { panel-base }
-}
-
-q-theme card-demo-theme {
-  card-theme { }
-  .card { panel-override }
-}
-```
-
-### Scoped theme application
-
-```qhtml
-article-theme {
-  div {
-    h3 { text { Title } }
-    p  { text { Description } }
-  }
-}
-```
-
-### Compose themes
-
-```qhtml
-q-theme base-theme {
-  button { button-base }
-}
-
-q-theme admin-theme {
-  base-theme { }
-  .danger { button-danger }
-}
-```
-
-### Override class CSS with inline style declaration
-
-```qhtml
-q-style button-base {
-  q-style-class { w3-button w3-round }
-  backgroundColor: #0f766e
-  color: #ffffff
-}
-```
-
-Notes:
-- `q-style-class` merges into the element `class` attribute.
-- Inline declarations from `q-style` are written to `style=""` and win on property conflicts.
-- Themes can be declared once and reused as lightweight styling scopes.
-
 ## 6. Components
 
 `q-component` defines a runtime host element with:
@@ -509,6 +317,35 @@ This is the canonical instance form:
 - Definition: `q-component <type> { ... }`
 - Instantiation with handle: `<type> <name> { ... }`
 
+### Dot walking
+
+Dot walking lets you dereference named instances and their fields directly in declarative expressions.
+
+```qhtml
+q-component catalog-store {
+  q-property title: "Main Catalog"
+  q-property currency: "USD"
+}
+
+catalog-store store1 { }
+
+q-component product-card {
+  q-property label: store1.title
+  q-property unit: store1.currency
+}
+
+product-card card1 {
+  div { text { ${card1.label} (${card1.unit}) } }
+}
+```
+
+Valid usage patterns:
+- `<instanceName>.<property>`
+- `<instanceName>.<property>.<nestedProperty>`
+- chained use inside `${...}` and property defaults
+
+Use dot walking for declarative wiring between named instances instead of selector-based lookup code.
+
 ### Scope and context for named instances
 
 Named instances resolve by scope/context, not by global selector lookup. A reference is valid only where that name is in scope.
@@ -527,9 +364,6 @@ q-component parent-scope {
   comp-a nestedA { value: "inside-parent" }
 }
 parent-scope p1 { }
-
-// invalid in root scope: nestedA only exists in p1's local scope/context
-// div { text { ${nestedA.value} } }
 ```
 
 Practical rule:
@@ -1017,6 +851,135 @@ scoped-label {
 
 Use `slot { name }` for raw slot insertion blocks, and `${name}` for inline placeholder insertion.
 
+## Styles and Themes
+
+`q-style` + `q-theme` are the preferred styling model for new code.
+
+### `q-style` with class import (`q-style-class`)
+
+`q-style-class` lets a style definition add CSS classes and inline properties together.
+
+```qhtml
+q-style panel-style {
+  q-style-class { w3-container w3-round-large }
+  backgroundColor: #e0f2fe
+  color: #0c4a6e
+}
+```
+
+Apply it directly:
+
+```qhtml
+panel-style,div { text { Styled panel } }
+```
+
+Or through a theme rule:
+
+```qhtml
+q-theme app-theme {
+  .panel { panel-style }
+}
+```
+
+Notes:
+- `q-style-class` merges class names into the element `class` attribute.
+- Inline `q-style` declarations are still applied via `style=""`.
+- If both class CSS and inline declarations target the same property, inline wins.
+
+### Basic reusable style
+
+```qhtml
+q-style panel {
+  backgroundColor: #eff6ff
+  color: #1e293b
+  border: 1px solid #93c5fd
+}
+```
+
+### Apply style directly in selector chain
+
+```qhtml
+panel,div { text { Styled panel } }
+```
+
+### Use `q-style-class` for utility-class composition
+
+```qhtml
+q-style card-shell {
+  q-style-class { w3-card w3-round-large w3-padding }
+  borderColor: #cbd5e1
+}
+```
+
+### Theme maps selectors to styles
+
+```qhtml
+q-style title-accent { color: #1d4ed8 }
+q-style body-muted   { backgroundColor: #64748b }
+
+q-theme article-theme {
+  h3 { title-accent body-muted }
+  p  { body-muted }
+}
+```
+
+### `q-default-theme` fallback layer
+
+`q-default-theme` is a fallback theme. It applies first, and any conflicting `q-theme` rules in scope replace it.
+
+```qhtml
+q-style panel-base { backgroundColor: #eef3fb color: #0f172a }
+q-style panel-override { backgroundColor: #ffedd5 color: #7c2d12 }
+
+q-default-theme card-theme {
+  .card { panel-base }
+}
+
+q-theme card-demo-theme {
+  card-theme { }
+  .card { panel-override }
+}
+```
+
+### Scoped theme application
+
+```qhtml
+article-theme {
+  div {
+    h3 { text { Title } }
+    p  { text { Description } }
+  }
+}
+```
+
+### Compose themes
+
+```qhtml
+q-theme base-theme {
+  button { button-base }
+}
+
+q-theme admin-theme {
+  base-theme { }
+  .danger { button-danger }
+}
+```
+
+### Override class CSS with inline style declaration
+
+```qhtml
+q-style button-base {
+  q-style-class { w3-button w3-round }
+  backgroundColor: #0f766e
+  color: #ffffff
+}
+```
+
+Notes:
+- `q-style-class` merges into the element `class` attribute.
+- Inline declarations from `q-style` are written to `style=""` and win on property conflicts.
+- Themes can be declared once and reused as lightweight styling scopes.
+
 ## 4. State with `q-script` (`q-bind` alias/deprecated)
 
 `q-bind` is deprecated and treated the same as `q-script`.
@@ -1426,6 +1389,28 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 - `modules/qhtml-runtime/README.md`
 - `modules/release-bundle/README.md`
 
+## Escape sequences
+
+### Escaping `{` and `}` in block content
+
+Use `\{` and `\}` when you want literal braces inside block bodies.
+
+```qhtml
+<q-html>
+  div {
+    text { hello \} world }
+  }
+</q-html>
+```
+
+Resulting HTML:
+
+```html
+<q-html>
+  <div>hello } world</div>
+</q-html>
+```
+
 # Past Changes
 ## Whats New in v6.1.9
 
@@ -1570,3 +1555,45 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 - Component aliases: `q-alias name { return ... }` for computed host properties.
 - `.qdom().deserialize(serialized, shouldReplaceQDom)` append-or-replace import flow.
 - Scoped updates: `this.component.update()` and full host updates: `this.component.root().update()`.
+
+## Whats New in v6.2.1
+
+- Added `q-worker` as a first-class QHTML language construct inside `q-component` for background method execution.
+- Added worker method proxy behavior so `worker.method()` returns a Promise and resolves back to component scope.
+- Added worker-signal interoperability so worker methods can emit declared `q-signal` payloads that route back through normal signal handlers.
+- Added direct reference-path property defaults for declared component properties (for example `q-property prop2: mycomp1.prop1`).
+- Improved property reference consistency so direct JS reads (`mycomp2.prop2`) and inline interpolation (`${mycomp2.prop2}`) resolve the same bound value.
+
+Language examples added this round:
+
+```qhtml
+q-component my-worker-host {
+  q-worker myworker {
+    q-property myprops: q-array { "A", "B", "C" }
+    function dowork() {
+      var rv = [];
+      for (var i = 0; i < 3; i += 1) {
+        rv.push(this.myprops[i]);
+      }
+      return rv.join(",");
+    }
+  }
+
+  q-property result: "waiting"
+  onReady {
+    this.component.myworker.dowork().then(function(out) {
+      this.component.result = out;
+    }.bind(this));
+  }
+}
+```
+
+```qhtml
+q-component comp1 { q-property prop1: "something" }
+comp1 mycomp1 { prop1: "testing 1 2 3" }
+
+q-component comp2 extends comp1 {
+  q-property prop2: mycomp1.prop1
+}
+comp2 mycomp2 { prop1: "testing" }
+```
