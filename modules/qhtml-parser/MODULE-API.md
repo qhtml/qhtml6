@@ -59,6 +59,12 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - `q-signal name(param1, param2)` inside `q-component`
       - emitted in QDom as `component.signalDeclarations`
       - declaration entries now carry stable identity metadata (`entry.uuid` and `entry.meta.uuid`)
+    - declarative signal wiring:
+      - `q-connect { sender.signal target.handler }`
+      - `q-connect { sender.signal -> target.handler }`
+      - parsed in top-level, element blocks, and runtime-capable component/worker blocks
+      - compiled into equivalent `onready` lifecycle connect scripts (declarative sugar over `signal.connect(handler)`)
+      - sender/target expressions are kept as runtime-evaluated expressions, so named aliases and `document.querySelector(...)` expressions are both supported
     - callback declarations:
       - top-level `q-callback name(param1, ...) { ... }` emitted as QDom `kind: "callback"` nodes
       - component-local `q-callback name(param1, ...) { ... }` emitted in `component.callbackDeclarations`

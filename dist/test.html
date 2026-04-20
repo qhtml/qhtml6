@@ -3943,6 +3943,52 @@ onReady {
 }
         </q-html>
       </article>
+      <article class="test-card" id="card-109">
+        <div class="test-head">
+          <h2>109. q-connect declarative signal wiring (scope + querySelector)</h2>
+          <span id="badge-109" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> scope-connect-109 | qs-connect-109</div>
+<q-html id="host-t109" data-test-no="109">
+q-component sender109 {
+  q-signal ping(message)
+  function fire(message) {
+    this.ping(message);
+  }
+}
+
+q-component receiver109 {
+  q-property value: "waiting"
+  function onPing(message) {
+    this.component.value = message;
+  }
+}
+
+sender109 senderScope109 { id: "t109-s1" }
+receiver109 receiverScope109 { id: "t109-r1" }
+
+sender109 senderQuery109 { id: "t109-s2" }
+receiver109 receiverQuery109 { id: "t109-r2" }
+
+q-connect { senderScope109.ping receiverScope109.onPing }
+q-connect { document.querySelector("#t109-s2").ping document.querySelector("#t109-r2").onPing }
+
+div#t109-out1 { text { ${receiverScope109.value} } }
+div#t109-out2 { text { ${receiverQuery109.value} } }
+
+onReady {
+  senderScope109.fire("scope-connect-109");
+  senderQuery109.fire("qs-connect-109");
+  var acc = document.querySelector("#acc-main");
+  var host = this;
+  setTimeout(function() {
+    if (acc && typeof acc.resultReported === "function") {
+      acc.resultReported(109, host.innerHTML);
+    }
+  }, 30);
+}
+</q-html>
+      </article>
     </section>
   </div>
 </body>

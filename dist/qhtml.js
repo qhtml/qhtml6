@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-04-19T09:39:51Z */
+/* generated: 2026-04-20T03:26:42Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -1442,6 +1442,7 @@
     "for",
     "q-timer",
     "q-canvas",
+    "q-connect",
     "q-import",
     "q-logger",
     "q-sdml-component",
@@ -3814,6 +3815,28 @@
           });
           continue;
         }
+        if (nameLower === "q-connect" && nextChar === "{") {
+          consume(parser);
+          const connectBody = readBalancedBlockContent(parser);
+          const connectConfig = parseQConnectDefinitionBody(String(connectBody || ""));
+          if (!connectConfig.senderExpression || !connectConfig.targetExpression) {
+            throw ParseError("q-connect requires sender and target expressions", parser.index);
+          }
+          items.push({
+            type: "QConnectDefinition",
+            senderExpression: connectConfig.senderExpression,
+            targetExpression: connectConfig.targetExpression,
+            body: String(connectBody || ""),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-connect" && nextChar !== "{") {
+          throw ParseError("q-connect requires a block body", parser.index);
+        }
         if (nameLower === "q-property" && nextChar !== "{") {
           const propertyNameStart = parser.index;
           const propertyName = parseIdentifier(parser);
@@ -4853,6 +4876,30 @@
             raw: parser.source.slice(start, parser.index),
           });
           continue;
+        }
+
+        if (firstLower === "q-connect" && peek(parser) === "{") {
+          consume(parser);
+          const connectBody = readBalancedBlockContent(parser);
+          const connectConfig = parseQConnectDefinitionBody(String(connectBody || ""));
+          if (!connectConfig.senderExpression || !connectConfig.targetExpression) {
+            throw ParseError("q-connect requires sender and target expressions", parser.index);
+          }
+          body.push({
+            type: "QConnectDefinition",
+            senderExpression: connectConfig.senderExpression,
+            targetExpression: connectConfig.targetExpression,
+            body: String(connectBody || ""),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-connect" && peek(parser) !== "{") {
+          throw ParseError("q-connect requires a block body", parser.index);
         }
 
         if (firstLower === "q-timer" && peek(parser) !== "{" && peek(parser) !== ",") {
@@ -9942,6 +9989,176 @@
     return coercePropertyValue(value);
   }
 
+  function findTopLevelQConnectSeparator(source, mode) {
+    const text = String(source || "");
+    let inSingle = false;
+    let inDouble = false;
+    let inBacktick = false;
+    let escaped = false;
+    let depthParen = 0;
+    let depthBracket = 0;
+    let depthBrace = 0;
+    let seenNonWhitespace = false;
+
+    for (let i = 0; i < text.length; i += 1) {
+      const ch = text.charAt(i);
+      const next = i + 1 < text.length ? text.charAt(i + 1) : "";
+
+      if (inSingle || inDouble || inBacktick) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (inSingle && ch === "'") {
+          inSingle = false;
+          continue;
+        }
+        if (inDouble && ch === '"') {
+          inDouble = false;
+          continue;
+        }
+        if (inBacktick && ch === "`") {
+          inBacktick = false;
+        }
+        continue;
+      }
+
+      if (ch === "'") {
+        inSingle = true;
+        continue;
+      }
+      if (ch === '"') {
+        inDouble = true;
+        continue;
+      }
+      if (ch === "`") {
+        inBacktick = true;
+        continue;
+      }
+
+      if (ch === "(") {
+        depthParen += 1;
+        seenNonWhitespace = true;
+        continue;
+      }
+      if (ch === ")") {
+        if (depthParen > 0) {
+          depthParen -= 1;
+        }
+        seenNonWhitespace = true;
+        continue;
+      }
+      if (ch === "[") {
+        depthBracket += 1;
+        seenNonWhitespace = true;
+        continue;
+      }
+      if (ch === "]") {
+        if (depthBracket > 0) {
+          depthBracket -= 1;
+        }
+        seenNonWhitespace = true;
+        continue;
+      }
+      if (ch === "{") {
+        depthBrace += 1;
+        seenNonWhitespace = true;
+        continue;
+      }
+      if (ch === "}") {
+        if (depthBrace > 0) {
+          depthBrace -= 1;
+        }
+        seenNonWhitespace = true;
+        continue;
+      }
+
+      if (depthParen === 0 && depthBracket === 0 && depthBrace === 0) {
+        if (mode === "arrow") {
+          if (ch === "-" && next === ">") {
+            return i;
+          }
+        } else if (/\s/.test(ch)) {
+          if (!seenNonWhitespace) {
+            continue;
+          }
+          let j = i;
+          while (j < text.length && /\s/.test(text.charAt(j))) {
+            j += 1;
+          }
+          if (j < text.length) {
+            return i;
+          }
+          return -1;
+        }
+      }
+
+      if (!/\s/.test(ch)) {
+        seenNonWhitespace = true;
+      }
+    }
+    return -1;
+  }
+
+  function parseQConnectDefinitionBody(bodyText) {
+    const source = String(bodyText || "").trim();
+    if (!source) {
+      return {
+        senderExpression: "",
+        targetExpression: "",
+      };
+    }
+
+    const arrowIndex = findTopLevelQConnectSeparator(source, "arrow");
+    if (arrowIndex >= 0) {
+      return {
+        senderExpression: source.slice(0, arrowIndex).trim(),
+        targetExpression: source.slice(arrowIndex + 2).trim(),
+      };
+    }
+
+    const splitIndex = findTopLevelQConnectSeparator(source, "whitespace");
+    if (splitIndex >= 0) {
+      let targetStart = splitIndex;
+      while (targetStart < source.length && /\s/.test(source.charAt(targetStart))) {
+        targetStart += 1;
+      }
+      return {
+        senderExpression: source.slice(0, splitIndex).trim(),
+        targetExpression: source.slice(targetStart).trim(),
+      };
+    }
+
+    return {
+      senderExpression: source.trim(),
+      targetExpression: "",
+    };
+  }
+
+  function buildQConnectLifecycleBody(connectDefinition) {
+    const item = connectDefinition && typeof connectDefinition === "object" ? connectDefinition : {};
+    const senderExpression = String(item.senderExpression || "").trim();
+    const targetExpression = String(item.targetExpression || "").trim();
+    if (!senderExpression || !targetExpression) {
+      return "";
+    }
+    return [
+      "try {",
+      "  var __qconnectSender = (" + senderExpression + ");",
+      "  var __qconnectTarget = (" + targetExpression + ");",
+      "  if (__qconnectSender && typeof __qconnectSender.connect === \"function\" && typeof __qconnectTarget === \"function\") {",
+      "    __qconnectSender.connect(__qconnectTarget);",
+      "  }",
+      "} catch (__qconnectError) {",
+      "  // ignore q-connect wiring failures by design",
+      "}",
+    ].join("\n");
+  }
+
   function parseQTimerDefinitionBody(bodyText, keywordAliases) {
     const body = String(bodyText || "");
     const parser = parserFor(body);
@@ -11320,6 +11537,17 @@
         } else {
           targetElement.attributes[key] = script;
         }
+      } else if (item.type === "QConnectDefinition") {
+        const connectBody = buildQConnectLifecycleBody(item);
+        if (connectBody) {
+          if (!Array.isArray(targetElement.lifecycleScripts)) {
+            targetElement.lifecycleScripts = [];
+          }
+          targetElement.lifecycleScripts.push({
+            name: "onready",
+            body: compactScriptBody(connectBody),
+          });
+        }
       } else if (item.type === "QScriptInline") {
         const resolved = tryResolveStaticQScript(item.script || "");
         if (resolved === null) {
@@ -11825,6 +12053,18 @@
           const eventName = String(item.name || "").trim();
           if (eventName) {
             componentAttributes[eventName] = compactScriptBody(item.script || "");
+          }
+        }
+        continue;
+      }
+      if (item.type === "QConnectDefinition") {
+        if (supportsRuntimeDefinition) {
+          const connectBody = buildQConnectLifecycleBody(item);
+          if (connectBody) {
+            lifecycleScripts.push({
+              name: "onready",
+              body: compactScriptBody(connectBody),
+            });
           }
         }
         continue;
@@ -12379,6 +12619,16 @@
           running: config.running !== false,
           onTimeout: String(config.onTimeout || ""),
         });
+        continue;
+      }
+      if (item.type === "QConnectDefinition") {
+        const connectBody = buildQConnectLifecycleBody(item);
+        if (connectBody) {
+          lifecycleScripts.push({
+            name: "onready",
+            body: compactScriptBody(connectBody),
+          });
+        }
         continue;
       }
       if (item.type === "LifecycleBlock" && item.isLifecycle) {
@@ -40393,7 +40643,7 @@
   }
 
   const api = runtime;
-  api.version = "6.2.21";
+  api.version = "6.2.2";
 
   api.parseQHtml = function parseQHtml(source) {
     return modules.qhtmlParser.parseQHtmlToQDom(source || "");
@@ -40419,3 +40669,4 @@
 })(typeof globalThis !== "undefined" ? globalThis : window);
 
 /*** END: src/root-integration.js ***/
+
