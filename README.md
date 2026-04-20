@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.2.21
+# QHTML.js v6.2.3
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,11 +12,12 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.2.21
+## Whats New in v6.2.3
 
 - Added/validated typed named-instance usage in demos and examples (`<type> <name> { }`) so component references can be direct (for example `demoestore.products = ...`) without selector boilerplate.
 - Clarified and documented named-instance scope/context behavior for declarative references.
 - Tightened `q-import` runtime handling so import resolution is treated as a hard barrier before parse/mount continuation.
+- Added declarative signal wiring syntax: `q-connect { sender.signal target.handler }` (also supports `->` form).
 - Added `q-spritesheet [alpha]` (currently in-progress and not fully stable yet).
 
 ## 1. Quick Start
@@ -1159,6 +1160,56 @@ This dispatches a DOM `CustomEvent` named `menuItemClicked` with `event.detail.s
   }
 </q-html>
 ```
+
+### 7.3 Signal use cases (direct emit, imperative connect, declarative `q-connect`)
+
+```qhtml
+<q-html>
+  q-component sender-box {
+    q-signal sent(message)
+    function sendNow(message) {
+      this.sent(message); // direct emit
+    }
+  }
+
+  q-component receiver-box {
+    q-property value: "waiting"
+    function onMessage(message) {
+      this.component.value = message;
+    }
+    div#out { text { ${this.component.value} } }
+  }
+
+  sender-box sender1 { id: "sender1" }
+  receiver-box receiver1 { id: "receiver1" }
+
+  // declarative connect sugar
+  q-connect { sender1.sent receiver1.onMessage }
+
+  button {
+    text { Send via q-connect wiring }
+    onclick { sender1.sendNow("hello-from-q-connect"); }
+  }
+
+  sender-box sender2 { id: "sender2" }
+  receiver-box receiver2 { id: "receiver2" }
+
+  onReady {
+    // imperative connect
+    sender2.sent.connect(receiver2.onMessage);
+  }
+
+  button {
+    text { Send via imperative connect }
+    onclick { sender2.sendNow("hello-from-connect"); }
+  }
+</q-html>
+```
+
+Use this rule of thumb:
+- Use direct emit (`this.sent(...)`) inside the sender component.
+- Use `.connect(...)` when wiring at runtime in JS lifecycle/event logic.
+- Use `q-connect { ... }` for declarative-only wiring.
 
 ## 8. `q-rewrite`
 
