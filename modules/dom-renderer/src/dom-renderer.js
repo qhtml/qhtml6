@@ -2376,8 +2376,12 @@
     const scopedBlock =
       "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
       "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
-      "const __qhtmlScriptScope = (this && this.__qhtmlScriptScope && typeof this.__qhtmlScriptScope === \"object\")" +
-      " ? this.__qhtmlScriptScope : ((this && this.__qhtmlNamedRuntimeValues && typeof this.__qhtmlNamedRuntimeValues === \"object\") ? this.__qhtmlNamedRuntimeValues : __qhtmlRootNamedValues);\n" +
+      "const __qhtmlLocalScriptScope = (this && this.__qhtmlScriptScope && typeof this.__qhtmlScriptScope === \"object\") ? this.__qhtmlScriptScope : null;\n" +
+      "const __qhtmlNamedValues = (this && this.__qhtmlNamedRuntimeValues && typeof this.__qhtmlNamedRuntimeValues === \"object\") ? this.__qhtmlNamedRuntimeValues : null;\n" +
+      "let __qhtmlScriptScope = null;\n" +
+      "if (__qhtmlRootNamedValues || __qhtmlNamedValues || __qhtmlLocalScriptScope) {\n" +
+      "  __qhtmlScriptScope = Object.assign(Object.create(null), __qhtmlRootNamedValues || null, __qhtmlNamedValues || null, __qhtmlLocalScriptScope || null);\n" +
+      "}\n" +
       "if (__qhtmlScriptScope) { with(__qhtmlScriptScope) {\n" +
       source +
       "\n} } else {\n" +
@@ -2475,6 +2479,40 @@
     }
     if (scopeObj && isQHtmlHostElement(scopeObj.host)) {
       return scopeObj.host;
+    }
+    return null;
+  }
+
+  function resolveRuntimeFrameForTarget(target, frameKey) {
+    const key = String(frameKey || "").trim();
+    if (!key) {
+      return null;
+    }
+    const seen = typeof WeakSet === "function" ? new WeakSet() : null;
+    let cursor = target;
+    while (cursor && (typeof cursor === "object" || typeof cursor === "function")) {
+      if (seen) {
+        if (seen.has(cursor)) {
+          break;
+        }
+        seen.add(cursor);
+      }
+      const direct = cursor[key];
+      if (direct && typeof direct === "object") {
+        return direct;
+      }
+      if (cursor.component && cursor.component !== cursor) {
+        cursor = cursor.component;
+        continue;
+      }
+      if (cursor.nodeType === 1 && typeof cursor.closest === "function") {
+        const host = cursor.closest("[qhtml-component-instance='1']");
+        if (host && host !== cursor) {
+          cursor = host;
+          continue;
+        }
+      }
+      break;
     }
     return null;
   }
@@ -4826,7 +4864,14 @@
       } catch (error) {
         value = null;
       }
-      out[name] = qWorkerCloneable(value, 0, new WeakMap());
+      if (typeof value === "function") {
+        continue;
+      }
+      const cloned = qWorkerCloneable(value, 0, new WeakMap());
+      if (typeof cloned === "undefined" && typeof value !== "undefined") {
+        continue;
+      }
+      out[name] = cloned;
     }
     return out;
   }
@@ -5050,8 +5095,9 @@
         continue;
       }
       const signalArgs = Array.isArray(signalRecord.args) ? signalRecord.args : [];
+      const signalFn = targetHost[signalName];
       try {
-        targetHost[signalName].apply(targetHost, signalArgs);
+        Function.prototype.apply.call(signalFn, targetHost, signalArgs);
       } catch (error) {
         // no-op
       }

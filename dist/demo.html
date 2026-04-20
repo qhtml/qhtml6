@@ -742,6 +742,62 @@ q-estore demoestore {
         </div>
       </section>
 
+      <section class="example-class" id="q-spritesheet" data-title="q-spritesheet [alpha] usage">
+        <div class="example-head">
+          <h3>q-spritesheet [alpha] usage</h3>
+          <p>Declarative spritesheet player with frame range, speed, size, and interpolation controls.</p>
+        </div>
+        <div class="example-body">
+          <q-editor>
+q-import { q-components/q-spritesheet.qhtml?v=6.2.21 }
+
+q-component sprite-demo-status {
+  q-property textValue: "frame: 0"
+  div.w3-small.w3-text-indigo {
+    text { ${this.component.textValue} }
+  }
+}
+
+div.w3-container.w3-border.w3-round-large.w3-padding {
+  sprite-demo-status demoStatus { }
+
+  q-spritesheet demoSheet {
+    source: "assets/test-ss.png"
+    framecount: 18
+    start: 0
+    stop: 17
+    duration: 70
+    framewidth: 32
+    frameheight: 32
+    width: 160
+    height: 160
+    repeat: true
+    running: false
+    interpolate: true
+    onframechanged(frameIndex) {
+      demoStatus.textValue = "frame: " + String(frameIndex);
+    }
+  }
+
+  div.w3-margin-top {
+    button.w3-button.w3-border.w3-round.w3-small {
+      text { Start }
+      onclick { demoSheet.play(); }
+    }
+    button.w3-button.w3-border.w3-round.w3-small.w3-margin-left {
+      text { Stop }
+      onclick { demoSheet.stopPlayback(); }
+    }
+    button.w3-button.w3-border.w3-round.w3-small.w3-margin-left {
+      text { Toggle Interpolate }
+      onclick { demoSheet.interpolate = !demoSheet.interpolate; }
+    }
+  }
+}
+          </q-editor>
+        </div>
+      </section>
+
       <section class="example-class" id="q-toolbar" data-title="q-toolbar + q-toolbutton usage">
         <div class="example-head">
           <h3>q-toolbar + q-toolbutton usage</h3>

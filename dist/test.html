@@ -3403,8 +3403,17 @@ q-worker myworker99 {
 q-component mycomp99 {
   q-property someprop: "waiting"
   myworker99 worker { }
+  function report99() {
+    var acc = document.querySelector("#acc-main");
+    var host = this.closest("q-html");
+    if (!acc || !host) { return; }
+    acc.resultReported(99, host.innerHTML);
+  }
   onReady {
     this.component.someprop = worker.dowork();
+  }
+  onsomepropchanged {
+    this.component.report99();
   }
   div#t99-out { text { ${this.component.someprop} } }
 }
@@ -3412,12 +3421,7 @@ q-component mycomp99 {
 mycomp99 { }
 
 
-onReady {
-  var acc = document.querySelector("#acc-main");
-  if (acc) {
-    acc.resultReported(99, this.innerHTML);
-  }
-}
+onReady { }
         </q-html>
       </article>
       <article class="test-card" id="card-100">
@@ -3473,12 +3477,24 @@ q-component host101 {
   q-property out: "waiting"
   q-property signalOut: "waiting"
   calcworker101 worker { }
+  function report101() {
+    var acc = document.querySelector("#acc-main");
+    var host = this.closest("q-html");
+    if (!acc || !host) { return; }
+    acc.resultReported(101, host.innerHTML);
+  }
   onReady {
     worker.done.connect(function(evt) {
-      var args = evt && Array.isArray(evt.args) ? evt.args : [];
-      this.component.signalOut = String(args.length > 0 ? args[0] : "none");
+      var args = evt && Array.isArray(evt.args) ? evt.args : [evt];
+      this.component.signalOut = String(args.length > 0 && typeof args[0] !== "undefined" ? args[0] : "none");
     });
     this.component.out = worker.compute(3);
+  }
+  onoutchanged {
+    this.component.report101();
+  }
+  onsignaloutchanged {
+    this.component.report101();
   }
   div#t101-out { text { ${this.component.out} } }
   div#t101-signal { text { ${this.component.signalOut} } }
@@ -3487,12 +3503,7 @@ q-component host101 {
 host101 { }
 
 
-onReady {
-  var acc = document.querySelector("#acc-main");
-  if (acc) {
-    acc.resultReported(101, this.innerHTML);
-  }
-}
+onReady { }
         </q-html>
       </article>
       <article class="test-card" id="card-102">
@@ -3788,6 +3799,146 @@ onReady {
   var acc = document.querySelector("#acc-main");
   if (acc) {
     acc.resultReported(107, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-108">
+        <div class="test-head">
+          <h2>108. QContext named types scope checks + runtime alias add</h2>
+          <span id="badge-108" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> timer-in-scope | timer-out-scope | sibling-in-scope | child-out-scope | ctx108-pass</div>
+<q-html id="host-t108" data-test-no="108">
+q-component namedProbe108 {
+  q-property value: ""
+}
+
+q-timer inScopeTimer108 {
+  interval: 120
+  repeat: true
+  running: false
+  ontimeout { }
+}
+
+namedProbe108 siblingInst108 {
+  value: "sibling-108"
+}
+
+q-component childContainer108 {
+  namedProbe108 childInst108 {
+    value: "child-108"
+  }
+}
+
+q-component contextInputProbe108 {
+  q-property aliases: ""
+  q-property status: "waiting"
+
+  function readFrame(buttonEl) {
+    if (buttonEl && buttonEl.__qhtmlContextFrame && typeof buttonEl.__qhtmlContextFrame.set === "function") {
+      return buttonEl.__qhtmlContextFrame;
+    }
+    if (this.__qhtmlContextFrame && typeof this.__qhtmlContextFrame.set === "function") {
+      return this.__qhtmlContextFrame;
+    }
+    return null;
+  }
+
+  function readAliases(frame) {
+    if (!frame || typeof frame.toObject !== "function") {
+      return "";
+    }
+    var obj = frame.toObject() || {};
+    return Object.keys(obj).sort().join(",");
+  }
+
+  function addAlias(buttonEl) {
+    var nameInput = this.querySelector("#t108-name");
+    var valueInput = this.querySelector("#t108-value");
+    var aliasName = String(nameInput && nameInput.value || "").trim();
+    var aliasValue = String(valueInput && valueInput.value || "").trim();
+    var frame = this.component.readFrame(buttonEl);
+    var ok = false;
+
+    if (aliasName && frame && typeof frame.set === "function") {
+      frame.set(aliasName, aliasValue);
+      ok = typeof frame.has === "function" && frame.has(aliasName);
+      if (ok && typeof frame.get === "function") {
+        ok = String(frame.get(aliasName) || "") === aliasValue;
+      }
+    }
+
+    this.component.status = ok ? "ctx108-pass" : "ctx108-fail";
+    this.component.aliases = this.component.readAliases(frame);
+
+    var doneNode = this.querySelector("#t108-done");
+    if (doneNode) {
+      doneNode.textContent = ok ? "1" : "0";
+    }
+    var acc = document.querySelector("#acc-main");
+    var host = this.closest("q-html");
+    if (acc) {
+      acc.outcomeReported(108, ok, host ? host.innerHTML : "");
+    }
+  }
+
+  div#t108-ui {
+    input#t108-name {
+      type: "text"
+      value: "ctxAlias108"
+    }
+    input#t108-value {
+      type: "text"
+      value: "ctxValue108"
+    }
+    button#t108-add {
+      type: "button"
+      onclick {
+        this.component.addAlias(this);
+      }
+      text { Add Alias To Button Context }
+    }
+  }
+
+  div#t108-ctx-status { text { ${this.component.status} } }
+  div#t108-ctx-aliases { text { ${this.component.aliases} } }
+  div#t108-done { text { 0 } }
+}
+
+childContainer108 childContainerInst108 { }
+contextInputProbe108 ctxProbeInst108 { }
+
+div#t108-scope { text { waiting } }
+
+div#t108-summary {
+  text { ${ctxProbeInst108.status} | ${ctxProbeInst108.aliases} }
+}
+
+onReady {
+  var timerInScope =
+    (typeof inScopeTimer108 !== "undefined" && typeof inScopeTimer108.start === "function")
+      ? "timer-in-scope"
+      : "timer-miss";
+  var timerOutScope =
+    (typeof outScopeTimer108 === "undefined")
+      ? "timer-out-scope"
+      : "timer-leak";
+  var siblingScope =
+    (typeof siblingInst108 !== "undefined" && siblingInst108.value === "sibling-108")
+      ? "sibling-in-scope"
+      : "sibling-miss";
+  var childScope =
+    (typeof childInst108 === "undefined")
+      ? "child-out-scope"
+      : "child-leak";
+  var scopeNode = this.querySelector("#t108-scope");
+  if (scopeNode) {
+    scopeNode.textContent = timerInScope + " | " + timerOutScope + " | " + siblingScope + " | " + childScope;
+  }
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(108, this.innerHTML);
   }
 }
         </q-html>

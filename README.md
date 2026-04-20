@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.2.2
+# QHTML.js v6.2.21
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,11 +12,12 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.2.2
+## Whats New in v6.2.21
 
 - Added/validated typed named-instance usage in demos and examples (`<type> <name> { }`) so component references can be direct (for example `demoestore.products = ...`) without selector boilerplate.
 - Clarified and documented named-instance scope/context behavior for declarative references.
 - Tightened `q-import` runtime handling so import resolution is treated as a hard barrier before parse/mount continuation.
+- Added `q-spritesheet [alpha]` (currently in-progress and not fully stable yet).
 
 ## 1. Quick Start
 

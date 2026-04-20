@@ -42,6 +42,7 @@ Root integration module wires lower-level modules for browser consumers, exposes
     - `q-checkout-modal`
     - `q-estore` (supports encoded inline `items-json` and URL fetch loading with in-memory dedupe).
     - `q-popup-menu` / `q-context-menu` (scoped context menu UI with item/submenu/text/separator primitives).
+    - `q-spritesheet` (declarative spritesheet player component with `frameStart`, `frameEnd`, `frameWidth`, `frameHeight`, `width`, `height`, `interpolate`, `running`, and `currentFrame` runtime controls).
 
 ## Side Effects and Dependencies
 - Requires module globals on `globalThis.QHtmlModules` from bundled scripts.

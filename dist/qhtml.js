@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-04-16T23:23:09Z */
+/* generated: 2026-04-19T09:39:51Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -15757,8 +15757,12 @@
     const scopedBlock =
       "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
       "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
-      "const __qhtmlScriptScope = (this && this.__qhtmlScriptScope && typeof this.__qhtmlScriptScope === \"object\")" +
-      " ? this.__qhtmlScriptScope : ((this && this.__qhtmlNamedRuntimeValues && typeof this.__qhtmlNamedRuntimeValues === \"object\") ? this.__qhtmlNamedRuntimeValues : __qhtmlRootNamedValues);\n" +
+      "const __qhtmlLocalScriptScope = (this && this.__qhtmlScriptScope && typeof this.__qhtmlScriptScope === \"object\") ? this.__qhtmlScriptScope : null;\n" +
+      "const __qhtmlNamedValues = (this && this.__qhtmlNamedRuntimeValues && typeof this.__qhtmlNamedRuntimeValues === \"object\") ? this.__qhtmlNamedRuntimeValues : null;\n" +
+      "let __qhtmlScriptScope = null;\n" +
+      "if (__qhtmlRootNamedValues || __qhtmlNamedValues || __qhtmlLocalScriptScope) {\n" +
+      "  __qhtmlScriptScope = Object.assign(Object.create(null), __qhtmlRootNamedValues || null, __qhtmlNamedValues || null, __qhtmlLocalScriptScope || null);\n" +
+      "}\n" +
       "if (__qhtmlScriptScope) { with(__qhtmlScriptScope) {\n" +
       source +
       "\n} } else {\n" +
@@ -15856,6 +15860,40 @@
     }
     if (scopeObj && isQHtmlHostElement(scopeObj.host)) {
       return scopeObj.host;
+    }
+    return null;
+  }
+
+  function resolveRuntimeFrameForTarget(target, frameKey) {
+    const key = String(frameKey || "").trim();
+    if (!key) {
+      return null;
+    }
+    const seen = typeof WeakSet === "function" ? new WeakSet() : null;
+    let cursor = target;
+    while (cursor && (typeof cursor === "object" || typeof cursor === "function")) {
+      if (seen) {
+        if (seen.has(cursor)) {
+          break;
+        }
+        seen.add(cursor);
+      }
+      const direct = cursor[key];
+      if (direct && typeof direct === "object") {
+        return direct;
+      }
+      if (cursor.component && cursor.component !== cursor) {
+        cursor = cursor.component;
+        continue;
+      }
+      if (cursor.nodeType === 1 && typeof cursor.closest === "function") {
+        const host = cursor.closest("[qhtml-component-instance='1']");
+        if (host && host !== cursor) {
+          cursor = host;
+          continue;
+        }
+      }
+      break;
     }
     return null;
   }
@@ -16097,9 +16135,20 @@
     }
     const values = host.__qhtmlNamedRuntimeValues;
     const names = Object.keys(values);
+    const lexicalFrame =
+      resolveRuntimeFrameForTarget(scope, QCONTEXT_SCOPE_FRAME_KEY) ||
+      resolveRuntimeFrameForTarget(thisArg, QCONTEXT_SCOPE_FRAME_KEY) ||
+      resolveRuntimeFrameForTarget(scope.component, QCONTEXT_SCOPE_FRAME_KEY);
     for (let i = 0; i < names.length; i += 1) {
       const name = String(names[i] || "").trim();
       if (!name || Object.prototype.hasOwnProperty.call(scope, name)) {
+        continue;
+      }
+      if (
+        lexicalFrame &&
+        typeof lexicalFrame.has === "function" &&
+        lexicalFrame.has(name)
+      ) {
         continue;
       }
       scope[name] = values[name];
@@ -18196,7 +18245,14 @@
       } catch (error) {
         value = null;
       }
-      out[name] = qWorkerCloneable(value, 0, new WeakMap());
+      if (typeof value === "function") {
+        continue;
+      }
+      const cloned = qWorkerCloneable(value, 0, new WeakMap());
+      if (typeof cloned === "undefined" && typeof value !== "undefined") {
+        continue;
+      }
+      out[name] = cloned;
     }
     return out;
   }
@@ -18420,8 +18476,9 @@
         continue;
       }
       const signalArgs = Array.isArray(signalRecord.args) ? signalRecord.args : [];
+      const signalFn = targetHost[signalName];
       try {
-        targetHost[signalName].apply(targetHost, signalArgs);
+        Function.prototype.apply.call(signalFn, targetHost, signalArgs);
       } catch (error) {
         // no-op
       }
@@ -20992,7 +21049,35 @@
       creatorHost: creatorHost && creatorHost.nodeType === 1 ? creatorHost : null,
     });
     const resolvedCallback = wrapped && typeof wrapped === "function" ? wrapped : callbackExecutor;
+    ensureContextFrames(context);
+    const aliasStack = ensureInstanceAliasScopeStack(context);
+    const activeFrame =
+      aliasStack.length > 0
+        ? aliasStack[aliasStack.length - 1]
+        : context[QCONTEXT_SCOPE_FRAME_KEY];
+    if (
+      activeFrame &&
+      typeof activeFrame.hasLocal === "function" &&
+      activeFrame.hasLocal(callbackName)
+    ) {
+      throw new Error("Duplicate named callback in same scope: '" + callbackName + "'.");
+    }
+    if (activeFrame && typeof activeFrame.set === "function") {
+      activeFrame.set(callbackName, resolvedCallback);
+    }
+    if (
+      context &&
+      context[QCONTEXT_RUNTIME_FRAME_KEY] &&
+      typeof context[QCONTEXT_RUNTIME_FRAME_KEY].set === "function"
+    ) {
+      context[QCONTEXT_RUNTIME_FRAME_KEY].set(callbackName, resolvedCallback);
+    }
     declaredScope[callbackName] = resolvedCallback;
+    if (creatorHost) {
+      exportNamedAliasToHost(creatorHost, callbackName, resolvedCallback);
+    } else if (context && context.rootHostElement) {
+      exportNamedAliasToHost(context.rootHostElement, callbackName, resolvedCallback);
+    }
     registerNamedCallbackRuntime(callbackName, resolvedCallback);
     return true;
   }
@@ -25699,9 +25784,20 @@
     }
     const values = host.__qhtmlNamedRuntimeValues;
     const names = Object.keys(values);
+    const lexicalFrame =
+      resolveRuntimeFrameForTarget(scope, QCONTEXT_SCOPE_FRAME_KEY) ||
+      resolveRuntimeFrameForTarget(thisArg, QCONTEXT_SCOPE_FRAME_KEY) ||
+      resolveRuntimeFrameForTarget(scope.component, QCONTEXT_SCOPE_FRAME_KEY);
     for (let i = 0; i < names.length; i += 1) {
       const name = String(names[i] || "").trim();
       if (!name || Object.prototype.hasOwnProperty.call(scope, name)) {
+        continue;
+      }
+      if (
+        lexicalFrame &&
+        typeof lexicalFrame.has === "function" &&
+        lexicalFrame.has(name)
+      ) {
         continue;
       }
       scope[name] = values[name];
@@ -40297,7 +40393,7 @@
   }
 
   const api = runtime;
-  api.version = "6.2.2";
+  api.version = "6.2.21";
 
   api.parseQHtml = function parseQHtml(source) {
     return modules.qhtmlParser.parseQHtmlToQDom(source || "");
@@ -40321,6 +40417,5 @@
 
   global.QHtml = api;
 })(typeof globalThis !== "undefined" ? globalThis : window);
-
 
 /*** END: src/root-integration.js ***/

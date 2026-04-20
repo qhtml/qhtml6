@@ -1,0 +1,1066 @@
+q-component q-spritesheet-player {
+  q-property source: ""
+  q-property framecount: 0
+  q-property start: 0
+  q-property stop: -1
+  q-property duration: 100
+  q-property repeat: true
+  q-property running: false
+  q-property framewidth: 0
+  q-property frameheight: 0
+  q-property width: 0
+  q-property height: 0
+  q-property interpolate: false
+  q-property currentFrame: 0
+  q-property suppressFrameSync: false
+
+  q-signal framechanged(frameIndex)
+  q-signal ready(width, height, frameCount)
+  q-signal errored(message)
+  q-logger { q-property q-signal function }
+
+  function toPositiveInt(value, fallbackValue) {
+    var n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) {
+      n = Number(fallbackValue);
+    }
+    if (!Number.isFinite(n) || n <= 0) {
+      n = 1;
+    }
+    return Math.max(1, Math.floor(n));
+  }
+
+  function toOptionalPositiveInt(value) {
+    var n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) {
+      return 0;
+    }
+    return Math.max(1, Math.floor(n));
+  }
+
+  function getViewport() {
+    return this.querySelector(".q-spritesheet-player-viewport");
+  }
+
+  function applyViewportSize() {
+    var viewport = this.component.getViewport();
+    if (!viewport) {
+      return;
+    }
+
+    var w = this.component.toOptionalPositiveInt(this.component.width);
+    var h = this.component.toOptionalPositiveInt(this.component.height);
+
+    viewport.style.display = "inline-block";
+    viewport.style.position = "relative";
+    viewport.style.overflow = "hidden";
+
+    if (w > 0) {
+      viewport.style.width = String(w) + "px";
+    } else {
+      viewport.style.removeProperty("width");
+    }
+
+    if (h > 0) {
+      viewport.style.height = String(h) + "px";
+    } else {
+      viewport.style.removeProperty("height");
+    }
+
+    if (this.__playerApi && this.__playerApi.canvas && this.__playerApi.canvas.style) {
+      if (w > 0) {
+        this.__playerApi.canvas.style.width = String(w) + "px";
+      } else {
+        this.__playerApi.canvas.style.removeProperty("width");
+      }
+      if (h > 0) {
+        this.__playerApi.canvas.style.height = String(h) + "px";
+      } else {
+        this.__playerApi.canvas.style.removeProperty("height");
+      }
+    }
+  }
+
+  function clampFrame(value, start, stop) {
+    var s = Math.max(0, Math.floor(Number(start) || 0));
+    var e = Math.floor(Number(stop));
+    if (!Number.isFinite(e) || e < s) {
+      e = s;
+    }
+    var n = Math.floor(Number(value));
+    if (!Number.isFinite(n)) {
+      n = s;
+    }
+    if (n < s) {
+      return s;
+    }
+    if (n > e) {
+      return e;
+    }
+    return n;
+  }
+
+  function resolveImageUrl(sourceValue) {
+    var raw = String(sourceValue || "").trim();
+    if (!raw) {
+      return "";
+    }
+    try {
+      return new URL(raw, window.location.href).href;
+    } catch (e) {
+      return raw;
+    }
+  }
+
+  function normalizeConfig() {
+    return {
+      imageUrl: this.component.resolveImageUrl(this.component.source),
+      frameCount: Math.max(0, Math.floor(Number(this.component.framecount) || 0)),
+      frameStart: Math.max(0, Math.floor(Number(this.component.start) || 0)),
+      frameEnd: Math.floor(Number(this.component.stop)),
+      duration: this.component.toPositiveInt(this.component.duration, 100),
+      loop: !!this.component.repeat,
+      width: this.component.toOptionalPositiveInt(this.component.width),
+      height: this.component.toOptionalPositiveInt(this.component.height),
+      frameWidth: this.component.toOptionalPositiveInt(this.component.framewidth),
+      frameHeight: this.component.toOptionalPositiveInt(this.component.frameheight),
+      interpolate: !!this.component.interpolate
+    };
+  }
+
+  function destroyInternal() {
+    console.log("[q-spritesheet-player] destroyInternal");
+    if (this.__playerApi && typeof this.__playerApi.destroy === "function") {
+      this.__playerApi.destroy();
+    }
+    this.__playerApi = null;
+  }
+
+  function createSpriteSheetPlayer(options) {
+    var cfg = options && typeof options === "object" ? options : {};
+    validateConfig(cfg);
+
+    var canvas = createDisplayCanvas({
+      appendTo: cfg.appendTo,
+      canvasClassName: String(cfg.canvasClassName || "")
+    });
+    var offscreen = canvas.transferControlToOffscreen();
+
+    var worker = createInlineWorker(spriteWorkerEntry);
+    var state = createPlayerState({
+      worker: worker,
+      canvas: canvas,
+      imageUrl: cfg.imageUrl,
+      frameCount: cfg.frameCount,
+      duration: cfg.duration,
+      frameStart: cfg.frameStart,
+      frameEnd: cfg.frameEnd,
+      loop: cfg.loop,
+      width: cfg.width,
+      height: cfg.height,
+      frameWidth: cfg.frameWidth,
+      frameHeight: cfg.frameHeight,
+      interpolate: cfg.interpolate
+    });
+
+    wireWorkerEvents(state);
+    postInit(state, offscreen, !!cfg.autoStart);
+
+    return createPlayerApi(state);
+
+    function spriteWorkerEntry() {
+      var workerState = {
+        canvas: null,
+        ctx: null,
+        frameCount: 1,
+        frameStart: 0,
+        frameEnd: 0,
+        duration: 100,
+        currentFrame: 0,
+        loop: true,
+        isPlaying: false,
+        lastTick: 0,
+        timerId: 0,
+        sourceBitmap: null,
+        frameWidth: 1,
+        frameHeight: 1,
+        renderWidth: 1,
+        renderHeight: 1,
+        interpolate: false,
+        sourceUrl: ""
+      };
+
+      self.onmessage = async function onMessage(event) {
+        var data = event && event.data ? event.data : {};
+        var type = data.type;
+        var payload = data.payload || {};
+
+        try {
+          if (type === "init") {
+            await initWorker(payload);
+            return;
+          }
+          if (type === "play") {
+            startPlayback();
+            return;
+          }
+          if (type === "pause") {
+            pausePlayback();
+            return;
+          }
+          if (type === "stop") {
+            stopPlayback();
+            renderCurrent(0);
+            return;
+          }
+          if (type === "seek") {
+            seekFrame(payload.frameIndex);
+            return;
+          }
+          if (type === "setDuration") {
+            setDuration(payload.duration);
+            return;
+          }
+          if (type === "setRange") {
+            setRange(payload.frameStart, payload.frameEnd);
+            return;
+          }
+          if (type === "setLoop") {
+            setLoop(payload.loop);
+            return;
+          }
+          if (type === "setInterpolate") {
+            setInterpolate(payload.interpolate);
+            return;
+          }
+          if (type === "setConfig") {
+            await applyConfig(payload);
+            return;
+          }
+          if (type === "destroy") {
+            destroyWorker();
+          }
+        } catch (error) {
+          postError(error);
+        }
+      };
+
+      async function initWorker(payload) {
+        workerState.canvas = payload.canvas;
+        workerState.ctx = workerState.canvas.getContext("2d", { alpha: true });
+        if (!workerState.ctx) {
+          throw new Error("Failed to acquire 2D context from OffscreenCanvas.");
+        }
+
+        await applyConfig(payload);
+
+        if (payload.autoStart) {
+          startPlayback();
+        }
+      }
+
+      async function applyConfig(payload) {
+        var imageUrl = String(payload.imageUrl || "").trim();
+        if (!imageUrl) {
+          throw new Error("imageUrl must be a non-empty string.");
+        }
+
+        var explicitFrameWidth = toOptionalPositiveInteger(payload.frameWidth);
+        var explicitFrameHeight = toOptionalPositiveInteger(payload.frameHeight);
+
+        if (!workerState.sourceBitmap || workerState.sourceUrl !== imageUrl) {
+          if (workerState.sourceBitmap && typeof workerState.sourceBitmap.close === "function") {
+            workerState.sourceBitmap.close();
+          }
+          workerState.sourceBitmap = await loadBitmap(imageUrl);
+          workerState.sourceUrl = imageUrl;
+        }
+
+        var resolvedFrameCount = resolveFrameCount(
+          payload.frameCount,
+          workerState.sourceBitmap.width,
+          explicitFrameWidth
+        );
+        var geometry = computeFrameGeometry(
+          workerState.sourceBitmap,
+          resolvedFrameCount,
+          explicitFrameWidth,
+          explicitFrameHeight
+        );
+
+        workerState.frameCount = resolvedFrameCount;
+        workerState.frameWidth = geometry.frameWidth;
+        workerState.frameHeight = geometry.frameHeight;
+        workerState.duration = toPositiveInteger(payload.duration, "duration");
+        workerState.loop = !!payload.loop;
+        workerState.interpolate = !!payload.interpolate;
+
+        workerState.frameStart = Math.max(0, Math.floor(Number(payload.frameStart) || 0));
+        var rawFrameEnd = Math.floor(Number(payload.frameEnd));
+        workerState.frameEnd = Number.isFinite(rawFrameEnd) && rawFrameEnd >= workerState.frameStart
+          ? Math.min(rawFrameEnd, workerState.frameCount - 1)
+          : (workerState.frameCount - 1);
+
+        var explicitWidth = toOptionalPositiveInteger(payload.width);
+        var explicitHeight = toOptionalPositiveInteger(payload.height);
+        workerState.renderWidth = explicitWidth > 0 ? explicitWidth : workerState.frameWidth;
+        workerState.renderHeight = explicitHeight > 0 ? explicitHeight : workerState.frameHeight;
+
+        workerState.canvas.width = workerState.renderWidth;
+        workerState.canvas.height = workerState.renderHeight;
+
+        workerState.currentFrame = clampFrameIndex(workerState.currentFrame, workerState.frameStart, workerState.frameEnd);
+        renderCurrent(0);
+
+        self.postMessage({
+          type: "ready",
+          payload: {
+            width: workerState.renderWidth,
+            height: workerState.renderHeight,
+            frameCount: workerState.frameCount,
+            frameStart: workerState.frameStart,
+            frameEnd: workerState.frameEnd,
+            frameIndex: workerState.currentFrame
+          }
+        });
+      }
+
+      async function loadBitmap(imageUrl) {
+        var response = await fetch(imageUrl, { mode: "cors" });
+        if (!response.ok) {
+          throw new Error("Failed to fetch spritesheet: " + response.status + " " + response.statusText);
+        }
+        var blob = await response.blob();
+        return await createImageBitmap(blob);
+      }
+
+      function resolveFrameCount(frameCount, bitmapWidth, frameWidth) {
+        var explicitCount = Math.floor(Number(frameCount));
+        if (Number.isFinite(explicitCount) && explicitCount > 0) {
+          return explicitCount;
+        }
+        if (frameWidth > 0) {
+          var inferred = Math.floor(bitmapWidth / frameWidth);
+          if (inferred > 0) {
+            return inferred;
+          }
+        }
+        return 1;
+      }
+
+      function computeFrameGeometry(bitmap, frameCount, frameWidth, frameHeight) {
+        var fw = frameWidth;
+        var fh = frameHeight;
+
+        if (fw <= 0) {
+          if (bitmap.width % frameCount !== 0) {
+            throw new Error("Spritesheet width (" + bitmap.width + ") must be divisible by frameCount (" + frameCount + ").");
+          }
+          fw = bitmap.width / frameCount;
+        }
+
+        if (fh <= 0) {
+          fh = bitmap.height;
+        }
+
+        if (fw <= 0 || fh <= 0) {
+          throw new Error("Computed frame dimensions are invalid.");
+        }
+
+        return { frameWidth: fw, frameHeight: fh };
+      }
+
+      function drawFrame(index, alpha) {
+        var x = clampFrameIndex(index, workerState.frameStart, workerState.frameEnd) * workerState.frameWidth;
+        workerState.ctx.globalAlpha = alpha;
+        workerState.ctx.drawImage(
+          workerState.sourceBitmap,
+          x, 0, workerState.frameWidth, workerState.frameHeight,
+          0, 0, workerState.renderWidth, workerState.renderHeight
+        );
+      }
+
+      function nextFrame(index) {
+        if (index >= workerState.frameEnd) {
+          return workerState.frameStart;
+        }
+        return index + 1;
+      }
+
+      function renderFrame(frameIndex, blendProgress) {
+        if (!workerState.ctx || !workerState.sourceBitmap) {
+          return;
+        }
+
+        var progress = Number(blendProgress);
+        if (!Number.isFinite(progress)) {
+          progress = 0;
+        }
+        if (progress < 0) {
+          progress = 0;
+        }
+        if (progress > 1) {
+          progress = 1;
+        }
+
+        workerState.ctx.clearRect(0, 0, workerState.renderWidth, workerState.renderHeight);
+
+        if (workerState.interpolate && workerState.isPlaying) {
+          var next = nextFrame(frameIndex);
+          drawFrame(frameIndex, Math.max(0, 1 - progress));
+          drawFrame(next, progress);
+        } else {
+          drawFrame(frameIndex, 1);
+        }
+
+        workerState.ctx.globalAlpha = 1;
+
+        self.postMessage({
+          type: "frame",
+          payload: { frameIndex: frameIndex }
+        });
+      }
+
+      function renderCurrent(progress) {
+        workerState.currentFrame = clampFrameIndex(workerState.currentFrame, workerState.frameStart, workerState.frameEnd);
+        renderFrame(workerState.currentFrame, progress);
+      }
+
+      function startPlayback() {
+        if (workerState.isPlaying) {
+          return;
+        }
+        workerState.isPlaying = true;
+        workerState.lastTick = performance.now();
+        scheduleNextTick();
+      }
+
+      function pausePlayback() {
+        workerState.isPlaying = false;
+        if (workerState.timerId) {
+          clearTimeout(workerState.timerId);
+          workerState.timerId = 0;
+        }
+      }
+
+      function stopPlayback() {
+        pausePlayback();
+        workerState.currentFrame = workerState.frameStart;
+      }
+
+      function seekFrame(frameIndex) {
+        workerState.currentFrame = clampFrameIndex(frameIndex, workerState.frameStart, workerState.frameEnd);
+        renderCurrent(0);
+      }
+
+      function setDuration(nextDuration) {
+        workerState.duration = toPositiveInteger(nextDuration, "duration");
+      }
+
+      function setRange(start, end) {
+        workerState.frameStart = Math.max(0, Math.floor(Number(start) || 0));
+        var rawEnd = Math.floor(Number(end));
+        workerState.frameEnd = Number.isFinite(rawEnd) && rawEnd >= workerState.frameStart
+          ? Math.min(rawEnd, workerState.frameCount - 1)
+          : (workerState.frameCount - 1);
+
+        workerState.currentFrame = clampFrameIndex(workerState.currentFrame, workerState.frameStart, workerState.frameEnd);
+        renderCurrent(0);
+      }
+
+      function setLoop(loopValue) {
+        workerState.loop = !!loopValue;
+      }
+
+      function setInterpolate(interpolateValue) {
+        workerState.interpolate = !!interpolateValue;
+        renderCurrent(0);
+      }
+
+      function tick(now) {
+        if (!workerState.isPlaying) {
+          return;
+        }
+
+        var elapsed = now - workerState.lastTick;
+        var frameMs = workerState.duration;
+
+        if (elapsed >= frameMs) {
+          var steps = Math.max(1, Math.floor(elapsed / frameMs));
+          for (var i = 0; i < steps; i += 1) {
+            advanceFrame();
+            if (!workerState.isPlaying) {
+              break;
+            }
+          }
+          workerState.lastTick = now - (elapsed % frameMs);
+          elapsed = now - workerState.lastTick;
+        }
+
+        if (workerState.isPlaying) {
+          var blend = frameMs > 0 ? (elapsed / frameMs) : 0;
+          renderCurrent(blend);
+          scheduleNextTick();
+        } else {
+          renderCurrent(0);
+        }
+      }
+
+      function scheduleNextTick() {
+        workerState.timerId = setTimeout(function() {
+          tick(performance.now());
+        }, 16);
+      }
+
+      function advanceFrame() {
+        var next = workerState.currentFrame + 1;
+        if (next > workerState.frameEnd) {
+          if (!workerState.loop) {
+            workerState.currentFrame = workerState.frameEnd;
+            pausePlayback();
+            return;
+          }
+          next = workerState.frameStart;
+        }
+        workerState.currentFrame = next;
+      }
+
+      function destroyWorker() {
+        pausePlayback();
+        if (workerState.sourceBitmap && typeof workerState.sourceBitmap.close === "function") {
+          workerState.sourceBitmap.close();
+        }
+        workerState.sourceBitmap = null;
+        self.close();
+      }
+
+      function toPositiveInteger(value, name) {
+        var n = Number(value);
+        if (!Number.isFinite(n) || n <= 0) {
+          throw new Error(name + " must be a positive number.");
+        }
+        return Math.floor(n);
+      }
+
+      function toOptionalPositiveInteger(value) {
+        var n = Number(value);
+        if (!Number.isFinite(n) || n <= 0) {
+          return 0;
+        }
+        return Math.floor(n);
+      }
+
+      function clampFrameIndex(value, start, end) {
+        var n = Number(value);
+        if (!Number.isFinite(n)) {
+          return start;
+        }
+        var x = Math.floor(n);
+        if (x < start) {
+          return start;
+        }
+        if (x > end) {
+          return end;
+        }
+        return x;
+      }
+
+      function postError(error) {
+        self.postMessage({
+          type: "error",
+          payload: {
+            message: error instanceof Error ? error.message : String(error)
+          }
+        });
+      }
+    }
+
+    function createPlayerState(cfg) {
+      return {
+        worker: cfg.worker,
+        canvas: cfg.canvas,
+        imageUrl: cfg.imageUrl,
+        frameCount: cfg.frameCount,
+        duration: cfg.duration,
+        frameStart: cfg.frameStart,
+        frameEnd: cfg.frameEnd,
+        loop: cfg.loop,
+        width: cfg.width,
+        height: cfg.height,
+        frameWidth: cfg.frameWidth,
+        frameHeight: cfg.frameHeight,
+        interpolate: cfg.interpolate,
+        isReady: false,
+        onReady: null,
+        onFrame: null,
+        onError: null
+      };
+    }
+
+    function createDisplayCanvas(cfg) {
+      var canvas = document.createElement("canvas");
+      canvas.className = cfg.canvasClassName || "";
+      cfg.appendTo.appendChild(canvas);
+      return canvas;
+    }
+
+    function createInlineWorker(entryFn) {
+      var source = "(" + String(entryFn.toString()) + ")();";
+      var blob = new Blob([source], { type: "application/javascript" });
+      var url = URL.createObjectURL(blob);
+      var worker = new Worker(url);
+      URL.revokeObjectURL(url);
+      return worker;
+    }
+
+    function wireWorkerEvents(state) {
+      state.worker.onmessage = function onWorkerMessage(event) {
+        var data = event && event.data ? event.data : {};
+        var type = data.type;
+        var payload = data.payload || {};
+
+        if (type === "ready") {
+          state.isReady = true;
+          state.readyWidth = payload.width;
+          state.readyHeight = payload.height;
+          if (typeof state.onReady === "function") {
+            state.onReady(payload);
+          }
+          return;
+        }
+
+        if (type === "frame") {
+          if (typeof state.onFrame === "function") {
+            state.onFrame(payload);
+          }
+          return;
+        }
+
+        if (type === "error") {
+          if (typeof state.onError === "function") {
+            state.onError(new Error(payload.message));
+          } else {
+            console.error(payload.message);
+          }
+        }
+      };
+    }
+
+    function postInit(state, offscreen, autoStart) {
+      state.worker.postMessage({
+        type: "init",
+        payload: {
+          canvas: offscreen,
+          imageUrl: state.imageUrl,
+          frameCount: state.frameCount,
+          duration: state.duration,
+          frameStart: state.frameStart,
+          frameEnd: state.frameEnd,
+          loop: state.loop,
+          width: state.width,
+          height: state.height,
+          frameWidth: state.frameWidth,
+          frameHeight: state.frameHeight,
+          interpolate: state.interpolate,
+          autoStart: !!autoStart
+        }
+      }, [offscreen]);
+    }
+
+    function createPlayerApi(state) {
+      return {
+        canvas: state.canvas,
+
+        play: function() {
+          state.worker.postMessage({ type: "play" });
+        },
+
+        pause: function() {
+          state.worker.postMessage({ type: "pause" });
+        },
+
+        stop: function() {
+          state.worker.postMessage({ type: "stop" });
+        },
+
+        seek: function(frameIndex) {
+          state.worker.postMessage({
+            type: "seek",
+            payload: { frameIndex: frameIndex }
+          });
+        },
+
+        setDuration: function(nextDuration) {
+          state.worker.postMessage({
+            type: "setDuration",
+            payload: { duration: nextDuration }
+          });
+        },
+
+        setRange: function(frameStart, frameEnd) {
+          state.worker.postMessage({
+            type: "setRange",
+            payload: { frameStart: frameStart, frameEnd: frameEnd }
+          });
+        },
+
+        setLoop: function(loopValue) {
+          state.worker.postMessage({
+            type: "setLoop",
+            payload: { loop: !!loopValue }
+          });
+        },
+
+        setInterpolate: function(interpolateValue) {
+          state.worker.postMessage({
+            type: "setInterpolate",
+            payload: { interpolate: !!interpolateValue }
+          });
+        },
+
+        setConfig: function(cfg) {
+          state.worker.postMessage({
+            type: "setConfig",
+            payload: cfg || {}
+          });
+        },
+
+        destroy: function() {
+          state.worker.postMessage({ type: "destroy" });
+          state.worker.terminate();
+          if (state.canvas && state.canvas.parentNode) {
+            state.canvas.parentNode.removeChild(state.canvas);
+          }
+        },
+
+        onReady: function(handler) {
+          state.onReady = handler;
+          return this;
+        },
+
+        onFrame: function(handler) {
+          state.onFrame = handler;
+          return this;
+        },
+
+        onError: function(handler) {
+          state.onError = handler;
+          return this;
+        }
+      };
+    }
+
+    function validateConfig(cfg) {
+      if (typeof cfg.imageUrl !== "string" || !cfg.imageUrl.trim()) {
+        throw new Error("imageUrl must be a non-empty string.");
+      }
+      if (!Number.isFinite(Number(cfg.duration)) || Number(cfg.duration) <= 0) {
+        throw new Error("duration must be a positive number in milliseconds.");
+      }
+      if (!cfg.appendTo || typeof cfg.appendTo.appendChild !== "function") {
+        throw new Error("appendTo must be a DOM Element.");
+      }
+      if (typeof HTMLCanvasElement === "undefined" ||
+          typeof HTMLCanvasElement.prototype.transferControlToOffscreen !== "function") {
+        throw new Error("OffscreenCanvas transfer is not supported in this browser.");
+      }
+    }
+  }
+
+  function setConfig(cfg) {
+    var x = cfg && typeof cfg === "object" ? cfg : {};
+    if (x.source !== undefined) { this.component.source = x.source; }
+    if (x.framecount !== undefined) { this.component.framecount = x.framecount; }
+    if (x.start !== undefined) { this.component.start = x.start; }
+    if (x.stop !== undefined) { this.component.stop = x.stop; }
+    if (x.duration !== undefined) { this.component.duration = x.duration; }
+    if (x.repeat !== undefined) { this.component.repeat = !!x.repeat; }
+    if (x.running !== undefined) { this.component.running = !!x.running; }
+    if (x.framewidth !== undefined) { this.component.framewidth = x.framewidth; }
+    if (x.frameheight !== undefined) { this.component.frameheight = x.frameheight; }
+    if (x.width !== undefined) { this.component.width = x.width; }
+    if (x.height !== undefined) { this.component.height = x.height; }
+    if (x.interpolate !== undefined) { this.component.interpolate = !!x.interpolate; }
+
+    this.component.pushConfig();
+  }
+
+  function ensureInternalPlayer() {
+    var cfg = this.component.normalizeConfig();
+    var viewport = this.component.getViewport();
+    console.log("[q-spritesheet-player] ensureInternalPlayer", cfg);
+    this.component.applyViewportSize();
+
+    if (!cfg.imageUrl || !viewport) {
+      this.component.destroyInternal();
+      return;
+    }
+
+    if (!this.__playerApi) {
+      var host = this;
+      console.log("[q-spritesheet-player] create player api");
+      this.__playerApi = this.component.createSpriteSheetPlayer({
+        imageUrl: cfg.imageUrl,
+        frameCount: cfg.frameCount,
+        frameStart: cfg.frameStart,
+        frameEnd: cfg.frameEnd,
+        duration: cfg.duration,
+        loop: cfg.loop,
+        autoStart: cfg.running,
+        appendTo: viewport,
+        width: cfg.width,
+        height: cfg.height,
+        frameWidth: cfg.frameWidth,
+        frameHeight: cfg.frameHeight,
+        interpolate: cfg.interpolate
+      });
+
+      this.__playerApi.onReady(function(payload) {
+        console.log("[q-spritesheet-player] ready", payload);
+        host.component.ready(payload.width, payload.height, payload.frameCount);
+      });
+
+      this.__playerApi.onFrame(function(payload) {
+        var idx = Number(payload && payload.frameIndex);
+        if (!Number.isFinite(idx)) {
+          return;
+        }
+        console.log("[q-spritesheet-player] frame", idx);
+        host.component.suppressFrameSync = true;
+        host.component.currentFrame = idx;
+        host.component.framechanged(idx);
+        host.component.suppressFrameSync = false;
+      });
+
+      this.__playerApi.onError(function(err) {
+        var msg = err && err.message ? err.message : String(err);
+        host.component.errored(msg);
+        console.error("[q-spritesheet-player]", msg);
+      });
+    }
+  }
+
+  function pushConfig() {
+    var cfg = this.component.normalizeConfig();
+    console.log("[q-spritesheet-player] pushConfig", cfg);
+    this.component.ensureInternalPlayer();
+
+    if (!this.__playerApi) {
+      return;
+    }
+
+    this.__playerApi.setConfig({
+      imageUrl: cfg.imageUrl,
+      frameCount: cfg.frameCount,
+      frameStart: cfg.frameStart,
+      frameEnd: cfg.frameEnd,
+      duration: cfg.duration,
+      loop: cfg.loop,
+      width: cfg.width,
+      height: cfg.height,
+      frameWidth: cfg.frameWidth,
+      frameHeight: cfg.frameHeight,
+      interpolate: cfg.interpolate
+    });
+
+    this.__playerApi.setDuration(cfg.duration);
+    this.__playerApi.setRange(cfg.frameStart, cfg.frameEnd);
+    this.__playerApi.setLoop(cfg.loop);
+    this.__playerApi.setInterpolate(cfg.interpolate);
+
+    if (cfg.running) {
+      this.__playerApi.play();
+    } else {
+      this.__playerApi.pause();
+    }
+
+    if (!this.component.suppressFrameSync) {
+      this.__playerApi.seek(this.component.clampFrame(this.component.currentFrame, cfg.frameStart, cfg.frameEnd));
+    }
+  }
+
+  function play() {
+    console.log("[q-spritesheet-player] play()");
+    this.component.running = true;
+    this.component.pushConfig();
+  }
+
+  function pause() {
+    console.log("[q-spritesheet-player] pause()");
+    this.component.running = false;
+    this.component.pushConfig();
+  }
+
+  function stopPlayback() {
+    console.log("[q-spritesheet-player] stopPlayback()");
+    this.component.running = false;
+    this.component.currentFrame = this.component.clampFrame(this.component.start, this.component.start, this.component.stop);
+    if (this.__playerApi) {
+      this.__playerApi.stop();
+    }
+  }
+
+  function seek(frameIndex) {
+    this.component.currentFrame = frameIndex;
+    if (this.__playerApi) {
+      this.__playerApi.seek(this.component.clampFrame(this.component.currentFrame, this.component.start, this.component.stop));
+    }
+  }
+
+  function setDuration(durationMs) {
+    this.component.duration = durationMs;
+    if (this.__playerApi) {
+      this.__playerApi.setDuration(this.component.toPositiveInt(this.component.duration, 100));
+    }
+  }
+
+  onsourcechanged { this.component.pushConfig(); }
+  onframecountchanged { this.component.pushConfig(); }
+  onstartchanged { this.component.pushConfig(); }
+  onstopchanged { this.component.pushConfig(); }
+  ondurationchanged { this.component.pushConfig(); }
+  onrepeatchanged { this.component.pushConfig(); }
+  onrunningchanged { this.component.pushConfig(); }
+  onframewidthchanged { this.component.pushConfig(); }
+  onframeheightchanged { this.component.pushConfig(); }
+  onwidthchanged { this.component.pushConfig(); }
+  onheightchanged { this.component.pushConfig(); }
+  oninterpolatechanged { this.component.pushConfig(); }
+  oncurrentframechanged {
+    if (this.component.suppressFrameSync) {
+      return;
+    }
+    this.component.pushConfig();
+  }
+
+  onReady {
+    this.component.applyViewportSize();
+    this.component.pushConfig();
+  }
+
+  div.q-spritesheet-player-viewport { }
+}
+
+q-component q-spritesheet {
+  q-property source: ""
+  q-property framecount: 0
+  q-property start: 0
+  q-property stop: -1
+  q-property duration: 100
+  q-property repeat: true
+  q-property running: false
+  q-property framewidth: 0
+  q-property frameheight: 0
+  q-property width: 0
+  q-property height: 0
+  q-property interpolate: false
+  q-property currentFrame: 0
+  q-property suppressRelay: false
+
+  q-signal framechanged(frameIndex)
+  q-signal ready(width, height, frameCount)
+  q-signal errored(message)
+  q-logger { q-property q-signal function }
+
+  function syncPlayer() {
+    console.log("[q-spritesheet] syncPlayer", {
+      source: this.component.source,
+      framecount: this.component.framecount,
+      start: this.component.start,
+      stop: this.component.stop,
+      duration: this.component.duration,
+      running: this.component.running,
+      currentFrame: this.component.currentFrame
+    });
+    player.setConfig({
+      source: this.component.source,
+      framecount: this.component.framecount,
+      start: this.component.start,
+      stop: this.component.stop,
+      duration: this.component.duration,
+      repeat: this.component.repeat,
+      running: this.component.running,
+      framewidth: this.component.framewidth,
+      frameheight: this.component.frameheight,
+      width: this.component.width,
+      height: this.component.height,
+      interpolate: this.component.interpolate
+    });
+
+    if (!this.component.suppressRelay) {
+      player.seek(this.component.currentFrame);
+    }
+  }
+
+  function play() {
+    console.log("[q-spritesheet] play()");
+    this.component.running = true;
+    player.play();
+  }
+
+  function pause() {
+    console.log("[q-spritesheet] pause()");
+    this.component.running = false;
+    player.pause();
+  }
+
+  function stopPlayback() {
+    console.log("[q-spritesheet] stopPlayback()");
+    this.component.running = false;
+    player.stopPlayback();
+  }
+
+  function seek(frameIndex) {
+    this.component.currentFrame = frameIndex;
+    player.seek(frameIndex);
+  }
+
+  function setDuration(durationMs) {
+    this.component.duration = durationMs;
+    player.setDuration(durationMs);
+  }
+
+  onsourcechanged { this.component.syncPlayer(); }
+  onframecountchanged { this.component.syncPlayer(); }
+  onstartchanged { this.component.syncPlayer(); }
+  onstopchanged { this.component.syncPlayer(); }
+  ondurationchanged { this.component.syncPlayer(); }
+  onrepeatchanged { this.component.syncPlayer(); }
+  onrunningchanged { this.component.syncPlayer(); }
+  onframewidthchanged { this.component.syncPlayer(); }
+  onframeheightchanged { this.component.syncPlayer(); }
+  onwidthchanged { this.component.syncPlayer(); }
+  onheightchanged { this.component.syncPlayer(); }
+  oninterpolatechanged { this.component.syncPlayer(); }
+  oncurrentframechanged {
+    if (this.component.suppressRelay) {
+      return;
+    }
+    player.seek(this.component.currentFrame);
+  }
+
+  onReady {
+    player.framechanged.connect(this.component.onPlayerFrameChanged);
+    player.ready.connect(this.component.onPlayerReady);
+    player.errored.connect(this.component.onPlayerError);
+    this.component.syncPlayer();
+  }
+
+  function onPlayerFrameChanged(frameIndex) {
+    console.log("[q-spritesheet] onPlayerFrameChanged", frameIndex);
+    this.component.suppressRelay = true;
+    this.component.currentFrame = frameIndex;
+    this.component.framechanged(frameIndex);
+    this.component.suppressRelay = false;
+  }
+
+  function onPlayerReady(width, height, frameCount) {
+    this.component.ready(width, height, frameCount);
+  }
+
+  function onPlayerError(message) {
+    this.component.errored(message);
+  }
+
+  q-spritesheet-player player { }
+}
