@@ -1161,7 +1161,7 @@ This dispatches a DOM `CustomEvent` named `menuItemClicked` with `event.detail.s
 </q-html>
 ```
 
-### 7.3 Signal use cases (direct emit, imperative connect, declarative `q-connect`)
+### 7.3 Signal use cases (direct emit + imperative connect)
 
 ```qhtml
 <q-html>
@@ -1183,25 +1183,46 @@ This dispatches a DOM `CustomEvent` named `menuItemClicked` with `event.detail.s
   sender-box sender1 { id: "sender1" }
   receiver-box receiver1 { id: "receiver1" }
 
-  // declarative connect sugar
-  q-connect { sender1.sent receiver1.onMessage }
-
-  button {
-    text { Send via q-connect wiring }
-    onclick { sender1.sendNow("hello-from-q-connect"); }
-  }
-
-  sender-box sender2 { id: "sender2" }
-  receiver-box receiver2 { id: "receiver2" }
-
   onReady {
     // imperative connect
-    sender2.sent.connect(receiver2.onMessage);
+    sender1.sent.connect(receiver1.onMessage);
   }
 
   button {
     text { Send via imperative connect }
-    onclick { sender2.sendNow("hello-from-connect"); }
+    onclick { sender1.sendNow("hello-from-connect"); }
+  }
+</q-html>
+```
+
+### 7.4 Signal use case (`q-connect` declarative wiring)
+
+```qhtml
+<q-html>
+  q-component sender-box {
+    q-signal sent(message)
+    function sendNow(message) {
+      this.sent(message);
+    }
+  }
+
+  q-component receiver-box {
+    q-property value: "waiting"
+    function onMessage(message) {
+      this.component.value = message;
+    }
+    div#out { text { ${this.component.value} } }
+  }
+
+  sender-box senderA { id: "senderA" }
+  receiver-box receiverA { id: "receiverA" }
+
+  // declarative connect sugar
+  q-connect { senderA.sent receiverA.onMessage }
+
+  button {
+    text { Send via q-connect wiring }
+    onclick { senderA.sendNow("hello-from-q-connect"); }
   }
 </q-html>
 ```
