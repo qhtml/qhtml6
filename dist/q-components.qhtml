@@ -6,8 +6,8 @@ q-import { q-components/q-tabs.qhtml }
 q-import { q-components/q-list-view.qhtml }
 q-import { q-components/q-tree-view.qhtml?v=tree-css-28 }
 q-import { q-components/q-dom-tree.qhtml?v=dom-tree-3 }
-q-import { q-components/q-estore.qhtml?v=6.3.0 }
-q-import { q-components/q-spritesheet.qhtml?v=6.3.0 }
+q-import { q-components/q-estore.qhtml?v=6.3.1 }
+q-import { q-components/q-spritesheet.qhtml?v=6.3.1 }
 q-import { q-components/q-builder.qhtml }
 q-import { q-components/q-sidebar.qhtml }
 q-import { q-components/q-popup-menu.qhtml?v=popup-redesign-6 }

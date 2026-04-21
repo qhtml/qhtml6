@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-04-21T07:56:59Z */
+/* generated: 2026-04-21T08:03:20Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -41014,7 +41014,7 @@
   }
 
   const api = runtime;
-  api.version = "6.2.2";
+  api.version = "6.3.1";
 
   api.parseQHtml = function parseQHtml(source) {
     return modules.qhtmlParser.parseQHtmlToQDom(source || "");

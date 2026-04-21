@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.3.0
+# QHTML.js v6.3.1
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -11,6 +11,12 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Dev testbed: https://qhtml.github.io/qhtml6/dist/test.html
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
+
+## Whats New in v6.3.1
+
+- Added declared `q-property` raw-value getter behavior so direct property reads resolve to assigned JS values consistently.
+- Added model-like mutation bridging for declared properties (`QArray`/`QMap`/`QModel`) so internal mutations propagate through `<property>Changed` reactivity without reassignment.
+- Kept runtime internal listener wiring private while preserving existing change-event semantics and deterministic queue behavior.
 
 ## Whats New in v6.3.0
 
