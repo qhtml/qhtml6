@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.2.3
+# QHTML.js v6.3.0
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,13 +12,16 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.2.3
+## Whats New in v6.3.0
 
 - Added/validated typed named-instance usage in demos and examples (`<type> <name> { }`) so component references can be direct (for example `demoestore.products = ...`) without selector boilerplate.
 - Clarified and documented named-instance scope/context behavior for declarative references.
 - Tightened `q-import` runtime handling so import resolution is treated as a hard barrier before parse/mount continuation.
 - Added declarative signal wiring syntax: `q-connect { sender.signal target.handler }` (also supports `->` form).
 - Added `q-spritesheet [alpha]` (currently in-progress and not fully stable yet).
+- Added component owner-type alias resolution inside component definition subtrees (for example descendant code can read `mycomp1.myprop`).
+- Added owner-chain walking for repeated type-name segments (for example `mycomp1.mycomp1.myprop` walks upward to enclosing owners of the same type).
+- Added component-definition collision guards for component-name alias conflicts (`q-property <componentName>`, child alias `<...> <componentName>`): warns and resolves blank in that local scope.
 
 ## 1. Quick Start
 
@@ -284,6 +287,25 @@ Valid usage patterns:
 - `<instanceName>.<property>`
 - `<instanceName>.<property>.<nestedProperty>`
 - chained use inside `${...}` and property defaults
+
+Inside a `q-component` definition, descendants can also reference the enclosing component by **type name**:
+
+```qhtml
+q-component mycomp1 {
+  q-property myprop: "hello"
+  mycomp2 {
+    onReady { console.log(mycomp1.myprop) } // "hello"
+  }
+}
+```
+
+When nested owners share the same type, repeating the type token walks upward:
+
+```qhtml
+// inside nested mycomp1 scope:
+// mycomp1             -> nearest mycomp1 owner
+// mycomp1.mycomp1     -> next enclosing mycomp1 owner
+```
 
 Use dot walking for declarative wiring between named instances instead of selector-based lookup code.
 

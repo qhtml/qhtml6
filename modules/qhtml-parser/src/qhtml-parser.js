@@ -10161,6 +10161,7 @@
           targetElement.lifecycleScripts.push({
             name: "onready",
             body: compactScriptBody(connectBody),
+            isQConnect: true,
           });
         }
       } else if (item.type === "QScriptInline") {
@@ -10679,6 +10680,7 @@
             lifecycleScripts.push({
               name: "onready",
               body: compactScriptBody(connectBody),
+              isQConnect: true,
             });
           }
         }
@@ -11242,6 +11244,7 @@
           lifecycleScripts.push({
             name: "onready",
             body: compactScriptBody(connectBody),
+            isQConnect: true,
           });
         }
         continue;

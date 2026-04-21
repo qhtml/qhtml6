@@ -11546,6 +11546,7 @@
           targetElement.lifecycleScripts.push({
             name: "onready",
             body: compactScriptBody(connectBody),
+            isQConnect: true,
           });
         }
       } else if (item.type === "QScriptInline") {
@@ -12064,6 +12065,7 @@
             lifecycleScripts.push({
               name: "onready",
               body: compactScriptBody(connectBody),
+              isQConnect: true,
             });
           }
         }
@@ -12627,6 +12629,7 @@
           lifecycleScripts.push({
             name: "onready",
             body: compactScriptBody(connectBody),
+            isQConnect: true,
           });
         }
         continue;
@@ -13650,6 +13653,8 @@
   const QCONTEXT_SYMBOL_UUID_KEY = "__qhtmlContextSymbolUuid";
   const QCONTEXT_SYMBOL_KIND_KEY = "__qhtmlContextSymbolKind";
   const QCONTEXT_SYMBOL_HEAD_ONLY_KEY = "__qhtmlContextSymbolHeadOnly";
+  const QCONTEXT_OWNER_TYPE_NAME_KEY = "__qhtmlContextOwnerTypeName";
+  const QCONTEXT_OWNER_PARENT_HANDLE_KEY = "__qhtmlContextOwnerParentHandle";
   const Q_MODEL_VIEW_INSTANCE_ATTR = "q-model-view-instance";
   const Q_MODEL_VIEW_SCOPE_TAG = "q-model-view-scope";
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
@@ -16007,11 +16012,13 @@
     const scopedBlock =
       "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
       "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
+      "const __qhtmlNearestComponentHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"[qhtml-component-instance='1']\") : null;\n" +
+      "const __qhtmlNearestComponentScope = (__qhtmlNearestComponentHost && __qhtmlNearestComponentHost.__qhtmlScriptScope && typeof __qhtmlNearestComponentHost.__qhtmlScriptScope === \"object\") ? __qhtmlNearestComponentHost.__qhtmlScriptScope : null;\n" +
       "const __qhtmlLocalScriptScope = (this && this.__qhtmlScriptScope && typeof this.__qhtmlScriptScope === \"object\") ? this.__qhtmlScriptScope : null;\n" +
       "const __qhtmlNamedValues = (this && this.__qhtmlNamedRuntimeValues && typeof this.__qhtmlNamedRuntimeValues === \"object\") ? this.__qhtmlNamedRuntimeValues : null;\n" +
       "let __qhtmlScriptScope = null;\n" +
-      "if (__qhtmlRootNamedValues || __qhtmlNamedValues || __qhtmlLocalScriptScope) {\n" +
-      "  __qhtmlScriptScope = Object.assign(Object.create(null), __qhtmlRootNamedValues || null, __qhtmlNamedValues || null, __qhtmlLocalScriptScope || null);\n" +
+      "if (__qhtmlRootNamedValues || __qhtmlNearestComponentScope || __qhtmlNamedValues || __qhtmlLocalScriptScope) {\n" +
+      "  __qhtmlScriptScope = Object.assign(Object.create(null), __qhtmlRootNamedValues || null, __qhtmlNearestComponentScope || null, __qhtmlNamedValues || null, __qhtmlLocalScriptScope || null);\n" +
       "}\n" +
       "if (__qhtmlScriptScope) { with(__qhtmlScriptScope) {\n" +
       source +
@@ -16226,6 +16233,17 @@
     const pathKey = String(key || "").trim();
     if (!pathKey) {
       return { found: false, value: undefined, ambiguous: false };
+    }
+    if (isOwnerTypeSymbolHandle(cursor)) {
+      const ownerTypeName = readOwnerTypeSymbolName(cursor);
+      if (ownerTypeName && pathKey === ownerTypeName) {
+        const parentOwner = readOwnerTypeParentHandle(cursor);
+        return {
+          found: true,
+          value: parentOwner || cursor,
+          ambiguous: false,
+        };
+      }
     }
     try {
       const direct = cursor[pathKey];
@@ -17733,6 +17751,11 @@
   }
 
   function runLifecycleHookMaybeDeferred(hook, thisArg, targetDocument, errorLabel) {
+    if (hook && hook.isQConnect === true) {
+      runLifecycleHookNow(hook, thisArg, targetDocument, errorLabel);
+      return;
+    }
+
     if (!isOnReadyHook(hook)) {
       runLifecycleHookNow(hook, thisArg, targetDocument, errorLabel);
       return;
@@ -18981,9 +19004,26 @@
         ? instanceNode.meta.__qhtmlDeclaredProperties
         : []
     );
+    const hostScopeFrame = resolveRuntimeFrameForTarget(hostElement, QCONTEXT_SCOPE_FRAME_KEY);
+    const hostRuntimeFrame = resolveRuntimeFrameForTarget(hostElement, QCONTEXT_RUNTIME_FRAME_KEY);
     for (let i = 0; i < declaredProperties.length; i += 1) {
       const propertyName = declaredProperties[i];
       if (!propertyName || INVALID_METHOD_NAMES.has(propertyName)) {
+        continue;
+      }
+      const normalizedPropertyName = String(propertyName || "").trim().toLowerCase();
+      if (componentId && normalizedPropertyName === componentId) {
+        warnScopedAliasConflict(
+          propertyName,
+          "declared property name conflicts with component type alias inside its own definition; binding is blanked"
+        );
+        if (hostScopeFrame && typeof hostScopeFrame.set === "function") {
+          hostScopeFrame.set(componentId, "");
+        }
+        if (hostRuntimeFrame && typeof hostRuntimeFrame.set === "function") {
+          hostRuntimeFrame.set(componentId, "");
+        }
+        exportNamedAliasToHost(hostElement, componentId, "");
         continue;
       }
       const existingDescriptor = Object.getOwnPropertyDescriptor(hostElement, propertyName);
@@ -20326,12 +20366,26 @@
       return [fallbackRoot];
     }
     ensureContextFrames(context);
-    if (!Array.isArray(context.instanceAliasScopeStack)) {
-      context.instanceAliasScopeStack = [context[QCONTEXT_SCOPE_FRAME_KEY]];
-    } else if (context.instanceAliasScopeStack.length === 0) {
-      context.instanceAliasScopeStack.push(context[QCONTEXT_SCOPE_FRAME_KEY]);
+    const activeScopeFrame = context[QCONTEXT_SCOPE_FRAME_KEY];
+    let stack = Array.isArray(context.instanceAliasScopeStack) ? context.instanceAliasScopeStack : null;
+    const shouldRebuild =
+      !stack ||
+      stack.length === 0 ||
+      stack[stack.length - 1] !== activeScopeFrame;
+    if (shouldRebuild) {
+      const rebuilt = [];
+      const seen = new Set();
+      let cursor = activeScopeFrame;
+      while (cursor && typeof cursor === "object" && !seen.has(cursor)) {
+        rebuilt.push(cursor);
+        seen.add(cursor);
+        cursor = cursor.parent && typeof cursor.parent === "object" ? cursor.parent : null;
+      }
+      rebuilt.reverse();
+      context.instanceAliasScopeStack = rebuilt.length > 0 ? rebuilt : [activeScopeFrame];
+      stack = context.instanceAliasScopeStack;
     }
-    return context.instanceAliasScopeStack;
+    return stack;
   }
 
   function pushInstanceAliasScope(context) {
@@ -20442,6 +20496,32 @@
     return null;
   }
 
+  function isContextSymbolHandle(value) {
+    return !!(value && value[QCONTEXT_SYMBOL_HANDLE_FLAG] === true);
+  }
+
+  function isOwnerTypeSymbolHandle(value) {
+    return !!(
+      isContextSymbolHandle(value) &&
+      String(value[QCONTEXT_SYMBOL_KIND_KEY] || "").trim().toLowerCase() === "owner-type"
+    );
+  }
+
+  function readOwnerTypeSymbolName(value) {
+    if (!isOwnerTypeSymbolHandle(value)) {
+      return "";
+    }
+    return String(value[QCONTEXT_OWNER_TYPE_NAME_KEY] || "").trim();
+  }
+
+  function readOwnerTypeParentHandle(value) {
+    if (!isOwnerTypeSymbolHandle(value)) {
+      return null;
+    }
+    const parentHandle = value[QCONTEXT_OWNER_PARENT_HANDLE_KEY];
+    return isContextSymbolHandle(parentHandle) ? parentHandle : null;
+  }
+
   function createNamedSymbolHandle(options) {
     const opts = options && typeof options === "object" ? options : {};
     const uuid = String(opts.uuid || "").trim();
@@ -20449,11 +20529,17 @@
     const headOnly = opts.headOnly === true;
     const label = String(opts.label || opts.kind || "").trim() || symbolKind;
     const aliasTarget = opts.target && typeof opts.target === "object" ? opts.target : null;
+    const ownerTypeName = String(opts.ownerTypeName || "").trim();
+    const ownerTypeParentHandle = isContextSymbolHandle(opts.ownerTypeParentHandle)
+      ? opts.ownerTypeParentHandle
+      : null;
     const base = Object.create(null);
     base[QCONTEXT_SYMBOL_HANDLE_FLAG] = true;
     base[QCONTEXT_SYMBOL_UUID_KEY] = uuid;
     base[QCONTEXT_SYMBOL_KIND_KEY] = symbolKind;
     base[QCONTEXT_SYMBOL_HEAD_ONLY_KEY] = headOnly;
+    base[QCONTEXT_OWNER_TYPE_NAME_KEY] = ownerTypeName;
+    base[QCONTEXT_OWNER_PARENT_HANDLE_KEY] = ownerTypeParentHandle;
     base.__qhtmlAliasTarget = aliasTarget;
     base.uuid = uuid;
     const callableCache = typeof WeakMap === "function" ? new WeakMap() : null;
@@ -20502,13 +20588,16 @@
       }
       return proxied;
     }
-    const handle = new Proxy(base, {
+    let handle = null;
+    handle = new Proxy(base, {
       get: function getNamedSymbolHandle(target, prop) {
         if (
           prop === QCONTEXT_SYMBOL_HANDLE_FLAG ||
           prop === QCONTEXT_SYMBOL_UUID_KEY ||
           prop === QCONTEXT_SYMBOL_KIND_KEY ||
           prop === QCONTEXT_SYMBOL_HEAD_ONLY_KEY ||
+          prop === QCONTEXT_OWNER_TYPE_NAME_KEY ||
+          prop === QCONTEXT_OWNER_PARENT_HANDLE_KEY ||
           prop === "__qhtmlAliasTarget" ||
           prop === "uuid"
         ) {
@@ -20524,6 +20613,17 @@
             return label;
           };
         }
+        if (
+          target[QCONTEXT_SYMBOL_KIND_KEY] === "owner-type" &&
+          typeof prop === "string"
+        ) {
+          const key = String(prop || "").trim();
+          const typeName = String(target[QCONTEXT_OWNER_TYPE_NAME_KEY] || "").trim();
+          if (key && typeName && key === typeName) {
+            const parentHandle = target[QCONTEXT_OWNER_PARENT_HANDLE_KEY];
+            return isContextSymbolHandle(parentHandle) ? parentHandle : handle;
+          }
+        }
         if (target[QCONTEXT_SYMBOL_HEAD_ONLY_KEY] === true) {
           return undefined;
         }
@@ -20538,6 +20638,16 @@
         return value;
       },
       set: function setNamedSymbolHandle(target, prop, value) {
+        if (
+          target[QCONTEXT_SYMBOL_KIND_KEY] === "owner-type" &&
+          typeof prop === "string"
+        ) {
+          const key = String(prop || "").trim();
+          const typeName = String(target[QCONTEXT_OWNER_TYPE_NAME_KEY] || "").trim();
+          if (key && typeName && key === typeName) {
+            return true;
+          }
+        }
         if (target[QCONTEXT_SYMBOL_HEAD_ONLY_KEY] === true) {
           return true;
         }
@@ -20617,6 +20727,80 @@
     }
   }
 
+  function warnScopedAliasConflict(aliasName, message) {
+    if (!global.console || typeof global.console.warn !== "function") {
+      return;
+    }
+    global.console.warn(
+      "[QHTML][scope][alias-conflict]",
+      String(aliasName || ""),
+      String(message || "")
+    );
+  }
+
+  function findNearestOwnerTypeHandle(scopeFrame, ownerTypeName) {
+    const key = String(ownerTypeName || "").trim();
+    if (!key || !scopeFrame || typeof scopeFrame !== "object") {
+      return null;
+    }
+    let cursor = scopeFrame;
+    const visited = typeof WeakSet === "function" ? new WeakSet() : null;
+    while (cursor && typeof cursor === "object") {
+      if (visited) {
+        if (visited.has(cursor)) {
+          break;
+        }
+        visited.add(cursor);
+      }
+      const local =
+        typeof cursor.getLocal === "function"
+          ? cursor.getLocal(key)
+          : typeof cursor.get === "function"
+            ? cursor.get(key)
+            : undefined;
+      if (isOwnerTypeSymbolHandle(local) && readOwnerTypeSymbolName(local) === key) {
+        return local;
+      }
+      cursor = cursor.parent && typeof cursor.parent === "object" ? cursor.parent : null;
+    }
+    return null;
+  }
+
+  function registerComponentOwnerTypeAlias(hostElement, componentNode, scopeFrame, runtimeFrame, parentScopeFrame) {
+    if (!hostElement || hostElement.nodeType !== 1 || !componentNode || typeof componentNode !== "object") {
+      return null;
+    }
+    const ownerTypeName = String(componentNode.componentId || hostElement.tagName || "").trim().toLowerCase();
+    if (!ownerTypeName) {
+      return null;
+    }
+    const nearestOwnerParent = findNearestOwnerTypeHandle(parentScopeFrame, ownerTypeName);
+    const ownerHandle = createNamedSymbolHandle({
+      uuid: resolveAliasUuid(hostElement),
+      kind: "owner-type",
+      headOnly: false,
+      target: hostElement,
+      label: ownerTypeName,
+      ownerTypeName: ownerTypeName,
+      ownerTypeParentHandle: nearestOwnerParent,
+    });
+    if (scopeFrame && typeof scopeFrame.hasLocal === "function" && scopeFrame.hasLocal(ownerTypeName)) {
+      warnScopedAliasConflict(
+        ownerTypeName,
+        "owner type alias already exists in local scope; preserving existing value"
+      );
+      return null;
+    }
+    if (scopeFrame && typeof scopeFrame.set === "function") {
+      scopeFrame.set(ownerTypeName, ownerHandle);
+    }
+    if (runtimeFrame && typeof runtimeFrame.set === "function") {
+      runtimeFrame.set(ownerTypeName, ownerHandle);
+    }
+    exportNamedAliasToHost(hostElement, ownerTypeName, ownerHandle);
+    return ownerHandle;
+  }
+
   function registerNamedInstanceAlias(context, hostElement, componentNode, instanceNode) {
     if (!context || !instanceNode || !instanceNode.meta || typeof instanceNode.meta !== "object") {
       return;
@@ -20642,15 +20826,35 @@
     if (frame !== stack[stack.length - 1]) {
       stack[stack.length - 1] = frame;
     }
+    const hostStack =
+      context && Array.isArray(context.componentHostStack) ? context.componentHostStack : null;
+    const ownerHost = hostStack && hostStack.length > 0 ? hostStack[hostStack.length - 1] : null;
+    const existingLocal = typeof frame.getLocal === "function" ? frame.getLocal(alias) : undefined;
     if (typeof frame.hasLocal === "function" && frame.hasLocal(alias)) {
+      if (isOwnerTypeSymbolHandle(existingLocal)) {
+        warnScopedAliasConflict(
+          alias,
+          "child instance alias conflicts with enclosing component type alias; binding is blanked"
+        );
+        frame.set(alias, "");
+        context[QCONTEXT_RUNTIME_FRAME_KEY].set(alias, "");
+        if (ownerHost) {
+          exportNamedAliasToHost(ownerHost, alias, "");
+        } else {
+          if (context && context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
+            context.namedRuntimeValues[alias] = "";
+          }
+          if (context && context.rootHostElement) {
+            exportNamedAliasToHost(context.rootHostElement, alias, "");
+          }
+        }
+        return;
+      }
       throw new Error("Duplicate named instance alias in same scope: '" + alias + "'.");
     }
     frame.set(alias, aliasHandle);
     context[QCONTEXT_SCOPE_FRAME_KEY] = frame;
     context[QCONTEXT_RUNTIME_FRAME_KEY].set(alias, aliasHandle);
-    const hostStack =
-      context && Array.isArray(context.componentHostStack) ? context.componentHostStack : null;
-    const ownerHost = hostStack && hostStack.length > 0 ? hostStack[hostStack.length - 1] : null;
     if (ownerHost) {
       exportNamedAliasToHost(ownerHost, alias, aliasHandle);
     } else {
@@ -21180,6 +21384,7 @@
     if (opts && opts.runtimeFrame && typeof opts.runtimeFrame === "object") {
       next[QCONTEXT_RUNTIME_FRAME_KEY] = opts.runtimeFrame;
     }
+    ensureInstanceAliasScopeStack(next);
     return next;
   }
 
@@ -21519,6 +21724,17 @@
       const key = String(parts[i] || "").trim();
       if (!key) {
         return { found: false, value: undefined, cycle: false };
+      }
+      if (isOwnerTypeSymbolHandle(cursor)) {
+        const ownerTypeName = readOwnerTypeSymbolName(cursor);
+        if (ownerTypeName && key === ownerTypeName) {
+          const parentOwner = readOwnerTypeParentHandle(cursor);
+          cursor = parentOwner || cursor;
+          if (markPathResolutionVisit(cursor, context)) {
+            return { found: false, value: undefined, cycle: true };
+          }
+          continue;
+        }
       }
       const qModelResolved = readQModelPathSegment(cursor, key);
       if (qModelResolved.matched) {
@@ -21985,6 +22201,13 @@
         ? parentRuntimeFrame.child("runtime", hostElement)
         : createContextFrame(null, "runtime", hostElement);
     bindRuntimeContextToTarget(hostElement, componentScopeFrame, componentRuntimeFrame);
+    registerComponentOwnerTypeAlias(
+      hostElement,
+      componentNode,
+      componentScopeFrame,
+      componentRuntimeFrame,
+      parentScopeFrame
+    );
     parent.appendChild(hostElement);
     hydrateHostNamedRuntimeScope(hostElement, context);
     registerNamedInstanceAlias(context, hostElement, componentNode, instanceNode);
@@ -22173,6 +22396,13 @@
         ? parentRuntimeFrame.child("runtime", workerHost)
         : createContextFrame(null, "runtime", workerHost);
     bindRuntimeContextToTarget(workerHost, workerScopeFrame, workerRuntimeFrame);
+    registerComponentOwnerTypeAlias(
+      workerHost,
+      componentNode,
+      workerScopeFrame,
+      workerRuntimeFrame,
+      parentScopeFrame
+    );
     hydrateHostNamedRuntimeScope(workerHost, context);
     registerNamedInstanceAlias(context, workerHost, componentNode, instanceNode);
     bindComponentMethods(componentNode, workerHost, instanceNode);
@@ -25974,8 +26204,14 @@
     const scopedBlock =
       "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
       "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
-      "const __qhtmlScriptScope = (this && this.__qhtmlScriptScope && typeof this.__qhtmlScriptScope === \"object\")" +
-      " ? this.__qhtmlScriptScope : ((this && this.__qhtmlNamedRuntimeValues && typeof this.__qhtmlNamedRuntimeValues === \"object\") ? this.__qhtmlNamedRuntimeValues : __qhtmlRootNamedValues);\n" +
+      "const __qhtmlNearestComponentHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"[qhtml-component-instance='1']\") : null;\n" +
+      "const __qhtmlNearestComponentScope = (__qhtmlNearestComponentHost && __qhtmlNearestComponentHost.__qhtmlScriptScope && typeof __qhtmlNearestComponentHost.__qhtmlScriptScope === \"object\") ? __qhtmlNearestComponentHost.__qhtmlScriptScope : null;\n" +
+      "const __qhtmlLocalScriptScope = (this && this.__qhtmlScriptScope && typeof this.__qhtmlScriptScope === \"object\") ? this.__qhtmlScriptScope : null;\n" +
+      "const __qhtmlNamedValues = (this && this.__qhtmlNamedRuntimeValues && typeof this.__qhtmlNamedRuntimeValues === \"object\") ? this.__qhtmlNamedRuntimeValues : null;\n" +
+      "let __qhtmlScriptScope = null;\n" +
+      "if (__qhtmlRootNamedValues || __qhtmlNearestComponentScope || __qhtmlNamedValues || __qhtmlLocalScriptScope) {\n" +
+      "  __qhtmlScriptScope = Object.assign(Object.create(null), __qhtmlRootNamedValues || null, __qhtmlNearestComponentScope || null, __qhtmlNamedValues || null, __qhtmlLocalScriptScope || null);\n" +
+      "}\n" +
       "if (__qhtmlScriptScope) { with(__qhtmlScriptScope) {\n" +
       source +
       "\n} } else {\n" +
@@ -32285,7 +32521,19 @@
     for (let i = 0; i < lifecycleScripts.length; i += 1) {
       const hook = lifecycleScripts[i];
       const body = hook && typeof hook.body === "string" ? hook.body.trim() : "";
+      if (!body || !(hook && hook.isQConnect === true)) {
+        continue;
+      }
+      runLifecycleHookBody(binding.host, body, binding.doc, "qhtml host lifecycle hook failed:");
+    }
+
+    for (let i = 0; i < lifecycleScripts.length; i += 1) {
+      const hook = lifecycleScripts[i];
+      const body = hook && typeof hook.body === "string" ? hook.body.trim() : "";
       if (!body) {
+        continue;
+      }
+      if (hook && hook.isQConnect === true) {
         continue;
       }
       const hookName = hook && typeof hook.name === "string" ? hook.name : "";
@@ -40643,7 +40891,7 @@
   }
 
   const api = runtime;
-  api.version = "6.2.2";
+  api.version = "6.3.0";
 
   api.parseQHtml = function parseQHtml(source) {
     return modules.qhtmlParser.parseQHtmlToQDom(source || "");
@@ -40669,4 +40917,3 @@
 })(typeof globalThis !== "undefined" ? globalThis : window);
 
 /*** END: src/root-integration.js ***/
-

@@ -1,14 +1,17 @@
+q-import { q-modal.qhtml }
 
-
-q-component q-estore-product {
-  q-property name: ""
-  q-property description: ""
-  q-property price: 0
-  q-property SKU: ""
+q-component estore-cart {
+  q-property cartData: q-array { }
+  function addItem(name, price) { this.component.cartData.push(QMap({"name": name, "price": price }));
+    console.log(JSON.stringify(this.component.cartData))
+  }
+  function removeItem(name, price) { }
+  slot { cartModal }
 }
 
-q-component q-estore {
-  q-property products: q-array {
+q-component estore-catalog {
+  q-signal addItem(name, price)
+  q-property productData: q-array {
     q-map {
       SKU: "NL-100"
       name: "Night Lamp"
@@ -34,9 +37,47 @@ q-component q-estore {
       price: "19.95"
     }
   }
-  ul {
-  for (product in products) {
-    li { text { ${product.SKU} | ${product.name} | ${product.description} | ${product.price}  }}
+
+  q-grid {
+    columns: 3
+    for (product in this.component.productData) {
+      div.w3-panel.w3-border.w3-round-large {
+        style { minHeight: 170px; padding: 0.8rem; display: flex; flex-direction: column; justify-content: space-between; background: #fff; }
+        div.w3-small.w3-text-gray { text { SKU: ${product.SKU} } }
+        div.estore-name-row,span.estore-name-text { text { ${product.name} } }
+        div.estore-description-row,span.estore-description-text { text { ${product.description} } }
+        div.estore-price-row,span.estore-price-text.w3-text-indigo { text { $${product.price} } }
+        div.estore-action-row {
+          button {
+            text { add to cart }
+            onclick { this.component.addItem("${product.name}", "${product.price}") }
+          }
+        }
+      }
+    }
   }
 }
+
+q-component q-estore {
+  estore-cart mycart {
+    q-modal cartmodal {
+      onready { this.component.hide() }
+      title { text { Shopping Cart } }
+      content {
+        ul {
+          for (product in mycart.cartData) {
+            li { text { ${product.name} - ${product.price} } }
+          }
+        }
+      }
+    }
+  }
+
+  button {
+    text { checkout }
+    onclick { this.component.mycart.cartmodal.show() }
+  }
+
+  estore-catalog mycatalog { }
+  q-connect { mycatalog.addItem mycart.addItem }
 }

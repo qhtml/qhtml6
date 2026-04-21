@@ -9792,7 +9792,19 @@
     for (let i = 0; i < lifecycleScripts.length; i += 1) {
       const hook = lifecycleScripts[i];
       const body = hook && typeof hook.body === "string" ? hook.body.trim() : "";
+      if (!body || !(hook && hook.isQConnect === true)) {
+        continue;
+      }
+      runLifecycleHookBody(binding.host, body, binding.doc, "qhtml host lifecycle hook failed:");
+    }
+
+    for (let i = 0; i < lifecycleScripts.length; i += 1) {
+      const hook = lifecycleScripts[i];
+      const body = hook && typeof hook.body === "string" ? hook.body.trim() : "";
       if (!body) {
+        continue;
+      }
+      if (hook && hook.isQConnect === true) {
         continue;
       }
       const hookName = hook && typeof hook.name === "string" ? hook.name : "";
