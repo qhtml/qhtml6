@@ -71,8 +71,12 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - treat `host.qdom()` props as source-of-truth for reads/writes when available.
   - sync value writes back to mapped QDom props when available.
   - track previous values in a per-component property-state map stored on QDom metadata.
+  - preserve a raw assigned-value slot for public getter reads (`instance.prop` returns the raw assigned value when present).
+  - keep runtime-internal property bookkeeping/listeners private (not exposed through normal property getter reads).
   - skip re-render when value is unchanged (`Object.is`).
   - dispatch bubbling `q-property-changed` custom events for real value changes.
+  - when a declared property is assigned a QHTML model-like value (`QArray`/`QMap`/`QModel`), subscribe to its mutation signal and re-emit `<property>Changed` on internal model mutation.
+  - detach prior model-mutation listeners when the property is reassigned.
   - do not auto-dispatch render invalidation/update cycles after setter writes; post-set refresh is explicit.
   - event payload includes:
     - `component` / `componentId` / `componentTag`

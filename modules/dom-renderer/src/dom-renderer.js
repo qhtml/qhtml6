@@ -32,6 +32,7 @@
   const Q_SIGNAL_META_KEY = "__qhtmlSignalMeta";
   const Q_PROPERTY_INSTANCES_KEY = "__qhtmlPropertyInstances";
   const Q_PROPERTY_META_KEY = "__qhtmlPropertyMeta";
+  const Q_PROPERTY_MODEL_LISTENER_STORE_KEY = "__qhtmlDeclaredPropertyModelListeners";
   const Q_COMPONENT_INSTANCE_META_KEY = "__qhtmlComponentInstanceMeta";
   const WASM_DEFAULT_TIMEOUT_MS = 15000;
   const WASM_DEFAULT_MAX_PAYLOAD_BYTES = 1024 * 1024;
@@ -4382,6 +4383,126 @@
     store[propertyName] = value;
   }
 
+  function ensureDeclaredPropertyModelListenerStore(hostElement) {
+    if (!hostElement || typeof hostElement !== "object") {
+      return null;
+    }
+    let store = hostElement[Q_PROPERTY_MODEL_LISTENER_STORE_KEY];
+    if (!store || typeof store !== "object" || Array.isArray(store)) {
+      store = Object.create(null);
+      try {
+        Object.defineProperty(hostElement, Q_PROPERTY_MODEL_LISTENER_STORE_KEY, {
+          configurable: true,
+          enumerable: false,
+          writable: true,
+          value: store,
+        });
+      } catch (error) {
+        hostElement[Q_PROPERTY_MODEL_LISTENER_STORE_KEY] = store;
+      }
+    }
+    return store;
+  }
+
+  function detachDeclaredPropertyModelListener(hostElement, propertyName) {
+    const store = hostElement && hostElement[Q_PROPERTY_MODEL_LISTENER_STORE_KEY];
+    if (!store || typeof store !== "object" || Array.isArray(store)) {
+      return;
+    }
+    const key = String(propertyName || "").trim();
+    if (!key || !Object.prototype.hasOwnProperty.call(store, key)) {
+      return;
+    }
+    const entry = store[key] && typeof store[key] === "object" ? store[key] : null;
+    delete store[key];
+    if (!entry) {
+      return;
+    }
+    if (typeof entry.disconnect === "function") {
+      try {
+        entry.disconnect();
+        return;
+      } catch (error) {
+        // fall through
+      }
+    }
+    if (entry.signal && typeof entry.signal.disconnect === "function" && typeof entry.listener === "function") {
+      try {
+        entry.signal.disconnect(entry.listener);
+      } catch (error) {
+        // no-op
+      }
+    }
+  }
+
+  function attachDeclaredPropertyModelListener(hostElement, componentId, propertyName, value) {
+    const key = String(propertyName || "").trim();
+    if (!hostElement || !key) {
+      return;
+    }
+    if (!value || typeof value !== "object" || value.__qhtmlIsQModel !== true) {
+      return;
+    }
+    const signal = value.modelChanged || value.modelchanged;
+    const canConnectSignal = signal && typeof signal.connect === "function";
+    const canSubscribeModel = typeof value.subscribe === "function";
+    if (!canConnectSignal && !canSubscribeModel) {
+      return;
+    }
+
+    const listener = function onDeclaredPropertyModelMutation() {
+      const tracked = readTrackedDeclaredProperty(hostElement, key);
+      const currentValue = tracked.exists ? tracked.value : hostElement[key];
+      emitDeclaredPropertyChangedEvent(hostElement, componentId, key, currentValue, currentValue);
+    };
+
+    let disconnect = null;
+    if (canConnectSignal) {
+      try {
+        const connected = signal.connect(listener);
+        if (typeof connected === "function") {
+          disconnect = connected;
+        }
+      } catch (error) {
+        disconnect = null;
+      }
+      if (!disconnect && typeof signal.disconnect === "function") {
+        disconnect = function disconnectModelChangedSignal() {
+          try {
+            signal.disconnect(listener);
+          } catch (error) {
+            // no-op
+          }
+        };
+      }
+    }
+    if (!disconnect && canSubscribeModel) {
+      try {
+        const unsub = value.subscribe(listener);
+        if (typeof unsub === "function") {
+          disconnect = unsub;
+        }
+      } catch (error) {
+        disconnect = null;
+      }
+    }
+
+    if (!disconnect) {
+      return;
+    }
+
+    const store = ensureDeclaredPropertyModelListenerStore(hostElement);
+    if (!store) {
+      return;
+    }
+    store[key] = {
+      listener: listener,
+      disconnect: disconnect,
+      signal: signal || null,
+      model: value,
+    };
+  }
+
   function normalizeQLoggerCategoryToken(rawToken) {
     const token = String(rawToken || "").trim().toLowerCase();
     if (!token) {
@@ -5397,6 +5518,7 @@
         continue;
       }
       const storageKey = "__qhtmlDeclaredPropValue__" + propertyName;
+      const rawStorageKey = "__qhtmlDeclaredPropRawValue__" + propertyName;
       const bindingKey = "__qhtmlDeclaredPropBinding__" + propertyName;
       const hasInitialValue = Object.prototype.hasOwnProperty.call(hostElement, propertyName);
       let initialValue = hasInitialValue ? hostElement[propertyName] : undefined;
@@ -5460,6 +5582,9 @@
           configurable: true,
           enumerable: true,
           get: function getDeclaredComponentProperty() {
+            if (Object.prototype.hasOwnProperty.call(this, rawStorageKey)) {
+              return resolveCallbackReferenceValue(this[rawStorageKey]);
+            }
             let qdomNode = null;
             try {
               qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
@@ -5557,6 +5682,8 @@
                 // ignore getter failures and continue with write path
               }
             }
+            detachDeclaredPropertyModelListener(this, propertyName);
+            this[rawStorageKey] = normalizedValue;
             this[storageKey] = normalizedValue;
             try {
               const qdomNode = typeof this.qdom === "function" ? this.qdom() : null;
@@ -5578,9 +5705,11 @@
             }
             if (hadValue && Object.is(previousValue, normalizedValue)) {
               writeTrackedDeclaredProperty(this, propertyName, normalizedValue);
+              attachDeclaredPropertyModelListener(this, componentId, propertyName, normalizedValue);
               return;
             }
             writeTrackedDeclaredProperty(this, propertyName, normalizedValue);
+            attachDeclaredPropertyModelListener(this, componentId, propertyName, normalizedValue);
             if (hadValue) {
               if (
                 shouldLogQLoggerCategory(this, componentNode, instanceNode, "q-property") &&
