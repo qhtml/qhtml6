@@ -34,6 +34,7 @@
   const Q_PROPERTY_META_KEY = "__qhtmlPropertyMeta";
   const Q_PROPERTY_MODEL_LISTENER_STORE_KEY = "__qhtmlDeclaredPropertyModelListeners";
   const Q_COMPONENT_INSTANCE_META_KEY = "__qhtmlComponentInstanceMeta";
+  const Q_COMPONENT_TIMER_STORE_KEY = "__qhtmlComponentTimers";
   const WASM_DEFAULT_TIMEOUT_MS = 15000;
   const WASM_DEFAULT_MAX_PAYLOAD_BYTES = 1024 * 1024;
   let qdomInstanceCounter = 0;
@@ -3631,6 +3632,88 @@
     return out;
   }
 
+  function transformScriptBody(body) {
+    if (typeof body !== "string" || body.length === 0) {
+      return "";
+    }
+    return rewriteHashSelectorShorthand(body);
+  }
+
+  function normalizeHandlerParameterNames(entries) {
+    const input = Array.isArray(entries) ? entries : [];
+    const out = [];
+    const seen = new Set();
+    for (let i = 0; i < input.length; i += 1) {
+      const name = String(input[i] || "").trim();
+      if (!name || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name)) {
+        continue;
+      }
+      const key = name.toLowerCase();
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      out.push(name);
+    }
+    return out;
+  }
+
+  function normalizeEventAttributeParameterMap(input) {
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+      return {};
+    }
+    const out = {};
+    const keys = Object.keys(input);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim().toLowerCase();
+      if (!key) {
+        continue;
+      }
+      const names = normalizeHandlerParameterNames(input[key]);
+      if (names.length > 0) {
+        out[key] = names;
+      }
+    }
+    return out;
+  }
+
+  function eventHandlerParameterNamesEqual(a, b) {
+    const left = normalizeHandlerParameterNames(a);
+    const right = normalizeHandlerParameterNames(b);
+    if (left.length !== right.length) {
+      return false;
+    }
+    for (let i = 0; i < left.length; i += 1) {
+      if (String(left[i] || "") !== String(right[i] || "")) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function buildEventHandlerParameterPrelude(parameterNames) {
+    const names = normalizeHandlerParameterNames(parameterNames);
+    if (names.length === 0) {
+      return "";
+    }
+    const lines = [];
+    for (let i = 0; i < names.length; i += 1) {
+      const name = names[i];
+      const key = JSON.stringify(name);
+      const fallbackIndex = String(i);
+      lines.push(
+        "var " + name + " = (" +
+          "(event && event.__qhtmlParams && Object.prototype.hasOwnProperty.call(event.__qhtmlParams, " + key + ")) ? event.__qhtmlParams[" + key + "] :" +
+          "((event && event.__qhtmlArgs && event.__qhtmlArgs.length > " + fallbackIndex + ") ? event.__qhtmlArgs[" + fallbackIndex + "] :" +
+          "((event && event.detail && event.detail.params && Object.prototype.hasOwnProperty.call(event.detail.params, " + key + ")) ? event.detail.params[" + key + "] :" +
+          "((event && event.detail && Array.isArray(event.detail.args) && event.detail.args.length > " + fallbackIndex + ") ? event.detail.args[" + fallbackIndex + "] : undefined)" +
+          "))" +
+        ");"
+      );
+    }
+    return lines.join("\n") + "\n";
+  }
+
   function bindEventAttributeListener(element, attributeName, body, options) {
     if (!element || element.nodeType !== 1 || !isDomEventAttributeName(attributeName)) {
       return false;
@@ -3658,7 +3741,8 @@
       opts.scopeRoot && opts.scopeRoot.nodeType === 1
         ? opts.scopeRoot
         : null;
-    const transformedSource = rewriteHashSelectorShorthand(source);
+    const handlerParameterNames = normalizeHandlerParameterNames(opts.parameterNames);
+    const transformedSource = transformScriptBody(buildEventHandlerParameterPrelude(handlerParameterNames) + source);
     const store = ensureEventAttributeListenerStore(element);
     const current = store && store[key] ? store[key] : null;
     const currentNames = current && Array.isArray(current.eventNames) ? current.eventNames : [];
@@ -3667,7 +3751,7 @@
       currentNames.every(function sameName(name, index) {
         return String(name || "") === String(eventNames[index] || "");
       });
-    if (current && current.source === transformedSource && sameNames) {
+    if (current && current.source === transformedSource && sameNames && eventHandlerParameterNamesEqual(current.parameterNames, handlerParameterNames)) {
       return true;
     }
     detachEventAttributeListener(element, key);
@@ -3855,6 +3939,7 @@
       handler: handler,
       signalBridge: signalBridge,
       source: transformedSource,
+      parameterNames: handlerParameterNames.slice(),
       runtimeSignalRegistration: runtimeSignalRegistration,
       runtimeSignalReference: runtimeSignalReference,
     };
@@ -3868,6 +3953,7 @@
     const opts = options || {};
     const interpolationScope = opts.scope && typeof opts.scope === "object" ? opts.scope : null;
     const interpolationThisArg = opts.thisArg || element || null;
+    const eventAttributeParameterMap = normalizeEventAttributeParameterMap(opts.eventAttributeParameters);
     const keys = Object.keys(attrs);
     for (let i = 0; i < keys.length; i += 1) {
       const key = keys[i];
@@ -3891,6 +3977,7 @@
             interpolationScope && interpolationScope.root && interpolationScope.root.nodeType === 1
               ? interpolationScope.root
               : null,
+          parameterNames: eventAttributeParameterMap[String(key || "").trim().toLowerCase()] || [],
         })
       ) {
         continue;
@@ -5410,6 +5497,415 @@
     });
   }
 
+  function ensureComponentTimerStore(hostElement) {
+    if (!hostElement || hostElement.nodeType !== 1) {
+      return null;
+    }
+    let store = hostElement[Q_COMPONENT_TIMER_STORE_KEY];
+    if (!store || typeof store !== "object") {
+      store = Object.create(null);
+      try {
+        Object.defineProperty(hostElement, Q_COMPONENT_TIMER_STORE_KEY, {
+          configurable: true,
+          enumerable: false,
+          writable: true,
+          value: store,
+        });
+      } catch (error) {
+        hostElement[Q_COMPONENT_TIMER_STORE_KEY] = store;
+      }
+    }
+    return store;
+  }
+
+  function stopComponentTimers(hostElement) {
+    const store = ensureComponentTimerStore(hostElement);
+    if (!store) {
+      return;
+    }
+    const names = Object.keys(store);
+    for (let i = 0; i < names.length; i += 1) {
+      const entry = store[names[i]];
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      if (typeof entry.stop === "function") {
+        try {
+          entry.stop();
+        } catch (error) {
+          // no-op
+        }
+      }
+      if (entry.timeoutSignal && typeof entry.timeoutSignal.disconnect === "function") {
+        try {
+          entry.timeoutSignal.disconnect();
+        } catch (error) {
+          // no-op
+        }
+      }
+    }
+    for (let i = 0; i < names.length; i += 1) {
+      delete store[names[i]];
+    }
+  }
+
+  function normalizeComponentTimerDefinitions(componentNode) {
+    const raw = Array.isArray(componentNode && componentNode.qTimerDefinitions)
+      ? componentNode.qTimerDefinitions
+      : [];
+    const out = [];
+    const seen = new Set();
+    for (let i = 0; i < raw.length; i += 1) {
+      const entry = raw[i] && typeof raw[i] === "object" ? raw[i] : {};
+      const timerId = String(entry.timerId || "").trim();
+      if (!timerId) {
+        continue;
+      }
+      const key = timerId.toLowerCase();
+      if (seen.has(key)) {
+        throw new Error("Duplicate q-timer id in component scope: '" + timerId + "'.");
+      }
+      seen.add(key);
+      const intervalValue = Number(entry.interval);
+      out.push({
+        timerId: timerId,
+        interval: Number.isFinite(intervalValue) && intervalValue >= 0 ? Math.floor(intervalValue) : 0,
+        repeat: entry.repeat !== false,
+        running: entry.running !== false,
+        onTimeout: String(entry.onTimeout || ""),
+      });
+    }
+    return out;
+  }
+
+  function createComponentTimerTimeoutSignal(hostElement, runtimeApi, timerName) {
+    const listeners = new Set();
+    const signal = createQSignalInstance("timeout", hostElement, function emitComponentTimerTimeoutSignal() {
+      const args = Array.prototype.slice.call(arguments);
+      const emitNow = function emitConnectedTimerListeners() {
+        const list = Array.from(listeners.values());
+        for (let i = 0; i < list.length; i += 1) {
+          const handler = list[i];
+          if (typeof handler !== "function") {
+            continue;
+          }
+          try {
+            invokeWithRuntimeExecutionHost(hostElement, function invokeTimerSignalHandler() {
+              return handler.apply(hostElement, args);
+            });
+          } catch (error) {
+            if (global.console && typeof global.console.error === "function") {
+              global.console.error("qhtml q-timer timeout signal handler failed:", timerName, error);
+            }
+          }
+        }
+      };
+      if (runtimeApi && typeof runtimeApi.enqueueRuntimeEvent === "function") {
+        runtimeApi.enqueueRuntimeEvent(
+          "component-timer-timeout-signal",
+          emitNow,
+          {
+            target: hostElement,
+            payload: {
+              timerId: timerName,
+            },
+          }
+        );
+        return undefined;
+      }
+      emitNow();
+      return undefined;
+    });
+    const meta = signal && signal[Q_SIGNAL_META_KEY] && typeof signal[Q_SIGNAL_META_KEY] === "object"
+      ? signal[Q_SIGNAL_META_KEY]
+      : null;
+    if (meta) {
+      meta.connectImpl = function connectComponentTimerTimeout(handler) {
+        if (typeof handler !== "function") {
+          return null;
+        }
+        listeners.add(handler);
+        return handler;
+      };
+      meta.disconnectImpl = function disconnectComponentTimerTimeout(handler) {
+        if (!handler) {
+          listeners.clear();
+          return true;
+        }
+        if (typeof handler !== "function") {
+          return false;
+        }
+        return listeners.delete(handler);
+      };
+    }
+    return signal;
+  }
+
+  function createComponentTimerHandle(runtimeState) {
+    const runtime = runtimeState && typeof runtimeState === "object" ? runtimeState : null;
+    if (!runtime) {
+      return null;
+    }
+    const handle = {
+      start: function startComponentTimerHandle() {
+        return typeof runtime.start === "function" ? runtime.start() : null;
+      },
+      stop: function stopComponentTimerHandle() {
+        return typeof runtime.stop === "function" ? runtime.stop() : false;
+      },
+      restart: function restartComponentTimerHandle() {
+        return typeof runtime.restart === "function" ? runtime.restart() : null;
+      },
+      valueOf: function valueOfComponentTimerHandle() {
+        return runtime.timerId == null ? 0 : runtime.timerId;
+      },
+      toString: function toStringComponentTimerHandle() {
+        return String(runtime.timerId == null ? "" : runtime.timerId);
+      },
+    };
+    if (typeof Symbol !== "undefined" && Symbol && Symbol.toPrimitive) {
+      handle[Symbol.toPrimitive] = function componentTimerToPrimitive(hint) {
+        if (hint === "string") {
+          return String(runtime.timerId == null ? "" : runtime.timerId);
+        }
+        return runtime.timerId == null ? 0 : runtime.timerId;
+      };
+    }
+    Object.defineProperty(handle, "name", {
+      configurable: true,
+      enumerable: true,
+      get: function getComponentTimerName() { return String(runtime.name || ""); },
+    });
+    Object.defineProperty(handle, "timerId", {
+      configurable: true,
+      enumerable: true,
+      get: function getComponentTimerId() { return runtime.timerId; },
+    });
+    Object.defineProperty(handle, "running", {
+      configurable: true,
+      enumerable: true,
+      get: function getComponentTimerRunning() { return runtime.running === true; },
+    });
+    Object.defineProperty(handle, "repeat", {
+      configurable: true,
+      enumerable: true,
+      get: function getComponentTimerRepeat() { return runtime.repeat === true; },
+      set: function setComponentTimerRepeat(next) {
+        runtime.repeat = next !== false;
+      },
+    });
+    Object.defineProperty(handle, "interval", {
+      configurable: true,
+      enumerable: true,
+      get: function getComponentTimerInterval() { return Number(runtime.interval || 0); },
+      set: function setComponentTimerInterval(next) {
+        const numeric = Number(next);
+        if (Number.isFinite(numeric) && numeric >= 0) {
+          runtime.interval = Math.max(0, Math.floor(numeric));
+        }
+      },
+    });
+    Object.defineProperty(handle, "timeout", {
+      configurable: true,
+      enumerable: true,
+      get: function getComponentTimerTimeoutSignal() { return runtime.timeoutSignal || null; },
+    });
+    return handle;
+  }
+
+  function createComponentTimerExecutor(timerDefinition, hostElement, targetDocument) {
+    const scriptBody = transformScriptBody(String(timerDefinition && timerDefinition.onTimeout || ""));
+    if (!scriptBody.trim()) {
+      return function noopComponentTimerExecutor() {};
+    }
+    const hasInterpolatedBody = hasInlineReferenceExpressions(scriptBody);
+    let compiled = null;
+    if (!hasInterpolatedBody) {
+      try {
+        compiled = new Function("event", "document", withScopedSelectorPrelude(scriptBody));
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml q-timer compile failed:", error);
+        }
+        return function noopComponentTimerExecutor() {};
+      }
+    }
+    const doc = targetDocument || (hostElement && hostElement.ownerDocument) || global.document || null;
+    return function runComponentTimerExecutor(runtimeState, eventPayload) {
+      const runtime = runtimeState && typeof runtimeState === "object" ? runtimeState : null;
+      const event = eventPayload && typeof eventPayload === "object"
+        ? eventPayload
+        : {
+            type: "timeout",
+            timerId: runtime && runtime.name ? runtime.name : "",
+            timerHandle: runtime ? runtime.timerId : null,
+          };
+      const invocationHost = hostElement && hostElement.nodeType === 1 ? hostElement : null;
+      if (!invocationHost) {
+        return;
+      }
+      ensureScopedSelectorShortcut(invocationHost, null);
+      if (hasInterpolatedBody) {
+        const executableSource = interpolateInlineReferenceExpressions(
+          scriptBody,
+          invocationHost,
+          {
+            component: invocationHost,
+            event: event,
+            timer: runtime && runtime.handle ? runtime.handle : null,
+            document: doc,
+          },
+          "qhtml q-timer interpolation failed:",
+          { scriptLiteral: true }
+        );
+        try {
+          const dynamic = new Function("event", "document", withScopedSelectorPrelude(executableSource));
+          invokeWithRuntimeExecutionHost(invocationHost, function invokeDynamicComponentTimer() {
+            dynamic.call(invocationHost, event, doc);
+          });
+        } catch (error) {
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml q-timer execution failed:", error);
+          }
+        }
+        return;
+      }
+      try {
+        invokeWithRuntimeExecutionHost(invocationHost, function invokeCompiledComponentTimer() {
+          compiled.call(invocationHost, event, doc);
+        });
+      } catch (error) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml q-timer execution failed:", error);
+        }
+      }
+    };
+  }
+
+  function bindComponentTimers(componentNode, hostElement, targetDocument, runtimeApi, scopeFrame, runtimeFrame) {
+    if (!componentNode || !hostElement || hostElement.nodeType !== 1) {
+      return;
+    }
+    const definitions = normalizeComponentTimerDefinitions(componentNode);
+    stopComponentTimers(hostElement);
+    if (definitions.length === 0) {
+      return;
+    }
+    const timerStore = ensureComponentTimerStore(hostElement);
+    for (let i = 0; i < definitions.length; i += 1) {
+      const timerDefinition = definitions[i];
+      const timerName = String(timerDefinition.timerId || "").trim();
+      if (!timerName) {
+        continue;
+      }
+      if (Object.prototype.hasOwnProperty.call(hostElement, timerName)) {
+        throw new Error("q-timer id conflicts with existing component member: '" + timerName + "'.");
+      }
+      const runtime = {
+        name: timerName,
+        interval: Number(timerDefinition.interval || 0),
+        repeat: timerDefinition.repeat !== false,
+        running: timerDefinition.running !== false,
+        timerId: null,
+        timeoutSignal: null,
+        handle: null,
+        executeTimeout: null,
+        stop: null,
+        start: null,
+        restart: null,
+      };
+      runtime.timeoutSignal = createComponentTimerTimeoutSignal(hostElement, runtimeApi, timerName);
+      runtime.executeTimeout = createComponentTimerExecutor(timerDefinition, hostElement, targetDocument);
+      const scheduleTick = function scheduleComponentTimerTick() {
+        if (runtime.running !== true) {
+          return;
+        }
+        const delay = Math.max(0, Math.floor(Number(runtime.interval || 0)));
+        if (typeof global.setTimeout === "function") {
+          runtime.timerId = global.setTimeout(onTick, delay);
+        } else {
+          runtime.timerId = null;
+        }
+      };
+      const onTick = function onComponentTimerTick() {
+        if (runtime.running !== true) {
+          return;
+        }
+        if (hostElement.isConnected === false) {
+          runtime.stop();
+          return;
+        }
+        const eventPayload = {
+          type: "timeout",
+          timerId: runtime.name,
+          timerHandle: runtime.timerId,
+          component: String(componentNode.componentId || hostElement.tagName || "").trim().toLowerCase(),
+          componentUuid: String(readHostQDomUuid(hostElement) || "").trim(),
+        };
+        const invokeTimeout = function invokeComponentTimerTimeout() {
+          runtime.executeTimeout(runtime, eventPayload);
+          if (runtime.timeoutSignal && typeof runtime.timeoutSignal.emit === "function") {
+            runtime.timeoutSignal.emit(eventPayload);
+          }
+          if (runtime.repeat === true && runtime.running === true) {
+            scheduleTick();
+          } else {
+            runtime.stop();
+          }
+        };
+        if (runtimeApi && typeof runtimeApi.enqueueRuntimeEvent === "function") {
+          runtimeApi.enqueueRuntimeEvent(
+            "component-timer-timeout",
+            invokeTimeout,
+            {
+              target: hostElement,
+              payload: {
+                timerId: runtime.name,
+              },
+            }
+          );
+          return;
+        }
+        invokeTimeout();
+      };
+      runtime.stop = function stopComponentTimer() {
+        if (runtime.timerId != null && typeof global.clearTimeout === "function") {
+          try {
+            global.clearTimeout(runtime.timerId);
+          } catch (error) {
+            // no-op
+          }
+        }
+        runtime.timerId = null;
+        runtime.running = false;
+        return true;
+      };
+      runtime.start = function startComponentTimer() {
+        runtime.stop();
+        runtime.running = true;
+        scheduleTick();
+        return runtime.timerId;
+      };
+      runtime.restart = function restartComponentTimer() {
+        return runtime.start();
+      };
+      runtime.handle = createComponentTimerHandle(runtime);
+      timerStore[timerName] = runtime;
+      if (scopeFrame && typeof scopeFrame.set === "function") {
+        scopeFrame.set(timerName, runtime.handle);
+      }
+      if (runtimeFrame && typeof runtimeFrame.set === "function") {
+        runtimeFrame.set(timerName, runtime.handle);
+      }
+      exportNamedAliasToHost(hostElement, timerName, runtime.handle);
+      if (runtime.running === true) {
+        runtime.start();
+      } else {
+        runtime.stop();
+      }
+    }
+  }
+
   function bindComponentMethods(componentNode, hostElement, instanceNode) {
     if (!componentNode || !hostElement) {
       return;
@@ -5453,6 +5949,11 @@
     const componentAttributes = componentNode.attributes && typeof componentNode.attributes === "object"
       ? componentNode.attributes
       : {};
+    const componentEventAttributeParameters = normalizeEventAttributeParameterMap(
+      componentNode && componentNode.meta && componentNode.meta.__qhtmlEventAttributeParams
+        ? componentNode.meta.__qhtmlEventAttributeParams
+        : null
+    );
     const hasCanvasSemantics = componentNodeHasCanvasSemantics(componentNode);
     const instanceAttributes =
       instanceNode && instanceNode.attributes && typeof instanceNode.attributes === "object"
@@ -5462,6 +5963,11 @@
       instanceNode && instanceNode.props && typeof instanceNode.props === "object"
         ? instanceNode.props
         : {};
+    const instanceEventAttributeParameters = normalizeEventAttributeParameterMap(
+      instanceNode && instanceNode.meta && instanceNode.meta.__qhtmlEventAttributeParams
+        ? instanceNode.meta.__qhtmlEventAttributeParams
+        : null
+    );
     const instanceAttributeKeySet = new Set();
     const instanceAttributeKeys = Object.keys(instanceAttributes);
     for (let i = 0; i < instanceAttributeKeys.length; i += 1) {
@@ -6395,7 +6901,7 @@
       delete store[key];
     }
 
-    function bindComponentSignalAttributeConnection(attributeName, body, signalDecl) {
+    function bindComponentSignalAttributeConnection(attributeName, body, signalDecl, handlerParamNames) {
       const signalName = String(signalDecl && signalDecl.name || "").trim();
       if (!signalName) {
         return false;
@@ -6413,10 +6919,22 @@
         detachComponentSignalAttributeConnection(hostElement, key);
         return true;
       }
-      const transformedSource = rewriteHashSelectorShorthand(source);
+      const declaredHandlerParamNames = normalizeHandlerParameterNames(handlerParamNames);
       const store = ensureComponentSignalAttributeConnectionStore(hostElement);
       const current = store && store[key] ? store[key] : null;
-      if (current && current.source === transformedSource && String(current.signalName || "") === signalName) {
+      const signalParameterNames = Array.isArray(signalDecl.parameters)
+        ? signalDecl.parameters.map(function mapSignalParam(entry) { return String(entry || "").trim(); }).filter(Boolean)
+        : [];
+      const effectiveParameterNames = declaredHandlerParamNames.length > 0
+        ? declaredHandlerParamNames
+        : signalParameterNames;
+      const transformedSource = transformScriptBody(buildEventHandlerParameterPrelude(effectiveParameterNames) + source);
+      if (
+        current &&
+        current.source === transformedSource &&
+        String(current.signalName || "") === signalName &&
+        eventHandlerParameterNamesEqual(current.parameterNames, effectiveParameterNames)
+      ) {
         return true;
       }
       detachComponentSignalAttributeConnection(hostElement, key);
@@ -6437,15 +6955,16 @@
           return false;
         }
       }
-      const parameterNames = Array.isArray(signalDecl.parameters)
-        ? signalDecl.parameters.map(function mapSignalParam(entry) { return String(entry || "").trim(); }).filter(Boolean)
-        : [];
       const connectedHandler = function onComponentSignalAttributeConnected() {
         const invocationHost = resolveLiveComponentHost(hostElement);
         const args = Array.prototype.slice.call(arguments);
         const params = {};
-        for (let i = 0; i < parameterNames.length; i += 1) {
-          params[parameterNames[i]] = i < args.length ? args[i] : null;
+        for (let i = 0; i < signalParameterNames.length; i += 1) {
+          params[signalParameterNames[i]] = i < args.length ? args[i] : null;
+        }
+        const handlerParams = {};
+        for (let i = 0; i < effectiveParameterNames.length; i += 1) {
+          handlerParams[effectiveParameterNames[i]] = i < args.length ? args[i] : null;
         }
         const detail = {
           type: "signal",
@@ -6462,6 +6981,8 @@
           target: invocationHost,
           currentTarget: invocationHost,
         };
+        event.__qhtmlArgs = args.slice();
+        event.__qhtmlParams = handlerParams;
         let executableSource = transformedSource;
         if (hasInterpolatedBody) {
           executableSource = interpolateInlineReferenceExpressions(
@@ -6503,6 +7024,7 @@
       store[key] = {
         signalName: signalName,
         source: transformedSource,
+        parameterNames: effectiveParameterNames.slice(),
         handler: connectedHandler,
       };
       return true;
@@ -6587,6 +7109,10 @@
       if (!body) {
         continue;
       }
+      const parameterNames =
+        instanceEventAttributeParameters[attributeName.toLowerCase()] ||
+        componentEventAttributeParameters[attributeName.toLowerCase()] ||
+        [];
       const rawSignalName = String(attributeName.slice(2) || "").trim();
       const rawSignalKey = rawSignalName.toLowerCase();
       let signalDecl = signalAttributeLookup.get(rawSignalKey) || null;
@@ -6599,12 +7125,13 @@
           }
         }
       }
-      if (signalDecl && bindComponentSignalAttributeConnection(attributeName, body, signalDecl)) {
+      if (signalDecl && bindComponentSignalAttributeConnection(attributeName, body, signalDecl, parameterNames)) {
         continue;
       }
       bindEventAttributeListener(hostElement, attributeName, body, {
         doc: hostElement.ownerDocument || global.document || null,
         scopeRoot: null,
+        parameterNames: parameterNames,
       });
     }
 
@@ -6624,6 +7151,14 @@
       }
     }
 
+    bindComponentTimers(
+      componentNode,
+      hostElement,
+      hostElement.ownerDocument || global.document || null,
+      runtimeApi,
+      hostScopeFrame,
+      hostRuntimeFrame
+    );
     bindComponentWasm(componentNode, hostElement);
   }
 
@@ -8394,6 +8929,10 @@
       setElementAttributes(element, node.attributes, {
         thisArg: element,
         scope: interpolationScope,
+        eventAttributeParameters:
+          node && node.meta && node.meta.__qhtmlEventAttributeParams
+            ? node.meta.__qhtmlEventAttributeParams
+            : null,
       });
       parent.appendChild(element);
 
@@ -8668,6 +9207,10 @@
     setElementAttributes(hostElement, instanceNode.attributes, {
       thisArg: hostElement,
       scope: interpolationScope,
+      eventAttributeParameters:
+        instanceNode && instanceNode.meta && instanceNode.meta.__qhtmlEventAttributeParams
+          ? instanceNode.meta.__qhtmlEventAttributeParams
+          : null,
     });
     setElementProperties(hostElement, instanceNode.props, {
       declaredProperties: collectDeclaredComponentPropertySet(componentNode, instanceNode),
@@ -8870,6 +9413,10 @@
     setElementAttributes(workerHost, instanceNode.attributes, {
       thisArg: workerHost,
       scope: interpolationScope,
+      eventAttributeParameters:
+        instanceNode && instanceNode.meta && instanceNode.meta.__qhtmlEventAttributeParams
+          ? instanceNode.meta.__qhtmlEventAttributeParams
+          : null,
     });
     setElementProperties(workerHost, instanceNode.props, {
       declaredProperties: collectDeclaredComponentPropertySet(componentNode, instanceNode),

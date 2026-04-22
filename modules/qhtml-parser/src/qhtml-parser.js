@@ -580,7 +580,7 @@
     if (token.nameLower === "q-keyword") {
       return isIdentifierStartChar(next);
     }
-    if (isEventBlockName(token.name) && next === "{") {
+    if (isEventBlockName(token.name) && (next === "{" || next === "(")) {
       return true;
     }
     return false;
@@ -1887,6 +1887,50 @@
     return out;
   }
 
+  function normalizeEventBlockParameterNames(entries) {
+    const input = Array.isArray(entries) ? entries : [];
+    const out = [];
+    const seen = new Set();
+    for (let i = 0; i < input.length; i += 1) {
+      const raw = String(input[i] || "").trim();
+      if (!raw || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(raw)) {
+        continue;
+      }
+      const key = raw.toLowerCase();
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      out.push(raw);
+    }
+    return out;
+  }
+
+  function registerEventBlockParametersOnMeta(targetNode, attributeName, parameterNames) {
+    if (!targetNode || typeof targetNode !== "object") {
+      return;
+    }
+    const key = String(attributeName || "").trim().toLowerCase();
+    if (!key) {
+      return;
+    }
+    const normalizedNames = normalizeEventBlockParameterNames(parameterNames);
+    if (normalizedNames.length === 0) {
+      return;
+    }
+    if (!targetNode.meta || typeof targetNode.meta !== "object") {
+      targetNode.meta = {};
+    }
+    if (
+      !targetNode.meta.__qhtmlEventAttributeParams ||
+      typeof targetNode.meta.__qhtmlEventAttributeParams !== "object" ||
+      Array.isArray(targetNode.meta.__qhtmlEventAttributeParams)
+    ) {
+      targetNode.meta.__qhtmlEventAttributeParams = {};
+    }
+    targetNode.meta.__qhtmlEventAttributeParams[key] = normalizedNames.slice();
+  }
+
   function cloneKeywordAliases(keywordAliases) {
     if (keywordAliases instanceof Map) {
       return new Map(keywordAliases);
@@ -2452,6 +2496,52 @@
         if (nameLower === "q-connect" && nextChar !== "{") {
           throw ParseError("q-connect requires a block body", parser.index);
         }
+        if (nameLower === "q-timer" && nextChar !== "{" && nextChar !== ",") {
+          const timerId = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-timer id", parser.index);
+          }
+          consume(parser);
+          const timerBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "QTimerDefinition",
+            timerId: String(timerId || "").trim(),
+            body: String(timerBody || ""),
+            config: parseQTimerDefinitionBody(String(timerBody || ""), scopedKeywordAliases),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-timer" && nextChar === "{") {
+          throw ParseError("Anonymous q-timer is not allowed", parser.index);
+        }
+        if (nameLower === "q-canvas" && nextChar !== "{" && nextChar !== ",") {
+          const canvasId = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-canvas id", parser.index);
+          }
+          consume(parser);
+          const canvasBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "QCanvasDefinition",
+            canvasId: String(canvasId || "").trim(),
+            body: String(canvasBody || ""),
+            config: parseQCanvasDefinitionBody(String(canvasBody || ""), scopedKeywordAliases),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-canvas" && nextChar === "{") {
+          throw ParseError("Anonymous q-canvas is not allowed", parser.index);
+        }
         if (nameLower === "q-property" && nextChar !== "{") {
           const propertyNameStart = parser.index;
           const propertyName = parseIdentifier(parser);
@@ -2700,6 +2790,32 @@
             raw: parser.source.slice(itemStart, parser.index),
           });
           continue;
+          }
+        }
+        if (isEventBlockName(name) && (nextChar === "{" || nextChar === "(")) {
+          let parameterNames = [];
+          if (nextChar === "(") {
+            skipInlineWhitespace(parser);
+            consume(parser);
+            const parameterSource = readBalancedParenthesizedContent(parser);
+            parameterNames = parseSignalParameterNames(parameterSource);
+            skipWhitespace(parser);
+          }
+          if (peek(parser) === "{") {
+            consume(parser);
+            const scriptBody = readBalancedBlockContent(parser);
+            items.push({
+              type: "EventBlock",
+              name: name,
+              script: scriptBody,
+              parameters: parameterNames,
+              isLifecycle: LIFECYCLE_BLOCKS.has(nameLower),
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
           }
         }
         if (isIdentifierStartChar(nextChar)) {
@@ -3012,13 +3128,23 @@
             throw ParseError("Anonymous q-default-theme is not allowed", parser.index);
           }
 
-          if (isEventBlockName(name)) {
+        if (isEventBlockName(name)) {
+          let parameterNames = [];
+          skipInlineWhitespace(parser);
+          if (peek(parser) === "(") {
+            consume(parser);
+            const parameterSource = readBalancedParenthesizedContent(parser);
+            parameterNames = parseSignalParameterNames(parameterSource);
+            skipWhitespace(parser);
+          }
+          if (peek(parser) === "{") {
             consume(parser);
             const scriptBody = readBalancedBlockContent(parser);
             items.push({
               type: "EventBlock",
               name: name,
               script: scriptBody,
+              parameters: parameterNames,
               isLifecycle: LIFECYCLE_BLOCKS.has(nameLower),
               keywords: keywordSnapshot,
               start: itemStart,
@@ -3027,6 +3153,7 @@
             });
             continue;
           }
+        }
 
           parser.index = afterName;
           const prefixDirectives = parseLeadingSelectorDirectiveBlocks(parser);
@@ -10151,6 +10278,7 @@
           });
         } else {
           targetElement.attributes[key] = script;
+          registerEventBlockParametersOnMeta(targetElement, key, item.parameters);
         }
       } else if (item.type === "QConnectDefinition") {
         const connectBody = buildQConnectLifecycleBody(item);
@@ -10295,6 +10423,9 @@
     let componentLoggerCategories = null;
     let wasmConfig = null;
     const lifecycleScripts = [];
+    const qTimerDefinitions = [];
+    const qTimerNamesSeen = new Set();
+    const componentEventAttributeParams = {};
     const requestedDefinitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
     const definitionType =
       requestedDefinitionType === "template"
@@ -10669,6 +10800,10 @@
           const eventName = String(item.name || "").trim();
           if (eventName) {
             componentAttributes[eventName] = compactScriptBody(item.script || "");
+            const eventParameterNames = normalizeEventBlockParameterNames(item.parameters);
+            if (eventParameterNames.length > 0) {
+              componentEventAttributeParams[eventName.toLowerCase()] = eventParameterNames.slice();
+            }
           }
         }
         continue;
@@ -10683,6 +10818,29 @@
               isQConnect: true,
             });
           }
+        }
+        continue;
+      }
+      if (item.type === "QTimerDefinition") {
+        if (supportsRuntimeDefinition) {
+          const timerId = String(item.timerId || "").trim();
+          if (!timerId) {
+            continue;
+          }
+          const timerKey = timerId.toLowerCase();
+          if (qTimerNamesSeen.has(timerKey)) {
+            throw new Error("Duplicate q-timer id in component scope: '" + timerId + "'.");
+          }
+          qTimerNamesSeen.add(timerKey);
+          const config = item.config && typeof item.config === "object" ? item.config : {};
+          const interval = Number(config.interval);
+          qTimerDefinitions.push({
+            timerId: timerId,
+            interval: Number.isFinite(interval) && interval >= 0 ? Math.floor(interval) : 0,
+            repeat: config.repeat !== false,
+            running: config.running !== false,
+            onTimeout: String(config.onTimeout || ""),
+          });
         }
         continue;
       }
@@ -10703,6 +10861,7 @@
       signalDeclarations: signalDeclarations,
       callbackDeclarations: callbackDeclarations,
       aliasDeclarations: aliasDeclarations,
+      qTimerDefinitions: qTimerDefinitions,
       wasmConfig: wasmConfig,
       lifecycleScripts: lifecycleScripts,
       attributes: componentAttributes,
@@ -10717,6 +10876,12 @@
         componentNode.meta = {};
       }
       componentNode.meta.__qhtmlLoggerCategories = componentLoggerCategories.slice();
+    }
+    if (Object.keys(componentEventAttributeParams).length > 0) {
+      if (!componentNode.meta || typeof componentNode.meta !== "object") {
+        componentNode.meta = {};
+      }
+      componentNode.meta.__qhtmlEventAttributeParams = Object.assign({}, componentEventAttributeParams);
     }
     if (
       definitionType === "component" &&
@@ -11930,6 +12095,14 @@
         const serializedWasmConfig = serializeWasmConfigBlock(node.wasmConfig, indentLevel + 1);
         if (serializedWasmConfig) {
           lines.push(serializedWasmConfig);
+        }
+        if (Array.isArray(node.qTimerDefinitions)) {
+          for (let i = 0; i < node.qTimerDefinitions.length; i += 1) {
+            const serializedTimerDefinition = serializeQTimerDefinitionBlock(node.qTimerDefinitions[i], indentLevel + 1);
+            if (serializedTimerDefinition) {
+              lines.push(serializedTimerDefinition);
+            }
+          }
         }
         for (let i = 0; i < node.methods.length; i += 1) {
           lines.push(serializeFunctionBlock(node.methods[i], indentLevel + 1));

@@ -473,7 +473,10 @@ div.w3-container.w3-border.w3-round-large.w3-padding {
     oncontextmenu {
       event.preventDefault();
       ctxUsage.show(event.clientX + "px", event.clientY + "px");
-      ctxLog.textContent = "Last open: " + String(event.clientX) + ", " + String(event.clientY);
+      var ctxLog = document.querySelector("#ctx-log");
+      if (ctxLog) {
+        ctxLog.textContent = "Last open: " + String(event.clientX) + ", " + String(event.clientY);
+      }
     }
 
     p { text { This context menu uses explicit show(event.clientX, event.clientY). } }
@@ -493,8 +496,7 @@ div.w3-container.w3-border.w3-round-large.w3-padding {
     }
 
   }
-  p ctxLog {
-    id: "ctx-log"
+  p#ctx-log {
     class: "w3-small"
     style { color: #334155; }
     text { Last open: none }
@@ -749,7 +751,7 @@ q-estore demoestore {
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components/q-spritesheet.qhtml?v=6.2.21 }
+q-import { q-components/q-spritesheet.qhtml?v=6.3.2 }
 
 q-component sprite-demo-status {
   q-property textValue: "frame: 0"
@@ -763,14 +765,12 @@ div.w3-container.w3-border.w3-round-large.w3-padding {
 
   q-spritesheet demoSheet {
     source: "assets/test-ss.png"
-    framecount: 18
-    start: 0
-    stop: 17
-    duration: 70
-    framewidth: 32
-    frameheight: 32
-    width: 160
-    height: 160
+    frameCount: 18
+    frameStart: 0
+    frameStop: 17
+    frameDuration: 70
+    frameWidth: 32
+    frameHeight: 32
     repeat: true
     running: false
     interpolate: true
@@ -782,11 +782,11 @@ div.w3-container.w3-border.w3-round-large.w3-padding {
   div.w3-margin-top {
     button.w3-button.w3-border.w3-round.w3-small {
       text { Start }
-      onclick { demoSheet.play(); }
+      onclick { demoSheet.start(); }
     }
     button.w3-button.w3-border.w3-round.w3-small.w3-margin-left {
       text { Stop }
-      onclick { demoSheet.stopPlayback(); }
+      onclick { demoSheet.stop(); }
     }
     button.w3-button.w3-border.w3-round.w3-small.w3-margin-left {
       text { Toggle Interpolate }
@@ -839,6 +839,241 @@ div.w3-container.w3-border.w3-round-large.w3-padding {
       src: "q-components/expand-collapse.svg"
       label: "Settings"
       onclick { alert("settings clicked") }
+    }
+  }
+}
+          </q-editor>
+        </div>
+      </section>
+
+      <section class="example-class" id="q-unified-hub" data-title="unified commerce ops hub">
+        <div class="example-head">
+          <h3>Unified Commerce Ops Hub</h3>
+          <p>One integrated control surface combining navigation, storefront, monitoring, and quick actions with typed named instances.</p>
+        </div>
+        <div class="example-body">
+          <q-editor>
+q-import { q-components/q-sidebar.qhtml?v=drawer-width }
+q-import { q-components/q-tabs.qhtml }
+q-import { q-components/q-modal.qhtml }
+q-import { q-components/q-popup-menu.qhtml?v=popup-redesign-6 }
+q-import { q-components/q-toolbar.qhtml }
+q-import { q-components/q-estore.qhtml }
+q-import { q-components/q-spritesheet.qhtml?v=6.3.2 }
+q-import { q-components/q-grid.qhtml }
+q-import { q-components/q-form.qhtml }
+q-import { q-components/q-list-view.qhtml }
+q-import { q-components/q-tree-view.qhtml?v=tree-css-28 }
+q-import { q-components/q-tech-tag.qhtml }
+
+q-model hubTreeModel {
+  q-map {
+    storefront: q-array { "catalog", "checkout", "orders" }
+    runtime: q-array { "signals", "timers", "workers" }
+    assets: q-array { "spritesheet", "icons", "theme" }
+  }
+}
+
+q-component hub-status-pill {
+  q-property textValue: "frame: 0"
+  div.w3-small.w3-padding-small.w3-round.w3-border.w3-pale-blue {
+    text { ${this.component.textValue} }
+  }
+}
+
+q-component hub-activity-list extends q-list-view {
+  q-property model: q-array {
+    "hub initialized",
+    "catalog loaded",
+    "sprite ready"
+  }
+}
+
+q-modal hubInfoModal {
+  title { h4 { text { Hub Command Summary } } }
+  body {
+    p { text { This unified hub combines storefront controls, runtime observability, and quick command actions. } }
+    p { text { Use the left navigation, floating toolbar, and context menu to drive one shared workspace. } }
+  }
+  footer {
+    button.w3-button.w3-border.w3-round {
+      text { Close }
+      onclick { hubInfoModal.hide(); }
+    }
+  }
+  onready { this.component.hide(); }
+}
+
+q-popup-menu hubContextMenu {
+  id: "hub-context-menu"
+  popup-contents {
+    ul.w3-ul.w3-small.w3-card {
+      li { text { Open Overview } onclick { hubTabs.showTab(0); } }
+      li { text { Open Store } onclick { hubTabs.showTab(1); } }
+      li { text { Start Sprite } onclick { hubSprite.start(); } }
+      hr { }
+      li { text { Open Summary Modal } onclick { hubInfoModal.show(); } }
+    }
+  }
+  onready { this.closest("q-popup-menu").style.display = "none"; }
+}
+
+div.w3-container.w3-border.w3-round-large.w3-padding {
+  h4 { text { Commerce Operations Hub } }
+  p.w3-small { text { Right-click inside the workspace to open the command menu. } }
+
+  hub-status-pill hubFrameStatus { }
+  q-tech-tag.w3-tag.w3-blue.w3-round.w3-small.w3-margin-left { text { unified-demo } }
+
+  q-sidebar hubSidebar {
+    sidebarWidth: "250"
+    collapsedWidth: "40px"
+    open: "1"
+
+    content {
+      div.w3-padding.w3-small {
+        h5 { text { Navigation } }
+        button.w3-button.w3-small.w3-border.w3-round.w3-margin-bottom {
+          text { Overview }
+          onclick { hubTabs.showTab(0); }
+        }
+        button.w3-button.w3-small.w3-border.w3-round.w3-margin-bottom {
+          text { Storefront }
+          onclick { hubTabs.showTab(1); }
+        }
+        button.w3-button.w3-small.w3-border.w3-round.w3-margin-bottom {
+          text { Runtime }
+          onclick { hubTabs.showTab(2); }
+        }
+        button.w3-button.w3-small.w3-border.w3-round {
+          text { Hub Summary }
+          onclick { hubInfoModal.show(); }
+        }
+      }
+    }
+
+    main {
+      div#hub-workspace.w3-padding.w3-round-large.w3-border {
+        oncontextmenu {
+          event.preventDefault();
+          hubContextMenu.show(event.clientX + "px", event.clientY + "px");
+        }
+
+        q-tabs hubTabs {
+          q-tab {
+            name { text { Overview } }
+            content {
+              q-spritesheet hubSprite {
+                source: "assets/test-ss.png"
+                frameCount: 18
+                frameStart: 0
+                frameStop: 17
+                frameDuration: 90
+                frameWidth: 32
+                frameHeight: 32
+                repeat: true
+                running: false
+                interpolate: false
+                onframechanged(frameIndex) {
+                  hubFrameStatus.textValue = "frame: " + String(frameIndex);
+                }
+              }
+
+              div.w3-margin-top {
+                button.w3-button.w3-small.w3-border.w3-round {
+                  text { Start Sprite }
+                  onclick { hubSprite.start(); }
+                }
+                button.w3-button.w3-small.w3-border.w3-round.w3-margin-left {
+                  text { Stop Sprite }
+                  onclick { hubSprite.stop(); }
+                }
+              }
+
+              q-grid {
+                columns: 3
+                div.w3-panel.w3-border.w3-round { text { active frame: ${hubSprite.currentFrame} } }
+                div.w3-panel.w3-border.w3-round { text { frame count: ${hubSprite.frameCount} } }
+                div.w3-panel.w3-border.w3-round { text { playback: ${hubSprite.running} } }
+              }
+            }
+          }
+
+          q-tab {
+            name { text { Storefront } }
+            content {
+              button.w3-button.w3-small.w3-border.w3-round.w3-margin-bottom {
+                text { Load Alternate Products }
+                onclick {
+                  hubStore.products = QArray([
+                    { SKU: "ALT-001", name: "Travel Bottle", description: "Insulated stainless steel", price: "29.00" },
+                    { SKU: "ALT-002", name: "Desk Mat", description: "Felt anti-slip surface", price: "22.50" },
+                    { SKU: "ALT-003", name: "Pen Set", description: "Fine-tip gel pens", price: "12.99" },
+                    { SKU: "ALT-004", name: "Cable Kit", description: "USB-C and Lightning pack", price: "18.75" }
+                  ]);
+                }
+              }
+              q-estore hubStore { }
+            }
+          }
+
+          q-tab {
+            name { text { Runtime } }
+            content {
+              q-tree-view {
+                model: "hubTreeModel"
+              }
+              hub-activity-list hubLog { }
+              q-form {
+                h4 { text { Runtime Notes } }
+                q-input { placeholder: "Operator" }
+                q-textarea { text { Enter a runtime note... } }
+                q-submit {
+                  text { Add Activity Entry }
+                  onclick {
+                    hubLog.model.push("note captured at frame " + String(hubSprite.currentFrame));
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  q-toolbar hubTools {
+    id: "hub-tools"
+    title: "Hub Tools"
+    x: 140
+    y: 140
+    width: 320
+    height: 70
+
+    q-toolbutton {
+      src: "q-components/expand-collapse.svg"
+      label: "Overview"
+      onclick { hubTabs.showTab(0); }
+    }
+    q-toolbutton {
+      src: "q-components/expand-collapse.svg"
+      label: "Store"
+      onclick { hubTabs.showTab(1); }
+    }
+    q-toolbutton {
+      src: "q-components/expand-collapse.svg"
+      label: "Start"
+      onclick { hubSprite.start(); }
+    }
+    q-toolbutton {
+      src: "q-components/expand-collapse.svg"
+      label: "Stop"
+      onclick { hubSprite.stop(); }
+    }
+    q-toolbutton {
+      src: "q-components/expand-collapse.svg"
+      label: "Summary"
+      onclick { hubInfoModal.show(); }
     }
   }
 }

@@ -4132,66 +4132,113 @@ onReady {
           <h2>113. q-spritesheet declarative init from assets</h2>
           <span id="badge-113" class="badge pending">pending</span>
         </div>
-        <div class="test-expected"><strong>Expected:</strong> cols=18|rows=1|count=18</div>
+        <div class="test-expected"><strong>Expected:</strong> cols=18|rows=1|count=18|frame=</div>
 <q-html id="host-t113" data-test-no="113">
 q-import { q-components/q-spritesheet.qhtml }
 
 q-spritesheet sprite113 {
   id: "t113-sprite"
-}
-
-img#t113-src {
-  src: "assets/test-ss.png"
+  source: "assets/test-ss.png"
+  frameCount: 18
+  frameStart: 0
+  frameStop: 17
+  frameDuration: 90
+  frameWidth: 0
+  frameHeight: 0
+  currentFrame: 0
+  running: true
+  repeat: true
+  interpolate: false
+  onframechanged(frameIndex) {
+    var out = document.querySelector("#host-t113 #t113-out");
+    if (out) {
+      out.textContent = "cols=" + String(this.component.columns) + "|rows=" + String(this.component.rows) + "|count=" + String(this.component.frameCount) + "|frame=" + String(frameIndex);
+    }
+  }
 }
 
 div#t113-out { text { waiting } }
-
-q-timer t113Timer {
-  interval: 150
-  repeat: true
-  running: false
-  ontimeout {
-    var img = document.querySelector("#host-t113 #t113-src");
-    var totalFrames = Number(sprite113.columns || 0) * Number(sprite113.rows || 0);
-    if (totalFrames <= 0) {
-      sprite113.currentFrame = 0;
-      return;
-    }
-
-    sprite113.drawFrame(Number(sprite113.currentFrame || 0), 0, 0, undefined, undefined, img);
-
-    if (Number(sprite113.currentFrame || 0) >= (totalFrames - 1)) {
-      sprite113.currentFrame = 0;
-    } else {
-      sprite113.currentFrame = Number(sprite113.currentFrame || 0) + 1;
-    }
+div#t113-controls {
+  button#t113-start {
+    type: "button"
+    text { Start }
+    onclick { sprite113.start(); }
+  }
+  button#t113-stop {
+    type: "button"
+    text { Stop }
+    onclick { sprite113.stop(); }
   }
 }
 
 onready {
   var host = this;
-  var img = host.querySelector("#t113-src");
-  var out = host.querySelector("#t113-out");
-
-  function finishT113() {
-    sprite113.init(img, 32, 32);
-    sprite113.currentFrame = 0;
-    sprite113.drawFrame(sprite113.currentFrame, 0, 0, undefined, undefined, img);
-    t113Timer.start();
-    if (out) {
-      out.textContent = "cols=" + String(sprite113.columns) + "|rows=" + String(sprite113.rows) + "|count=" + String(sprite113.frameCount);
-    }
+  setTimeout(function() {
     var acc = document.querySelector("#acc-main");
+    var out = host.querySelector("#t113-out");
     if (acc && typeof acc.resultReported === "function") {
       acc.resultReported(113, out ? String(out.textContent || "") : "");
     }
+  }, 900);
+}
+</q-html>
+      </article>
+      <article class="test-card" id="card-114">
+        <div class="test-head">
+          <h2>114. parameterized on-signal and on-propertychanged handlers</h2>
+          <span id="badge-114" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> signal=alpha-beta | prop=42</div>
+<q-html id="host-t114" data-test-no="114">
+q-component probe114 {
+  q-signal emitPair(left, right)
+  q-property numberVal: 0
+  q-property signalValue: "waiting"
+  q-property propValue: "waiting"
+
+  onemitPair(a, b) {
+    this.component.signalValue = String(a) + "-" + String(b);
+    this.component.numberVal = 42;
+    var out = document.querySelector("#host-t114 #t114-out");
+    if (out) {
+      out.textContent = "signal=" + String(this.component.signalValue) + " | prop=" + String(this.component.propValue);
+    }
   }
 
-  if (img && img.complete) {
-    finishT113();
-  } else if (img) {
-    img.addEventListener("load", function() { finishT113(); }, { once: true });
+  onnumberValchanged(v) {
+    this.component.propValue = String(v);
+    var out = document.querySelector("#host-t114 #t114-out");
+    if (out) {
+      out.textContent = "signal=" + String(this.component.signalValue) + " | prop=" + String(this.component.propValue);
+    }
   }
+
+  onReady {
+    setTimeout(function() {
+      this.component.emitPair("alpha", "beta");
+    }.bind(this), 0);
+  }
+}
+
+probe114 testProbe114 { }
+div#t114-out {
+  text { signal=${testProbe114.signalValue} | prop=${testProbe114.propValue} }
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  var host = this;
+  var expected = "signal=alpha-beta | prop=42";
+  setTimeout(function() {
+    var out = host.querySelector("#t114-out");
+    var actual = out ? String(out.textContent || "").trim() : "";
+    var isPassing = actual === expected;
+    if (acc && typeof acc.outcomeReported === "function") {
+      acc.outcomeReported(114, isPassing, actual);
+    } else if (acc && typeof acc.resultReported === "function") {
+      acc.resultReported(114, actual);
+    }
+  }, 320);
 }
 </q-html>
       </article>

@@ -6920,7 +6920,13 @@
       pending: false,
       nextAt: Date.now() + intervalValue,
       onTimeout: function executeQueuedTimerTimeout(currentRuntime) {
-        runTimeout(currentRuntime || runtime || null);
+        const activeRuntime = currentRuntime || runtime || null;
+        runTimeout(activeRuntime);
+        emitRuntimeTimerTimeoutSignal(activeRuntime, {
+          type: "timeout",
+          timerId: declaration && declaration.timerId ? String(declaration.timerId || "") : "",
+          timerHandle: activeRuntime && activeRuntime.timerId != null ? activeRuntime.timerId : null,
+        });
         if (!runtime || runtime.repeat !== true || runtime.running === false) {
           if (runtime) {
             runtime.running = false;
@@ -9387,10 +9393,76 @@
     clearKeywordCanvasExports(binding);
   }
 
+  function createRuntimeTimerSignalChannel(runtime) {
+    const state = runtime && typeof runtime === "object" ? runtime : null;
+    const listeners = new Set();
+    return {
+      connect: function connectRuntimeTimerSignal(listener) {
+        if (typeof listener !== "function") {
+          return null;
+        }
+        listeners.add(listener);
+        return listener;
+      },
+      disconnect: function disconnectRuntimeTimerSignal(listener) {
+        if (!listener) {
+          listeners.clear();
+          return true;
+        }
+        if (typeof listener !== "function") {
+          return false;
+        }
+        return listeners.delete(listener);
+      },
+      emit: function emitRuntimeTimerSignal(payload) {
+        const eventPayload =
+          payload && typeof payload === "object"
+            ? payload
+            : {
+                type: "timeout",
+                timerId: state && state.name ? String(state.name || "") : "",
+                timerHandle: state ? state.timerId : null,
+              };
+        const list = Array.from(listeners.values());
+        for (let i = 0; i < list.length; i += 1) {
+          const handler = list[i];
+          if (typeof handler !== "function") {
+            continue;
+          }
+          try {
+            handler.call(null, eventPayload);
+          } catch (error) {
+            if (global.console && typeof global.console.error === "function") {
+              global.console.error("qhtml q-timer timeout signal handler failed:", error);
+            }
+          }
+        }
+      },
+    };
+  }
+
+  function emitRuntimeTimerTimeoutSignal(runtime, payload) {
+    const state = runtime && typeof runtime === "object" ? runtime : null;
+    if (!state) {
+      return;
+    }
+    const signal =
+      state.__timeoutSignal && typeof state.__timeoutSignal === "object"
+        ? state.__timeoutSignal
+        : null;
+    if (!signal || typeof signal.emit !== "function") {
+      return;
+    }
+    signal.emit(payload);
+  }
+
   function createNamedTimerRuntimeHandle(runtime) {
     const state = runtime && typeof runtime === "object" ? runtime : null;
     if (!state) {
       return null;
+    }
+    if (!state.__timeoutSignal || typeof state.__timeoutSignal !== "object") {
+      state.__timeoutSignal = createRuntimeTimerSignalChannel(state);
     }
     const handle = {
       start: function namedTimerStart() {
@@ -9447,6 +9519,11 @@
           state.interval = Math.floor(numeric);
         }
       },
+    });
+    Object.defineProperty(handle, "timeout", {
+      configurable: true,
+      enumerable: true,
+      get: function getTimerTimeoutSignal() { return state.__timeoutSignal || null; },
     });
     return handle;
   }
@@ -9659,6 +9736,11 @@
             return;
           }
           runTimeout(runtime);
+          emitRuntimeTimerTimeoutSignal(runtime, {
+            type: "timeout",
+            timerId: declaration && declaration.timerId ? String(declaration.timerId || "") : "",
+            timerHandle: runtime.timerId != null ? runtime.timerId : null,
+          });
           if (runtime.repeat !== true || runtime.running !== true) {
             runtime.stop();
             return;

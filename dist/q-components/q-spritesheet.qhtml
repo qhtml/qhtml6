@@ -1,90 +1,263 @@
 q-component q-spritesheet {
-  q-property source: null
+  q-signal frameChanged(frameIndex)
+
+  q-property source: ""
+  q-property frameCount: 1
+  q-property frameStart: 0
+  q-property frameStop: 0
+  q-property frameDuration: 120
   q-property frameWidth: 0
   q-property frameHeight: 0
+  q-property currentFrame: 0
+  q-property repeat: true
+  q-property running: false
+  q-property interpolate: false
   q-property columns: 0
   q-property rows: 0
-  q-property frameCount: 0
-  q-property currentFrame: 0
+  q-property imageWidth: 0
+  q-property imageHeight: 0
+  q-property loaded: false
 
-  q-canvas mycanvas { }
+  div.q-spritesheet-viewport#q-spritesheet-viewport { }
 
-  function init(inSource, inFrameWidth, inFrameHeight) {
-    this.component.source = inSource;
-    this.component.frameWidth = Number(inFrameWidth || 0);
-    this.component.frameHeight = Number(inFrameHeight || 0);
-
-    var srcWidth = 0;
-    var srcHeight = 0;
-
-    if (inSource && Number(inSource.width) > 0) {
-      srcWidth = Number(inSource.width);
-    }
-    if (inSource && Number(inSource.height) > 0) {
-      srcHeight = Number(inSource.height);
-    }
-
-    if (this.component.frameWidth > 0) {
-      this.component.columns = Math.floor(srcWidth / this.component.frameWidth);
-    } else {
-      this.component.columns = 0;
-    }
-
-    if (this.component.frameHeight > 0) {
-      this.component.rows = Math.floor(srcHeight / this.component.frameHeight);
-    } else {
-      this.component.rows = 0;
-    }
-
-    this.component.frameCount = this.component.columns * this.component.rows;
+  q-timer frameTimer {
+    interval: 120
+    repeat: true
+    running: false
   }
 
-  function getFrameRect(index) {
-    var columns = Number(this.component.columns || 0);
-    var frameWidth = Number(this.component.frameWidth || 0);
-    var frameHeight = Number(this.component.frameHeight || 0);
+  q-connect { frameTimer.timeout this.component.nextFrame }
 
-    if (columns <= 0 || frameWidth <= 0 || frameHeight <= 0) {
-      return {
-        sx: 0,
-        sy: 0,
-        sw: frameWidth,
-        sh: frameHeight
-      };
+  function normalizePositiveInt(value, fallbackValue) {
+    var numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return Math.max(1, Math.floor(Number(fallbackValue || 1)));
     }
-
-    var i = Math.floor(Number(index || 0));
-    var x = i % columns;
-    var y = Math.floor(i / columns);
-
-    return {
-      sx: x * frameWidth,
-      sy: y * frameHeight,
-      sw: frameWidth,
-      sh: frameHeight
-    };
+    return Math.max(1, Math.floor(numeric));
   }
 
-  function drawFrame(index, dx, dy, dw, dh, inSource) {
-    var rect = this.component.getFrameRect(index);
-    var destW = (dw === undefined) ? this.component.frameWidth : dw;
-    var destH = (dh === undefined) ? this.component.frameHeight : dh;
-    var sourceToDraw = inSource;
+  function resolveFrameStart() {
+    var count = this.component.normalizePositiveInt(this.component.frameCount, 1);
+    var start = Math.floor(Number(this.component.frameStart || 0));
+    if (!Number.isFinite(start) || start < 0) {
+      start = 0;
+    }
+    if (start > (count - 1)) {
+      start = count - 1;
+    }
+    return start;
+  }
 
-    if (!sourceToDraw) {
-      sourceToDraw = this.component.source;
+  function resolveFrameStop() {
+    var count = this.component.normalizePositiveInt(this.component.frameCount, 1);
+    var start = this.component.resolveFrameStart();
+    var maxStop = Math.max(start, count - 1);
+    var stop = Math.floor(Number(this.component.frameStop || 0));
+    if (!Number.isFinite(stop) || stop < start || stop > maxStop) {
+      stop = maxStop;
+    }
+    return stop;
+  }
+
+  function clampFrame(value) {
+    var start = this.component.resolveFrameStart();
+    var stop = this.component.resolveFrameStop();
+    var frame = Math.floor(Number(value || 0));
+    if (!Number.isFinite(frame)) {
+      frame = start;
+    }
+    if (frame < start) {
+      frame = start;
+    }
+    if (frame > stop) {
+      frame = stop;
+    }
+    return frame;
+  }
+
+  function configureGeometry() {
+    var count = this.component.normalizePositiveInt(this.component.frameCount, 1);
+    var imgWidth = Math.max(0, Math.floor(Number(this.component.imageWidth || 0)));
+    var imgHeight = Math.max(0, Math.floor(Number(this.component.imageHeight || 0)));
+
+    var currentFrameWidth = Math.floor(Number(this.component.frameWidth));
+    var autoFrameWidth = !Number.isFinite(currentFrameWidth) || currentFrameWidth <= 0;
+    var nextFrameWidth = autoFrameWidth ? 0 : currentFrameWidth;
+    if (autoFrameWidth && imgWidth > 0 && count > 0) {
+      nextFrameWidth = Math.floor(imgWidth / count);
+    }
+    nextFrameWidth = this.component.normalizePositiveInt(nextFrameWidth, 1);
+
+    var currentFrameHeight = Math.floor(Number(this.component.frameHeight));
+    var autoFrameHeight = !Number.isFinite(currentFrameHeight) || currentFrameHeight <= 0;
+    var nextFrameHeight = autoFrameHeight ? 0 : currentFrameHeight;
+    if (autoFrameHeight && imgHeight > 0) {
+      nextFrameHeight = imgHeight;
+    }
+    nextFrameHeight = this.component.normalizePositiveInt(nextFrameHeight, 1);
+
+    if ((!autoFrameWidth || imgWidth > 0) && Number(this.component.frameWidth) !== nextFrameWidth) {
+      this.component.frameWidth = nextFrameWidth;
+    }
+    if ((!autoFrameHeight || imgHeight > 0) && Number(this.component.frameHeight) !== nextFrameHeight) {
+      this.component.frameHeight = nextFrameHeight;
     }
 
-    mycanvas.context.drawImage(
-      sourceToDraw,
-      rect.sx,
-      rect.sy,
-      rect.sw,
-      rect.sh,
-      dx,
-      dy,
-      destW,
-      destH
-    );
+    var derivedColumns = count;
+    if (imgWidth > 0 && nextFrameWidth > 0) {
+      derivedColumns = Math.max(1, Math.floor(imgWidth / nextFrameWidth));
+    }
+    var derivedRows = 1;
+    if (imgHeight > 0 && nextFrameHeight > 0) {
+      derivedRows = Math.max(1, Math.floor(imgHeight / nextFrameHeight));
+    }
+
+    if (Number(this.component.columns || 0) !== derivedColumns) {
+      this.component.columns = derivedColumns;
+    }
+    if (Number(this.component.rows || 0) !== derivedRows) {
+      this.component.rows = derivedRows;
+    }
+  }
+
+  function applyFrameToViewport() {
+    var viewport = this.querySelector("#q-spritesheet-viewport");
+    if (!viewport) {
+      return;
+    }
+    var frameWidth = this.component.normalizePositiveInt(this.component.frameWidth, 1);
+    var frameHeight = this.component.normalizePositiveInt(this.component.frameHeight, 1);
+    var frame = this.component.clampFrame(this.component.currentFrame);
+    if (frame !== Number(this.component.currentFrame || 0)) {
+      this.component.currentFrame = frame;
+      return;
+    }
+
+    viewport.style.display = "inline-block";
+    viewport.style.position = "relative";
+    viewport.style.overflow = "hidden";
+    viewport.style.width = String(frameWidth) + "px";
+    viewport.style.height = String(frameHeight) + "px";
+    viewport.style.backgroundRepeat = "no-repeat";
+    viewport.style.backgroundImage = this.component.source ? ("url(\"" + String(this.component.source) + "\")") : "none";
+    viewport.style.transition = this.component.interpolate === true ? "background-position 120ms linear" : "none";
+    viewport.style.backgroundPosition = String(-frame * frameWidth) + "px 0px";
+
+    this.component.frameChanged(frame);
+  }
+
+  function refreshTimer() {
+    var duration = Math.max(0, Math.floor(Number(this.component.frameDuration || 0)));
+    frameTimer.interval = duration;
+    if (this.component.running === true && this.component.loaded === true) {
+      frameTimer.start();
+      return;
+    }
+    frameTimer.stop();
+  }
+
+  function syncSource() {
+    var src = String(this.component.source || "").trim();
+    this.component.loaded = false;
+    this.component.imageWidth = 0;
+    this.component.imageHeight = 0;
+    if (!src) {
+      this.component.configureGeometry();
+      this.component.applyFrameToViewport();
+      this.component.refreshTimer();
+      return;
+    }
+    var image = new Image();
+    image.onload = function onSpriteSourceLoaded() {
+      this.component.imageWidth = Math.max(0, Math.floor(Number(image.width || 0)));
+      this.component.imageHeight = Math.max(0, Math.floor(Number(image.height || 0)));
+      this.component.loaded = true;
+      this.component.configureGeometry();
+      this.component.applyFrameToViewport();
+      this.component.refreshTimer();
+    }.bind(this);
+    image.onerror = function onSpriteSourceError() {
+      this.component.loaded = false;
+      this.component.configureGeometry();
+      this.component.applyFrameToViewport();
+      this.component.refreshTimer();
+    }.bind(this);
+    image.src = src;
+  }
+
+  function nextFrame() {
+    if (this.component.loaded !== true) {
+      return;
+    }
+    var start = this.component.resolveFrameStart();
+    var stop = this.component.resolveFrameStop();
+    var current = this.component.clampFrame(this.component.currentFrame);
+    var next = current + 1;
+    if (next > stop) {
+      if (this.component.repeat === true) {
+        next = start;
+      } else {
+        next = stop;
+        this.component.running = false;
+      }
+    }
+    this.component.currentFrame = next;
+  }
+
+  function start() {
+    this.component.running = true;
+  }
+
+  function stop() {
+    this.component.running = false;
+  }
+
+  onready {
+    this.component.configureGeometry();
+    this.component.applyFrameToViewport();
+    this.component.syncSource();
+  }
+
+  onsourcechanged {
+    this.component.syncSource();
+  }
+
+  onframeCountchanged {
+    this.component.configureGeometry();
+    this.component.applyFrameToViewport();
+  }
+
+  onframeWidthchanged {
+    this.component.configureGeometry();
+    this.component.applyFrameToViewport();
+  }
+
+  onframeHeightchanged {
+    this.component.configureGeometry();
+    this.component.applyFrameToViewport();
+  }
+
+  onframeStartchanged {
+    this.component.applyFrameToViewport();
+  }
+
+  onframeStopchanged {
+    this.component.applyFrameToViewport();
+  }
+
+  onframeDurationchanged {
+    this.component.refreshTimer();
+  }
+
+  onrunningchanged {
+    this.component.refreshTimer();
+  }
+
+  oninterpolatechanged {
+    this.component.applyFrameToViewport();
+  }
+
+  oncurrentFramechanged {
+    this.component.applyFrameToViewport();
   }
 }

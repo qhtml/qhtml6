@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.3.1
+# QHTML.js v6.3.2
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -11,6 +11,11 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Dev testbed: https://qhtml.github.io/qhtml6/dist/test.html
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
+
+## Whats New in v6.3.2
+
+- Added a unified single-entity demo in `dist/demo.html` that integrates sidebar, tabs, modal, popup-menu, toolbar, estore, spritesheet, form, grid, list-view, and tree-view with typed named-instance wiring.
+- Added/validated parameterized lifecycle handler support in runtime paths for `on<signal>(...)` and `on<property>changed(...)` callback parameter binding.
 
 ## Whats New in v6.3.1
 
@@ -542,6 +547,25 @@ Behavior:
 - `repeat: false` uses native `setTimeout(...)`.
 - The named timer handle is exported globally as `window.<name>` (for example `window.myTimer`).
 - The same named handle is also exposed to inline expression scope (for example `${myTimer}` in runtime-evaluated expressions).
+- The named timer handle exposes a `timeout` signal object with `.connect(...)`, `.disconnect(...)`, and `.emit(...)`.
+
+Example (`q-connect` with timer timeout):
+
+```qhtml
+q-timer tickTimer {
+  interval: 120
+  repeat: true
+  running: true
+}
+
+q-component receiver {
+  q-property count: 0
+  function step() { this.component.count = Number(this.component.count) + 1; }
+}
+
+receiver rx { }
+q-connect { tickTimer.timeout rx.step }
+```
 
 Name collisions / overwrite behavior:
 - If multiple `q-timer` declarations use the same name in the same mounted host, the **last declaration wins for the exported name** (`window.<name>` points to the last timer handle).
@@ -577,6 +601,32 @@ Notes:
 - `q-canvas <name>` exports the canvas handle as `window.<name>` and host-scoped `<name>`.
 - `<name>.context` points to the `2d` rendering context for that specific canvas.
 - Canvas rendering can be timer-driven (`q-timer`) or signal-driven depending on your component flow.
+
+### `q-spritesheet [alpha]` (component-level state machine)
+
+`q-spritesheet` renders one frame of a larger spritesheet image inside a fixed viewport using CSS `background-position` math.
+
+```qhtml
+q-spritesheet demoSheet {
+  source: "assets/test-ss.png"
+  frameCount: 18
+  frameStart: 0
+  frameStop: 17
+  frameDuration: 90
+  frameWidth: 0
+  frameHeight: 0
+  running: true
+  repeat: true
+  interpolate: false
+}
+```
+
+Notes:
+- Public API uses camelCase (`frameCount`, `frameStart`, `frameStop`, `frameDuration`, `frameWidth`, `frameHeight`, `currentFrame`).
+- If `frameWidth` is missing/invalid, runtime derives `frameWidth = imageWidth / frameCount`.
+- `q-spritesheet` includes an internal `q-timer` and advances frames via declarative wiring:
+  `q-connect { frameTimer.timeout this.component.nextFrame }`.
+- Control methods: `start()`, `stop()`, `nextFrame()`.
 
 ### `q-worker` (component-level background worker)
 
