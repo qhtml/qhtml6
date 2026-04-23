@@ -5,8 +5,11 @@
     return;
   }
 
-  const qEditorImportSourceCache = new Map();
+  const qEditorImportSourceInFlight = new Map();
   const qEditorCodeMirrorState = { promise: null };
+  const QEDITOR_FALLBACK_VERSION = '6.4.0';
+  const QEDITOR_IMPORT_CACHE_RECORDS_KEY = 'qhtml.import.records';
+  const QEDITOR_IMPORT_CACHE_INDEX_KEY = 'qhtml.import.index';
   const QHTML_CANONICAL_KEYWORDS = [
     'q-component',
     'q-template',
@@ -222,44 +225,274 @@
     return '';
   }
 
-  async function loadImportSource(url) {
+  function qEditorVersionValue() {
+    const explicit = String(globalScope && globalScope.QHTML_VERSION ? globalScope.QHTML_VERSION : '').trim();
+    if (explicit) return explicit;
+    const runtime = globalScope && globalScope.QHtml && typeof globalScope.QHtml === 'object' ? globalScope.QHtml : null;
+    const runtimeVersion = runtime && typeof runtime.version === 'string' ? String(runtime.version || '').trim() : '';
+    if (runtimeVersion) return runtimeVersion;
+    return QEDITOR_FALLBACK_VERSION;
+  }
+
+  function qEditorImportStorage() {
+    try {
+      if (globalScope && globalScope.localStorage && typeof globalScope.localStorage.getItem === 'function') {
+        return globalScope.localStorage;
+      }
+    } catch (error) {
+      return null;
+    }
+    return null;
+  }
+
+  function qEditorBytesToBinary(bytes) {
+    if (!bytes || typeof bytes.length !== 'number') return '';
+    let out = '';
+    for (let i = 0; i < bytes.length; i += 1) {
+      out += String.fromCharCode(bytes[i] & 0xff);
+    }
+    return out;
+  }
+
+  function qEditorBinaryToBytes(value) {
+    const text = String(value || '');
+    const out = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) {
+      out[i] = text.charCodeAt(i) & 0xff;
+    }
+    return out;
+  }
+
+  function qEditorEncodeBase64(value) {
+    const text = String(value == null ? '' : value);
+    const BufferCtor = globalScope && typeof globalScope.Buffer !== 'undefined' ? globalScope.Buffer : null;
+    if (typeof globalScope.TextEncoder === 'function') {
+      try {
+        const bytes = new globalScope.TextEncoder().encode(text);
+        if (typeof globalScope.btoa === 'function') {
+          return globalScope.btoa(qEditorBytesToBinary(bytes));
+        }
+        if (BufferCtor && typeof BufferCtor.from === 'function') {
+          return BufferCtor.from(bytes).toString('base64');
+        }
+      } catch (error) {
+        // fall through
+      }
+    }
+    if (BufferCtor && typeof BufferCtor.from === 'function') {
+      try {
+        return BufferCtor.from(text, 'utf8').toString('base64');
+      } catch (error) {
+        // fall through
+      }
+    }
+    if (typeof globalScope.btoa === 'function') {
+      try {
+        return globalScope.btoa(unescape(encodeURIComponent(text)));
+      } catch (error) {
+        return '';
+      }
+    }
+    return '';
+  }
+
+  function qEditorDecodeBase64(value) {
+    const encoded = String(value || '').trim();
+    if (!encoded) return '';
+    const BufferCtor = globalScope && typeof globalScope.Buffer !== 'undefined' ? globalScope.Buffer : null;
+    if (typeof globalScope.atob === 'function') {
+      try {
+        const binary = globalScope.atob(encoded);
+        if (typeof globalScope.TextDecoder === 'function') {
+          return new globalScope.TextDecoder().decode(qEditorBinaryToBytes(binary));
+        }
+        return decodeURIComponent(escape(binary));
+      } catch (error) {
+        // fall through
+      }
+    }
+    if (BufferCtor && typeof BufferCtor.from === 'function') {
+      try {
+        return BufferCtor.from(encoded, 'base64').toString('utf8');
+      } catch (error) {
+        return '';
+      }
+    }
+    return '';
+  }
+
+  function qEditorReadImportRecords(storage) {
+    const targetStorage = storage || qEditorImportStorage();
+    if (!targetStorage) return [];
+    try {
+      const raw = targetStorage.getItem(QEDITOR_IMPORT_CACHE_RECORDS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed;
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function qEditorReadImportIndex(storage) {
+    const targetStorage = storage || qEditorImportStorage();
+    if (!targetStorage) return {};
+    try {
+      const raw = targetStorage.getItem(QEDITOR_IMPORT_CACHE_INDEX_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+      return parsed;
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function qEditorWriteImportCache(storage, records, index) {
+    const targetStorage = storage || qEditorImportStorage();
+    if (!targetStorage) return;
+    try {
+      targetStorage.setItem(QEDITOR_IMPORT_CACHE_RECORDS_KEY, JSON.stringify(Array.isArray(records) ? records : []));
+      targetStorage.setItem(
+        QEDITOR_IMPORT_CACHE_INDEX_KEY,
+        JSON.stringify(index && typeof index === 'object' && !Array.isArray(index) ? index : {})
+      );
+    } catch (error) {
+      // ignore storage write failures
+    }
+  }
+
+  function qEditorCreateImportUuid() {
+    if (globalScope.crypto && typeof globalScope.crypto.randomUUID === 'function') {
+      try {
+        const generated = String(globalScope.crypto.randomUUID() || '').trim();
+        if (generated) return generated;
+      } catch (error) {
+        // fall through
+      }
+    }
+    return 'qimport-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 0xffffffff).toString(16);
+  }
+
+  function qEditorSelectRecordByUuid(records, uuid) {
+    const list = Array.isArray(records) ? records : [];
+    const id = String(uuid || '').trim();
+    if (!id) return null;
+    for (let i = list.length - 1; i >= 0; i -= 1) {
+      const candidate = list[i];
+      if (!candidate || typeof candidate !== 'object') continue;
+      if (String(candidate.uuid || '').trim() === id) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  async function qEditorFetchImport(url) {
+    const key = String(url || '').trim();
+    if (typeof globalScope.fetch !== 'function') {
+      throw new Error('fetch() is required for q-import in q-editor.');
+    }
+    let response;
+    try {
+      response = await globalScope.fetch(key);
+    } catch (error) {
+      throw new Error("Failed to fetch q-import '" + key + "': " + error.message);
+    }
+
+    const status = Number(response && typeof response.status !== 'undefined' ? response.status : 200);
+    const ok = !!response && (response.ok === true || (status >= 200 && status < 300) || status === 0);
+    if (!ok) {
+      throw new Error("q-import fetch failed for '" + key + "' (status " + status + ").");
+    }
+    const text = await response.text();
+    return normalizeImportedSource(text);
+  }
+
+  async function qEditorFetchAndPersist(url, fileKey, storage, records, index) {
+    const loaded = await qEditorFetchImport(url);
+    const version = qEditorVersionValue();
+    const uuid = qEditorCreateImportUuid();
+    records.push({
+      version: version,
+      file: String(fileKey || ''),
+      contents: qEditorEncodeBase64(loaded),
+      uuid: uuid
+    });
+    index[fileKey] = uuid;
+    qEditorWriteImportCache(storage, records, index);
+    return loaded;
+  }
+
+  function qEditorShouldForceRefresh() {
+    const roll = 1 + Math.floor(Math.random() * 5);
+    return roll === 2 || roll === 3;
+  }
+
+  async function qEditorLoadFromPersistentCache(url) {
+    const key = String(url || '').trim();
+    const storage = qEditorImportStorage();
+    if (!storage) {
+      return qEditorFetchImport(key);
+    }
+    const fileKey = qEditorEncodeBase64(key);
+    if (!fileKey) {
+      return qEditorFetchImport(key);
+    }
+    const version = qEditorVersionValue();
+    let records = qEditorReadImportRecords(storage);
+    let index = qEditorReadImportIndex(storage);
+    const entryUuid = String(index[fileKey] || '').trim();
+    if (entryUuid) {
+      const cachedRecord = qEditorSelectRecordByUuid(records, entryUuid);
+      if (cachedRecord) {
+        const cachedVersion = String(cachedRecord.version || '').trim();
+        if (cachedVersion !== version) {
+          records = records.filter(function dropStale(record) {
+            return String(record && record.uuid ? record.uuid : '').trim() !== entryUuid;
+          });
+          delete index[fileKey];
+          qEditorWriteImportCache(storage, records, index);
+          return qEditorFetchAndPersist(key, fileKey, storage, records, index);
+        }
+        if (qEditorShouldForceRefresh()) {
+          return qEditorFetchAndPersist(key, fileKey, storage, records, index);
+        }
+        const decoded = qEditorDecodeBase64(cachedRecord.contents);
+        if (decoded) {
+          return normalizeImportedSource(decoded);
+        }
+        return qEditorFetchAndPersist(key, fileKey, storage, records, index);
+      }
+      delete index[fileKey];
+      qEditorWriteImportCache(storage, records, index);
+    }
+    return qEditorFetchAndPersist(key, fileKey, storage, records, index);
+  }
+
+  async function loadImportSource(url, options) {
+    const opts = options && typeof options === 'object' ? options : {};
     const key = String(url || '').trim();
     if (!key) {
       throw new Error('q-import URL cannot be empty.');
     }
-    if (qEditorImportSourceCache.has(key)) {
-      return qEditorImportSourceCache.get(key);
+    const noCache = opts.noCache === true;
+    const inFlightKey = key + '::' + (noCache ? 'nocache' : 'cache');
+    if (qEditorImportSourceInFlight.has(inFlightKey)) {
+      return qEditorImportSourceInFlight.get(inFlightKey);
     }
-    if (typeof globalScope.fetch !== 'function') {
-      throw new Error('fetch() is required for q-import in q-editor.');
-    }
-
-    const pending = (async function fetchImport() {
-      let response;
-      try {
-        response = await globalScope.fetch(key);
-      } catch (error) {
-        throw new Error("Failed to fetch q-import '" + key + "': " + error.message);
+    const pending = (async function resolveImport() {
+      if (noCache) {
+        return qEditorFetchImport(key);
       }
-
-      const status = Number(response && typeof response.status !== 'undefined' ? response.status : 200);
-      const ok = !!response && (response.ok === true || (status >= 200 && status < 300) || status === 0);
-      if (!ok) {
-        throw new Error("q-import fetch failed for '" + key + "' (status " + status + ").");
-      }
-
-      const text = await response.text();
-      return normalizeImportedSource(text);
+      return qEditorLoadFromPersistentCache(key);
     })();
-
-    qEditorImportSourceCache.set(key, pending);
+    qEditorImportSourceInFlight.set(inFlightKey, pending);
     try {
-      const loaded = await pending;
-      qEditorImportSourceCache.set(key, Promise.resolve(loaded));
-      return loaded;
-    } catch (error) {
-      qEditorImportSourceCache.delete(key);
-      throw error;
+      return await pending;
+    } finally {
+      qEditorImportSourceInFlight.delete(inFlightKey);
     }
   }
 

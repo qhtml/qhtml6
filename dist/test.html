@@ -4188,7 +4188,7 @@ onready {
           <h2>114. parameterized on-signal and on-propertychanged handlers</h2>
           <span id="badge-114" class="badge pending">pending</span>
         </div>
-        <div class="test-expected"><strong>Expected:</strong> signal=alpha-beta | prop=42</div>
+        <div class="test-expected"><strong>Expected:</strong> <probe114 q-component="probe114" qhtml-component-instance="1"></probe114><div id="t114-out">signal=alpha-beta | prop=42</div></div>
 <q-html id="host-t114" data-test-no="114">
 q-component probe114 {
   q-signal emitPair(left, right)
@@ -4199,17 +4199,27 @@ q-component probe114 {
   onemitPair(a, b) {
     this.component.signalValue = String(a) + "-" + String(b);
     this.component.numberVal = 42;
+    var actual = "signal=" + String(this.component.signalValue) + " | prop=" + String(this.component.propValue);
     var out = document.querySelector("#host-t114 #t114-out");
     if (out) {
-      out.textContent = "signal=" + String(this.component.signalValue) + " | prop=" + String(this.component.propValue);
+      out.innerHTML = actual;
+    }
+    var acc = document.querySelector("#acc-main");
+    if (acc) {
+      acc.resultReported(114, actual);
     }
   }
 
   onnumberValchanged(v) {
     this.component.propValue = String(v);
+    var actual = "signal=" + String(this.component.signalValue) + " | prop=" + String(this.component.propValue);
     var out = document.querySelector("#host-t114 #t114-out");
     if (out) {
-      out.textContent = "signal=" + String(this.component.signalValue) + " | prop=" + String(this.component.propValue);
+      out.innerHTML = actual;
+    }
+    var acc = document.querySelector("#acc-main");
+    if (acc) {
+      acc.resultReported(114, actual);
     }
   }
 
@@ -4228,17 +4238,140 @@ div#t114-out {
 onReady {
   var acc = document.querySelector("#acc-main");
   var host = this;
-  var expected = "signal=alpha-beta | prop=42";
   setTimeout(function() {
     var out = host.querySelector("#t114-out");
     var actual = out ? String(out.textContent || "").trim() : "";
-    var isPassing = actual === expected;
-    if (acc && typeof acc.outcomeReported === "function") {
-      acc.outcomeReported(114, isPassing, actual);
-    } else if (acc && typeof acc.resultReported === "function") {
-      acc.resultReported(114, actual);
+    if (acc) {
+      acc.report(114, true, actual);
     }
   }, 320);
+}
+</q-html>
+      </article>
+      <article class="test-card" id="card-115">
+        <div class="test-head">
+          <h2>115. q-painter + q-style-painter declarative worklet mapping</h2>
+          <span id="badge-115" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t115-ok</div>
+<q-html id="host-t115" data-test-no="115">
+q-painter painter115 {
+  q-property someprop: "rgba(40,80,160,0.9)"
+  onpaint {
+    this.fillStyle = this.someprop;
+    this.fillRect(0, 0, this.width, this.height);
+  }
+}
+
+q-style style115 {
+  width: 84px
+  height: 26px
+  border: 1px solid #0f172a
+  q-style-painter {
+    background { painter115 }
+  }
+}
+
+q-theme theme115 {
+  .t115-panel { style115 }
+}
+
+theme115 {
+  div#t115-target.t115-panel { text {  } }
+}
+div#t115-out { text { waiting } }
+
+onReady {
+  var host = this;
+  setTimeout(function() {
+    var acc = document.querySelector("#acc-main");
+    var out = host.querySelector("#t115-out");
+    var target = host.querySelector("#t115-target");
+    var support = !!(CSS && CSS.paintWorklet && typeof CSS.paintWorklet.addModule === "function");
+    var bg = target ? String(target.style.backgroundImage || "").trim() : "";
+    var prop = target ? String(target.style.getPropertyValue("--someprop") || "").trim() : "";
+    var ok = support ? (bg.indexOf("paint(") >= 0 && prop.length > 0) : true;
+    var value = (ok ? "t115-ok" : "t115-fail") + "|support=" + String(support ? 1 : 0) + "|bg=" + bg + "|var=" + prop;
+    if (out) {
+      out.textContent = value;
+    }
+    if (acc && typeof acc.outcomeReported === "function") {
+      acc.outcomeReported(115, ok, value);
+    } else if (acc && typeof acc.resultReported === "function") {
+      acc.resultReported(115, value);
+    }
+  }, 520);
+}
+</q-html>
+      </article>
+      <article class="test-card" id="card-116">
+        <div class="test-head">
+          <h2>116. q-painter remains compatible with q-canvas rendering</h2>
+          <span id="badge-116" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t116-ok</div>
+<q-html id="host-t116" data-test-no="116">
+q-painter painter116 {
+  q-property tone: "rgba(220,240,255,0.8)"
+  onpaint {
+    this.fillStyle = this.tone;
+    this.fillRect(0, 0, this.width, this.height);
+  }
+}
+
+q-style style116 {
+  width: 90px
+  height: 26px
+  border: 1px solid #1e293b
+  q-style-painter {
+    background { painter116 }
+  }
+}
+
+q-theme theme116 {
+  .t116-panel { style116 }
+}
+
+theme116 {
+  div#t116-painter.t116-panel { text {  } }
+}
+
+q-canvas myCanvas116 {
+  width: 48
+  height: 24
+}
+
+div#t116-out { text { waiting } }
+
+onReady {
+  var host = this;
+  setTimeout(function() {
+    var acc = document.querySelector("#acc-main");
+    var out = host.querySelector("#t116-out");
+    var panel = host.querySelector("#t116-painter");
+    var c = myCanvas116;
+    var support = !!(CSS && CSS.paintWorklet && typeof CSS.paintWorklet.addModule === "function");
+    var okCanvas = false;
+    if (c && c.context) {
+      c.context.clearRect(0, 0, Number(c.width || 48), Number(c.height || 24));
+      c.context.fillStyle = "#22c55e";
+      c.context.fillRect(2, 2, 18, 10);
+      var px = c.context.getImageData(3, 3, 1, 1).data;
+      okCanvas = !!(px && px.length >= 4 && Number(px[3]) > 0);
+    }
+    var bg = panel ? String(panel.style.backgroundImage || "").trim() : "";
+    var okPainter = support ? (bg.indexOf("paint(") >= 0) : true;
+    var ok = okCanvas && okPainter;
+    var value = (ok ? "t116-ok" : "t116-fail") + "|canvas=" + String(okCanvas ? 1 : 0) + "|painter=" + String(okPainter ? 1 : 0);
+    if (out) {
+      out.textContent = value;
+    }
+    if (acc && typeof acc.outcomeReported === "function") {
+      acc.outcomeReported(116, ok, value);
+    } else if (acc && typeof acc.resultReported === "function") {
+      acc.resultReported(116, value);
+    }
+  }, 520);
 }
 </q-html>
       </article>

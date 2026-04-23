@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-04-21T18:19:19Z */
+/* generated: 2026-04-23T07:52:57Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -1431,6 +1431,8 @@
     "q-style-class",
     "q-theme",
     "q-default-theme",
+    "q-painter",
+    "q-style-painter",
     "q-color",
     "q-color-schema",
     "q-color-theme",
@@ -3094,8 +3096,10 @@
     const parser = parserFor(String(rawBody || ""));
     const out = {};
     const classes = [];
+    const painters = {};
     const seenClasses = new Set();
     const styleClassKeywords = collectAliasesTargeting(keywordAliases, "q-style-class");
+    const stylePainterKeywords = collectAliasesTargeting(keywordAliases, "q-style-painter");
     while (!eof(parser)) {
       skipWhitespaceAndSemicolons(parser);
       if (eof(parser)) {
@@ -3134,6 +3138,28 @@
         }
         continue;
       }
+      if (stylePainterKeywords.has(propertyLower)) {
+        if (peek(parser) !== "{") {
+          throw ParseError("Expected '{...}' after q-style-painter inside q-style", parser.index);
+        }
+        consume(parser);
+        const painterBody = String(readBalancedBlockContent(parser) || "");
+        const parsedPainters = parseQStylePainterMappings(painterBody, keywordAliases);
+        const painterSlots = Object.keys(parsedPainters);
+        for (let i = 0; i < painterSlots.length; i += 1) {
+          const slot = String(painterSlots[i] || "").trim();
+          const painterName = String(parsedPainters[slot] || "").trim();
+          if (!slot || !painterName) {
+            continue;
+          }
+          painters[slot] = painterName;
+        }
+        skipWhitespaceAndSemicolons(parser);
+        if (peek(parser) === ",") {
+          consume(parser);
+        }
+        continue;
+      }
       let value = "";
       if (peek(parser) === ":") {
         consume(parser);
@@ -3155,7 +3181,54 @@
     return {
       declarations: out,
       classes: classes,
+      painters: painters,
     };
+  }
+
+  function normalizeQStylePainterSlotName(rawName) {
+    const value = String(rawName || "").trim().toLowerCase();
+    if (value === "background" || value === "border" || value === "mask") {
+      return value;
+    }
+    return "";
+  }
+
+  function parseQStylePainterMappings(rawBody, keywordAliases) {
+    const parser = parserFor(String(rawBody || ""));
+    const out = {};
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+      const slotName = parseQColorIdentifier(parser, "q-style-painter");
+      const slot = normalizeQStylePainterSlotName(slotName);
+      if (!slot) {
+        throw ParseError("q-style-painter supports only border/background/mask slots", parser.index);
+      }
+      skipWhitespace(parser);
+      let painterValue = "";
+      if (peek(parser) === ":") {
+        consume(parser);
+        painterValue = parseQColorValueToken(parser, keywordAliases);
+      } else if (peek(parser) === "{") {
+        consume(parser);
+        painterValue = String(readBalancedBlockContent(parser) || "").trim();
+      } else {
+        throw ParseError("Expected ':' or '{...}' inside q-style-painter", parser.index);
+      }
+      const candidates = parseQPropertyNames(String(painterValue || "").trim());
+      const painterName = String(candidates.length > 0 ? candidates[0] : painterValue || "").trim();
+      if (!painterName) {
+        throw ParseError("q-style-painter slot '" + slot + "' requires a painter name", parser.index);
+      }
+      out[slot] = painterName;
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+      }
+    }
+    return out;
   }
 
   function parseQThemeRules(rawBody) {
@@ -3929,6 +4002,31 @@
         if (nameLower === "q-canvas" && nextChar === "{") {
           throw ParseError("Anonymous q-canvas is not allowed", parser.index);
         }
+        if (nameLower === "q-painter" && nextChar !== "{" && nextChar !== ",") {
+          const painterName = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-painter id", parser.index);
+          }
+          consume(parser);
+          const painterBody = readBalancedBlockContent(parser);
+          const parsedPainter = parseQPainterDefinitionBody(String(painterBody || ""), scopedKeywordAliases);
+          items.push({
+            type: "QPainterDefinition",
+            name: String(painterName || "").trim(),
+            body: String(painterBody || ""),
+            properties: parsedPainter.properties,
+            onPaint: parsedPainter.onPaint,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-painter" && nextChar === "{") {
+          throw ParseError("Anonymous q-painter is not allowed", parser.index);
+        }
         if (nameLower === "q-property" && nextChar !== "{") {
           const propertyNameStart = parser.index;
           const propertyName = parseIdentifier(parser);
@@ -4037,6 +4135,7 @@
             name: styleName,
             declarations: parsedStyle.declarations,
             classes: parsedStyle.classes,
+            painters: parsedStyle.painters,
             keywords: keywordSnapshot,
             start: itemStart,
             end: parser.index,
@@ -5080,6 +5179,32 @@
         if (firstLower === "q-canvas" && peek(parser) === "{") {
           throw ParseError("Anonymous q-canvas is not allowed", parser.index);
         }
+        if (firstLower === "q-painter" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const painterName = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-painter id", parser.index);
+          }
+          consume(parser);
+          const painterBody = readBalancedBlockContent(parser);
+          const parsedPainter = parseQPainterDefinitionBody(String(painterBody || ""), scopedKeywordAliases);
+          body.push({
+            type: "QPainterDefinition",
+            name: String(painterName || "").trim(),
+            body: String(painterBody || ""),
+            properties: parsedPainter.properties,
+            onPaint: parsedPainter.onPaint,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-painter" && peek(parser) === "{") {
+          throw ParseError("Anonymous q-painter is not allowed", parser.index);
+        }
 
         if (firstLower === "sdml-endpoint" && peek(parser) !== "{" && peek(parser) !== ",") {
           const endpointId = parseIdentifier(parser);
@@ -5255,6 +5380,7 @@
             name: styleName,
             declarations: parsedStyle.declarations,
             classes: parsedStyle.classes,
+            painters: parsedStyle.painters,
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -5369,9 +5495,11 @@
 
         if (selectors.length === 1 && selectors[0].toLowerCase() === "q-import") {
           const importBody = readBalancedBlockContent(parser);
+          const importDeclaration = parseImportDeclaration(importBody);
           body.push({
             type: "ImportBlock",
-            path: String(importBody || "").trim(),
+            path: importDeclaration.path,
+            noCache: importDeclaration.noCache === true,
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -5552,6 +5680,75 @@
     return path;
   }
 
+  function splitImportDeclarationTokens(rawBody) {
+    const text = String(rawBody || "").trim();
+    if (!text) {
+      return [];
+    }
+    const tokens = [];
+    let current = "";
+    let quote = "";
+    let escaped = false;
+    for (let i = 0; i < text.length; i += 1) {
+      const ch = text.charAt(i);
+      if (quote) {
+        current += ch;
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === "`") {
+        quote = ch;
+        current += ch;
+        continue;
+      }
+      if (/\s/.test(ch)) {
+        if (current) {
+          tokens.push(current);
+          current = "";
+        }
+        continue;
+      }
+      current += ch;
+    }
+    if (current) {
+      tokens.push(current);
+    }
+    return tokens;
+  }
+
+  function parseImportDeclaration(rawBody) {
+    const tokens = splitImportDeclarationTokens(rawBody);
+    if (tokens.length === 0) {
+      return {
+        path: "",
+        noCache: false,
+      };
+    }
+    let noCache = false;
+    while (tokens.length > 0) {
+      const tail = String(tokens[tokens.length - 1] || "").trim().replace(/;$/, "").toLowerCase();
+      if (tail !== "nocache") {
+        break;
+      }
+      noCache = true;
+      tokens.pop();
+    }
+    return {
+      path: normalizeImportPath(tokens.join(" ")),
+      noCache: noCache,
+    };
+  }
+
   function resolveImportUrl(path, baseUrl) {
     const value = String(path || "").trim();
     if (!value) {
@@ -5663,7 +5860,8 @@
         }
 
         const importBody = out.slice(found.open + 1, found.close);
-        const importPath = normalizeImportPath(importBody);
+        const importDeclaration = parseImportDeclaration(importBody);
+        const importPath = importDeclaration.path;
         if (!importPath) {
           throw new Error("q-import path cannot be empty.");
         }
@@ -5681,6 +5879,7 @@
             path: importPath,
             url: resolvedUrl,
             baseUrl: baseUrl || "",
+            noCache: importDeclaration.noCache === true,
           });
         }
 
@@ -5692,6 +5891,7 @@
           const importedSource = loadImportSync(resolvedUrl, {
             path: importPath,
             baseUrl: baseUrl || "",
+            noCache: importDeclaration.noCache === true,
           });
           const importedText = String(importedSource || "");
           replacement = expandImports(importedText, resolvedUrl, stack.concat(resolvedUrl));
@@ -5731,7 +5931,8 @@
         }
 
         const importBody = out.slice(found.open + 1, found.close);
-        const importPath = normalizeImportPath(importBody);
+        const importDeclaration = parseImportDeclaration(importBody);
+        const importPath = importDeclaration.path;
         if (!importPath) {
           throw new Error("q-import path cannot be empty.");
         }
@@ -5749,6 +5950,7 @@
             path: importPath,
             url: resolvedUrl,
             baseUrl: baseUrl || "",
+            noCache: importDeclaration.noCache === true,
           });
         }
 
@@ -5762,6 +5964,7 @@
               loadImport(resolvedUrl, {
                 path: importPath,
                 baseUrl: baseUrl || "",
+                noCache: importDeclaration.noCache === true,
               })
             );
             const importedText = String(importedSource || "");
@@ -6230,6 +6433,41 @@
     return out;
   }
 
+  function cloneQStylePainters(painters) {
+    const source =
+      painters && typeof painters === "object" && !Array.isArray(painters)
+        ? painters
+        : {};
+    const out = {};
+    const keys = Object.keys(source);
+    for (let i = 0; i < keys.length; i += 1) {
+      const slot = normalizeQStylePainterSlotName(keys[i]);
+      const painterName = String(source[keys[i]] || "").trim();
+      if (!slot || !painterName) {
+        continue;
+      }
+      out[slot] = painterName;
+    }
+    return out;
+  }
+
+  function cloneQPainterProperties(properties) {
+    const source =
+      properties && typeof properties === "object" && !Array.isArray(properties)
+        ? properties
+        : {};
+    const out = {};
+    const keys = Object.keys(source);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim();
+      if (!key) {
+        continue;
+      }
+      out[key] = deepClonePlainValue(source[key]);
+    }
+    return out;
+  }
+
   function cloneQThemeRules(rules) {
     const list = Array.isArray(rules) ? rules : [];
     const out = [];
@@ -6270,10 +6508,20 @@
       name: String(entry.name || "").trim(),
       declarations: cloneQStyleDeclarations(entry.declarations),
       classes: cloneQStyleClasses(entry.classes),
+      painters: cloneQStylePainters(entry.painters),
     };
   }
 
-  function registerQStyleDefinition(styleContext, styleName, declarations, classes) {
+  function cloneQPainterDefinition(painterDefinition) {
+    const entry = painterDefinition && typeof painterDefinition === "object" ? painterDefinition : {};
+    return {
+      name: String(entry.name || "").trim(),
+      properties: cloneQPainterProperties(entry.properties),
+      onPaint: String(entry.onPaint || "").trim(),
+    };
+  }
+
+  function registerQStyleDefinition(styleContext, styleName, declarations, classes, painters) {
     if (!styleContext || !(styleContext.styles instanceof Map)) {
       return;
     }
@@ -6286,6 +6534,7 @@
       name: name,
       declarations: cloneQStyleDeclarations(declarations),
       classes: cloneQStyleClasses(classes),
+      painters: cloneQStylePainters(painters),
     });
   }
 
@@ -6303,6 +6552,39 @@
     }
     const out = cloneQStyleDefinition(entry);
     out.name = out.name || String(styleName || "").trim();
+    return out;
+  }
+
+  function registerQPainterDefinition(styleContext, painterName, properties, onPaint) {
+    if (!styleContext || !(styleContext.painters instanceof Map)) {
+      return;
+    }
+    const name = String(painterName || "").trim();
+    const normalized = normalizeColorLookupKey(name);
+    if (!name || !normalized) {
+      return;
+    }
+    styleContext.painters.set(normalized, {
+      name: name,
+      properties: cloneQPainterProperties(properties),
+      onPaint: String(onPaint || "").trim(),
+    });
+  }
+
+  function lookupQPainterDefinition(styleContext, painterName) {
+    if (!styleContext || !(styleContext.painters instanceof Map)) {
+      return null;
+    }
+    const normalized = normalizeColorLookupKey(painterName);
+    if (!normalized) {
+      return null;
+    }
+    const entry = styleContext.painters.get(normalized);
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+    const out = cloneQPainterDefinition(entry);
+    out.name = out.name || String(painterName || "").trim();
     return out;
   }
 
@@ -6374,6 +6656,7 @@
     const context = {
       styles: new Map(),
       themes: new Map(),
+      painters: new Map(),
       activeDefaultThemes: [],
       activeThemes: [],
     };
@@ -6386,6 +6669,7 @@
           name: String(entry.name || key || "").trim() || String(key || ""),
           declarations: cloneQStyleDeclarations(entry.declarations),
           classes: cloneQStyleClasses(entry.classes),
+          painters: cloneQStylePainters(entry.painters),
         });
       });
     }
@@ -6397,6 +6681,18 @@
         context.themes.set(String(key || ""), {
           name: String(entry.name || key || "").trim() || String(key || ""),
           rules: cloneQThemeRules(entry.rules),
+        });
+      });
+    }
+    if (parentContext && parentContext.painters instanceof Map) {
+      parentContext.painters.forEach(function copyPainter(entry, key) {
+        if (!entry || typeof entry !== "object") {
+          return;
+        }
+        context.painters.set(String(key || ""), {
+          name: String(entry.name || key || "").trim() || String(key || ""),
+          properties: cloneQPainterProperties(entry.properties),
+          onPaint: String(entry.onPaint || "").trim(),
         });
       });
     }
@@ -6547,6 +6843,7 @@
     const names = Array.isArray(styleNames) ? styleNames : [];
     const declarations = {};
     const classes = [];
+    const painters = {};
     const seenClasses = new Set();
     for (let i = 0; i < names.length; i += 1) {
       const styleDef = lookupQStyleDefinition(styleContext, names[i]);
@@ -6573,11 +6870,38 @@
         seenClasses.add(className);
         classes.push(className);
       }
+      const nextPainters = cloneQStylePainters(styleDef.painters);
+      const painterSlots = Object.keys(nextPainters);
+      for (let pi = 0; pi < painterSlots.length; pi += 1) {
+        const slot = normalizeQStylePainterSlotName(painterSlots[pi]);
+        const painterName = String(nextPainters[painterSlots[pi]] || "").trim();
+        if (!slot || !painterName) {
+          continue;
+        }
+        painters[slot] = painterName;
+      }
     }
     return {
       declarations: declarations,
       classes: classes,
+      painters: painters,
     };
+  }
+
+  function serializeQPainterDefinitionsForRuntime(styleContext) {
+    if (!styleContext || !(styleContext.painters instanceof Map)) {
+      return {};
+    }
+    const out = {};
+    styleContext.painters.forEach(function eachPainter(entry, key) {
+      const normalizedKey = String(key || "").trim().toLowerCase();
+      const painter = cloneQPainterDefinition(entry);
+      if (!normalizedKey || !painter.name || !painter.onPaint) {
+        return;
+      }
+      out[normalizedKey] = painter;
+    });
+    return out;
   }
 
   function serializeActiveQThemeRulesForRuntime(styleContext, themeList) {
@@ -6598,13 +6922,15 @@
         const resolved = resolveQThemeRuleRuntimeStyle(styleContext, rule.styles);
         const hasDeclarations = Object.keys(resolved.declarations).length > 0;
         const hasClasses = Array.isArray(resolved.classes) && resolved.classes.length > 0;
-        if (!hasDeclarations && !hasClasses) {
+        const hasPainters = Object.keys(resolved.painters).length > 0;
+        if (!hasDeclarations && !hasClasses && !hasPainters) {
           continue;
         }
         out.push({
           selector: selector,
           declarations: cloneQStyleDeclarations(resolved.declarations),
           classes: cloneQStyleClasses(resolved.classes),
+          painters: cloneQStylePainters(resolved.painters),
         });
       }
     }
@@ -6632,6 +6958,7 @@
     elementNode.meta.qRuntimeThemeRules = {
       defaultRules: defaultRules,
       rules: rules,
+      painters: serializeQPainterDefinitionsForRuntime(styleContext),
     };
   }
 
@@ -10429,6 +10756,69 @@
     });
   }
 
+  function parseQPainterDefinitionBody(bodyText, keywordAliases) {
+    const body = String(bodyText || "");
+    const parser = parserFor(body);
+    const items = parseBlockItems(parser, cloneKeywordAliases(keywordAliases));
+    const properties = {};
+    const declaredPropertyByKey = Object.create(null);
+    let onPaint = "";
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type === "QPropertyBlock") {
+        const names = Array.isArray(item.properties) ? item.properties : [];
+        for (let ni = 0; ni < names.length; ni += 1) {
+          const rawName = String(names[ni] || "").trim();
+          const normalized = normalizePropertyName(rawName);
+          if (!rawName || !normalized) {
+            continue;
+          }
+          if (!Object.prototype.hasOwnProperty.call(declaredPropertyByKey, normalized)) {
+            declaredPropertyByKey[normalized] = rawName;
+          }
+          if (!Object.prototype.hasOwnProperty.call(properties, rawName)) {
+            properties[rawName] = null;
+          }
+        }
+        continue;
+      }
+      if (item.type === "Property") {
+        const assignment = parseAssignmentName(item.name);
+        const normalized = normalizePropertyName(assignment.name);
+        if (!normalized) {
+          continue;
+        }
+        const propertyName = String(declaredPropertyByKey[normalized] || assignment.name || "").trim();
+        if (!propertyName) {
+          continue;
+        }
+        properties[propertyName] = coercePropertyValue(item.value);
+        continue;
+      }
+      if (item.type === "EventBlock") {
+        const blockName = String(item.name || "").trim().toLowerCase();
+        if (blockName !== "onpaint") {
+          continue;
+        }
+        const parameterNames = normalizeEventBlockParameterNames(item.parameters);
+        if (parameterNames.length > 0) {
+          throw ParseError("q-painter onpaint does not accept parameters", parser.index);
+        }
+        onPaint = compactScriptBody(item.script || "");
+      }
+    }
+    if (!onPaint) {
+      throw ParseError("q-painter requires onpaint { ... }", parser.index);
+    }
+    return {
+      properties: cloneQPainterProperties(properties),
+      onPaint: onPaint,
+    };
+  }
+
   function parseQColorSchemaEntriesFromAstItems(items) {
     const out = {};
     const list = Array.isArray(items) ? items : [];
@@ -10508,7 +10898,22 @@
     if (!styleName) {
       throw new Error("q-style requires a name.");
     }
-    registerQStyleDefinition(styleContext, styleName, item.declarations, item.classes);
+    registerQStyleDefinition(styleContext, styleName, item.declarations, item.classes, item.painters);
+  }
+
+  function registerQPainterDefinitionItem(styleContext, item) {
+    if (!styleContext || !item || typeof item !== "object") {
+      return;
+    }
+    const painterName = String(item.name || "").trim();
+    if (!painterName) {
+      throw new Error("q-painter requires a name.");
+    }
+    const onPaint = String(item.onPaint || "").trim();
+    if (!onPaint) {
+      throw new Error("q-painter '" + painterName + "' requires onpaint { ... }.");
+    }
+    registerQPainterDefinition(styleContext, painterName, item.properties, onPaint);
   }
 
   function registerQThemeDefinitionItem(styleContext, item) {
@@ -11529,6 +11934,10 @@
         registerQStyleDefinitionItem(styleContext, item);
         continue;
       }
+      if (item.type === "QPainterDefinition") {
+        registerQPainterDefinitionItem(styleContext, item);
+        continue;
+      }
       if (item.type === "QThemeDefinition") {
         registerQThemeDefinitionItem(styleContext, item);
         continue;
@@ -11993,6 +12402,10 @@
       }
       if (item.type === "QStyleDefinition") {
         registerQStyleDefinitionItem(styleContext, item);
+        continue;
+      }
+      if (item.type === "QPainterDefinition") {
+        registerQPainterDefinitionItem(styleContext, item);
         continue;
       }
       if (item.type === "QThemeDefinition") {
@@ -12542,7 +12955,12 @@
       return null;
     }
 
-    if (item.type === "QArrayDefinition" || item.type === "QObjectDefinition" || item.type === "QModelDefinition") {
+    if (
+      item.type === "QArrayDefinition" ||
+      item.type === "QObjectDefinition" ||
+      item.type === "QModelDefinition" ||
+      item.type === "QPainterDefinition"
+    ) {
       return null;
     }
 
@@ -12707,6 +13125,7 @@
     const opts = options || {};
     const resolveImports = opts.resolveImportsBeforeParse !== false;
     const importUrls = [];
+    const resolvedImportDeclarations = [];
     const effectiveSource =
       resolveImports && typeof opts.loadImportSync === "function"
         ? resolveQImportsSync(rawSource, {
@@ -12717,6 +13136,12 @@
             onImport: function onImport(info) {
               if (info && info.url) {
                 importUrls.push(info.url);
+              }
+              if (info && (info.path || info.url)) {
+                resolvedImportDeclarations.push({
+                  path: String(info.path || info.url || "").trim(),
+                  noCache: info.noCache === true,
+                });
               }
             },
           })
@@ -12750,6 +13175,7 @@
     const conversionContext = createScopedConversionContext();
 
     const imports = [];
+    const importDeclarations = [];
     const sdmlEndpoints = [];
     const sdmlComponents = [];
     const qTimers = [];
@@ -12757,7 +13183,14 @@
     for (let i = 0; i < ast.body.length; i += 1) {
       const item = ast.body[i];
       if (item.type === "ImportBlock") {
-        imports.push(String(item.path || "").trim());
+        const importPath = String(item.path || "").trim();
+        if (importPath) {
+          imports.push(importPath);
+          importDeclarations.push({
+            path: importPath,
+            noCache: item.noCache === true,
+          });
+        }
         continue;
       }
       if (item.type === "SdmlEndpointDefinition") {
@@ -12814,6 +13247,10 @@
       }
       if (item.type === "QStyleDefinition") {
         registerQStyleDefinitionItem(conversionContext.qStyles, item);
+        continue;
+      }
+      if (item.type === "QPainterDefinition") {
+        registerQPainterDefinitionItem(conversionContext.qStyles, item);
         continue;
       }
       if (item.type === "QThemeDefinition") {
@@ -12920,7 +13357,21 @@
     if (!doc.meta || typeof doc.meta !== "object") {
       doc.meta = {};
     }
+    const normalizedResolvedImportDeclarations = resolvedImportDeclarations
+      .map(function normalizeResolvedImportDeclaration(entry) {
+        return {
+          path: String(entry && entry.path ? entry.path : "").trim(),
+          noCache: !!(entry && entry.noCache === true),
+        };
+      })
+      .filter(function hasResolvedImportPath(entry) {
+        return !!entry.path;
+      });
     doc.meta.imports = imports.length > 0 ? imports : importUrls;
+    doc.meta.importDeclarations =
+      importDeclarations.length > 0
+        ? importDeclarations
+        : normalizedResolvedImportDeclarations;
     doc.meta.sdmlEndpoints = sdmlEndpoints;
     doc.meta.sdmlComponents = sdmlComponents;
     doc.meta.qTimers = qTimers;
@@ -13836,6 +14287,8 @@
   const Q_CALLBACK_NODE_KIND = "callback";
   const QHTML_FRAGMENT_MARKER = "__qhtmlFragment";
   const QHTML_NAMED_CALLBACKS_KEY = "__qhtmlNamedCallbacks";
+  const QHTML_PAINTER_REGISTRY_KEY = "__qhtmlPainterRegistry";
+  const QHTML_PAINTER_SCOPE_KEY = "__qhtmlPainterScopeId";
   const INLINE_REFERENCE_PATTERN = /\$\{\s*([^}]+?)\s*\}/g;
   const INLINE_REFERENCE_ESCAPE_TOKEN = "__QHTML_ESCAPED_INLINE_REF__";
   const Q_SIGNAL_META_KEY = "__qhtmlSignalMeta";
@@ -13852,6 +14305,10 @@
   let wasmWorkerScriptUrl = null;
   let qWorkerExecutorScriptUrl = null;
   const qWorkerRuntimeRegistryFallback = new Map();
+  const qPainterRuntimeRegistryFallback = new Map();
+  const qPainterScopeIds = new WeakMap();
+  let qPainterScopeCounter = 0;
+  let qPainterSupportWarningShown = false;
   const Q_WORKER_IDLE_TERMINATE_MS = 30000;
   let qWorkerFallbackRuntimeCounter = 0;
   let wasmCallSequence = 0;
@@ -14261,6 +14718,309 @@
     return meta.qRuntimeThemeRules;
   }
 
+  function normalizePainterLookupKey(name) {
+    return String(name || "").trim().toLowerCase();
+  }
+
+  function normalizePainterSlotName(name) {
+    const value = String(name || "").trim().toLowerCase();
+    if (value === "background" || value === "border" || value === "mask") {
+      return value;
+    }
+    return "";
+  }
+
+  function encodePainterPropertyValue(value) {
+    if (typeof value === "string") {
+      return value;
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value);
+    }
+    if (value == null) {
+      return "";
+    }
+    try {
+      return JSON.stringify(value);
+    } catch (error) {
+      return String(value);
+    }
+  }
+
+  function readPainterRegistryStore() {
+    const existing =
+      global &&
+      global[QHTML_PAINTER_REGISTRY_KEY] &&
+      global[QHTML_PAINTER_REGISTRY_KEY] instanceof Map
+        ? global[QHTML_PAINTER_REGISTRY_KEY]
+        : null;
+    if (existing) {
+      return existing;
+    }
+    try {
+      if (global) {
+        global[QHTML_PAINTER_REGISTRY_KEY] = qPainterRuntimeRegistryFallback;
+      }
+    } catch (error) {
+      // fallback map only
+    }
+    return qPainterRuntimeRegistryFallback;
+  }
+
+  function supportsPaintWorklet() {
+    return !!(
+      global &&
+      global.CSS &&
+      global.CSS.paintWorklet &&
+      typeof global.CSS.paintWorklet.addModule === "function" &&
+      typeof global.Blob === "function" &&
+      global.URL &&
+      typeof global.URL.createObjectURL === "function"
+    );
+  }
+
+  function warnPainterSupportUnavailableOnce() {
+    if (qPainterSupportWarningShown) {
+      return;
+    }
+    qPainterSupportWarningShown = true;
+    if (typeof console !== "undefined" && console && typeof console.warn === "function") {
+      console.warn("[q-painter] CSS Paint Worklet is unavailable in this environment; painter styles were skipped.");
+    }
+  }
+
+  function ensurePainterScopeId(hostElement) {
+    if (!hostElement || hostElement.nodeType !== 1) {
+      return "global";
+    }
+    const fromMap = qPainterScopeIds.get(hostElement);
+    if (fromMap) {
+      return fromMap;
+    }
+    const attrScope = String(hostElement.getAttribute && hostElement.getAttribute("qhtml-instance-id") || "").trim();
+    if (attrScope) {
+      qPainterScopeIds.set(hostElement, attrScope);
+      return attrScope;
+    }
+    let existing = String(hostElement[QHTML_PAINTER_SCOPE_KEY] || "").trim();
+    if (!existing) {
+      qPainterScopeCounter += 1;
+      existing = "p" + String(qPainterScopeCounter);
+      try {
+        Object.defineProperty(hostElement, QHTML_PAINTER_SCOPE_KEY, {
+          configurable: true,
+          enumerable: false,
+          writable: true,
+          value: existing,
+        });
+      } catch (error) {
+        hostElement[QHTML_PAINTER_SCOPE_KEY] = existing;
+      }
+    }
+    qPainterScopeIds.set(hostElement, existing);
+    return existing;
+  }
+
+  function sanitizePainterNameToken(name) {
+    const raw = String(name || "").trim().toLowerCase();
+    if (!raw) {
+      return "";
+    }
+    return raw.replace(/[^a-z0-9_-]/g, "-");
+  }
+
+  function resolveRuntimePainterDefinition(runtimeRules, painterName) {
+    const rules = runtimeRules && typeof runtimeRules === "object" ? runtimeRules : {};
+    const painterMap =
+      rules.painters && typeof rules.painters === "object" && !Array.isArray(rules.painters)
+        ? rules.painters
+        : {};
+    const directKey = normalizePainterLookupKey(painterName);
+    if (directKey && painterMap[directKey] && typeof painterMap[directKey] === "object") {
+      return painterMap[directKey];
+    }
+    const keys = Object.keys(painterMap);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim();
+      const entry = painterMap[key];
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      if (normalizePainterLookupKey(entry.name) === directKey) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  function buildPainterWorkletModuleSource(internalName, painterDefinition) {
+    const painter = painterDefinition && typeof painterDefinition === "object" ? painterDefinition : {};
+    const defaults =
+      painter.properties && typeof painter.properties === "object" && !Array.isArray(painter.properties)
+        ? painter.properties
+        : {};
+    const onPaintSource = String(painter.onPaint || "").trim();
+    const propertyNames = Object.keys(defaults)
+      .map(function mapPropertyName(name) { return String(name || "").trim(); })
+      .filter(Boolean);
+    const inputPropertiesLiteral = JSON.stringify(
+      propertyNames.map(function mapInputName(name) { return "--" + name; })
+    );
+    const defaultsLiteral = JSON.stringify(defaults);
+    return [
+      "const __qhtmlPainterDefaults = " + defaultsLiteral + ";",
+      "const __qhtmlPainterInputProperties = " + inputPropertiesLiteral + ";",
+      "function __qhtmlDecodeValue(rawValue, fallback) {",
+      "  const raw = String(rawValue == null ? \"\" : rawValue).trim();",
+      "  if (!raw) { return fallback; }",
+      "  if (raw === \"true\") { return true; }",
+      "  if (raw === \"false\") { return false; }",
+      "  const num = Number(raw);",
+      "  if (Number.isFinite(num)) { return num; }",
+      "  try { return JSON.parse(raw); } catch (error) { return raw; }",
+      "}",
+      "registerPaint(" + JSON.stringify(String(internalName || "")) + ", class QHtmlPainter {",
+      "  static get inputProperties() { return __qhtmlPainterInputProperties; }",
+      "  paint(ctx, size, properties, args) {",
+      "    const target = {",
+      "      context: ctx,",
+      "      size: size,",
+      "      args: args,",
+      "      width: Number(size && size.width || 0),",
+      "      height: Number(size && size.height || 0)",
+      "    };",
+      "    const names = Object.keys(__qhtmlPainterDefaults);",
+      "    for (let i = 0; i < names.length; i += 1) {",
+      "      const name = names[i];",
+      "      const prop = properties.get(\"--\" + name);",
+      "      target[name] = __qhtmlDecodeValue(prop, __qhtmlPainterDefaults[name]);",
+      "    }",
+      "    const painterThis = new Proxy(target, {",
+      "      get(state, key) {",
+      "        if (Object.prototype.hasOwnProperty.call(state, key)) { return state[key]; }",
+      "        const fromCtx = ctx[key];",
+      "        return typeof fromCtx === \"function\" ? fromCtx.bind(ctx) : fromCtx;",
+      "      },",
+      "      set(state, key, value) { state[key] = value; return true; }",
+      "    });",
+      "    try {",
+      "      (function(){",
+      onPaintSource,
+      "      }).call(painterThis);",
+      "    } catch (error) {",
+      "      // Keep painting pipeline alive if user script throws.",
+      "    }",
+      "  }",
+      "});",
+    ].join("\n");
+  }
+
+  function ensurePainterWorkletRegistration(hostElement, painterName, painterDefinition) {
+    if (!supportsPaintWorklet()) {
+      warnPainterSupportUnavailableOnce();
+      return "";
+    }
+    const scopeId = sanitizePainterNameToken(ensurePainterScopeId(hostElement)) || "global";
+    const painterToken = sanitizePainterNameToken(painterName) || "painter";
+    const internalName = "qhtml-" + scopeId + "-" + painterToken;
+    const registry = readPainterRegistryStore();
+    const existing = registry.get(internalName);
+    if (existing && (existing.status === "ready" || existing.status === "pending")) {
+      return internalName;
+    }
+    const source = buildPainterWorkletModuleSource(internalName, painterDefinition);
+    const blob = new Blob([source], { type: "application/javascript" });
+    const moduleUrl = global.URL.createObjectURL(blob);
+    registry.set(internalName, {
+      status: "pending",
+      name: internalName,
+      moduleUrl: moduleUrl,
+    });
+    global.CSS.paintWorklet.addModule(moduleUrl).then(function onPainterRegistered() {
+      const next = registry.get(internalName);
+      if (next) {
+        next.status = "ready";
+      }
+      try {
+        global.URL.revokeObjectURL(moduleUrl);
+      } catch (error) {
+        // ignore URL revocation failures
+      }
+    }).catch(function onPainterRegisterError(error) {
+      const next = registry.get(internalName);
+      if (next) {
+        next.status = "error";
+        next.error = error;
+      }
+      if (typeof console !== "undefined" && console && typeof console.warn === "function") {
+        console.warn("[q-painter] Failed to register painter '" + String(painterName || "") + "':", error);
+      }
+      try {
+        global.URL.revokeObjectURL(moduleUrl);
+      } catch (revokeError) {
+        // ignore URL revocation failures
+      }
+    });
+    return internalName;
+  }
+
+  function applyPainterCustomPropertyDefaultsToElement(element, painterDefinition) {
+    if (!element || !element.style || typeof element.style.setProperty !== "function") {
+      return;
+    }
+    const painter = painterDefinition && typeof painterDefinition === "object" ? painterDefinition : {};
+    const properties =
+      painter.properties && typeof painter.properties === "object" && !Array.isArray(painter.properties)
+        ? painter.properties
+        : {};
+    const keys = Object.keys(properties);
+    for (let i = 0; i < keys.length; i += 1) {
+      const propertyName = String(keys[i] || "").trim();
+      if (!propertyName) {
+        continue;
+      }
+      const cssName = "--" + propertyName;
+      const current = String(element.style.getPropertyValue(cssName) || "").trim();
+      if (current) {
+        continue;
+      }
+      const encoded = encodePainterPropertyValue(properties[propertyName]);
+      if (!encoded) {
+        continue;
+      }
+      element.style.setProperty(cssName, encoded);
+    }
+  }
+
+  function applyPainterSlotToElement(element, slotName, internalPainterName) {
+    if (!element || !element.style || typeof element.style.setProperty !== "function") {
+      return;
+    }
+    const slot = normalizePainterSlotName(slotName);
+    const paintValue = "paint(" + String(internalPainterName || "") + ")";
+    if (!slot || !internalPainterName) {
+      return;
+    }
+    if (slot === "background") {
+      element.style.setProperty("background-image", paintValue);
+      return;
+    }
+    if (slot === "mask") {
+      element.style.setProperty("mask-image", paintValue);
+      element.style.setProperty("-webkit-mask-image", paintValue);
+      return;
+    }
+    if (slot === "border") {
+      element.style.setProperty("border-image-source", paintValue);
+      if (!String(element.style.getPropertyValue("border-image-slice") || "").trim()) {
+        element.style.setProperty("border-image-slice", "1");
+      }
+      if (!String(element.style.getPropertyValue("border-image-repeat") || "").trim()) {
+        element.style.setProperty("border-image-repeat", "stretch");
+      }
+    }
+  }
+
   function walkElementsInScope(scopeRoot, visitor) {
     if (!scopeRoot || scopeRoot.nodeType !== 1 || typeof visitor !== "function") {
       return;
@@ -14380,7 +15140,7 @@
     return out;
   }
 
-  function applyRuntimeThemeRuleToElement(element, rule) {
+  function applyRuntimeThemeRuleToElement(element, rule, hostElement, runtimeRules) {
     if (!element || !rule || typeof rule !== "object") {
       return;
     }
@@ -14412,6 +15172,29 @@
       }
       element.style.setProperty(cssProperty, cssValue);
     }
+
+    const painters =
+      rule.painters && typeof rule.painters === "object" && !Array.isArray(rule.painters)
+        ? rule.painters
+        : {};
+    const painterSlots = Object.keys(painters);
+    for (let i = 0; i < painterSlots.length; i += 1) {
+      const slot = normalizePainterSlotName(painterSlots[i]);
+      const painterName = String(painters[painterSlots[i]] || "").trim();
+      if (!slot || !painterName) {
+        continue;
+      }
+      const painterDefinition = resolveRuntimePainterDefinition(runtimeRules, painterName);
+      if (!painterDefinition) {
+        continue;
+      }
+      const internalPainterName = ensurePainterWorkletRegistration(hostElement, painterName, painterDefinition);
+      if (!internalPainterName) {
+        continue;
+      }
+      applyPainterCustomPropertyDefaultsToElement(element, painterDefinition);
+      applyPainterSlotToElement(element, slot, internalPainterName);
+    }
   }
 
   function applyRuntimeThemeRulesToHost(hostElement, instanceNode) {
@@ -14430,7 +15213,7 @@
       }
       const targets = collectSelectorTargets(hostElement, selector);
       for (let ti = 0; ti < targets.length; ti += 1) {
-        applyRuntimeThemeRuleToElement(targets[ti], rule);
+        applyRuntimeThemeRuleToElement(targets[ti], rule, hostElement, runtimeRules);
       }
     }
   }
@@ -23583,11 +24366,13 @@
   }
 
   const bindings = new WeakMap();
-  const importSourceCache = new Map();
-  const importDocumentCache = new Map();
+  const importSourceInFlight = new Map();
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
+  const RUNTIME_VERSION = "6.4.0";
+  const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
+  const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
   let autoMountObserver = null;
@@ -28175,7 +28960,7 @@
   }
 
   function isTemplatePersistenceEnabled() {
-    return !(global && global.QHTML_PERSIST_QDOM_TEMPLATE === false);
+    return !!(global && global.QHTML_PERSIST_QDOM_TEMPLATE === true);
   }
 
   function readTemplatePersistDebounceMs() {
@@ -31644,48 +32429,331 @@
     return text;
   }
 
-  async function loadImportSource(url) {
+  function getQHtmlVersionValue() {
+    const explicit = String(global && global.QHTML_VERSION ? global.QHTML_VERSION : "").trim();
+    if (explicit) {
+      return explicit;
+    }
+    const runtimeVersion =
+      global && global.QHtml && typeof global.QHtml.version === "string"
+        ? String(global.QHtml.version || "").trim()
+        : "";
+    if (runtimeVersion) {
+      return runtimeVersion;
+    }
+    return RUNTIME_VERSION;
+  }
+
+  function getImportCacheStorage() {
+    try {
+      if (global && global.localStorage && typeof global.localStorage.getItem === "function") {
+        return global.localStorage;
+      }
+    } catch (error) {
+      return null;
+    }
+    return null;
+  }
+
+  function bytesToBinaryString(bytes) {
+    if (!bytes || typeof bytes.length !== "number") {
+      return "";
+    }
+    let out = "";
+    for (let i = 0; i < bytes.length; i += 1) {
+      out += String.fromCharCode(bytes[i] & 0xff);
+    }
+    return out;
+  }
+
+  function binaryStringToBytes(value) {
+    const text = String(value || "");
+    const out = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) {
+      out[i] = text.charCodeAt(i) & 0xff;
+    }
+    return out;
+  }
+
+  function encodeUtf8ToBase64(value) {
+    const text = String(value == null ? "" : value);
+    const BufferCtor = global && typeof global.Buffer !== "undefined" ? global.Buffer : null;
+    if (typeof global.TextEncoder === "function") {
+      try {
+        const bytes = new global.TextEncoder().encode(text);
+        if (typeof global.btoa === "function") {
+          return global.btoa(bytesToBinaryString(bytes));
+        }
+        if (BufferCtor && typeof BufferCtor.from === "function") {
+          return BufferCtor.from(bytes).toString("base64");
+        }
+      } catch (error) {
+        // fall through
+      }
+    }
+    if (BufferCtor && typeof BufferCtor.from === "function") {
+      try {
+        return BufferCtor.from(text, "utf8").toString("base64");
+      } catch (error) {
+        // fall through
+      }
+    }
+    if (typeof global.btoa === "function") {
+      try {
+        return global.btoa(unescape(encodeURIComponent(text)));
+      } catch (error) {
+        return "";
+      }
+    }
+    return "";
+  }
+
+  function decodeBase64ToUtf8(value) {
+    const encoded = String(value || "").trim();
+    if (!encoded) {
+      return "";
+    }
+    const BufferCtor = global && typeof global.Buffer !== "undefined" ? global.Buffer : null;
+    if (typeof global.atob === "function") {
+      try {
+        const binary = global.atob(encoded);
+        if (typeof global.TextDecoder === "function") {
+          const bytes = binaryStringToBytes(binary);
+          return new global.TextDecoder().decode(bytes);
+        }
+        return decodeURIComponent(escape(binary));
+      } catch (error) {
+        // fall through
+      }
+    }
+    if (BufferCtor && typeof BufferCtor.from === "function") {
+      try {
+        return BufferCtor.from(encoded, "base64").toString("utf8");
+      } catch (error) {
+        return "";
+      }
+    }
+    return "";
+  }
+
+  function readImportCacheRecords(storage) {
+    const targetStorage = storage || getImportCacheStorage();
+    if (!targetStorage) {
+      return [];
+    }
+    try {
+      const raw = targetStorage.getItem(IMPORT_CACHE_RECORDS_KEY);
+      if (!raw) {
+        return [];
+      }
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      return parsed;
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function readImportCacheIndex(storage) {
+    const targetStorage = storage || getImportCacheStorage();
+    if (!targetStorage) {
+      return {};
+    }
+    try {
+      const raw = targetStorage.getItem(IMPORT_CACHE_INDEX_KEY);
+      if (!raw) {
+        return {};
+      }
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return {};
+      }
+      return parsed;
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function writeImportCacheState(storage, records, index) {
+    const targetStorage = storage || getImportCacheStorage();
+    if (!targetStorage) {
+      return;
+    }
+    try {
+      targetStorage.setItem(IMPORT_CACHE_RECORDS_KEY, JSON.stringify(Array.isArray(records) ? records : []));
+      targetStorage.setItem(
+        IMPORT_CACHE_INDEX_KEY,
+        JSON.stringify(index && typeof index === "object" && !Array.isArray(index) ? index : {})
+      );
+    } catch (error) {
+      // ignore storage write failures
+    }
+  }
+
+  function createImportCacheUuid() {
+    const cryptoObj = global && global.crypto;
+    if (cryptoObj && typeof cryptoObj.randomUUID === "function") {
+      try {
+        const generated = String(cryptoObj.randomUUID() || "").trim();
+        if (generated) {
+          return generated;
+        }
+      } catch (error) {
+        // fall through
+      }
+    }
+    return "qimport-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 0xffffffff).toString(16);
+  }
+
+  function selectImportCacheRecordByUuid(records, uuid) {
+    const list = Array.isArray(records) ? records : [];
+    const id = String(uuid || "").trim();
+    if (!id) {
+      return null;
+    }
+    for (let i = list.length - 1; i >= 0; i -= 1) {
+      const candidate = list[i];
+      if (!candidate || typeof candidate !== "object") {
+        continue;
+      }
+      if (String(candidate.uuid || "").trim() === id) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  function hasPersistedImportCacheEntryForUrl(url) {
+    const storage = getImportCacheStorage();
+    if (!storage) {
+      return false;
+    }
+    const fileKey = encodeUtf8ToBase64(String(url || "").trim());
+    if (!fileKey) {
+      return false;
+    }
+    const index = readImportCacheIndex(storage);
+    const uuid = String(index[fileKey] || "").trim();
+    if (!uuid) {
+      return false;
+    }
+    const records = readImportCacheRecords(storage);
+    return !!selectImportCacheRecordByUuid(records, uuid);
+  }
+
+  function shouldForceRefreshFromRandomPolicy() {
+    const roll = 1 + Math.floor(Math.random() * 5);
+    return roll === 2 || roll === 3;
+  }
+
+  async function fetchImportSourceFromNetwork(url) {
+    const key = String(url || "").trim();
+    if (typeof global.fetch !== "function") {
+      throw new Error("q-import requires fetch() support.");
+    }
+    let response;
+    try {
+      response = await global.fetch(key);
+    } catch (error) {
+      throw new Error("q-import failed to load '" + key + "': " + error.message);
+    }
+
+    const status = Number(response && typeof response.status !== "undefined" ? response.status : 200);
+    const ok = !!response && (response.ok === true || (status >= 200 && status < 300) || status === 0);
+    if (!ok) {
+      throw new Error("q-import failed to load '" + key + "' (status " + status + ").");
+    }
+
+    const text =
+      response && typeof response.text === "function"
+        ? await response.text()
+        : String(response && typeof response.body !== "undefined" ? response.body : "");
+    return normalizeImportedSource(text);
+  }
+
+  async function fetchAndPersistImportSource(url, fileKey, storage, records, index) {
+    const sourceText = await fetchImportSourceFromNetwork(url);
+    const entryUuid = createImportCacheUuid();
+    const version = getQHtmlVersionValue();
+    records.push({
+      version: version,
+      file: String(fileKey || ""),
+      contents: encodeUtf8ToBase64(sourceText),
+      uuid: entryUuid,
+    });
+    index[fileKey] = entryUuid;
+    writeImportCacheState(storage, records, index);
+    return sourceText;
+  }
+
+  async function loadImportSourceWithPersistentCache(url) {
+    const key = String(url || "").trim();
+    const storage = getImportCacheStorage();
+    if (!storage) {
+      return fetchImportSourceFromNetwork(key);
+    }
+    const fileKey = encodeUtf8ToBase64(key);
+    if (!fileKey) {
+      return fetchImportSourceFromNetwork(key);
+    }
+    const version = getQHtmlVersionValue();
+    let records = readImportCacheRecords(storage);
+    let index = readImportCacheIndex(storage);
+    const entryUuid = String(index[fileKey] || "").trim();
+    if (entryUuid) {
+      const cachedRecord = selectImportCacheRecordByUuid(records, entryUuid);
+      if (cachedRecord) {
+        const cachedVersion = String(cachedRecord.version || "").trim();
+        if (cachedVersion !== version) {
+          records = records.filter(function dropStaleRecord(record) {
+            return String(record && record.uuid ? record.uuid : "").trim() !== entryUuid;
+          });
+          delete index[fileKey];
+          writeImportCacheState(storage, records, index);
+          return fetchAndPersistImportSource(key, fileKey, storage, records, index);
+        }
+        if (shouldForceRefreshFromRandomPolicy()) {
+          return fetchAndPersistImportSource(key, fileKey, storage, records, index);
+        }
+        const decoded = decodeBase64ToUtf8(cachedRecord.contents);
+        if (decoded) {
+          return normalizeImportedSource(decoded);
+        }
+        return fetchAndPersistImportSource(key, fileKey, storage, records, index);
+      }
+      delete index[fileKey];
+      writeImportCacheState(storage, records, index);
+    }
+    return fetchAndPersistImportSource(key, fileKey, storage, records, index);
+  }
+
+  async function loadImportSource(url, options) {
+    const opts = options && typeof options === "object" ? options : {};
     const key = String(url || "").trim();
     if (!key) {
       throw new Error("q-import URL cannot be empty.");
     }
-    if (importSourceCache.has(key)) {
-      return importSourceCache.get(key);
+    const noCache = opts.noCache === true;
+    const inFlightKey = key + "::" + (noCache ? "nocache" : "cache");
+    if (importSourceInFlight.has(inFlightKey)) {
+      return importSourceInFlight.get(inFlightKey);
     }
-
-    if (typeof global.fetch !== "function") {
-      throw new Error("q-import requires fetch() support.");
-    }
-
-    const pending = (async function fetchImport() {
-      let response;
-      try {
-        response = await global.fetch(key);
-      } catch (error) {
-        throw new Error("q-import failed to load '" + key + "': " + error.message);
+    const pending = (async function resolveImportSource() {
+      if (noCache) {
+        return fetchImportSourceFromNetwork(key);
       }
-
-      const status = Number(response && typeof response.status !== "undefined" ? response.status : 200);
-      const ok = !!response && (response.ok === true || (status >= 200 && status < 300) || status === 0);
-      if (!ok) {
-        throw new Error("q-import failed to load '" + key + "' (status " + status + ").");
-      }
-
-      const text =
-        response && typeof response.text === "function"
-          ? await response.text()
-          : String(response && typeof response.body !== "undefined" ? response.body : "");
-      return normalizeImportedSource(text);
+      return loadImportSourceWithPersistentCache(key);
     })();
-
-    importSourceCache.set(key, pending);
+    importSourceInFlight.set(inFlightKey, pending);
     try {
-      const loaded = await pending;
-      importSourceCache.set(key, Promise.resolve(loaded));
-      return loaded;
+      return await pending;
     } catch (error) {
-      importSourceCache.delete(key);
+      importSourceInFlight.delete(inFlightKey);
       throw error;
+    } finally {
+      importSourceInFlight.delete(inFlightKey);
     }
   }
 
@@ -31751,6 +32819,37 @@
       path = path.slice(1, -1).trim();
     }
     return path;
+  }
+
+  function normalizeImportDeclarationEntries(entries) {
+    const input = Array.isArray(entries) ? entries : [];
+    const out = [];
+    for (let i = 0; i < input.length; i += 1) {
+      const entry = input[i];
+      if (typeof entry === "string") {
+        const path = normalizeImportDeclarationPath(entry);
+        if (!path) {
+          continue;
+        }
+        out.push({
+          path: path,
+          noCache: false,
+        });
+        continue;
+      }
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const path = normalizeImportDeclarationPath(entry.path || entry.url);
+      if (!path) {
+        continue;
+      }
+      out.push({
+        path: path,
+        noCache: entry.noCache === true,
+      });
+    }
+    return out;
   }
 
   function resolveImportUrlForRuntime(path, baseUrl) {
@@ -32505,17 +33604,19 @@
       maxImports: maxImports,
       loaded: 0,
       visited: new Set(),
+      documentLoads: new Map(),
     };
   }
 
   async function ensureImportedDefinitionsForUrl(url, options, traversalState) {
+    const opts = options || {};
     const resolvedUrl = String(url || "").trim();
     if (!resolvedUrl) {
       return null;
     }
-    const state = traversalState || createImportTraversalState(options);
-    if (state.visited.has(resolvedUrl)) {
-      return importDocumentCache.get(resolvedUrl) || null;
+    const state = traversalState || createImportTraversalState(opts);
+    if (state.documentLoads.has(resolvedUrl)) {
+      return state.documentLoads.get(resolvedUrl);
     }
     if (state.loaded >= state.maxImports) {
       throw new Error("q-import limit exceeded (" + state.maxImports + ").");
@@ -32523,39 +33624,40 @@
     state.visited.add(resolvedUrl);
     state.loaded += 1;
 
-    let pendingDocument = importDocumentCache.get(resolvedUrl);
-    if (!pendingDocument) {
-      pendingDocument = (async function parseImportedDocument() {
-        const importedSource = await loadImportSource(resolvedUrl);
-        const importedDoc = parser.parseQHtmlToQDom(importedSource, {
-          resolveImportsBeforeParse: false,
-        });
-        if (!importedDoc.meta || typeof importedDoc.meta !== "object") {
-          importedDoc.meta = {};
-        }
-        importedDoc.meta.importBaseUrl = resolvedUrl;
-        importedDoc.meta.importSource = "q-import-cache";
-        return importedDoc;
-      })();
-      importDocumentCache.set(resolvedUrl, pendingDocument);
-    }
+    const pendingDocument = (async function parseImportedDocument() {
+      const importedSource = await loadImportSource(resolvedUrl, {
+        noCache: opts.noCache === true,
+      });
+      const importedDoc = parser.parseQHtmlToQDom(importedSource, {
+        resolveImportsBeforeParse: false,
+      });
+      if (!importedDoc.meta || typeof importedDoc.meta !== "object") {
+        importedDoc.meta = {};
+      }
+      importedDoc.meta.importBaseUrl = resolvedUrl;
+      importedDoc.meta.importSource = opts.noCache === true ? "q-import-nocache" : "q-import-cache";
+      return importedDoc;
+    })();
+    state.documentLoads.set(resolvedUrl, pendingDocument);
 
     let importedDoc;
     try {
       importedDoc = await pendingDocument;
     } catch (error) {
-      importDocumentCache.delete(resolvedUrl);
+      state.documentLoads.delete(resolvedUrl);
       throw error;
     }
 
     registerDefinitionsFromDocument(importedDoc);
 
-    const nestedImports =
-      importedDoc && importedDoc.meta && Array.isArray(importedDoc.meta.imports)
-        ? importedDoc.meta.imports
+    const nestedDeclarations =
+      importedDoc &&
+      importedDoc.meta &&
+      (Array.isArray(importedDoc.meta.importDeclarations) || Array.isArray(importedDoc.meta.imports))
+        ? normalizeImportDeclarationEntries(importedDoc.meta.importDeclarations || importedDoc.meta.imports)
         : [];
-    for (let i = 0; i < nestedImports.length; i += 1) {
-      const nestedPath = normalizeImportDeclarationPath(nestedImports[i]);
+    for (let i = 0; i < nestedDeclarations.length; i += 1) {
+      const nestedPath = normalizeImportDeclarationPath(nestedDeclarations[i] && nestedDeclarations[i].path);
       if (!nestedPath) {
         continue;
       }
@@ -32563,21 +33665,29 @@
       if (!nestedUrl) {
         continue;
       }
-      await ensureImportedDefinitionsForUrl(nestedUrl, options, state);
+      await ensureImportedDefinitionsForUrl(
+        nestedUrl,
+        {
+          maxImports: state.maxImports,
+          noCache: nestedDeclarations[i] && nestedDeclarations[i].noCache === true,
+        },
+        state
+      );
     }
 
     return importedDoc;
   }
 
-  async function preloadImportedDefinitions(importPaths, baseUrl, options) {
-    const paths = Array.isArray(importPaths) ? importPaths : [];
-    if (paths.length === 0) {
+  async function preloadImportedDefinitions(importDeclarations, baseUrl, options) {
+    const declarations = normalizeImportDeclarationEntries(importDeclarations);
+    if (declarations.length === 0) {
       return [];
     }
     const state = createImportTraversalState(options);
     const records = [];
-    for (let i = 0; i < paths.length; i += 1) {
-      const importPath = normalizeImportDeclarationPath(paths[i]);
+    for (let i = 0; i < declarations.length; i += 1) {
+      const importDeclaration = declarations[i];
+      const importPath = normalizeImportDeclarationPath(importDeclaration && importDeclaration.path);
       if (!importPath) {
         continue;
       }
@@ -32587,11 +33697,19 @@
       }
       records.push({
         path: importPath,
+        noCache: importDeclaration && importDeclaration.noCache === true,
         url: resolvedUrl,
         cacheKey: resolvedUrl,
-        cached: importSourceCache.has(resolvedUrl) || importDocumentCache.has(resolvedUrl),
+        cached: hasPersistedImportCacheEntryForUrl(resolvedUrl),
       });
-      await ensureImportedDefinitionsForUrl(resolvedUrl, options, state);
+      await ensureImportedDefinitionsForUrl(
+        resolvedUrl,
+        {
+          maxImports: state.maxImports,
+          noCache: importDeclaration && importDeclaration.noCache === true,
+        },
+        state
+      );
     }
     return records;
   }
@@ -40863,7 +41981,11 @@
   async function loadOrParseDocument(qHtmlElement, options) {
     const opts = options || {};
     const importBaseUrl = resolveImportBaseUrl(qHtmlElement, opts);
-    if (opts.preferTemplate !== false) {
+    const preferTemplateLoad =
+      opts.preferTemplate === true ||
+      (!Object.prototype.hasOwnProperty.call(opts, "preferTemplate") &&
+        !!(global && global.QHTML_PREFER_TEMPLATE === true));
+    if (preferTemplateLoad) {
       const loaded = core.loadQDomTemplateBefore(qHtmlElement);
       if (loaded) {
         if (!loaded.meta || typeof loaded.meta !== "object") {
@@ -40889,6 +42011,7 @@
     const source = readInlineSourceFromElement(qHtmlElement);
     let resolvedSource = source;
     const resolvedImportUrls = [];
+    const resolvedImportDeclarations = [];
     const importPattern = /\bq-import\s*\{/i;
     const sourceContainsImport = importPattern.test(source);
     if (typeof parser.resolveQImportsAsync === "function") {
@@ -40897,10 +42020,15 @@
         baseUrl: importBaseUrl,
         maxImports: opts.maxImports,
         onImport: function onResolvedImport(info) {
-          if (!info || !info.url) {
-            return;
+          if (info && info.url) {
+            resolvedImportUrls.push(String(info.url));
           }
-          resolvedImportUrls.push(String(info.url));
+          if (info && (info.path || info.url)) {
+            resolvedImportDeclarations.push({
+              path: String(info.path || info.url || "").trim(),
+              noCache: info.noCache === true,
+            });
+          }
         },
       });
     } else if (sourceContainsImport) {
@@ -40925,16 +42053,15 @@
       parsed.meta = {};
     }
 
-    const importPaths = Array.isArray(parsed.meta.imports)
-      ? parsed.meta.imports.map(function normalizeImportPath(path) {
-          return normalizeImportDeclarationPath(path);
-        }).filter(Boolean)
-      : [];
-    if (importPaths.length > 0) {
-      const importCacheRefs = await preloadImportedDefinitions(importPaths, importBaseUrl, {
+    const importDeclarations = normalizeImportDeclarationEntries(parsed.meta.importDeclarations || parsed.meta.imports);
+    if (importDeclarations.length > 0) {
+      const importCacheRefs = await preloadImportedDefinitions(importDeclarations, importBaseUrl, {
         maxImports: opts.maxImports,
       });
-      parsed.meta.imports = importPaths;
+      parsed.meta.imports = importDeclarations.map(function mapImportPath(entry) {
+        return entry.path;
+      });
+      parsed.meta.importDeclarations = importDeclarations;
       parsed.meta.importCacheRefs = importCacheRefs;
       parsed.meta.importUrls = importCacheRefs.map(function mapImportRef(entry) {
         return entry.url;
@@ -40950,7 +42077,11 @@
         importUrlSet.add(url);
         normalizedImportUrls.push(url);
       }
-      parsed.meta.imports = Array.isArray(parsed.meta.imports) ? parsed.meta.imports : [];
+      const normalizedResolvedDeclarations = normalizeImportDeclarationEntries(resolvedImportDeclarations);
+      parsed.meta.importDeclarations = normalizedResolvedDeclarations;
+      parsed.meta.imports = normalizedResolvedDeclarations.map(function mapResolvedImportPath(entry) {
+        return entry.path;
+      });
       parsed.meta.importUrls = normalizedImportUrls;
     }
     const sdmlEndpoints = Array.isArray(parsed.meta.sdmlEndpoints)
@@ -41715,6 +42846,7 @@
     SIGNALS: {
       QHTMLContentLoaded: QHTML_CONTENT_LOADED_EVENT,
     },
+    version: RUNTIME_VERSION,
     mountQHtmlElement: mountQHtmlElement,
     unmountQHtmlElement: unmountQHtmlElement,
     getQDomForElement: getQDomForElement,
@@ -41780,6 +42912,7 @@
   installGlobalDomMutationSyncToggle();
   exposeGlobalRuntimeMaps();
   global.QHtml = runtimeApi;
+  global.QHTML_VERSION = RUNTIME_VERSION;
   global.QModel = createQModel;
   global.QArray = createQArray;
   global.QMap = function qMapFactory(value) {
@@ -41818,7 +42951,8 @@
   }
 
   const api = runtime;
-  api.version = "6.3.2";
+  api.version = "6.4.0";
+  global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {
     return modules.qhtmlParser.parseQHtmlToQDom(source || "");
@@ -41844,3 +42978,4 @@
 })(typeof globalThis !== "undefined" ? globalThis : window);
 
 /*** END: src/root-integration.js ***/
+

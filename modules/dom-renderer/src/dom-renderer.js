@@ -27,6 +27,8 @@
   const Q_CALLBACK_NODE_KIND = "callback";
   const QHTML_FRAGMENT_MARKER = "__qhtmlFragment";
   const QHTML_NAMED_CALLBACKS_KEY = "__qhtmlNamedCallbacks";
+  const QHTML_PAINTER_REGISTRY_KEY = "__qhtmlPainterRegistry";
+  const QHTML_PAINTER_SCOPE_KEY = "__qhtmlPainterScopeId";
   const INLINE_REFERENCE_PATTERN = /\$\{\s*([^}]+?)\s*\}/g;
   const INLINE_REFERENCE_ESCAPE_TOKEN = "__QHTML_ESCAPED_INLINE_REF__";
   const Q_SIGNAL_META_KEY = "__qhtmlSignalMeta";
@@ -43,6 +45,10 @@
   let wasmWorkerScriptUrl = null;
   let qWorkerExecutorScriptUrl = null;
   const qWorkerRuntimeRegistryFallback = new Map();
+  const qPainterRuntimeRegistryFallback = new Map();
+  const qPainterScopeIds = new WeakMap();
+  let qPainterScopeCounter = 0;
+  let qPainterSupportWarningShown = false;
   const Q_WORKER_IDLE_TERMINATE_MS = 30000;
   let qWorkerFallbackRuntimeCounter = 0;
   let wasmCallSequence = 0;
@@ -452,6 +458,309 @@
     return meta.qRuntimeThemeRules;
   }
 
+  function normalizePainterLookupKey(name) {
+    return String(name || "").trim().toLowerCase();
+  }
+
+  function normalizePainterSlotName(name) {
+    const value = String(name || "").trim().toLowerCase();
+    if (value === "background" || value === "border" || value === "mask") {
+      return value;
+    }
+    return "";
+  }
+
+  function encodePainterPropertyValue(value) {
+    if (typeof value === "string") {
+      return value;
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value);
+    }
+    if (value == null) {
+      return "";
+    }
+    try {
+      return JSON.stringify(value);
+    } catch (error) {
+      return String(value);
+    }
+  }
+
+  function readPainterRegistryStore() {
+    const existing =
+      global &&
+      global[QHTML_PAINTER_REGISTRY_KEY] &&
+      global[QHTML_PAINTER_REGISTRY_KEY] instanceof Map
+        ? global[QHTML_PAINTER_REGISTRY_KEY]
+        : null;
+    if (existing) {
+      return existing;
+    }
+    try {
+      if (global) {
+        global[QHTML_PAINTER_REGISTRY_KEY] = qPainterRuntimeRegistryFallback;
+      }
+    } catch (error) {
+      // fallback map only
+    }
+    return qPainterRuntimeRegistryFallback;
+  }
+
+  function supportsPaintWorklet() {
+    return !!(
+      global &&
+      global.CSS &&
+      global.CSS.paintWorklet &&
+      typeof global.CSS.paintWorklet.addModule === "function" &&
+      typeof global.Blob === "function" &&
+      global.URL &&
+      typeof global.URL.createObjectURL === "function"
+    );
+  }
+
+  function warnPainterSupportUnavailableOnce() {
+    if (qPainterSupportWarningShown) {
+      return;
+    }
+    qPainterSupportWarningShown = true;
+    if (typeof console !== "undefined" && console && typeof console.warn === "function") {
+      console.warn("[q-painter] CSS Paint Worklet is unavailable in this environment; painter styles were skipped.");
+    }
+  }
+
+  function ensurePainterScopeId(hostElement) {
+    if (!hostElement || hostElement.nodeType !== 1) {
+      return "global";
+    }
+    const fromMap = qPainterScopeIds.get(hostElement);
+    if (fromMap) {
+      return fromMap;
+    }
+    const attrScope = String(hostElement.getAttribute && hostElement.getAttribute("qhtml-instance-id") || "").trim();
+    if (attrScope) {
+      qPainterScopeIds.set(hostElement, attrScope);
+      return attrScope;
+    }
+    let existing = String(hostElement[QHTML_PAINTER_SCOPE_KEY] || "").trim();
+    if (!existing) {
+      qPainterScopeCounter += 1;
+      existing = "p" + String(qPainterScopeCounter);
+      try {
+        Object.defineProperty(hostElement, QHTML_PAINTER_SCOPE_KEY, {
+          configurable: true,
+          enumerable: false,
+          writable: true,
+          value: existing,
+        });
+      } catch (error) {
+        hostElement[QHTML_PAINTER_SCOPE_KEY] = existing;
+      }
+    }
+    qPainterScopeIds.set(hostElement, existing);
+    return existing;
+  }
+
+  function sanitizePainterNameToken(name) {
+    const raw = String(name || "").trim().toLowerCase();
+    if (!raw) {
+      return "";
+    }
+    return raw.replace(/[^a-z0-9_-]/g, "-");
+  }
+
+  function resolveRuntimePainterDefinition(runtimeRules, painterName) {
+    const rules = runtimeRules && typeof runtimeRules === "object" ? runtimeRules : {};
+    const painterMap =
+      rules.painters && typeof rules.painters === "object" && !Array.isArray(rules.painters)
+        ? rules.painters
+        : {};
+    const directKey = normalizePainterLookupKey(painterName);
+    if (directKey && painterMap[directKey] && typeof painterMap[directKey] === "object") {
+      return painterMap[directKey];
+    }
+    const keys = Object.keys(painterMap);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim();
+      const entry = painterMap[key];
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      if (normalizePainterLookupKey(entry.name) === directKey) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  function buildPainterWorkletModuleSource(internalName, painterDefinition) {
+    const painter = painterDefinition && typeof painterDefinition === "object" ? painterDefinition : {};
+    const defaults =
+      painter.properties && typeof painter.properties === "object" && !Array.isArray(painter.properties)
+        ? painter.properties
+        : {};
+    const onPaintSource = String(painter.onPaint || "").trim();
+    const propertyNames = Object.keys(defaults)
+      .map(function mapPropertyName(name) { return String(name || "").trim(); })
+      .filter(Boolean);
+    const inputPropertiesLiteral = JSON.stringify(
+      propertyNames.map(function mapInputName(name) { return "--" + name; })
+    );
+    const defaultsLiteral = JSON.stringify(defaults);
+    return [
+      "const __qhtmlPainterDefaults = " + defaultsLiteral + ";",
+      "const __qhtmlPainterInputProperties = " + inputPropertiesLiteral + ";",
+      "function __qhtmlDecodeValue(rawValue, fallback) {",
+      "  const raw = String(rawValue == null ? \"\" : rawValue).trim();",
+      "  if (!raw) { return fallback; }",
+      "  if (raw === \"true\") { return true; }",
+      "  if (raw === \"false\") { return false; }",
+      "  const num = Number(raw);",
+      "  if (Number.isFinite(num)) { return num; }",
+      "  try { return JSON.parse(raw); } catch (error) { return raw; }",
+      "}",
+      "registerPaint(" + JSON.stringify(String(internalName || "")) + ", class QHtmlPainter {",
+      "  static get inputProperties() { return __qhtmlPainterInputProperties; }",
+      "  paint(ctx, size, properties, args) {",
+      "    const target = {",
+      "      context: ctx,",
+      "      size: size,",
+      "      args: args,",
+      "      width: Number(size && size.width || 0),",
+      "      height: Number(size && size.height || 0)",
+      "    };",
+      "    const names = Object.keys(__qhtmlPainterDefaults);",
+      "    for (let i = 0; i < names.length; i += 1) {",
+      "      const name = names[i];",
+      "      const prop = properties.get(\"--\" + name);",
+      "      target[name] = __qhtmlDecodeValue(prop, __qhtmlPainterDefaults[name]);",
+      "    }",
+      "    const painterThis = new Proxy(target, {",
+      "      get(state, key) {",
+      "        if (Object.prototype.hasOwnProperty.call(state, key)) { return state[key]; }",
+      "        const fromCtx = ctx[key];",
+      "        return typeof fromCtx === \"function\" ? fromCtx.bind(ctx) : fromCtx;",
+      "      },",
+      "      set(state, key, value) { state[key] = value; return true; }",
+      "    });",
+      "    try {",
+      "      (function(){",
+      onPaintSource,
+      "      }).call(painterThis);",
+      "    } catch (error) {",
+      "      // Keep painting pipeline alive if user script throws.",
+      "    }",
+      "  }",
+      "});",
+    ].join("\n");
+  }
+
+  function ensurePainterWorkletRegistration(hostElement, painterName, painterDefinition) {
+    if (!supportsPaintWorklet()) {
+      warnPainterSupportUnavailableOnce();
+      return "";
+    }
+    const scopeId = sanitizePainterNameToken(ensurePainterScopeId(hostElement)) || "global";
+    const painterToken = sanitizePainterNameToken(painterName) || "painter";
+    const internalName = "qhtml-" + scopeId + "-" + painterToken;
+    const registry = readPainterRegistryStore();
+    const existing = registry.get(internalName);
+    if (existing && (existing.status === "ready" || existing.status === "pending")) {
+      return internalName;
+    }
+    const source = buildPainterWorkletModuleSource(internalName, painterDefinition);
+    const blob = new Blob([source], { type: "application/javascript" });
+    const moduleUrl = global.URL.createObjectURL(blob);
+    registry.set(internalName, {
+      status: "pending",
+      name: internalName,
+      moduleUrl: moduleUrl,
+    });
+    global.CSS.paintWorklet.addModule(moduleUrl).then(function onPainterRegistered() {
+      const next = registry.get(internalName);
+      if (next) {
+        next.status = "ready";
+      }
+      try {
+        global.URL.revokeObjectURL(moduleUrl);
+      } catch (error) {
+        // ignore URL revocation failures
+      }
+    }).catch(function onPainterRegisterError(error) {
+      const next = registry.get(internalName);
+      if (next) {
+        next.status = "error";
+        next.error = error;
+      }
+      if (typeof console !== "undefined" && console && typeof console.warn === "function") {
+        console.warn("[q-painter] Failed to register painter '" + String(painterName || "") + "':", error);
+      }
+      try {
+        global.URL.revokeObjectURL(moduleUrl);
+      } catch (revokeError) {
+        // ignore URL revocation failures
+      }
+    });
+    return internalName;
+  }
+
+  function applyPainterCustomPropertyDefaultsToElement(element, painterDefinition) {
+    if (!element || !element.style || typeof element.style.setProperty !== "function") {
+      return;
+    }
+    const painter = painterDefinition && typeof painterDefinition === "object" ? painterDefinition : {};
+    const properties =
+      painter.properties && typeof painter.properties === "object" && !Array.isArray(painter.properties)
+        ? painter.properties
+        : {};
+    const keys = Object.keys(properties);
+    for (let i = 0; i < keys.length; i += 1) {
+      const propertyName = String(keys[i] || "").trim();
+      if (!propertyName) {
+        continue;
+      }
+      const cssName = "--" + propertyName;
+      const current = String(element.style.getPropertyValue(cssName) || "").trim();
+      if (current) {
+        continue;
+      }
+      const encoded = encodePainterPropertyValue(properties[propertyName]);
+      if (!encoded) {
+        continue;
+      }
+      element.style.setProperty(cssName, encoded);
+    }
+  }
+
+  function applyPainterSlotToElement(element, slotName, internalPainterName) {
+    if (!element || !element.style || typeof element.style.setProperty !== "function") {
+      return;
+    }
+    const slot = normalizePainterSlotName(slotName);
+    const paintValue = "paint(" + String(internalPainterName || "") + ")";
+    if (!slot || !internalPainterName) {
+      return;
+    }
+    if (slot === "background") {
+      element.style.setProperty("background-image", paintValue);
+      return;
+    }
+    if (slot === "mask") {
+      element.style.setProperty("mask-image", paintValue);
+      element.style.setProperty("-webkit-mask-image", paintValue);
+      return;
+    }
+    if (slot === "border") {
+      element.style.setProperty("border-image-source", paintValue);
+      if (!String(element.style.getPropertyValue("border-image-slice") || "").trim()) {
+        element.style.setProperty("border-image-slice", "1");
+      }
+      if (!String(element.style.getPropertyValue("border-image-repeat") || "").trim()) {
+        element.style.setProperty("border-image-repeat", "stretch");
+      }
+    }
+  }
+
   function walkElementsInScope(scopeRoot, visitor) {
     if (!scopeRoot || scopeRoot.nodeType !== 1 || typeof visitor !== "function") {
       return;
@@ -571,7 +880,7 @@
     return out;
   }
 
-  function applyRuntimeThemeRuleToElement(element, rule) {
+  function applyRuntimeThemeRuleToElement(element, rule, hostElement, runtimeRules) {
     if (!element || !rule || typeof rule !== "object") {
       return;
     }
@@ -603,6 +912,29 @@
       }
       element.style.setProperty(cssProperty, cssValue);
     }
+
+    const painters =
+      rule.painters && typeof rule.painters === "object" && !Array.isArray(rule.painters)
+        ? rule.painters
+        : {};
+    const painterSlots = Object.keys(painters);
+    for (let i = 0; i < painterSlots.length; i += 1) {
+      const slot = normalizePainterSlotName(painterSlots[i]);
+      const painterName = String(painters[painterSlots[i]] || "").trim();
+      if (!slot || !painterName) {
+        continue;
+      }
+      const painterDefinition = resolveRuntimePainterDefinition(runtimeRules, painterName);
+      if (!painterDefinition) {
+        continue;
+      }
+      const internalPainterName = ensurePainterWorkletRegistration(hostElement, painterName, painterDefinition);
+      if (!internalPainterName) {
+        continue;
+      }
+      applyPainterCustomPropertyDefaultsToElement(element, painterDefinition);
+      applyPainterSlotToElement(element, slot, internalPainterName);
+    }
   }
 
   function applyRuntimeThemeRulesToHost(hostElement, instanceNode) {
@@ -621,7 +953,7 @@
       }
       const targets = collectSelectorTargets(hostElement, selector);
       for (let ti = 0; ti < targets.length; ti += 1) {
-        applyRuntimeThemeRuleToElement(targets[ti], rule);
+        applyRuntimeThemeRuleToElement(targets[ti], rule, hostElement, runtimeRules);
       }
     }
   }

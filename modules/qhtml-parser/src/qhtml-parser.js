@@ -44,6 +44,8 @@
     "q-style-class",
     "q-theme",
     "q-default-theme",
+    "q-painter",
+    "q-style-painter",
     "q-color",
     "q-color-schema",
     "q-color-theme",
@@ -1707,8 +1709,10 @@
     const parser = parserFor(String(rawBody || ""));
     const out = {};
     const classes = [];
+    const painters = {};
     const seenClasses = new Set();
     const styleClassKeywords = collectAliasesTargeting(keywordAliases, "q-style-class");
+    const stylePainterKeywords = collectAliasesTargeting(keywordAliases, "q-style-painter");
     while (!eof(parser)) {
       skipWhitespaceAndSemicolons(parser);
       if (eof(parser)) {
@@ -1747,6 +1751,28 @@
         }
         continue;
       }
+      if (stylePainterKeywords.has(propertyLower)) {
+        if (peek(parser) !== "{") {
+          throw ParseError("Expected '{...}' after q-style-painter inside q-style", parser.index);
+        }
+        consume(parser);
+        const painterBody = String(readBalancedBlockContent(parser) || "");
+        const parsedPainters = parseQStylePainterMappings(painterBody, keywordAliases);
+        const painterSlots = Object.keys(parsedPainters);
+        for (let i = 0; i < painterSlots.length; i += 1) {
+          const slot = String(painterSlots[i] || "").trim();
+          const painterName = String(parsedPainters[slot] || "").trim();
+          if (!slot || !painterName) {
+            continue;
+          }
+          painters[slot] = painterName;
+        }
+        skipWhitespaceAndSemicolons(parser);
+        if (peek(parser) === ",") {
+          consume(parser);
+        }
+        continue;
+      }
       let value = "";
       if (peek(parser) === ":") {
         consume(parser);
@@ -1768,7 +1794,54 @@
     return {
       declarations: out,
       classes: classes,
+      painters: painters,
     };
+  }
+
+  function normalizeQStylePainterSlotName(rawName) {
+    const value = String(rawName || "").trim().toLowerCase();
+    if (value === "background" || value === "border" || value === "mask") {
+      return value;
+    }
+    return "";
+  }
+
+  function parseQStylePainterMappings(rawBody, keywordAliases) {
+    const parser = parserFor(String(rawBody || ""));
+    const out = {};
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+      const slotName = parseQColorIdentifier(parser, "q-style-painter");
+      const slot = normalizeQStylePainterSlotName(slotName);
+      if (!slot) {
+        throw ParseError("q-style-painter supports only border/background/mask slots", parser.index);
+      }
+      skipWhitespace(parser);
+      let painterValue = "";
+      if (peek(parser) === ":") {
+        consume(parser);
+        painterValue = parseQColorValueToken(parser, keywordAliases);
+      } else if (peek(parser) === "{") {
+        consume(parser);
+        painterValue = String(readBalancedBlockContent(parser) || "").trim();
+      } else {
+        throw ParseError("Expected ':' or '{...}' inside q-style-painter", parser.index);
+      }
+      const candidates = parseQPropertyNames(String(painterValue || "").trim());
+      const painterName = String(candidates.length > 0 ? candidates[0] : painterValue || "").trim();
+      if (!painterName) {
+        throw ParseError("q-style-painter slot '" + slot + "' requires a painter name", parser.index);
+      }
+      out[slot] = painterName;
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+      }
+    }
+    return out;
   }
 
   function parseQThemeRules(rawBody) {
@@ -2542,6 +2615,31 @@
         if (nameLower === "q-canvas" && nextChar === "{") {
           throw ParseError("Anonymous q-canvas is not allowed", parser.index);
         }
+        if (nameLower === "q-painter" && nextChar !== "{" && nextChar !== ",") {
+          const painterName = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-painter id", parser.index);
+          }
+          consume(parser);
+          const painterBody = readBalancedBlockContent(parser);
+          const parsedPainter = parseQPainterDefinitionBody(String(painterBody || ""), scopedKeywordAliases);
+          items.push({
+            type: "QPainterDefinition",
+            name: String(painterName || "").trim(),
+            body: String(painterBody || ""),
+            properties: parsedPainter.properties,
+            onPaint: parsedPainter.onPaint,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-painter" && nextChar === "{") {
+          throw ParseError("Anonymous q-painter is not allowed", parser.index);
+        }
         if (nameLower === "q-property" && nextChar !== "{") {
           const propertyNameStart = parser.index;
           const propertyName = parseIdentifier(parser);
@@ -2650,6 +2748,7 @@
             name: styleName,
             declarations: parsedStyle.declarations,
             classes: parsedStyle.classes,
+            painters: parsedStyle.painters,
             keywords: keywordSnapshot,
             start: itemStart,
             end: parser.index,
@@ -3693,6 +3792,32 @@
         if (firstLower === "q-canvas" && peek(parser) === "{") {
           throw ParseError("Anonymous q-canvas is not allowed", parser.index);
         }
+        if (firstLower === "q-painter" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const painterName = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-painter id", parser.index);
+          }
+          consume(parser);
+          const painterBody = readBalancedBlockContent(parser);
+          const parsedPainter = parseQPainterDefinitionBody(String(painterBody || ""), scopedKeywordAliases);
+          body.push({
+            type: "QPainterDefinition",
+            name: String(painterName || "").trim(),
+            body: String(painterBody || ""),
+            properties: parsedPainter.properties,
+            onPaint: parsedPainter.onPaint,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-painter" && peek(parser) === "{") {
+          throw ParseError("Anonymous q-painter is not allowed", parser.index);
+        }
 
         if (firstLower === "sdml-endpoint" && peek(parser) !== "{" && peek(parser) !== ",") {
           const endpointId = parseIdentifier(parser);
@@ -3868,6 +3993,7 @@
             name: styleName,
             declarations: parsedStyle.declarations,
             classes: parsedStyle.classes,
+            painters: parsedStyle.painters,
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -3982,9 +4108,11 @@
 
         if (selectors.length === 1 && selectors[0].toLowerCase() === "q-import") {
           const importBody = readBalancedBlockContent(parser);
+          const importDeclaration = parseImportDeclaration(importBody);
           body.push({
             type: "ImportBlock",
-            path: String(importBody || "").trim(),
+            path: importDeclaration.path,
+            noCache: importDeclaration.noCache === true,
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -4165,6 +4293,75 @@
     return path;
   }
 
+  function splitImportDeclarationTokens(rawBody) {
+    const text = String(rawBody || "").trim();
+    if (!text) {
+      return [];
+    }
+    const tokens = [];
+    let current = "";
+    let quote = "";
+    let escaped = false;
+    for (let i = 0; i < text.length; i += 1) {
+      const ch = text.charAt(i);
+      if (quote) {
+        current += ch;
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === "`") {
+        quote = ch;
+        current += ch;
+        continue;
+      }
+      if (/\s/.test(ch)) {
+        if (current) {
+          tokens.push(current);
+          current = "";
+        }
+        continue;
+      }
+      current += ch;
+    }
+    if (current) {
+      tokens.push(current);
+    }
+    return tokens;
+  }
+
+  function parseImportDeclaration(rawBody) {
+    const tokens = splitImportDeclarationTokens(rawBody);
+    if (tokens.length === 0) {
+      return {
+        path: "",
+        noCache: false,
+      };
+    }
+    let noCache = false;
+    while (tokens.length > 0) {
+      const tail = String(tokens[tokens.length - 1] || "").trim().replace(/;$/, "").toLowerCase();
+      if (tail !== "nocache") {
+        break;
+      }
+      noCache = true;
+      tokens.pop();
+    }
+    return {
+      path: normalizeImportPath(tokens.join(" ")),
+      noCache: noCache,
+    };
+  }
+
   function resolveImportUrl(path, baseUrl) {
     const value = String(path || "").trim();
     if (!value) {
@@ -4276,7 +4473,8 @@
         }
 
         const importBody = out.slice(found.open + 1, found.close);
-        const importPath = normalizeImportPath(importBody);
+        const importDeclaration = parseImportDeclaration(importBody);
+        const importPath = importDeclaration.path;
         if (!importPath) {
           throw new Error("q-import path cannot be empty.");
         }
@@ -4294,6 +4492,7 @@
             path: importPath,
             url: resolvedUrl,
             baseUrl: baseUrl || "",
+            noCache: importDeclaration.noCache === true,
           });
         }
 
@@ -4305,6 +4504,7 @@
           const importedSource = loadImportSync(resolvedUrl, {
             path: importPath,
             baseUrl: baseUrl || "",
+            noCache: importDeclaration.noCache === true,
           });
           const importedText = String(importedSource || "");
           replacement = expandImports(importedText, resolvedUrl, stack.concat(resolvedUrl));
@@ -4344,7 +4544,8 @@
         }
 
         const importBody = out.slice(found.open + 1, found.close);
-        const importPath = normalizeImportPath(importBody);
+        const importDeclaration = parseImportDeclaration(importBody);
+        const importPath = importDeclaration.path;
         if (!importPath) {
           throw new Error("q-import path cannot be empty.");
         }
@@ -4362,6 +4563,7 @@
             path: importPath,
             url: resolvedUrl,
             baseUrl: baseUrl || "",
+            noCache: importDeclaration.noCache === true,
           });
         }
 
@@ -4375,6 +4577,7 @@
               loadImport(resolvedUrl, {
                 path: importPath,
                 baseUrl: baseUrl || "",
+                noCache: importDeclaration.noCache === true,
               })
             );
             const importedText = String(importedSource || "");
@@ -4843,6 +5046,41 @@
     return out;
   }
 
+  function cloneQStylePainters(painters) {
+    const source =
+      painters && typeof painters === "object" && !Array.isArray(painters)
+        ? painters
+        : {};
+    const out = {};
+    const keys = Object.keys(source);
+    for (let i = 0; i < keys.length; i += 1) {
+      const slot = normalizeQStylePainterSlotName(keys[i]);
+      const painterName = String(source[keys[i]] || "").trim();
+      if (!slot || !painterName) {
+        continue;
+      }
+      out[slot] = painterName;
+    }
+    return out;
+  }
+
+  function cloneQPainterProperties(properties) {
+    const source =
+      properties && typeof properties === "object" && !Array.isArray(properties)
+        ? properties
+        : {};
+    const out = {};
+    const keys = Object.keys(source);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim();
+      if (!key) {
+        continue;
+      }
+      out[key] = deepClonePlainValue(source[key]);
+    }
+    return out;
+  }
+
   function cloneQThemeRules(rules) {
     const list = Array.isArray(rules) ? rules : [];
     const out = [];
@@ -4883,10 +5121,20 @@
       name: String(entry.name || "").trim(),
       declarations: cloneQStyleDeclarations(entry.declarations),
       classes: cloneQStyleClasses(entry.classes),
+      painters: cloneQStylePainters(entry.painters),
     };
   }
 
-  function registerQStyleDefinition(styleContext, styleName, declarations, classes) {
+  function cloneQPainterDefinition(painterDefinition) {
+    const entry = painterDefinition && typeof painterDefinition === "object" ? painterDefinition : {};
+    return {
+      name: String(entry.name || "").trim(),
+      properties: cloneQPainterProperties(entry.properties),
+      onPaint: String(entry.onPaint || "").trim(),
+    };
+  }
+
+  function registerQStyleDefinition(styleContext, styleName, declarations, classes, painters) {
     if (!styleContext || !(styleContext.styles instanceof Map)) {
       return;
     }
@@ -4899,6 +5147,7 @@
       name: name,
       declarations: cloneQStyleDeclarations(declarations),
       classes: cloneQStyleClasses(classes),
+      painters: cloneQStylePainters(painters),
     });
   }
 
@@ -4916,6 +5165,39 @@
     }
     const out = cloneQStyleDefinition(entry);
     out.name = out.name || String(styleName || "").trim();
+    return out;
+  }
+
+  function registerQPainterDefinition(styleContext, painterName, properties, onPaint) {
+    if (!styleContext || !(styleContext.painters instanceof Map)) {
+      return;
+    }
+    const name = String(painterName || "").trim();
+    const normalized = normalizeColorLookupKey(name);
+    if (!name || !normalized) {
+      return;
+    }
+    styleContext.painters.set(normalized, {
+      name: name,
+      properties: cloneQPainterProperties(properties),
+      onPaint: String(onPaint || "").trim(),
+    });
+  }
+
+  function lookupQPainterDefinition(styleContext, painterName) {
+    if (!styleContext || !(styleContext.painters instanceof Map)) {
+      return null;
+    }
+    const normalized = normalizeColorLookupKey(painterName);
+    if (!normalized) {
+      return null;
+    }
+    const entry = styleContext.painters.get(normalized);
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+    const out = cloneQPainterDefinition(entry);
+    out.name = out.name || String(painterName || "").trim();
     return out;
   }
 
@@ -4987,6 +5269,7 @@
     const context = {
       styles: new Map(),
       themes: new Map(),
+      painters: new Map(),
       activeDefaultThemes: [],
       activeThemes: [],
     };
@@ -4999,6 +5282,7 @@
           name: String(entry.name || key || "").trim() || String(key || ""),
           declarations: cloneQStyleDeclarations(entry.declarations),
           classes: cloneQStyleClasses(entry.classes),
+          painters: cloneQStylePainters(entry.painters),
         });
       });
     }
@@ -5010,6 +5294,18 @@
         context.themes.set(String(key || ""), {
           name: String(entry.name || key || "").trim() || String(key || ""),
           rules: cloneQThemeRules(entry.rules),
+        });
+      });
+    }
+    if (parentContext && parentContext.painters instanceof Map) {
+      parentContext.painters.forEach(function copyPainter(entry, key) {
+        if (!entry || typeof entry !== "object") {
+          return;
+        }
+        context.painters.set(String(key || ""), {
+          name: String(entry.name || key || "").trim() || String(key || ""),
+          properties: cloneQPainterProperties(entry.properties),
+          onPaint: String(entry.onPaint || "").trim(),
         });
       });
     }
@@ -5160,6 +5456,7 @@
     const names = Array.isArray(styleNames) ? styleNames : [];
     const declarations = {};
     const classes = [];
+    const painters = {};
     const seenClasses = new Set();
     for (let i = 0; i < names.length; i += 1) {
       const styleDef = lookupQStyleDefinition(styleContext, names[i]);
@@ -5186,11 +5483,38 @@
         seenClasses.add(className);
         classes.push(className);
       }
+      const nextPainters = cloneQStylePainters(styleDef.painters);
+      const painterSlots = Object.keys(nextPainters);
+      for (let pi = 0; pi < painterSlots.length; pi += 1) {
+        const slot = normalizeQStylePainterSlotName(painterSlots[pi]);
+        const painterName = String(nextPainters[painterSlots[pi]] || "").trim();
+        if (!slot || !painterName) {
+          continue;
+        }
+        painters[slot] = painterName;
+      }
     }
     return {
       declarations: declarations,
       classes: classes,
+      painters: painters,
     };
+  }
+
+  function serializeQPainterDefinitionsForRuntime(styleContext) {
+    if (!styleContext || !(styleContext.painters instanceof Map)) {
+      return {};
+    }
+    const out = {};
+    styleContext.painters.forEach(function eachPainter(entry, key) {
+      const normalizedKey = String(key || "").trim().toLowerCase();
+      const painter = cloneQPainterDefinition(entry);
+      if (!normalizedKey || !painter.name || !painter.onPaint) {
+        return;
+      }
+      out[normalizedKey] = painter;
+    });
+    return out;
   }
 
   function serializeActiveQThemeRulesForRuntime(styleContext, themeList) {
@@ -5211,13 +5535,15 @@
         const resolved = resolveQThemeRuleRuntimeStyle(styleContext, rule.styles);
         const hasDeclarations = Object.keys(resolved.declarations).length > 0;
         const hasClasses = Array.isArray(resolved.classes) && resolved.classes.length > 0;
-        if (!hasDeclarations && !hasClasses) {
+        const hasPainters = Object.keys(resolved.painters).length > 0;
+        if (!hasDeclarations && !hasClasses && !hasPainters) {
           continue;
         }
         out.push({
           selector: selector,
           declarations: cloneQStyleDeclarations(resolved.declarations),
           classes: cloneQStyleClasses(resolved.classes),
+          painters: cloneQStylePainters(resolved.painters),
         });
       }
     }
@@ -5245,6 +5571,7 @@
     elementNode.meta.qRuntimeThemeRules = {
       defaultRules: defaultRules,
       rules: rules,
+      painters: serializeQPainterDefinitionsForRuntime(styleContext),
     };
   }
 
@@ -9042,6 +9369,69 @@
     });
   }
 
+  function parseQPainterDefinitionBody(bodyText, keywordAliases) {
+    const body = String(bodyText || "");
+    const parser = parserFor(body);
+    const items = parseBlockItems(parser, cloneKeywordAliases(keywordAliases));
+    const properties = {};
+    const declaredPropertyByKey = Object.create(null);
+    let onPaint = "";
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type === "QPropertyBlock") {
+        const names = Array.isArray(item.properties) ? item.properties : [];
+        for (let ni = 0; ni < names.length; ni += 1) {
+          const rawName = String(names[ni] || "").trim();
+          const normalized = normalizePropertyName(rawName);
+          if (!rawName || !normalized) {
+            continue;
+          }
+          if (!Object.prototype.hasOwnProperty.call(declaredPropertyByKey, normalized)) {
+            declaredPropertyByKey[normalized] = rawName;
+          }
+          if (!Object.prototype.hasOwnProperty.call(properties, rawName)) {
+            properties[rawName] = null;
+          }
+        }
+        continue;
+      }
+      if (item.type === "Property") {
+        const assignment = parseAssignmentName(item.name);
+        const normalized = normalizePropertyName(assignment.name);
+        if (!normalized) {
+          continue;
+        }
+        const propertyName = String(declaredPropertyByKey[normalized] || assignment.name || "").trim();
+        if (!propertyName) {
+          continue;
+        }
+        properties[propertyName] = coercePropertyValue(item.value);
+        continue;
+      }
+      if (item.type === "EventBlock") {
+        const blockName = String(item.name || "").trim().toLowerCase();
+        if (blockName !== "onpaint") {
+          continue;
+        }
+        const parameterNames = normalizeEventBlockParameterNames(item.parameters);
+        if (parameterNames.length > 0) {
+          throw ParseError("q-painter onpaint does not accept parameters", parser.index);
+        }
+        onPaint = compactScriptBody(item.script || "");
+      }
+    }
+    if (!onPaint) {
+      throw ParseError("q-painter requires onpaint { ... }", parser.index);
+    }
+    return {
+      properties: cloneQPainterProperties(properties),
+      onPaint: onPaint,
+    };
+  }
+
   function parseQColorSchemaEntriesFromAstItems(items) {
     const out = {};
     const list = Array.isArray(items) ? items : [];
@@ -9121,7 +9511,22 @@
     if (!styleName) {
       throw new Error("q-style requires a name.");
     }
-    registerQStyleDefinition(styleContext, styleName, item.declarations, item.classes);
+    registerQStyleDefinition(styleContext, styleName, item.declarations, item.classes, item.painters);
+  }
+
+  function registerQPainterDefinitionItem(styleContext, item) {
+    if (!styleContext || !item || typeof item !== "object") {
+      return;
+    }
+    const painterName = String(item.name || "").trim();
+    if (!painterName) {
+      throw new Error("q-painter requires a name.");
+    }
+    const onPaint = String(item.onPaint || "").trim();
+    if (!onPaint) {
+      throw new Error("q-painter '" + painterName + "' requires onpaint { ... }.");
+    }
+    registerQPainterDefinition(styleContext, painterName, item.properties, onPaint);
   }
 
   function registerQThemeDefinitionItem(styleContext, item) {
@@ -10142,6 +10547,10 @@
         registerQStyleDefinitionItem(styleContext, item);
         continue;
       }
+      if (item.type === "QPainterDefinition") {
+        registerQPainterDefinitionItem(styleContext, item);
+        continue;
+      }
       if (item.type === "QThemeDefinition") {
         registerQThemeDefinitionItem(styleContext, item);
         continue;
@@ -10606,6 +11015,10 @@
       }
       if (item.type === "QStyleDefinition") {
         registerQStyleDefinitionItem(styleContext, item);
+        continue;
+      }
+      if (item.type === "QPainterDefinition") {
+        registerQPainterDefinitionItem(styleContext, item);
         continue;
       }
       if (item.type === "QThemeDefinition") {
@@ -11155,7 +11568,12 @@
       return null;
     }
 
-    if (item.type === "QArrayDefinition" || item.type === "QObjectDefinition" || item.type === "QModelDefinition") {
+    if (
+      item.type === "QArrayDefinition" ||
+      item.type === "QObjectDefinition" ||
+      item.type === "QModelDefinition" ||
+      item.type === "QPainterDefinition"
+    ) {
       return null;
     }
 
@@ -11320,6 +11738,7 @@
     const opts = options || {};
     const resolveImports = opts.resolveImportsBeforeParse !== false;
     const importUrls = [];
+    const resolvedImportDeclarations = [];
     const effectiveSource =
       resolveImports && typeof opts.loadImportSync === "function"
         ? resolveQImportsSync(rawSource, {
@@ -11330,6 +11749,12 @@
             onImport: function onImport(info) {
               if (info && info.url) {
                 importUrls.push(info.url);
+              }
+              if (info && (info.path || info.url)) {
+                resolvedImportDeclarations.push({
+                  path: String(info.path || info.url || "").trim(),
+                  noCache: info.noCache === true,
+                });
               }
             },
           })
@@ -11363,6 +11788,7 @@
     const conversionContext = createScopedConversionContext();
 
     const imports = [];
+    const importDeclarations = [];
     const sdmlEndpoints = [];
     const sdmlComponents = [];
     const qTimers = [];
@@ -11370,7 +11796,14 @@
     for (let i = 0; i < ast.body.length; i += 1) {
       const item = ast.body[i];
       if (item.type === "ImportBlock") {
-        imports.push(String(item.path || "").trim());
+        const importPath = String(item.path || "").trim();
+        if (importPath) {
+          imports.push(importPath);
+          importDeclarations.push({
+            path: importPath,
+            noCache: item.noCache === true,
+          });
+        }
         continue;
       }
       if (item.type === "SdmlEndpointDefinition") {
@@ -11427,6 +11860,10 @@
       }
       if (item.type === "QStyleDefinition") {
         registerQStyleDefinitionItem(conversionContext.qStyles, item);
+        continue;
+      }
+      if (item.type === "QPainterDefinition") {
+        registerQPainterDefinitionItem(conversionContext.qStyles, item);
         continue;
       }
       if (item.type === "QThemeDefinition") {
@@ -11533,7 +11970,21 @@
     if (!doc.meta || typeof doc.meta !== "object") {
       doc.meta = {};
     }
+    const normalizedResolvedImportDeclarations = resolvedImportDeclarations
+      .map(function normalizeResolvedImportDeclaration(entry) {
+        return {
+          path: String(entry && entry.path ? entry.path : "").trim(),
+          noCache: !!(entry && entry.noCache === true),
+        };
+      })
+      .filter(function hasResolvedImportPath(entry) {
+        return !!entry.path;
+      });
     doc.meta.imports = imports.length > 0 ? imports : importUrls;
+    doc.meta.importDeclarations =
+      importDeclarations.length > 0
+        ? importDeclarations
+        : normalizedResolvedImportDeclarations;
     doc.meta.sdmlEndpoints = sdmlEndpoints;
     doc.meta.sdmlComponents = sdmlComponents;
     doc.meta.qTimers = qTimers;
