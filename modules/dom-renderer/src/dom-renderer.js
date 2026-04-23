@@ -641,7 +641,22 @@
       "        const fromCtx = ctx[key];",
       "        return typeof fromCtx === \"function\" ? fromCtx.bind(ctx) : fromCtx;",
       "      },",
-      "      set(state, key, value) { state[key] = value; return true; }",
+      "      set(state, key, value) {",
+      "        if (Object.prototype.hasOwnProperty.call(state, key)) {",
+      "          state[key] = value;",
+      "          return true;",
+      "        }",
+      "        if (ctx && key in ctx) {",
+      "          try {",
+      "            ctx[key] = value;",
+      "            return true;",
+      "          } catch (error) {",
+      "            // fall through to local state storage when context rejects assignment",
+      "          }",
+      "        }",
+      "        state[key] = value;",
+      "        return true;",
+      "      },",
       "    });",
       "    try {",
       "      (function(){",
@@ -748,15 +763,43 @@
     if (slot === "mask") {
       element.style.setProperty("mask-image", paintValue);
       element.style.setProperty("-webkit-mask-image", paintValue);
+      if (!String(element.style.getPropertyValue("mask-mode") || "").trim()) {
+        element.style.setProperty("mask-mode", "alpha");
+      }
+      if (!String(element.style.getPropertyValue("mask-repeat") || "").trim()) {
+        element.style.setProperty("mask-repeat", "no-repeat");
+      }
+      if (!String(element.style.getPropertyValue("mask-size") || "").trim()) {
+        element.style.setProperty("mask-size", "100% 100%");
+      }
+      if (!String(element.style.getPropertyValue("mask-position") || "").trim()) {
+        element.style.setProperty("mask-position", "center");
+      }
+      if (!String(element.style.getPropertyValue("-webkit-mask-repeat") || "").trim()) {
+        element.style.setProperty("-webkit-mask-repeat", "no-repeat");
+      }
+      if (!String(element.style.getPropertyValue("-webkit-mask-size") || "").trim()) {
+        element.style.setProperty("-webkit-mask-size", "100% 100%");
+      }
+      if (!String(element.style.getPropertyValue("-webkit-mask-position") || "").trim()) {
+        element.style.setProperty("-webkit-mask-position", "center");
+      }
       return;
     }
     if (slot === "border") {
+      element.style.removeProperty("border-image");
       element.style.setProperty("border-image-source", paintValue);
       if (!String(element.style.getPropertyValue("border-image-slice") || "").trim()) {
-        element.style.setProperty("border-image-slice", "1");
+        element.style.setProperty("border-image-slice", "1 fill");
+      }
+      if (!String(element.style.getPropertyValue("border-image-width") || "").trim()) {
+        element.style.setProperty("border-image-width", "1");
       }
       if (!String(element.style.getPropertyValue("border-image-repeat") || "").trim()) {
         element.style.setProperty("border-image-repeat", "stretch");
+      }
+      if (!String(element.style.getPropertyValue("border-style") || "").trim()) {
+        element.style.setProperty("border-style", "solid");
       }
     }
   }

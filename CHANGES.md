@@ -1,5 +1,11 @@
 # QHTML.js Change Log
 
+## Whats New in v6.4.1
+
+- Refined `q-painter` context assignment behavior so painter scripts update actual paint context properties (for example `this.fillStyle`).
+- Updated border/mask painter slot mapping defaults for clearer cross-browser output.
+- Added a stronger visual `q-painter` triptych demo (`background`, `border`, `mask`) in `dist/demo.html`.
+
 ## Whats New in v6.3.2
 
 - Added a unified single-entity demo in `dist/demo.html` that integrates sidebar, tabs, modal, popup-menu, toolbar, estore, spritesheet, form, grid, list-view, and tree-view with typed named-instance wiring.

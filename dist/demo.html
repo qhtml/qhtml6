@@ -798,6 +798,185 @@ div.w3-container.w3-border.w3-round-large.w3-padding {
         </div>
       </section>
 
+      <section class="example-class" id="q-painter-triptych" data-title="q-painter border/background/mask demo">
+        <div class="example-head">
+          <h3>q-painter border/background/mask demo</h3>
+          <p>Three unique painters mapped to border, background, and mask using declarative <code>q-style-painter</code>.</p>
+        </div>
+        <div class="example-body">
+          <q-editor>
+q-painter painterBackground {
+  onpaint {
+    var w = this.width;
+    var h = this.height;
+    this.fillStyle = "#ff006e";
+    this.fillRect(0, 0, w, h);
+    this.fillStyle = "#ffd60a";
+    this.fillRect(0, 0, w * 0.5, h * 0.5);
+    this.fillStyle = "#00d1ff";
+    this.fillRect(w * 0.5, h * 0.5, w * 0.5, h * 0.5);
+    this.fillStyle = "#00f5a0";
+    this.fillRect(0, h * 0.58, w, h * 0.16);
+    this.fillStyle = "#111827";
+    this.fillRect(w * 0.46, 0, w * 0.08, h);
+  }
+}
+
+q-painter painterBorder {
+  onpaint {
+    var w = this.width;
+    var h = this.height;
+    var band = Math.max(6, Math.floor(Math.min(w, h) * 0.12));
+    this.fillStyle = "#ff0033";
+    this.fillRect(0, 0, w, h);
+    this.fillStyle = "#00e5ff";
+    this.fillRect(band, band, w - (band * 2), h - (band * 2));
+    this.fillStyle = "#000000";
+    this.fillRect(band * 2, band * 2, w - (band * 4), h - (band * 4));
+    this.fillStyle = "#f6ff00";
+    this.fillRect(0, h * 0.42, w, h * 0.16);
+    this.fillRect(w * 0.42, 0, w * 0.16, h);
+  }
+}
+
+q-painter painterMask {
+  q-property topWidth: 62
+  q-property topHeight: 34
+  onpaint {
+    var w = this.width;
+    var h = this.height;
+    var tw = Number(this.topWidth || 62);
+    var th = Number(this.topHeight || 34);
+    if (!Number.isFinite(tw) || tw < 10) { tw = 10; }
+    if (tw > 95) { tw = 95; }
+    if (!Number.isFinite(th) || th < 10) { th = 10; }
+    if (th > 90) { th = 90; }
+    var topWidth = w * tw / 100;
+    var left = (w - topWidth) / 2;
+
+    this.clearRect(0, 0, w, h);
+    this.fillStyle = "black";
+    this.beginPath();
+    this.moveTo(left, 0);
+    this.lineTo(w - left, 0);
+    this.lineTo(w, h * th / 100);
+    this.lineTo(w * 0.5, h);
+    this.lineTo(0, h * th / 100);
+    this.closePath();
+    this.fill();
+  }
+}
+
+q-style painterPanelBase {
+  width: 220px
+  height: 92px
+  borderRadius: 10px
+  display: inline-flex
+  alignItems: center
+  justifyContent: center
+  marginRight: 10px
+  marginBottom: 10px
+  color: #0f172a
+  fontWeight: 700
+  fontFamily: monospace
+  letterSpacing: 0.02em
+  border: 1px solid #334155
+}
+
+q-style panelBackgroundStyle {
+  width: 220px
+  height: 92px
+  borderRadius: 10px
+  border: 1px solid #334155
+  display: inline-flex
+  alignItems: center
+  justifyContent: center
+  color: #0f172a
+  fontWeight: 700
+  fontFamily: monospace
+  background-repeat: no-repeat
+  background-size: 100% 100%
+  q-style-painter {
+    background { painterBackground }
+  }
+}
+
+q-style panelBorderStyle {
+  width: 220px
+  height: 92px
+  borderRadius: 10px
+  border: 18px solid transparent
+  border-image-slice: 0
+  backgroundColor: #f8fafc
+  display: inline-flex
+  alignItems: center
+  justifyContent: center
+  color: #0f172a
+  fontWeight: 700
+  fontFamily: monospace
+  q-style-painter {
+    border { painterBorder }
+  }
+}
+
+q-style panelMaskStyle {
+  width: 220px
+  height: 92px
+  borderRadius: 10px
+  border: 1px solid #334155
+  background: linear-gradient(90deg, #ff006e 0%, #ffd60a 20%, #00d1ff 40%, #00f5a0 60%, #8b5cf6 80%, #111827 100%)
+  display: inline-flex
+  alignItems: center
+  justifyContent: center
+  color: #0f172a
+  fontWeight: 700
+  fontFamily: monospace
+  mask-repeat: no-repeat
+  mask-size: 100% 100%
+  mask-position: center
+  -webkit-mask-repeat: no-repeat
+  -webkit-mask-size: 100% 100%
+  -webkit-mask-position: center
+  q-style-painter {
+    mask { painterMask }
+  }
+}
+
+q-theme painterTriptychTheme {
+  .panel-background { panelBackgroundStyle }
+  .panel-border { panelBorderStyle }
+  .panel-mask { panelMaskStyle }
+}
+
+painterTriptychTheme {
+  div.w3-container.w3-border.w3-round-large.w3-padding {
+    div#ptri-bg.panel-background { text { background painter } }
+    div#ptri-border.panel-border { text { border painter } }
+    div#ptri-mask.panel-mask { text { mask painter } }
+    p#ptri-status.w3-small.w3-text-indigo { text { painter status: checking... } }
+  }
+}
+
+onready {
+  var support = !!(CSS && CSS.paintWorklet && typeof CSS.paintWorklet.addModule === "function");
+  var bg = document.querySelector("#ptri-bg");
+  var border = document.querySelector("#ptri-border");
+  var mask = document.querySelector("#ptri-mask");
+  var out = document.querySelector("#ptri-status");
+  var bgStyle = bg ? String(bg.style.backgroundImage || "").trim() : "";
+  var borderStyle = border ? String(border.style.borderImageSource || "").trim() : "";
+  var maskStyle = mask ? String(mask.style.maskImage || mask.style.webkitMaskImage || "").trim() : "";
+  if (out) {
+    out.textContent = "painter support=" + String(support ? 1 : 0) +
+      " | background=" + bgStyle +
+      " | border=" + borderStyle +
+      " | mask=" + maskStyle;
+  }
+}
+          </q-editor>
+        </div>
+      </section>
+
       <section class="example-class" id="q-toolbar" data-title="q-toolbar + q-toolbutton usage">
         <div class="example-head">
           <h3>q-toolbar + q-toolbutton usage</h3>

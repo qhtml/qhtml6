@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.4.0
+# QHTML.js v6.4.1
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,14 +12,11 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.4.0
+## Whats New in v6.4.1
 
-- Added declarative CSS paint worklet support via `q-painter` + `q-style-painter` integration in `q-style`/`q-theme`.
-- Added `dist/test.html` painter coverage and compatibility checks alongside existing `q-canvas` runtime paths.
-- Switched mapped QDOM template persistence/loading defaults to opt-in only:
-  - `window.QHTML_PERSIST_QDOM_TEMPLATE === true` to persist
-  - `preferTemplate: true` or `window.QHTML_PREFER_TEMPLATE === true` to load from template
-- Historical release notes moved to `CHANGES.md`.
+- Refined `q-painter` runtime behavior so painter-side style assignments (`this.fillStyle`, etc.) correctly write through to paint context rendering.
+- Updated `q-style-painter` border/mask slot defaults to improve visible output consistency for `border-image-source` and `mask-image` mappings.
+- Added an explicit multi-panel `q-painter` border/background/mask demonstration in `dist/demo.html` with high-contrast paint output and runtime status probe.
 
 ## 1. Quick Start
 
