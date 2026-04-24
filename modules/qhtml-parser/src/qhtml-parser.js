@@ -46,6 +46,8 @@
     "q-default-theme",
     "q-painter",
     "q-style-painter",
+    "q-transition",
+    "q-style-transition",
     "q-color",
     "q-color-schema",
     "q-color-theme",
@@ -1710,9 +1712,12 @@
     const out = {};
     const classes = [];
     const painters = {};
+    const transitions = [];
     const seenClasses = new Set();
+    const seenTransitions = new Set();
     const styleClassKeywords = collectAliasesTargeting(keywordAliases, "q-style-class");
     const stylePainterKeywords = collectAliasesTargeting(keywordAliases, "q-style-painter");
+    const styleTransitionKeywords = collectAliasesTargeting(keywordAliases, "q-style-transition");
     while (!eof(parser)) {
       skipWhitespaceAndSemicolons(parser);
       if (eof(parser)) {
@@ -1773,6 +1778,33 @@
         }
         continue;
       }
+      if (styleTransitionKeywords.has(propertyLower)) {
+        let transitionBody = "";
+        if (peek(parser) === ":") {
+          consume(parser);
+          transitionBody = parseQColorValueToken(parser, keywordAliases);
+        } else if (peek(parser) === "{") {
+          consume(parser);
+          transitionBody = String(readBalancedBlockContent(parser) || "");
+        } else {
+          throw ParseError("Expected ':' or '{...}' inside q-style-transition", parser.index);
+        }
+        const parsedTransitions = parseQStyleTransitionMappings(transitionBody);
+        for (let i = 0; i < parsedTransitions.length; i += 1) {
+          const transitionName = String(parsedTransitions[i] || "").trim();
+          const normalizedTransition = normalizeColorLookupKey(transitionName);
+          if (!transitionName || !normalizedTransition || seenTransitions.has(normalizedTransition)) {
+            continue;
+          }
+          seenTransitions.add(normalizedTransition);
+          transitions.push(transitionName);
+        }
+        skipWhitespaceAndSemicolons(parser);
+        if (peek(parser) === ",") {
+          consume(parser);
+        }
+        continue;
+      }
       let value = "";
       if (peek(parser) === ":") {
         consume(parser);
@@ -1795,7 +1827,118 @@
       declarations: out,
       classes: classes,
       painters: painters,
+      transitions: transitions,
     };
+  }
+
+  function parseQStyleTransitionMappings(rawBody) {
+    const names = parseQPropertyNames(String(rawBody || "").trim());
+    const out = [];
+    const seen = new Set();
+    for (let i = 0; i < names.length; i += 1) {
+      const transitionName = String(names[i] || "").trim();
+      const normalized = normalizeColorLookupKey(transitionName);
+      if (!transitionName || !normalized || seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      out.push(transitionName);
+    }
+    return out;
+  }
+
+  function normalizeQTransitionTimeValue(rawValue, fallbackValue) {
+    const fallback = String(fallbackValue || "").trim() || "0ms";
+    const text = String(rawValue || "").trim();
+    if (!text) {
+      return fallback;
+    }
+    if (/^-?(?:\d+|\d*\.\d+)$/.test(text)) {
+      return text + "ms";
+    }
+    return text;
+  }
+
+  function parseQTransitionPropertyValue(rawValue) {
+    const text = String(rawValue || "").trim();
+    if (!text) {
+      return "";
+    }
+    const names = parseQPropertyNames(text);
+    if (names.length === 0) {
+      return text;
+    }
+    return names.join(", ");
+  }
+
+  function parseQTransitionDefinitionBody(bodyText, keywordAliases) {
+    const body = String(bodyText || "");
+    const parser = parserFor(body);
+    const items = parseBlockItems(parser, cloneKeywordAliases(keywordAliases));
+    const transition = {
+      property: "",
+      duration: "0ms",
+      delay: "0ms",
+      timing: "ease",
+    };
+
+    function assignTransitionField(rawName, rawValue) {
+      const key = String(rawName || "").trim().toLowerCase();
+      const value = String(rawValue || "").trim();
+      if (!key || !value) {
+        return;
+      }
+      if (key === "property") {
+        transition.property = parseQTransitionPropertyValue(value);
+        return;
+      }
+      if (key === "duration") {
+        transition.duration = normalizeQTransitionTimeValue(value, "0ms");
+        return;
+      }
+      if (key === "delay") {
+        transition.delay = normalizeQTransitionTimeValue(value, "0ms");
+        return;
+      }
+      if (key === "timing") {
+        transition.timing = value;
+      }
+    }
+
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type === "Property") {
+        const assignment = parseAssignmentName(item.name);
+        const value = String(coercePropertyValue(item.value) || "").trim();
+        assignTransitionField(assignment.name, value);
+        continue;
+      }
+      if (item.type === "Element") {
+        const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+        if (selectors.length !== 1) {
+          continue;
+        }
+        const fieldName = String(selectors[0] || "").trim();
+        if (!fieldName) {
+          continue;
+        }
+        const value = extractQColorTextFromAstItems(item.items);
+        assignTransitionField(fieldName, value);
+      }
+    }
+
+    if (!transition.property) {
+      throw ParseError("q-transition requires property { ... }.", parser.index);
+    }
+
+    transition.duration = normalizeQTransitionTimeValue(transition.duration, "0ms");
+    transition.delay = normalizeQTransitionTimeValue(transition.delay, "0ms");
+    transition.timing = String(transition.timing || "").trim() || "ease";
+
+    return transition;
   }
 
   function normalizeQStylePainterSlotName(rawName) {
@@ -2640,6 +2783,33 @@
         if (nameLower === "q-painter" && nextChar === "{") {
           throw ParseError("Anonymous q-painter is not allowed", parser.index);
         }
+        if (nameLower === "q-transition" && nextChar !== "{" && nextChar !== ",") {
+          const transitionName = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-transition id", parser.index);
+          }
+          consume(parser);
+          const transitionBody = readBalancedBlockContent(parser);
+          const parsedTransition = parseQTransitionDefinitionBody(String(transitionBody || ""), scopedKeywordAliases);
+          items.push({
+            type: "QTransitionDefinition",
+            name: String(transitionName || "").trim(),
+            body: String(transitionBody || ""),
+            property: parsedTransition.property,
+            duration: parsedTransition.duration,
+            delay: parsedTransition.delay,
+            timing: parsedTransition.timing,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-transition" && nextChar === "{") {
+          throw ParseError("Anonymous q-transition is not allowed", parser.index);
+        }
         if (nameLower === "q-property" && nextChar !== "{") {
           const propertyNameStart = parser.index;
           const propertyName = parseIdentifier(parser);
@@ -2749,6 +2919,7 @@
             declarations: parsedStyle.declarations,
             classes: parsedStyle.classes,
             painters: parsedStyle.painters,
+            transitions: parsedStyle.transitions,
             keywords: keywordSnapshot,
             start: itemStart,
             end: parser.index,
@@ -3225,6 +3396,9 @@
           }
           if (nameLower === "q-default-theme") {
             throw ParseError("Anonymous q-default-theme is not allowed", parser.index);
+          }
+          if (nameLower === "q-transition") {
+            throw ParseError("Anonymous q-transition is not allowed", parser.index);
           }
 
         if (isEventBlockName(name)) {
@@ -3818,6 +3992,33 @@
         if (firstLower === "q-painter" && peek(parser) === "{") {
           throw ParseError("Anonymous q-painter is not allowed", parser.index);
         }
+        if (firstLower === "q-transition" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const transitionName = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-transition id", parser.index);
+          }
+          consume(parser);
+          const transitionBody = readBalancedBlockContent(parser);
+          const parsedTransition = parseQTransitionDefinitionBody(String(transitionBody || ""), scopedKeywordAliases);
+          body.push({
+            type: "QTransitionDefinition",
+            name: String(transitionName || "").trim(),
+            body: String(transitionBody || ""),
+            property: parsedTransition.property,
+            duration: parsedTransition.duration,
+            delay: parsedTransition.delay,
+            timing: parsedTransition.timing,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+        if (firstLower === "q-transition" && peek(parser) === "{") {
+          throw ParseError("Anonymous q-transition is not allowed", parser.index);
+        }
 
         if (firstLower === "sdml-endpoint" && peek(parser) !== "{" && peek(parser) !== ",") {
           const endpointId = parseIdentifier(parser);
@@ -3994,6 +4195,7 @@
             declarations: parsedStyle.declarations,
             classes: parsedStyle.classes,
             painters: parsedStyle.painters,
+            transitions: parsedStyle.transitions,
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -4052,6 +4254,9 @@
         }
         if (firstLower === "q-default-theme" && peek(parser) === "{") {
           throw ParseError("Anonymous q-default-theme is not allowed", parser.index);
+        }
+        if (firstLower === "q-transition" && peek(parser) === "{") {
+          throw ParseError("Anonymous q-transition is not allowed", parser.index);
         }
 
         if (isIdentifierStartChar(peek(parser))) {
@@ -4344,16 +4549,16 @@
     if (tokens.length === 0) {
       return {
         path: "",
-        noCache: false,
+        noCache: true,
       };
     }
-    let noCache = false;
+    let noCache = true;
     while (tokens.length > 0) {
       const tail = String(tokens[tokens.length - 1] || "").trim().replace(/;$/, "").toLowerCase();
-      if (tail !== "nocache") {
+      if (tail !== "nocache" && tail !== "cache") {
         break;
       }
-      noCache = true;
+      noCache = tail === "nocache";
       tokens.pop();
     }
     return {
@@ -5064,6 +5269,22 @@
     return out;
   }
 
+  function cloneQStyleTransitions(transitions) {
+    const list = Array.isArray(transitions) ? transitions : [];
+    const out = [];
+    const seen = new Set();
+    for (let i = 0; i < list.length; i += 1) {
+      const transitionName = String(list[i] || "").trim();
+      const normalized = normalizeColorLookupKey(transitionName);
+      if (!transitionName || !normalized || seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      out.push(transitionName);
+    }
+    return out;
+  }
+
   function cloneQPainterProperties(properties) {
     const source =
       properties && typeof properties === "object" && !Array.isArray(properties)
@@ -5122,6 +5343,19 @@
       declarations: cloneQStyleDeclarations(entry.declarations),
       classes: cloneQStyleClasses(entry.classes),
       painters: cloneQStylePainters(entry.painters),
+      transitions: cloneQStyleTransitions(entry.transitions),
+    };
+  }
+
+  function cloneQTransitionDefinition(transitionDefinition) {
+    const entry = transitionDefinition && typeof transitionDefinition === "object" ? transitionDefinition : {};
+    const property = parseQTransitionPropertyValue(entry.property);
+    return {
+      name: String(entry.name || "").trim(),
+      property: property,
+      duration: normalizeQTransitionTimeValue(entry.duration, "0ms"),
+      delay: normalizeQTransitionTimeValue(entry.delay, "0ms"),
+      timing: String(entry.timing || "").trim() || "ease",
     };
   }
 
@@ -5134,7 +5368,7 @@
     };
   }
 
-  function registerQStyleDefinition(styleContext, styleName, declarations, classes, painters) {
+  function registerQStyleDefinition(styleContext, styleName, declarations, classes, painters, transitions) {
     if (!styleContext || !(styleContext.styles instanceof Map)) {
       return;
     }
@@ -5148,6 +5382,7 @@
       declarations: cloneQStyleDeclarations(declarations),
       classes: cloneQStyleClasses(classes),
       painters: cloneQStylePainters(painters),
+      transitions: cloneQStyleTransitions(transitions),
     });
   }
 
@@ -5182,6 +5417,41 @@
       properties: cloneQPainterProperties(properties),
       onPaint: String(onPaint || "").trim(),
     });
+  }
+
+  function registerQTransitionDefinition(styleContext, transitionName, transitionDefinition) {
+    if (!styleContext || !(styleContext.transitions instanceof Map)) {
+      return;
+    }
+    const name = String(transitionName || "").trim();
+    const normalized = normalizeColorLookupKey(name);
+    if (!name || !normalized) {
+      return;
+    }
+    const nextDefinition = cloneQTransitionDefinition(
+      Object.assign({}, transitionDefinition || {}, { name: name })
+    );
+    if (!nextDefinition.property) {
+      return;
+    }
+    styleContext.transitions.set(normalized, nextDefinition);
+  }
+
+  function lookupQTransitionDefinition(styleContext, transitionName) {
+    if (!styleContext || !(styleContext.transitions instanceof Map)) {
+      return null;
+    }
+    const normalized = normalizeColorLookupKey(transitionName);
+    if (!normalized) {
+      return null;
+    }
+    const entry = styleContext.transitions.get(normalized);
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+    const out = cloneQTransitionDefinition(entry);
+    out.name = out.name || String(transitionName || "").trim();
+    return out;
   }
 
   function lookupQPainterDefinition(styleContext, painterName) {
@@ -5270,6 +5540,7 @@
       styles: new Map(),
       themes: new Map(),
       painters: new Map(),
+      transitions: new Map(),
       activeDefaultThemes: [],
       activeThemes: [],
     };
@@ -5283,6 +5554,7 @@
           declarations: cloneQStyleDeclarations(entry.declarations),
           classes: cloneQStyleClasses(entry.classes),
           painters: cloneQStylePainters(entry.painters),
+          transitions: cloneQStyleTransitions(entry.transitions),
         });
       });
     }
@@ -5307,6 +5579,23 @@
           properties: cloneQPainterProperties(entry.properties),
           onPaint: String(entry.onPaint || "").trim(),
         });
+      });
+    }
+    if (parentContext && parentContext.transitions instanceof Map) {
+      parentContext.transitions.forEach(function copyTransition(entry, key) {
+        if (!entry || typeof entry !== "object") {
+          return;
+        }
+        context.transitions.set(
+          String(key || ""),
+          cloneQTransitionDefinition({
+            name: String(entry.name || key || "").trim() || String(key || ""),
+            property: entry.property,
+            duration: entry.duration,
+            delay: entry.delay,
+            timing: entry.timing,
+          })
+        );
       });
     }
     if (parentContext && Array.isArray(parentContext.activeThemes)) {
@@ -5457,7 +5746,9 @@
     const declarations = {};
     const classes = [];
     const painters = {};
+    const transitions = [];
     const seenClasses = new Set();
+    const seenTransitions = new Set();
     for (let i = 0; i < names.length; i += 1) {
       const styleDef = lookupQStyleDefinition(styleContext, names[i]);
       if (!styleDef) {
@@ -5493,12 +5784,39 @@
         }
         painters[slot] = painterName;
       }
+      const nextTransitions = cloneQStyleTransitions(styleDef.transitions);
+      for (let ti = 0; ti < nextTransitions.length; ti += 1) {
+        const transitionName = String(nextTransitions[ti] || "").trim();
+        const normalizedTransition = normalizeColorLookupKey(transitionName);
+        if (!transitionName || !normalizedTransition || seenTransitions.has(normalizedTransition)) {
+          continue;
+        }
+        seenTransitions.add(normalizedTransition);
+        transitions.push(transitionName);
+      }
     }
     return {
       declarations: declarations,
       classes: classes,
       painters: painters,
+      transitions: transitions,
     };
+  }
+
+  function serializeQTransitionDefinitionsForRuntime(styleContext) {
+    if (!styleContext || !(styleContext.transitions instanceof Map)) {
+      return {};
+    }
+    const out = {};
+    styleContext.transitions.forEach(function eachTransition(entry, key) {
+      const normalizedKey = String(key || "").trim().toLowerCase();
+      const transition = cloneQTransitionDefinition(entry);
+      if (!normalizedKey || !transition.property) {
+        return;
+      }
+      out[normalizedKey] = transition;
+    });
+    return out;
   }
 
   function serializeQPainterDefinitionsForRuntime(styleContext) {
@@ -5536,7 +5854,8 @@
         const hasDeclarations = Object.keys(resolved.declarations).length > 0;
         const hasClasses = Array.isArray(resolved.classes) && resolved.classes.length > 0;
         const hasPainters = Object.keys(resolved.painters).length > 0;
-        if (!hasDeclarations && !hasClasses && !hasPainters) {
+        const hasTransitions = Array.isArray(resolved.transitions) && resolved.transitions.length > 0;
+        if (!hasDeclarations && !hasClasses && !hasPainters && !hasTransitions) {
           continue;
         }
         out.push({
@@ -5544,6 +5863,7 @@
           declarations: cloneQStyleDeclarations(resolved.declarations),
           classes: cloneQStyleClasses(resolved.classes),
           painters: cloneQStylePainters(resolved.painters),
+          transitions: cloneQStyleTransitions(resolved.transitions),
         });
       }
     }
@@ -5572,6 +5892,7 @@
       defaultRules: defaultRules,
       rules: rules,
       painters: serializeQPainterDefinitionsForRuntime(styleContext),
+      transitions: serializeQTransitionDefinitionsForRuntime(styleContext),
     };
   }
 
@@ -9511,7 +9832,14 @@
     if (!styleName) {
       throw new Error("q-style requires a name.");
     }
-    registerQStyleDefinition(styleContext, styleName, item.declarations, item.classes, item.painters);
+    registerQStyleDefinition(
+      styleContext,
+      styleName,
+      item.declarations,
+      item.classes,
+      item.painters,
+      item.transitions
+    );
   }
 
   function registerQPainterDefinitionItem(styleContext, item) {
@@ -9527,6 +9855,26 @@
       throw new Error("q-painter '" + painterName + "' requires onpaint { ... }.");
     }
     registerQPainterDefinition(styleContext, painterName, item.properties, onPaint);
+  }
+
+  function registerQTransitionDefinitionItem(styleContext, item) {
+    if (!styleContext || !item || typeof item !== "object") {
+      return;
+    }
+    const transitionName = String(item.name || "").trim();
+    if (!transitionName) {
+      throw new Error("q-transition requires a name.");
+    }
+    const property = parseQTransitionPropertyValue(item.property);
+    if (!property) {
+      throw new Error("q-transition '" + transitionName + "' requires property { ... }.");
+    }
+    registerQTransitionDefinition(styleContext, transitionName, {
+      property: property,
+      duration: item.duration,
+      delay: item.delay,
+      timing: item.timing,
+    });
   }
 
   function registerQThemeDefinitionItem(styleContext, item) {
@@ -10551,6 +10899,10 @@
         registerQPainterDefinitionItem(styleContext, item);
         continue;
       }
+      if (item.type === "QTransitionDefinition") {
+        registerQTransitionDefinitionItem(styleContext, item);
+        continue;
+      }
       if (item.type === "QThemeDefinition") {
         registerQThemeDefinitionItem(styleContext, item);
         continue;
@@ -11019,6 +11371,10 @@
       }
       if (item.type === "QPainterDefinition") {
         registerQPainterDefinitionItem(styleContext, item);
+        continue;
+      }
+      if (item.type === "QTransitionDefinition") {
+        registerQTransitionDefinitionItem(styleContext, item);
         continue;
       }
       if (item.type === "QThemeDefinition") {
@@ -11572,7 +11928,8 @@
       item.type === "QArrayDefinition" ||
       item.type === "QObjectDefinition" ||
       item.type === "QModelDefinition" ||
-      item.type === "QPainterDefinition"
+      item.type === "QPainterDefinition" ||
+      item.type === "QTransitionDefinition"
     ) {
       return null;
     }
@@ -11864,6 +12221,10 @@
       }
       if (item.type === "QPainterDefinition") {
         registerQPainterDefinitionItem(conversionContext.qStyles, item);
+        continue;
+      }
+      if (item.type === "QTransitionDefinition") {
+        registerQTransitionDefinitionItem(conversionContext.qStyles, item);
         continue;
       }
       if (item.type === "QThemeDefinition") {

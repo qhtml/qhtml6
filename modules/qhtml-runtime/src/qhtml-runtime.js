@@ -13,7 +13,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.4.1";
+  const RUNTIME_VERSION = "6.5.0";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -8476,7 +8476,7 @@
         }
         out.push({
           path: path,
-          noCache: false,
+          noCache: true,
         });
         continue;
       }
@@ -8487,9 +8487,11 @@
       if (!path) {
         continue;
       }
+      const explicitCache = entry.cache === true || entry.noCache === false;
+      const explicitNoCache = entry.noCache === true;
       out.push({
         path: path,
-        noCache: entry.noCache === true,
+        noCache: explicitNoCache ? true : explicitCache ? false : true,
       });
     }
     return out;

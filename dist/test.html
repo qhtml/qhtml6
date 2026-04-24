@@ -4375,6 +4375,69 @@ onReady {
 }
 </q-html>
       </article>
+      <article class="test-card" id="card-117">
+        <div class="test-head">
+          <h2>117. q-transition + q-style-transition declarative transition mapping</h2>
+          <span id="badge-117" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t117-ok | opacity 3000ms ease-in-out 50ms</div>
+<q-html id="host-t117" data-test-no="117">
+q-transition fade117 {
+  property { opacity }
+  delay { 50 }
+  timing { ease-in-out }
+  duration { 3000 }
+}
+
+q-style style117 {
+  q-style-transition { fade117 }
+}
+
+q-theme theme117 {
+  .t117-box { style117 }
+}
+
+theme117 {
+  div#t117-target.t117-box { text { transition-target } }
+}
+button#t117-toggle {
+  text { toggle opacity }
+  onclick {
+    var target = this.closest("q-html").querySelector("#t117-target");
+    if (!target) { return; }
+    var current = String(target.style.opacity || "1").trim();
+    target.style.opacity = (current === "1" || current === "") ? "0.2" : "1";
+  }
+}
+div#t117-out { text { waiting } }
+
+onReady {
+  var host = this;
+  setTimeout(function() {
+    var acc = document.querySelector("#acc-main");
+    var out = host.querySelector("#t117-out");
+    var target = host.querySelector("#t117-target");
+    if (target) {
+      target.style.opacity = "1";
+    }
+    var transitionValue = target ? String(target.style.transition || "").trim() : "";
+    var ok = transitionValue.indexOf("opacity") >= 0 &&
+             transitionValue.indexOf("3000ms") >= 0 &&
+             transitionValue.indexOf("ease-in-out") >= 0 &&
+             transitionValue.indexOf("50ms") >= 0;
+    var value = (ok ? "t117-ok" : "t117-fail") + " | " + transitionValue;
+    if (out) {
+      out.textContent = value;
+    }
+    if (acc && typeof acc.outcomeReported === "function") {
+      acc.outcomeReported(117, ok, value);
+    } else if (acc && typeof acc.resultReported === "function") {
+      acc.resultReported(117, value);
+    }
+  }, 420);
+}
+</q-html>
+      </article>
     </section>
   </div>
 </body>

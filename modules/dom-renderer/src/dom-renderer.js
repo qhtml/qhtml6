@@ -593,6 +593,62 @@
     return null;
   }
 
+  function resolveRuntimeTransitionDefinition(runtimeRules, transitionName) {
+    const rules = runtimeRules && typeof runtimeRules === "object" ? runtimeRules : {};
+    const transitionMap =
+      rules.transitions && typeof rules.transitions === "object" && !Array.isArray(rules.transitions)
+        ? rules.transitions
+        : {};
+    const directKey = normalizePainterLookupKey(transitionName);
+    if (directKey && transitionMap[directKey] && typeof transitionMap[directKey] === "object") {
+      return transitionMap[directKey];
+    }
+    const keys = Object.keys(transitionMap);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim();
+      const entry = transitionMap[key];
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      if (normalizePainterLookupKey(entry.name) === directKey) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  function normalizeTransitionTimeValue(value, fallbackValue) {
+    const fallback = String(fallbackValue || "").trim() || "0ms";
+    const text = String(value || "").trim();
+    if (!text) {
+      return fallback;
+    }
+    if (/^-?(?:\d+|\d*\.\d+)$/.test(text)) {
+      return text + "ms";
+    }
+    return text;
+  }
+
+  function normalizeTransitionPropertyValue(value) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return "";
+    }
+    return text;
+  }
+
+  function buildTransitionCssEntry(transitionDefinition) {
+    const entry = transitionDefinition && typeof transitionDefinition === "object" ? transitionDefinition : {};
+    const property = normalizeTransitionPropertyValue(entry.property);
+    if (!property) {
+      return "";
+    }
+    const duration = normalizeTransitionTimeValue(entry.duration, "0ms");
+    const timing = String(entry.timing || "").trim() || "ease";
+    const delay = normalizeTransitionTimeValue(entry.delay, "0ms");
+    return property + " " + duration + " " + timing + " " + delay;
+  }
+
   function buildPainterWorkletModuleSource(internalName, painterDefinition) {
     const painter = painterDefinition && typeof painterDefinition === "object" ? painterDefinition : {};
     const defaults =
@@ -939,6 +995,28 @@
       rule.declarations && typeof rule.declarations === "object" && !Array.isArray(rule.declarations)
         ? rule.declarations
         : {};
+    const transitions = Array.isArray(rule.transitions) ? rule.transitions : [];
+    if (transitions.length > 0 && element.style && typeof element.style.setProperty === "function") {
+      const transitionEntries = [];
+      for (let i = 0; i < transitions.length; i += 1) {
+        const transitionName = String(transitions[i] || "").trim();
+        if (!transitionName) {
+          continue;
+        }
+        const transitionDefinition = resolveRuntimeTransitionDefinition(runtimeRules, transitionName);
+        if (!transitionDefinition) {
+          continue;
+        }
+        const transitionEntry = buildTransitionCssEntry(transitionDefinition);
+        if (!transitionEntry) {
+          continue;
+        }
+        transitionEntries.push(transitionEntry);
+      }
+      if (transitionEntries.length > 0) {
+        element.style.setProperty("transition", transitionEntries.join(", "));
+      }
+    }
     const keys = Object.keys(declarations);
     for (let i = 0; i < keys.length; i += 1) {
       const rawProperty = String(keys[i] || "").trim();

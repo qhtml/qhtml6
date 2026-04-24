@@ -1,10 +1,12 @@
 # QHTML.js Change Log
 
-## Whats New in v6.4.1
+## Whats New in v6.5.0
 
 - Refined `q-painter` context assignment behavior so painter scripts update actual paint context properties (for example `this.fillStyle`).
 - Updated border/mask painter slot mapping defaults for clearer cross-browser output.
 - Added a stronger visual `q-painter` triptych demo (`background`, `border`, `mask`) in `dist/demo.html`.
+- Added declarative transition support with `q-transition` definitions and `q-style-transition` style bindings.
+- Changed `q-import` default loading mode to `nocache`; localStorage-backed import caching now requires explicit `cache`.
 
 ## Whats New in v6.3.2
 

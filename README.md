@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.4.1
+# QHTML.js v6.5.0
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,11 +12,13 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.4.1
+## Whats New in v6.5.0
 
 - Refined `q-painter` runtime behavior so painter-side style assignments (`this.fillStyle`, etc.) correctly write through to paint context rendering.
 - Updated `q-style-painter` border/mask slot defaults to improve visible output consistency for `border-image-source` and `mask-image` mappings.
 - Added an explicit multi-panel `q-painter` border/background/mask demonstration in `dist/demo.html` with high-contrast paint output and runtime status probe.
+- Added declarative transition primitives: `q-transition` + `q-style-transition` for reusable CSS transition mappings through `q-style` / `q-theme`.
+- Updated `q-import` behavior to `nocache` by default; use explicit `cache` to enable localStorage-backed import caching for a given import.
 
 ## 1. Quick Start
 
@@ -949,6 +951,73 @@ Notes:
 - Inline `q-style` declarations are still applied via `style=""`.
 - If both class CSS and inline declarations target the same property, inline wins.
 
+### `q-transition` + `q-style-transition`
+
+`q-transition` defines a named CSS transition recipe, and `q-style-transition` attaches one or more transition recipes to a style.
+
+```qhtml
+q-transition fade-in {
+  property { opacity }
+  delay { 50 }
+  timing { ease-in-out }
+  duration { 3000 }
+}
+
+q-style panel-style {
+  q-style-transition { fade-in }
+}
+
+q-theme app-theme {
+  .panel { panel-style }
+}
+```
+
+Notes:
+- `timing` accepts CSS timing-function values directly (for example `ease`, `ease-in-out`, `cubic-bezier(...)`).
+- Numeric `duration` / `delay` values are interpreted as milliseconds (`3000` -> `3000ms`).
+- Multiple transition references can be listed in `q-style-transition` and are combined into a comma-separated CSS `transition` value.
+
+Example with multiple q-transitions in one style:
+
+```qhtml
+q-transition fade {
+  property { opacity }
+  duration { 250 }
+  timing { ease-out }
+}
+
+q-transition slide {
+  property { transform }
+  duration { 450 }
+  delay { 50 }
+  timing { cubic-bezier(0.2, 0.8, 0.2, 1) }
+}
+
+q-style card-anim {
+  q-style-transition { fade slide }
+}
+
+q-theme cards-theme {
+  .card { card-anim }
+}
+```
+
+Example with direct style invocation:
+
+```qhtml
+q-transition quick-fade {
+  property { opacity }
+  duration { 180 }
+  timing { ease-in }
+}
+
+q-style quick-fade-style {
+  q-style-transition { quick-fade }
+}
+
+quick-fade-style,div#boxA { text { transition-ready } }
+```
+
 ### `q-painter` + `q-style-painter` (Paint Worklet)
 
 `q-painter` defines a named paint worklet body using declarative `q-property` defaults plus an `onpaint { ... }` block.
@@ -1446,9 +1515,9 @@ this.component.root().update(); // whole <q-html>
 
 ### `q-import { ... }` (include QHTML files)
 
-`q-import` records import metadata in the host QDOM (`meta.imports` / `meta.importCacheRefs`) and resolves definitions from the import cache at runtime. Imported component/template/signal definitions become available without inlining full imported source into the host QDOM.
+`q-import` records import metadata in the host QDOM (`meta.imports` / `meta.importCacheRefs`) and resolves definitions from runtime imports. Imported component/template/signal definitions become available without inlining full imported source into the host QDOM.
 
-Runtime/editor import loading now uses a localStorage-backed cache (`qhtml.import.records` + `qhtml.import.index`) keyed by base64 URL, version-gated against global `QHTML_VERSION`, with periodic probabilistic refreshes to prevent long-lived stale imports.
+`q-import` is `nocache` by default (always fetch from network/source).
 
 ```qhtml
 <q-html>
@@ -1457,12 +1526,12 @@ Runtime/editor import loading now uses a localStorage-backed cache (`qhtml.impor
 </q-html>
 ```
 
-Use `nocache` to always fetch and skip localStorage persistence for that import:
+Use `cache` to enable localStorage-backed import caching (`qhtml.import.records` + `qhtml.import.index`) for that import:
 
 ```qhtml
 <q-html>
-  q-import { q-components/q-modal.qhtml nocache }
-  q-modal { title { text { Fresh import each load } } }
+  q-import { q-components/q-modal.qhtml cache }
+  q-modal { title { text { Cached import } } }
 </q-html>
 ```
 
