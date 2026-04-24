@@ -1,5 +1,10 @@
 # QHTML.js Change Log
 
+## Whats New in v6.5.1
+
+- Fixed `then { ... }` chain stage execution to preserve bound `this` across lifecycle, event, and signal handler sequences.
+- Updated `dist/test.html` test `118` to validate lifecycle `onready ... then ...` flow with explicit pass reporting.
+
 ## Whats New in v6.5.0
 
 - Refined `q-painter` context assignment behavior so painter scripts update actual paint context properties (for example `this.fillStyle`).
@@ -7,6 +12,7 @@
 - Added a stronger visual `q-painter` triptych demo (`background`, `border`, `mask`) in `dist/demo.html`.
 - Added declarative transition support with `q-transition` definitions and `q-style-transition` style bindings.
 - Changed `q-import` default loading mode to `nocache`; localStorage-backed import caching now requires explicit `cache`.
+- Added `then { ... }` chaining support after `on*` blocks (lifecycle, signal handlers, event handlers) with Promise-aware sequential execution.
 
 ## Whats New in v6.3.2
 

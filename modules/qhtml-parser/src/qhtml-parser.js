@@ -1213,6 +1213,32 @@
     return /^on[A-Za-z0-9_]+$/i.test(String(name || ""));
   }
 
+  function parseThenBlockBodies(parser) {
+    const out = [];
+    while (!eof(parser)) {
+      const beforeWhitespace = parser.index;
+      skipWhitespaceAndSemicolons(parser);
+      if (!isIdentifierStartChar(peek(parser))) {
+        parser.index = beforeWhitespace;
+        break;
+      }
+      const tokenStart = parser.index;
+      const token = parseIdentifier(parser);
+      if (String(token || "").trim().toLowerCase() !== "then") {
+        parser.index = tokenStart;
+        break;
+      }
+      skipWhitespace(parser);
+      if (peek(parser) !== "{") {
+        parser.index = tokenStart;
+        break;
+      }
+      consume(parser);
+      out.push(String(readBalancedBlockContent(parser) || ""));
+    }
+    return out;
+  }
+
   function parseLeadingSelectorDirectiveBlocks(parser) {
     const directives = [];
 
@@ -2147,6 +2173,48 @@
     targetNode.meta.__qhtmlEventAttributeParams[key] = normalizedNames.slice();
   }
 
+  function compactThenBodyList(entries) {
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return [];
+    }
+    const out = [];
+    for (let i = 0; i < entries.length; i += 1) {
+      const compacted = compactScriptBody(entries[i] || "");
+      if (compacted) {
+        out.push(compacted);
+      }
+    }
+    return out;
+  }
+
+  function registerEventBlockThenBodiesOnMeta(targetNode, attributeName, thenBodies) {
+    if (!targetNode || typeof targetNode !== "object") {
+      return;
+    }
+    const key = String(attributeName || "").trim().toLowerCase();
+    if (!key) {
+      return;
+    }
+    const normalizedThenBodies = compactThenBodyList(thenBodies);
+    if (!targetNode.meta || typeof targetNode.meta !== "object") {
+      targetNode.meta = {};
+    }
+    if (
+      !targetNode.meta.__qhtmlEventAttributeThen ||
+      typeof targetNode.meta.__qhtmlEventAttributeThen !== "object" ||
+      Array.isArray(targetNode.meta.__qhtmlEventAttributeThen)
+    ) {
+      targetNode.meta.__qhtmlEventAttributeThen = {};
+    }
+    if (normalizedThenBodies.length === 0) {
+      if (Object.prototype.hasOwnProperty.call(targetNode.meta.__qhtmlEventAttributeThen, key)) {
+        delete targetNode.meta.__qhtmlEventAttributeThen[key];
+      }
+      return;
+    }
+    targetNode.meta.__qhtmlEventAttributeThen[key] = normalizedThenBodies.slice();
+  }
+
   function cloneKeywordAliases(keywordAliases) {
     if (keywordAliases instanceof Map) {
       return new Map(keywordAliases);
@@ -3074,10 +3142,12 @@
           if (peek(parser) === "{") {
             consume(parser);
             const scriptBody = readBalancedBlockContent(parser);
+            const thenBodies = parseThenBlockBodies(parser);
             items.push({
               type: "EventBlock",
               name: name,
               script: scriptBody,
+              thenBodies: thenBodies,
               parameters: parameterNames,
               isLifecycle: LIFECYCLE_BLOCKS.has(nameLower),
               keywords: keywordSnapshot,
@@ -3413,10 +3483,12 @@
           if (peek(parser) === "{") {
             consume(parser);
             const scriptBody = readBalancedBlockContent(parser);
+            const thenBodies = parseThenBlockBodies(parser);
             items.push({
               type: "EventBlock",
               name: name,
               script: scriptBody,
+              thenBodies: thenBodies,
               parameters: parameterNames,
               isLifecycle: LIFECYCLE_BLOCKS.has(nameLower),
               keywords: keywordSnapshot,
@@ -3577,10 +3649,12 @@
         if (LIFECYCLE_BLOCKS.has(firstLower) && peek(parser) === "{") {
           consume(parser);
           const scriptBody = readBalancedBlockContent(parser);
+          const thenBodies = parseThenBlockBodies(parser);
           body.push({
             type: "LifecycleBlock",
             name: firstSelector,
             script: scriptBody,
+            thenBodies: thenBodies,
             isLifecycle: true,
             keywords: keywordSnapshot,
             start: start,
@@ -11029,6 +11103,7 @@
       } else if (item.type === "EventBlock") {
         const key = String(item.name || "");
         const script = compactScriptBody(item.script || "");
+        const thenBodies = compactThenBodyList(item.thenBodies);
         if (item.isLifecycle) {
           if (!Array.isArray(targetElement.lifecycleScripts)) {
             targetElement.lifecycleScripts = [];
@@ -11036,10 +11111,12 @@
           targetElement.lifecycleScripts.push({
             name: key,
             body: script,
+            thenBodies: thenBodies,
           });
         } else {
           targetElement.attributes[key] = script;
           registerEventBlockParametersOnMeta(targetElement, key, item.parameters);
+          registerEventBlockThenBodiesOnMeta(targetElement, key, thenBodies);
         }
       } else if (item.type === "QConnectDefinition") {
         const connectBody = buildQConnectLifecycleBody(item);
@@ -11187,6 +11264,7 @@
     const qTimerDefinitions = [];
     const qTimerNamesSeen = new Set();
     const componentEventAttributeParams = {};
+    const componentEventAttributeThen = {};
     const requestedDefinitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
     const definitionType =
       requestedDefinitionType === "template"
@@ -11562,6 +11640,7 @@
           lifecycleScripts.push({
             name: String(item.name || "").trim(),
             body: compactScriptBody(item.script || ""),
+            thenBodies: compactThenBodyList(item.thenBodies),
           });
           continue;
         }
@@ -11569,6 +11648,10 @@
           const eventName = String(item.name || "").trim();
           if (eventName) {
             componentAttributes[eventName] = compactScriptBody(item.script || "");
+            const eventThenBodies = compactThenBodyList(item.thenBodies);
+            if (eventThenBodies.length > 0) {
+              componentEventAttributeThen[eventName.toLowerCase()] = eventThenBodies.slice();
+            }
             const eventParameterNames = normalizeEventBlockParameterNames(item.parameters);
             if (eventParameterNames.length > 0) {
               componentEventAttributeParams[eventName.toLowerCase()] = eventParameterNames.slice();
@@ -11651,6 +11734,12 @@
         componentNode.meta = {};
       }
       componentNode.meta.__qhtmlEventAttributeParams = Object.assign({}, componentEventAttributeParams);
+    }
+    if (Object.keys(componentEventAttributeThen).length > 0) {
+      if (!componentNode.meta || typeof componentNode.meta !== "object") {
+        componentNode.meta = {};
+      }
+      componentNode.meta.__qhtmlEventAttributeThen = Object.assign({}, componentEventAttributeThen);
     }
     if (
       definitionType === "component" &&
@@ -12208,6 +12297,7 @@
         lifecycleScripts.push({
           name: String(item.name || "").trim(),
           body: compactScriptBody(item.script || ""),
+          thenBodies: compactThenBodyList(item.thenBodies),
         });
         continue;
       }
@@ -12396,6 +12486,35 @@
     }
     lines.push(indent + "}");
     return lines.join("\n");
+  }
+
+  function serializeScriptChainBlock(name, body, thenBodies, indentLevel) {
+    const lines = [serializeScriptBlock(name, body, indentLevel)];
+    const normalizedThenBodies = compactThenBodyList(thenBodies);
+    for (let i = 0; i < normalizedThenBodies.length; i += 1) {
+      lines.push(serializeScriptBlock("then", normalizedThenBodies[i], indentLevel));
+    }
+    return lines.join("\n");
+  }
+
+  function normalizeEventAttributeThenMap(meta) {
+    if (!meta || typeof meta !== "object" || !meta.__qhtmlEventAttributeThen || typeof meta.__qhtmlEventAttributeThen !== "object") {
+      return {};
+    }
+    const map = meta.__qhtmlEventAttributeThen;
+    const out = {};
+    const keys = Object.keys(map);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim().toLowerCase();
+      if (!key) {
+        continue;
+      }
+      const thenBodies = compactThenBodyList(map[key]);
+      if (thenBodies.length > 0) {
+        out[key] = thenBodies;
+      }
+    }
+    return out;
   }
 
   function serializeQTimerDefinitionBlock(timerDef, indentLevel) {
@@ -12923,7 +13042,7 @@
       if ((definitionType === "component" || definitionType === "worker") && Array.isArray(node.lifecycleScripts)) {
         for (let i = 0; i < node.lifecycleScripts.length; i += 1) {
           const hook = node.lifecycleScripts[i] || {};
-          lines.push(serializeScriptBlock(hook.name, hook.body, indentLevel + 1));
+          lines.push(serializeScriptChainBlock(hook.name, hook.body, hook.thenBodies, indentLevel + 1));
         }
       }
       for (let i = 0; i < node.templateNodes.length; i += 1) {
@@ -12950,6 +13069,7 @@
       const lines = [indent + head];
 
       const attrs = node.attributes || {};
+      const attrThenMap = normalizeEventAttributeThenMap(node.meta);
       const attrBindings = collectNodeBindingsByTarget(node, "attributes");
       const attrKeys = Object.keys(attrs);
       const serializedAttrBindings = new Set();
@@ -12960,7 +13080,12 @@
           lines.push(serializeBindingAssignment(key, binding, indentLevel + 1));
           serializedAttrBindings.add(key);
         } else {
-          lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
+          const thenBodies = attrThenMap[String(key || "").trim().toLowerCase()] || [];
+          if (isEventBlockName(key) && thenBodies.length > 0) {
+            lines.push(serializeScriptChainBlock(key, String(attrs[key] || ""), thenBodies, indentLevel + 1));
+          } else {
+            lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
+          }
         }
       }
       attrBindings.forEach(function serializeRemainingAttrBinding(binding, key) {
@@ -13025,7 +13150,7 @@
       if (Array.isArray(node.lifecycleScripts)) {
         for (let i = 0; i < node.lifecycleScripts.length; i += 1) {
           const hook = node.lifecycleScripts[i] || {};
-          lines.push(serializeScriptBlock(hook.name, hook.body, indentLevel + 1));
+          lines.push(serializeScriptChainBlock(hook.name, hook.body, hook.thenBodies, indentLevel + 1));
         }
       }
 
@@ -13051,6 +13176,7 @@
     }
 
     const attrs = node.attributes || {};
+    const attrThenMap = normalizeEventAttributeThenMap(node.meta);
     const attrBindings = collectNodeBindingsByTarget(node, "attributes");
     const attrKeys = Object.keys(attrs);
     const serializedAttrBindings = new Set();
@@ -13061,7 +13187,12 @@
         lines.push(serializeBindingAssignment(key, binding, indentLevel + 1));
         serializedAttrBindings.add(key);
       } else {
-        lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
+        const thenBodies = attrThenMap[String(key || "").trim().toLowerCase()] || [];
+        if (isEventBlockName(key) && thenBodies.length > 0) {
+          lines.push(serializeScriptChainBlock(key, String(attrs[key] || ""), thenBodies, indentLevel + 1));
+        } else {
+          lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
+        }
       }
     }
     attrBindings.forEach(function serializeRemainingAttrBinding(binding, key) {
@@ -13074,7 +13205,7 @@
     if (Array.isArray(node.lifecycleScripts)) {
       for (let i = 0; i < node.lifecycleScripts.length; i += 1) {
         const hook = node.lifecycleScripts[i] || {};
-        lines.push(serializeScriptBlock(hook.name, hook.body, indentLevel + 1));
+        lines.push(serializeScriptChainBlock(hook.name, hook.body, hook.thenBodies, indentLevel + 1));
       }
     }
 
@@ -13121,7 +13252,7 @@
         : [];
     for (let i = 0; i < lifecycleScripts.length; i += 1) {
       const hook = lifecycleScripts[i] || {};
-      lines.push(serializeScriptBlock(hook.name, hook.body, 0));
+      lines.push(serializeScriptChainBlock(hook.name, hook.body, hook.thenBodies, 0));
     }
     return lines.join("\n\n");
   }

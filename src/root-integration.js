@@ -7,7 +7,7 @@
   }
 
   const api = runtime;
-  api.version = "6.4.1";
+  api.version = "6.5.1";
   global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {

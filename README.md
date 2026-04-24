@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.5.0
+# QHTML.js v6.5.1
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -11,6 +11,11 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Dev testbed: https://qhtml.github.io/qhtml6/dist/test.html
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
+
+## Whats New in v6.5.1
+
+- Fixed `then { ... }` stage execution so chained stages keep the correct bound `this` context consistently in lifecycle/event/signal flows.
+- Updated test coverage for lifecycle `then` sequencing with explicit pass reporting behavior.
 
 ## Whats New in v6.5.0
 
@@ -887,6 +892,43 @@ Resulting HTML:
   div { text { Host ready hook executed. } }
 </q-html>
 ```
+
+#### `then { ... }` chaining after `on*` blocks
+
+You can chain additional script blocks after any `on*` handler:
+
+```qhtml
+q-component mycomp {
+  onready {
+    this.component.status = "ready";
+  } then {
+    this.component.status = this.component.status + "-next";
+  } then {
+    console.log(this.component.status);
+  }
+}
+```
+
+The same pattern works for signal/property-changed handlers:
+
+```qhtml
+q-component mycomp {
+  q-signal ping(v)
+  q-property out: ""
+
+  onping(v) {
+    this.component.out = String(v);
+  } then {
+    this.component.out = this.component.out + "-then";
+  }
+}
+```
+
+Behavior:
+- blocks run in order.
+- if a block returns a Promise, the next block waits for it.
+- if a block throws/rejects, QHTML logs the error and continues the chain.
+- no implicit previous-result variable is injected; use component/property/event state explicitly.
 
 Resulting HTML:
 

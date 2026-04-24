@@ -7,7 +7,7 @@
 
   const qEditorImportSourceInFlight = new Map();
   const qEditorCodeMirrorState = { promise: null };
-  const QEDITOR_FALLBACK_VERSION = '6.4.1';
+  const QEDITOR_FALLBACK_VERSION = '6.5.1';
   const QEDITOR_IMPORT_CACHE_RECORDS_KEY = 'qhtml.import.records';
   const QEDITOR_IMPORT_CACHE_INDEX_KEY = 'qhtml.import.index';
   const QHTML_CANONICAL_KEYWORDS = [

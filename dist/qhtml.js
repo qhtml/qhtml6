@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-04-24T01:09:50Z */
+/* generated: 2026-04-24T02:26:58Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -2600,6 +2600,32 @@
     return /^on[A-Za-z0-9_]+$/i.test(String(name || ""));
   }
 
+  function parseThenBlockBodies(parser) {
+    const out = [];
+    while (!eof(parser)) {
+      const beforeWhitespace = parser.index;
+      skipWhitespaceAndSemicolons(parser);
+      if (!isIdentifierStartChar(peek(parser))) {
+        parser.index = beforeWhitespace;
+        break;
+      }
+      const tokenStart = parser.index;
+      const token = parseIdentifier(parser);
+      if (String(token || "").trim().toLowerCase() !== "then") {
+        parser.index = tokenStart;
+        break;
+      }
+      skipWhitespace(parser);
+      if (peek(parser) !== "{") {
+        parser.index = tokenStart;
+        break;
+      }
+      consume(parser);
+      out.push(String(readBalancedBlockContent(parser) || ""));
+    }
+    return out;
+  }
+
   function parseLeadingSelectorDirectiveBlocks(parser) {
     const directives = [];
 
@@ -3534,6 +3560,48 @@
     targetNode.meta.__qhtmlEventAttributeParams[key] = normalizedNames.slice();
   }
 
+  function compactThenBodyList(entries) {
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return [];
+    }
+    const out = [];
+    for (let i = 0; i < entries.length; i += 1) {
+      const compacted = compactScriptBody(entries[i] || "");
+      if (compacted) {
+        out.push(compacted);
+      }
+    }
+    return out;
+  }
+
+  function registerEventBlockThenBodiesOnMeta(targetNode, attributeName, thenBodies) {
+    if (!targetNode || typeof targetNode !== "object") {
+      return;
+    }
+    const key = String(attributeName || "").trim().toLowerCase();
+    if (!key) {
+      return;
+    }
+    const normalizedThenBodies = compactThenBodyList(thenBodies);
+    if (!targetNode.meta || typeof targetNode.meta !== "object") {
+      targetNode.meta = {};
+    }
+    if (
+      !targetNode.meta.__qhtmlEventAttributeThen ||
+      typeof targetNode.meta.__qhtmlEventAttributeThen !== "object" ||
+      Array.isArray(targetNode.meta.__qhtmlEventAttributeThen)
+    ) {
+      targetNode.meta.__qhtmlEventAttributeThen = {};
+    }
+    if (normalizedThenBodies.length === 0) {
+      if (Object.prototype.hasOwnProperty.call(targetNode.meta.__qhtmlEventAttributeThen, key)) {
+        delete targetNode.meta.__qhtmlEventAttributeThen[key];
+      }
+      return;
+    }
+    targetNode.meta.__qhtmlEventAttributeThen[key] = normalizedThenBodies.slice();
+  }
+
   function cloneKeywordAliases(keywordAliases) {
     if (keywordAliases instanceof Map) {
       return new Map(keywordAliases);
@@ -4461,10 +4529,12 @@
           if (peek(parser) === "{") {
             consume(parser);
             const scriptBody = readBalancedBlockContent(parser);
+            const thenBodies = parseThenBlockBodies(parser);
             items.push({
               type: "EventBlock",
               name: name,
               script: scriptBody,
+              thenBodies: thenBodies,
               parameters: parameterNames,
               isLifecycle: LIFECYCLE_BLOCKS.has(nameLower),
               keywords: keywordSnapshot,
@@ -4800,10 +4870,12 @@
           if (peek(parser) === "{") {
             consume(parser);
             const scriptBody = readBalancedBlockContent(parser);
+            const thenBodies = parseThenBlockBodies(parser);
             items.push({
               type: "EventBlock",
               name: name,
               script: scriptBody,
+              thenBodies: thenBodies,
               parameters: parameterNames,
               isLifecycle: LIFECYCLE_BLOCKS.has(nameLower),
               keywords: keywordSnapshot,
@@ -4964,10 +5036,12 @@
         if (LIFECYCLE_BLOCKS.has(firstLower) && peek(parser) === "{") {
           consume(parser);
           const scriptBody = readBalancedBlockContent(parser);
+          const thenBodies = parseThenBlockBodies(parser);
           body.push({
             type: "LifecycleBlock",
             name: firstSelector,
             script: scriptBody,
+            thenBodies: thenBodies,
             isLifecycle: true,
             keywords: keywordSnapshot,
             start: start,
@@ -12416,6 +12490,7 @@
       } else if (item.type === "EventBlock") {
         const key = String(item.name || "");
         const script = compactScriptBody(item.script || "");
+        const thenBodies = compactThenBodyList(item.thenBodies);
         if (item.isLifecycle) {
           if (!Array.isArray(targetElement.lifecycleScripts)) {
             targetElement.lifecycleScripts = [];
@@ -12423,10 +12498,12 @@
           targetElement.lifecycleScripts.push({
             name: key,
             body: script,
+            thenBodies: thenBodies,
           });
         } else {
           targetElement.attributes[key] = script;
           registerEventBlockParametersOnMeta(targetElement, key, item.parameters);
+          registerEventBlockThenBodiesOnMeta(targetElement, key, thenBodies);
         }
       } else if (item.type === "QConnectDefinition") {
         const connectBody = buildQConnectLifecycleBody(item);
@@ -12574,6 +12651,7 @@
     const qTimerDefinitions = [];
     const qTimerNamesSeen = new Set();
     const componentEventAttributeParams = {};
+    const componentEventAttributeThen = {};
     const requestedDefinitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
     const definitionType =
       requestedDefinitionType === "template"
@@ -12949,6 +13027,7 @@
           lifecycleScripts.push({
             name: String(item.name || "").trim(),
             body: compactScriptBody(item.script || ""),
+            thenBodies: compactThenBodyList(item.thenBodies),
           });
           continue;
         }
@@ -12956,6 +13035,10 @@
           const eventName = String(item.name || "").trim();
           if (eventName) {
             componentAttributes[eventName] = compactScriptBody(item.script || "");
+            const eventThenBodies = compactThenBodyList(item.thenBodies);
+            if (eventThenBodies.length > 0) {
+              componentEventAttributeThen[eventName.toLowerCase()] = eventThenBodies.slice();
+            }
             const eventParameterNames = normalizeEventBlockParameterNames(item.parameters);
             if (eventParameterNames.length > 0) {
               componentEventAttributeParams[eventName.toLowerCase()] = eventParameterNames.slice();
@@ -13038,6 +13121,12 @@
         componentNode.meta = {};
       }
       componentNode.meta.__qhtmlEventAttributeParams = Object.assign({}, componentEventAttributeParams);
+    }
+    if (Object.keys(componentEventAttributeThen).length > 0) {
+      if (!componentNode.meta || typeof componentNode.meta !== "object") {
+        componentNode.meta = {};
+      }
+      componentNode.meta.__qhtmlEventAttributeThen = Object.assign({}, componentEventAttributeThen);
     }
     if (
       definitionType === "component" &&
@@ -13595,6 +13684,7 @@
         lifecycleScripts.push({
           name: String(item.name || "").trim(),
           body: compactScriptBody(item.script || ""),
+          thenBodies: compactThenBodyList(item.thenBodies),
         });
         continue;
       }
@@ -13783,6 +13873,35 @@
     }
     lines.push(indent + "}");
     return lines.join("\n");
+  }
+
+  function serializeScriptChainBlock(name, body, thenBodies, indentLevel) {
+    const lines = [serializeScriptBlock(name, body, indentLevel)];
+    const normalizedThenBodies = compactThenBodyList(thenBodies);
+    for (let i = 0; i < normalizedThenBodies.length; i += 1) {
+      lines.push(serializeScriptBlock("then", normalizedThenBodies[i], indentLevel));
+    }
+    return lines.join("\n");
+  }
+
+  function normalizeEventAttributeThenMap(meta) {
+    if (!meta || typeof meta !== "object" || !meta.__qhtmlEventAttributeThen || typeof meta.__qhtmlEventAttributeThen !== "object") {
+      return {};
+    }
+    const map = meta.__qhtmlEventAttributeThen;
+    const out = {};
+    const keys = Object.keys(map);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim().toLowerCase();
+      if (!key) {
+        continue;
+      }
+      const thenBodies = compactThenBodyList(map[key]);
+      if (thenBodies.length > 0) {
+        out[key] = thenBodies;
+      }
+    }
+    return out;
   }
 
   function serializeQTimerDefinitionBlock(timerDef, indentLevel) {
@@ -14310,7 +14429,7 @@
       if ((definitionType === "component" || definitionType === "worker") && Array.isArray(node.lifecycleScripts)) {
         for (let i = 0; i < node.lifecycleScripts.length; i += 1) {
           const hook = node.lifecycleScripts[i] || {};
-          lines.push(serializeScriptBlock(hook.name, hook.body, indentLevel + 1));
+          lines.push(serializeScriptChainBlock(hook.name, hook.body, hook.thenBodies, indentLevel + 1));
         }
       }
       for (let i = 0; i < node.templateNodes.length; i += 1) {
@@ -14337,6 +14456,7 @@
       const lines = [indent + head];
 
       const attrs = node.attributes || {};
+      const attrThenMap = normalizeEventAttributeThenMap(node.meta);
       const attrBindings = collectNodeBindingsByTarget(node, "attributes");
       const attrKeys = Object.keys(attrs);
       const serializedAttrBindings = new Set();
@@ -14347,7 +14467,12 @@
           lines.push(serializeBindingAssignment(key, binding, indentLevel + 1));
           serializedAttrBindings.add(key);
         } else {
-          lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
+          const thenBodies = attrThenMap[String(key || "").trim().toLowerCase()] || [];
+          if (isEventBlockName(key) && thenBodies.length > 0) {
+            lines.push(serializeScriptChainBlock(key, String(attrs[key] || ""), thenBodies, indentLevel + 1));
+          } else {
+            lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
+          }
         }
       }
       attrBindings.forEach(function serializeRemainingAttrBinding(binding, key) {
@@ -14412,7 +14537,7 @@
       if (Array.isArray(node.lifecycleScripts)) {
         for (let i = 0; i < node.lifecycleScripts.length; i += 1) {
           const hook = node.lifecycleScripts[i] || {};
-          lines.push(serializeScriptBlock(hook.name, hook.body, indentLevel + 1));
+          lines.push(serializeScriptChainBlock(hook.name, hook.body, hook.thenBodies, indentLevel + 1));
         }
       }
 
@@ -14438,6 +14563,7 @@
     }
 
     const attrs = node.attributes || {};
+    const attrThenMap = normalizeEventAttributeThenMap(node.meta);
     const attrBindings = collectNodeBindingsByTarget(node, "attributes");
     const attrKeys = Object.keys(attrs);
     const serializedAttrBindings = new Set();
@@ -14448,7 +14574,12 @@
         lines.push(serializeBindingAssignment(key, binding, indentLevel + 1));
         serializedAttrBindings.add(key);
       } else {
-        lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
+        const thenBodies = attrThenMap[String(key || "").trim().toLowerCase()] || [];
+        if (isEventBlockName(key) && thenBodies.length > 0) {
+          lines.push(serializeScriptChainBlock(key, String(attrs[key] || ""), thenBodies, indentLevel + 1));
+        } else {
+          lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
+        }
       }
     }
     attrBindings.forEach(function serializeRemainingAttrBinding(binding, key) {
@@ -14461,7 +14592,7 @@
     if (Array.isArray(node.lifecycleScripts)) {
       for (let i = 0; i < node.lifecycleScripts.length; i += 1) {
         const hook = node.lifecycleScripts[i] || {};
-        lines.push(serializeScriptBlock(hook.name, hook.body, indentLevel + 1));
+        lines.push(serializeScriptChainBlock(hook.name, hook.body, hook.thenBodies, indentLevel + 1));
       }
     }
 
@@ -14508,7 +14639,7 @@
         : [];
     for (let i = 0; i < lifecycleScripts.length; i += 1) {
       const hook = lifecycleScripts[i] || {};
-      lines.push(serializeScriptBlock(hook.name, hook.body, 0));
+      lines.push(serializeScriptChainBlock(hook.name, hook.body, hook.thenBodies, 0));
     }
     return lines.join("\n\n");
   }
@@ -18751,6 +18882,51 @@
     return out;
   }
 
+  function normalizeEventAttributeThenMap(input) {
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+      return {};
+    }
+    const out = {};
+    const keys = Object.keys(input);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim().toLowerCase();
+      if (!key) {
+        continue;
+      }
+      const thenBodies = normalizeThenBodies(input[key]);
+      if (thenBodies.length > 0) {
+        out[key] = thenBodies;
+      }
+    }
+    return out;
+  }
+
+  function normalizeThenBodies(entries) {
+    const input = Array.isArray(entries) ? entries : [];
+    const out = [];
+    for (let i = 0; i < input.length; i += 1) {
+      const value = String(input[i] || "").trim();
+      if (value) {
+        out.push(value);
+      }
+    }
+    return out;
+  }
+
+  function thenBodiesEqual(a, b) {
+    const left = normalizeThenBodies(a);
+    const right = normalizeThenBodies(b);
+    if (left.length !== right.length) {
+      return false;
+    }
+    for (let i = 0; i < left.length; i += 1) {
+      if (String(left[i] || "") !== String(right[i] || "")) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   function eventHandlerParameterNamesEqual(a, b) {
     const left = normalizeHandlerParameterNames(a);
     const right = normalizeHandlerParameterNames(b);
@@ -18816,7 +18992,12 @@
         ? opts.scopeRoot
         : null;
     const handlerParameterNames = normalizeHandlerParameterNames(opts.parameterNames);
-    const transformedSource = transformScriptBody(buildEventHandlerParameterPrelude(handlerParameterNames) + source);
+    const thenBodies = normalizeThenBodies(opts.thenBodies);
+    const handlerPrelude = buildEventHandlerParameterPrelude(handlerParameterNames);
+    const transformedSource = transformScriptBody(handlerPrelude + source);
+    const transformedThenBodies = thenBodies.map(function mapThenBody(entry) {
+      return transformScriptBody(handlerPrelude + entry);
+    });
     const store = ensureEventAttributeListenerStore(element);
     const current = store && store[key] ? store[key] : null;
     const currentNames = current && Array.isArray(current.eventNames) ? current.eventNames : [];
@@ -18825,28 +19006,50 @@
       currentNames.every(function sameName(name, index) {
         return String(name || "") === String(eventNames[index] || "");
       });
-    if (current && current.source === transformedSource && sameNames && eventHandlerParameterNamesEqual(current.parameterNames, handlerParameterNames)) {
+    if (
+      current &&
+      current.source === transformedSource &&
+      sameNames &&
+      eventHandlerParameterNamesEqual(current.parameterNames, handlerParameterNames) &&
+      thenBodiesEqual(current.thenBodies, transformedThenBodies)
+    ) {
       return true;
     }
     detachEventAttributeListener(element, key);
-    const hasInterpolatedBody = hasInlineReferenceExpressions(transformedSource);
-    let compiled = null;
-    if (!hasInterpolatedBody) {
-      try {
-        compiled = new Function("event", "document", withScopedSelectorPrelude(transformedSource));
-      } catch (error) {
-        if (global.console && typeof global.console.error === "function") {
-          global.console.error("qhtml event handler compile failed:", error);
+    const stages = [{ source: transformedSource }].concat(
+      transformedThenBodies.map(function mapThenBodySource(entry) {
+        return { source: entry };
+      })
+    );
+    const compiledStages = [];
+    for (let i = 0; i < stages.length; i += 1) {
+      const stageSource = String(stages[i] && stages[i].source ? stages[i].source : "");
+      const hasInterpolatedBody = hasInlineReferenceExpressions(stageSource);
+      let compiled = null;
+      if (!hasInterpolatedBody) {
+        try {
+          compiled = new Function("event", "document", withScopedSelectorPrelude(stageSource));
+        } catch (error) {
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml event handler compile failed:", error);
+          }
+          return false;
         }
-        return false;
       }
+      compiledStages.push({
+        source: stageSource,
+        hasInterpolatedBody: hasInterpolatedBody,
+        compiled: compiled,
+      });
     }
-    const handler = function qHtmlInlineEventAttributeHandler(event) {
-      const componentContext =
-        element && (typeof element === "object" || typeof element === "function")
-          ? ensureComponentSelfReference(element) || (typeof resolveNearestComponentHost === "function" ? resolveNearestComponentHost(element) : null)
-          : null;
-      let executableSource = transformedSource;
+    const reportEventHandlerFailure = function reportEventHandlerFailure(stageSource, error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml event handler failed:", error);
+      }
+      return undefined;
+    };
+    const runEventStage = function runEventStage(stage, event, componentContext) {
+      let executableSource = stage.source;
       const isSignalEvent =
         !!(
           event &&
@@ -18855,9 +19058,9 @@
           typeof event.detail.signal === "string" &&
           String(event.detail.signal || "").trim()
         );
-      if (hasInterpolatedBody) {
+      if (stage.hasInterpolatedBody) {
         executableSource = interpolateInlineReferenceExpressions(
-          transformedSource,
+          stage.source,
           element,
           {
             component: componentContext,
@@ -18869,22 +19072,61 @@
           { scriptLiteral: true, allowBareDotWalk: isSignalEvent }
         );
       }
-      try {
-        ensureScopedSelectorShortcut(element, scopeRoot);
-        if (compiled) {
-          return invokeWithRuntimeExecutionHost(element, function invokeCompiledInlineHandler() {
-            return compiled.call(element, event, doc);
-          });
-        }
-        const dynamic = new Function("event", "document", withScopedSelectorPrelude(executableSource));
-        return invokeWithRuntimeExecutionHost(element, function invokeDynamicInlineHandler() {
-          return dynamic.call(element, event, doc);
+      ensureScopedSelectorShortcut(element, scopeRoot);
+      const executionThis = element;
+      if (stage.compiled) {
+        const boundCompiled = stage.compiled.bind(executionThis);
+        return invokeWithRuntimeExecutionHost(element, function invokeCompiledInlineHandler() {
+          return boundCompiled(event, doc);
         });
-      } catch (error) {
-        if (global.console && typeof global.console.error === "function") {
-          global.console.error("qhtml event handler failed:", error);
+      }
+      const dynamic = new Function("event", "document", withScopedSelectorPrelude(executableSource));
+      const boundDynamic = dynamic.bind(executionThis);
+      return invokeWithRuntimeExecutionHost(element, function invokeDynamicInlineHandler() {
+        return boundDynamic(event, doc);
+      });
+    };
+    const runEventStageChain = function runEventStageChain(event, componentContext) {
+      let pending = null;
+      for (let i = 0; i < compiledStages.length; i += 1) {
+        const stage = compiledStages[i];
+        const invokeStage = function invokeStage() {
+          try {
+            return runEventStage(stage, event, componentContext);
+          } catch (error) {
+            return reportEventHandlerFailure(stage.source, error);
+          }
+        };
+        if (pending && typeof pending.then === "function") {
+          pending = pending.then(
+            function runAfterResolve() {
+              return invokeStage();
+            },
+            function runAfterReject(error) {
+              reportEventHandlerFailure(stage.source, error);
+              return invokeStage();
+            }
+          );
+        } else {
+          pending = invokeStage();
         }
-        return undefined;
+      }
+      if (pending && typeof pending.then === "function" && typeof pending.catch === "function") {
+        pending.catch(function onUnhandledStageError(error) {
+          reportEventHandlerFailure(transformedSource, error);
+        });
+      }
+      return pending;
+    };
+    const handler = function qHtmlInlineEventAttributeHandler(event) {
+      const componentContext =
+        element && (typeof element === "object" || typeof element === "function")
+          ? ensureComponentSelfReference(element) || (typeof resolveNearestComponentHost === "function" ? resolveNearestComponentHost(element) : null)
+          : null;
+      try {
+        return runEventStageChain(event, componentContext);
+      } catch (error) {
+        return reportEventHandlerFailure(transformedSource, error);
       }
     };
     for (let i = 0; i < eventNames.length; i += 1) {
@@ -19014,6 +19256,7 @@
       signalBridge: signalBridge,
       source: transformedSource,
       parameterNames: handlerParameterNames.slice(),
+      thenBodies: transformedThenBodies.slice(),
       runtimeSignalRegistration: runtimeSignalRegistration,
       runtimeSignalReference: runtimeSignalReference,
     };
@@ -19028,6 +19271,7 @@
     const interpolationScope = opts.scope && typeof opts.scope === "object" ? opts.scope : null;
     const interpolationThisArg = opts.thisArg || element || null;
     const eventAttributeParameterMap = normalizeEventAttributeParameterMap(opts.eventAttributeParameters);
+    const eventAttributeThenMap = normalizeEventAttributeThenMap(opts.eventAttributeThen);
     const keys = Object.keys(attrs);
     for (let i = 0; i < keys.length; i += 1) {
       const key = keys[i];
@@ -19052,6 +19296,7 @@
               ? interpolationScope.root
               : null,
           parameterNames: eventAttributeParameterMap[String(key || "").trim().toLowerCase()] || [],
+          thenBodies: eventAttributeThenMap[String(key || "").trim().toLowerCase()] || [],
         })
       ) {
         continue;
@@ -19171,36 +19416,91 @@
     return name === "onready";
   }
 
+  function buildLifecycleHookStages(hook) {
+    const source = hook && typeof hook.body === "string" ? hook.body.trim() : "";
+    if (!source) {
+      return [];
+    }
+    const thenBodies = normalizeThenBodies(hook && hook.thenBodies);
+    const out = [{ source: source }];
+    for (let i = 0; i < thenBodies.length; i += 1) {
+      out.push({ source: thenBodies[i] });
+    }
+    return out;
+  }
+
+  function lifecycleHookKey(hook) {
+    const name = String(hook && hook.name ? hook.name : "onready");
+    const body = String(hook && hook.body ? hook.body : "");
+    const thenBodies = normalizeThenBodies(hook && hook.thenBodies);
+    return name + "::" + body + "::" + thenBodies.join("::");
+  }
+
   function runLifecycleHookNow(hook, thisArg, targetDocument, errorLabel) {
-    if (!hook || typeof hook.body !== "string" || !hook.body.trim()) {
+    const stages = buildLifecycleHookStages(hook);
+    if (stages.length === 0) {
       return;
     }
-    try {
-      if (thisArg && thisArg.nodeType === 1) {
-        ensureComponentSelfReference(thisArg);
-      }
-      const hookBody = interpolateInlineReferenceExpressions(
-        hook.body,
-        thisArg || {},
-        {
-          component:
-            thisArg && typeof thisArg === "object" && thisArg
-              ? thisArg.component || null
-              : null,
-          document: targetDocument || (thisArg && thisArg.ownerDocument) || global.document || null,
-        },
-        "qhtml lifecycle interpolation failed:",
-        { scriptLiteral: true }
-      );
-      ensureScopedSelectorShortcut(thisArg || {}, null);
-      const fn = new Function("event", "document", withScopedSelectorPrelude(hookBody));
-      invokeWithRuntimeExecutionHost(thisArg && thisArg.nodeType === 1 ? thisArg : null, function invokeLifecycleHook() {
-        fn.call(thisArg, null, targetDocument);
-      });
-    } catch (error) {
+    if (thisArg && thisArg.nodeType === 1) {
+      ensureComponentSelfReference(thisArg);
+    }
+    const doc = targetDocument || (thisArg && thisArg.ownerDocument) || global.document || null;
+    const reportError = function reportLifecycleStageError(error) {
       if (global.console && typeof global.console.error === "function") {
         global.console.error(errorLabel, error);
       }
+      return undefined;
+    };
+    const runStage = function runStage(stage) {
+      try {
+        const hasInterpolatedBody = hasInlineReferenceExpressions(stage.source);
+        const hookBody = hasInterpolatedBody
+          ? interpolateInlineReferenceExpressions(
+              stage.source,
+              thisArg || {},
+              {
+                component:
+                  thisArg && typeof thisArg === "object" && thisArg
+                    ? thisArg.component || null
+                    : null,
+                document: doc,
+              },
+              "qhtml lifecycle interpolation failed:",
+              { scriptLiteral: true }
+            )
+          : stage.source;
+        ensureScopedSelectorShortcut(thisArg || {}, null);
+        const fn = new Function("event", "document", withScopedSelectorPrelude(hookBody));
+        const executionThis = thisArg || null;
+        const boundFn = fn.bind(executionThis);
+        return invokeWithRuntimeExecutionHost(executionThis && executionThis.nodeType === 1 ? executionThis : null, function invokeLifecycleHook() {
+          return boundFn(null, targetDocument);
+        });
+      } catch (error) {
+        return reportError(error);
+      }
+    };
+    let pending = null;
+    for (let i = 0; i < stages.length; i += 1) {
+      const stage = stages[i];
+      if (pending && typeof pending.then === "function") {
+        pending = pending.then(
+          function runAfterResolved() {
+            return runStage(stage);
+          },
+          function runAfterRejected(error) {
+            reportError(error);
+            return runStage(stage);
+          }
+        );
+      } else {
+        pending = runStage(stage);
+      }
+    }
+    if (pending && typeof pending.then === "function" && typeof pending.catch === "function") {
+      pending.catch(function onUnhandledLifecycleStageError(error) {
+        reportError(error);
+      });
     }
   }
 
@@ -19295,7 +19595,7 @@
     const alreadySignaled = !!(state && Number(state.sequence || 0) > 0 && Number(state.pending || 0) === 0);
     const readyStore = ensureReadyHookState(thisArg);
     const readyGlobalStore = ensureDocumentReadyHookState(doc);
-    const key = String(hook.name || "onready") + "::" + String(hook.body || "");
+    const key = lifecycleHookKey(hook);
     const globalKey = resolveReadyHookGlobalKey(thisArg, key);
     if (readyStore && (readyStore[key] === "pending" || readyStore[key] === "done")) {
       return;
@@ -21028,6 +21328,11 @@
         ? componentNode.meta.__qhtmlEventAttributeParams
         : null
     );
+    const componentEventAttributeThen = normalizeEventAttributeThenMap(
+      componentNode && componentNode.meta && componentNode.meta.__qhtmlEventAttributeThen
+        ? componentNode.meta.__qhtmlEventAttributeThen
+        : null
+    );
     const hasCanvasSemantics = componentNodeHasCanvasSemantics(componentNode);
     const instanceAttributes =
       instanceNode && instanceNode.attributes && typeof instanceNode.attributes === "object"
@@ -21040,6 +21345,11 @@
     const instanceEventAttributeParameters = normalizeEventAttributeParameterMap(
       instanceNode && instanceNode.meta && instanceNode.meta.__qhtmlEventAttributeParams
         ? instanceNode.meta.__qhtmlEventAttributeParams
+        : null
+    );
+    const instanceEventAttributeThen = normalizeEventAttributeThenMap(
+      instanceNode && instanceNode.meta && instanceNode.meta.__qhtmlEventAttributeThen
+        ? instanceNode.meta.__qhtmlEventAttributeThen
         : null
     );
     const instanceAttributeKeySet = new Set();
@@ -21975,7 +22285,7 @@
       delete store[key];
     }
 
-    function bindComponentSignalAttributeConnection(attributeName, body, signalDecl, handlerParamNames) {
+    function bindComponentSignalAttributeConnection(attributeName, body, signalDecl, handlerParamNames, handlerThenBodies) {
       const signalName = String(signalDecl && signalDecl.name || "").trim();
       if (!signalName) {
         return false;
@@ -21994,6 +22304,7 @@
         return true;
       }
       const declaredHandlerParamNames = normalizeHandlerParameterNames(handlerParamNames);
+      const normalizedThenBodies = normalizeThenBodies(handlerThenBodies);
       const store = ensureComponentSignalAttributeConnectionStore(hostElement);
       const current = store && store[key] ? store[key] : null;
       const signalParameterNames = Array.isArray(signalDecl.parameters)
@@ -22002,33 +22313,62 @@
       const effectiveParameterNames = declaredHandlerParamNames.length > 0
         ? declaredHandlerParamNames
         : signalParameterNames;
-      const transformedSource = transformScriptBody(buildEventHandlerParameterPrelude(effectiveParameterNames) + source);
+      const handlerPrelude = buildEventHandlerParameterPrelude(effectiveParameterNames);
+      const transformedSource = transformScriptBody(handlerPrelude + source);
+      const transformedThenBodies = normalizedThenBodies.map(function mapThenBody(entry) {
+        return transformScriptBody(handlerPrelude + entry);
+      });
       if (
         current &&
         current.source === transformedSource &&
         String(current.signalName || "") === signalName &&
-        eventHandlerParameterNamesEqual(current.parameterNames, effectiveParameterNames)
+        eventHandlerParameterNamesEqual(current.parameterNames, effectiveParameterNames) &&
+        thenBodiesEqual(current.thenBodies, transformedThenBodies)
       ) {
         return true;
       }
       detachComponentSignalAttributeConnection(hostElement, key);
-      const hasInterpolatedBody = hasInlineReferenceExpressions(transformedSource);
       const doc = hostElement.ownerDocument || global.document || null;
-      let compiled = null;
-      if (!hasInterpolatedBody) {
-        try {
-          compiled = new Function("event", "document", withScopedSelectorPrelude(transformedSource));
-        } catch (error) {
-          if (
-            shouldLogQLoggerCategory(hostElement, componentNode, instanceNode, "q-signal") &&
-            global.console &&
-            typeof global.console.log === "function"
-          ) {
-            global.console.log("qhtml signal handler compile failed:", signalName, error);
+      const stages = [{ source: transformedSource }].concat(
+        transformedThenBodies.map(function mapThenSource(entry) {
+          return { source: entry };
+        })
+      );
+      const compiledStages = [];
+      for (let i = 0; i < stages.length; i += 1) {
+        const stageSource = String(stages[i] && stages[i].source ? stages[i].source : "");
+        const hasInterpolatedBody = hasInlineReferenceExpressions(stageSource);
+        let compiled = null;
+        if (!hasInterpolatedBody) {
+          try {
+            compiled = new Function("event", "document", withScopedSelectorPrelude(stageSource));
+          } catch (error) {
+            if (
+              shouldLogQLoggerCategory(hostElement, componentNode, instanceNode, "q-signal") &&
+              global.console &&
+              typeof global.console.log === "function"
+            ) {
+              global.console.log("qhtml signal handler compile failed:", signalName, error);
+            }
+            return false;
           }
-          return false;
         }
+        compiledStages.push({
+          source: stageSource,
+          hasInterpolatedBody: hasInterpolatedBody,
+          compiled: compiled,
+        });
       }
+      const reportSignalHandlerFailure = function reportSignalHandlerFailure(error) {
+        if (
+          shouldLogQLoggerCategory(hostElement, componentNode, instanceNode, "q-signal") &&
+          global.console &&
+          typeof global.console.log === "function"
+        ) {
+          global.console.log("qhtml signal handler failed:", signalName, error);
+        }
+        return undefined;
+      };
       const connectedHandler = function onComponentSignalAttributeConnected() {
         const invocationHost = resolveLiveComponentHost(hostElement);
         const args = Array.prototype.slice.call(arguments);
@@ -22057,48 +22397,70 @@
         };
         event.__qhtmlArgs = args.slice();
         event.__qhtmlParams = handlerParams;
-        let executableSource = transformedSource;
-        if (hasInterpolatedBody) {
-          executableSource = interpolateInlineReferenceExpressions(
-            transformedSource,
-            invocationHost,
-            {
-              component: invocationHost,
-              event: event,
-              document: doc,
-              root: null,
-            },
-            "qhtml signal interpolation failed:",
-            { scriptLiteral: true }
-          );
-        }
-        try {
-          ensureScopedSelectorShortcut(invocationHost, null);
-          if (compiled) {
-            return invokeWithRuntimeExecutionHost(invocationHost, function invokeCompiledSignalHandler() {
-              return compiled.call(invocationHost, event, doc);
+        const runSignalStage = function runSignalStage(stage) {
+          try {
+            let executableSource = stage.source;
+            if (stage.hasInterpolatedBody) {
+              executableSource = interpolateInlineReferenceExpressions(
+                stage.source,
+                invocationHost,
+                {
+                  component: invocationHost,
+                  event: event,
+                  document: doc,
+                  root: null,
+                },
+                "qhtml signal interpolation failed:",
+                { scriptLiteral: true }
+              );
+            }
+            ensureScopedSelectorShortcut(invocationHost, null);
+            const executionThis = invocationHost;
+            if (stage.compiled) {
+              const boundCompiled = stage.compiled.bind(executionThis);
+              return invokeWithRuntimeExecutionHost(invocationHost, function invokeCompiledSignalHandler() {
+                return boundCompiled(event, doc);
+              });
+            }
+            const dynamic = new Function("event", "document", withScopedSelectorPrelude(executableSource));
+            const boundDynamic = dynamic.bind(executionThis);
+            return invokeWithRuntimeExecutionHost(invocationHost, function invokeDynamicSignalHandler() {
+              return boundDynamic(event, doc);
             });
+          } catch (error) {
+            return reportSignalHandlerFailure(error);
           }
-          const dynamic = new Function("event", "document", withScopedSelectorPrelude(executableSource));
-          return invokeWithRuntimeExecutionHost(invocationHost, function invokeDynamicSignalHandler() {
-            return dynamic.call(invocationHost, event, doc);
-          });
-        } catch (error) {
-          if (
-            shouldLogQLoggerCategory(hostElement, componentNode, instanceNode, "q-signal") &&
-            global.console &&
-            typeof global.console.log === "function"
-          ) {
-            global.console.log("qhtml signal handler failed:", signalName, error);
+        };
+        let pending = null;
+        for (let i = 0; i < compiledStages.length; i += 1) {
+          const stage = compiledStages[i];
+          if (pending && typeof pending.then === "function") {
+            pending = pending.then(
+              function runAfterResolve() {
+                return runSignalStage(stage);
+              },
+              function runAfterReject(error) {
+                reportSignalHandlerFailure(error);
+                return runSignalStage(stage);
+              }
+            );
+          } else {
+            pending = runSignalStage(stage);
           }
-          return undefined;
         }
+        if (pending && typeof pending.then === "function" && typeof pending.catch === "function") {
+          pending.catch(function onUnhandledSignalStageError(error) {
+            reportSignalHandlerFailure(error);
+          });
+        }
+        return pending;
       };
       signalProxy.connect(connectedHandler);
       store[key] = {
         signalName: signalName,
         source: transformedSource,
         parameterNames: effectiveParameterNames.slice(),
+        thenBodies: transformedThenBodies.slice(),
         handler: connectedHandler,
       };
       return true;
@@ -22187,6 +22549,10 @@
         instanceEventAttributeParameters[attributeName.toLowerCase()] ||
         componentEventAttributeParameters[attributeName.toLowerCase()] ||
         [];
+      const thenBodies =
+        instanceEventAttributeThen[attributeName.toLowerCase()] ||
+        componentEventAttributeThen[attributeName.toLowerCase()] ||
+        [];
       const rawSignalName = String(attributeName.slice(2) || "").trim();
       const rawSignalKey = rawSignalName.toLowerCase();
       let signalDecl = signalAttributeLookup.get(rawSignalKey) || null;
@@ -22199,13 +22565,14 @@
           }
         }
       }
-      if (signalDecl && bindComponentSignalAttributeConnection(attributeName, body, signalDecl, parameterNames)) {
+      if (signalDecl && bindComponentSignalAttributeConnection(attributeName, body, signalDecl, parameterNames, thenBodies)) {
         continue;
       }
       bindEventAttributeListener(hostElement, attributeName, body, {
         doc: hostElement.ownerDocument || global.document || null,
         scopeRoot: null,
         parameterNames: parameterNames,
+        thenBodies: thenBodies,
       });
     }
 
@@ -24007,6 +24374,10 @@
           node && node.meta && node.meta.__qhtmlEventAttributeParams
             ? node.meta.__qhtmlEventAttributeParams
             : null,
+        eventAttributeThen:
+          node && node.meta && node.meta.__qhtmlEventAttributeThen
+            ? node.meta.__qhtmlEventAttributeThen
+            : null,
       });
       parent.appendChild(element);
 
@@ -24285,6 +24656,10 @@
         instanceNode && instanceNode.meta && instanceNode.meta.__qhtmlEventAttributeParams
           ? instanceNode.meta.__qhtmlEventAttributeParams
           : null,
+      eventAttributeThen:
+        instanceNode && instanceNode.meta && instanceNode.meta.__qhtmlEventAttributeThen
+          ? instanceNode.meta.__qhtmlEventAttributeThen
+          : null,
     });
     setElementProperties(hostElement, instanceNode.props, {
       declaredProperties: collectDeclaredComponentPropertySet(componentNode, instanceNode),
@@ -24490,6 +24865,10 @@
       eventAttributeParameters:
         instanceNode && instanceNode.meta && instanceNode.meta.__qhtmlEventAttributeParams
           ? instanceNode.meta.__qhtmlEventAttributeParams
+          : null,
+      eventAttributeThen:
+        instanceNode && instanceNode.meta && instanceNode.meta.__qhtmlEventAttributeThen
+          ? instanceNode.meta.__qhtmlEventAttributeThen
           : null,
     });
     setElementProperties(workerHost, instanceNode.props, {
@@ -24852,7 +25231,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.5.0";
+  const RUNTIME_VERSION = "6.5.1";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -29210,7 +29589,13 @@
     const opts = options && typeof options === "object" ? options : {};
     const doc = opts.doc || element.ownerDocument || global.document || null;
     const host = opts.host && opts.host.nodeType === 1 ? opts.host : null;
+    const thenBodies = Array.isArray(opts.thenBodies)
+      ? opts.thenBodies.map(function mapThenBody(entry) { return String(entry || "").trim(); }).filter(Boolean)
+      : [];
     const transformedSource = transformScriptBody(source);
+    const transformedThenBodies = thenBodies.map(function mapThenBody(entry) {
+      return transformScriptBody(entry);
+    });
     const store = ensureEventAttributeListenerStore(element);
     const current = store && store[key] ? store[key] : null;
     const currentNames = current && Array.isArray(current.eventNames) ? current.eventNames : [];
@@ -29219,7 +29604,12 @@
       currentNames.every(function sameName(name, index) {
         return String(name || "") === String(eventNames[index] || "");
       });
-    if (current && current.source === transformedSource && sameNames) {
+    if (
+      current &&
+      current.source === transformedSource &&
+      sameNames &&
+      JSON.stringify(current.thenBodies || []) === JSON.stringify(transformedThenBodies)
+    ) {
       return true;
     }
     detachEventAttributeListener(element, key);
@@ -29233,41 +29623,88 @@
         return false;
       }
     }
+    const compiledThenStages = [];
+    for (let i = 0; i < transformedThenBodies.length; i += 1) {
+      const stageSource = transformedThenBodies[i];
+      const stageHasInterpolated = hasInlineReferenceExpressions(stageSource);
+      let stageCompiled = null;
+      if (!stageHasInterpolated) {
+        try {
+          stageCompiled = new Function("event", "document", withScopedSelectorPrelude(stageSource));
+        } catch (error) {
+          reportLifecycleHookFailure("qhtml event handler compile failed:", element, stageSource, error);
+          return false;
+        }
+      }
+      compiledThenStages.push({
+        source: stageSource,
+        hasInterpolatedBody: stageHasInterpolated,
+        compiled: stageCompiled,
+      });
+    }
     const handler = function qHtmlInlineEventAttributeHandler(event) {
       const componentContext =
         element && (typeof element === "object" || typeof element === "function")
           ? element.component || (typeof resolveNearestComponentHost === "function" ? resolveNearestComponentHost(element) : null)
           : null;
-      let executableSource = transformedSource;
-      if (hasInterpolatedBody) {
-        executableSource = interpolateInlineReferenceExpressions(
-          transformedSource,
-          element,
-          {
-            component: componentContext,
-            event: event,
-            document: doc,
-            root: host,
-          },
-          "qhtml event interpolation failed:",
-          { scriptLiteral: true }
-        );
-      }
-      try {
-        ensureScopedSelectorShortcut(element, host);
-        if (compiled) {
-          return runWithRuntimeExecutionHost(element, function invokeCompiledInlineHandler() {
-            return compiled.call(element, event, doc);
+      const runStage = function runStage(stageSource, stageHasInterpolated, stageCompiled) {
+        try {
+          let executableSource = stageSource;
+          if (stageHasInterpolated) {
+            executableSource = interpolateInlineReferenceExpressions(
+              stageSource,
+              element,
+              {
+                component: componentContext,
+                event: event,
+                document: doc,
+                root: host,
+              },
+              "qhtml event interpolation failed:",
+              { scriptLiteral: true }
+            );
+          }
+          ensureScopedSelectorShortcut(element, host);
+          const executionThis = element;
+          if (stageCompiled) {
+            const boundCompiled = stageCompiled.bind(executionThis);
+            return runWithRuntimeExecutionHost(element, function invokeCompiledInlineHandler() {
+              return boundCompiled(event, doc);
+            });
+          }
+          const dynamic = new Function("event", "document", withScopedSelectorPrelude(executableSource));
+          const boundDynamic = dynamic.bind(executionThis);
+          return runWithRuntimeExecutionHost(element, function invokeDynamicInlineHandler() {
+            return boundDynamic(event, doc);
           });
+        } catch (error) {
+          reportLifecycleHookFailure("qhtml event handler failed:", element, stageSource, error);
+          return undefined;
         }
-        const dynamic = new Function("event", "document", withScopedSelectorPrelude(executableSource));
-        return runWithRuntimeExecutionHost(element, function invokeDynamicInlineHandler() {
-          return dynamic.call(element, event, doc);
-        });
-      } catch (error) {
-        reportLifecycleHookFailure("qhtml event handler failed:", element, transformedSource, error);
-        return undefined;
+      };
+      let pending = runStage(transformedSource, hasInterpolatedBody, compiled);
+      for (let i = 0; i < compiledThenStages.length; i += 1) {
+        const stage = compiledThenStages[i];
+        if (pending && typeof pending.then === "function") {
+          pending = pending.then(
+            function runAfterResolved() {
+              return runStage(stage.source, stage.hasInterpolatedBody, stage.compiled);
+            },
+            function runAfterRejected(error) {
+              reportLifecycleHookFailure("qhtml event handler failed:", element, stage.source, error);
+              return runStage(stage.source, stage.hasInterpolatedBody, stage.compiled);
+            }
+          );
+        } else {
+          pending = runStage(stage.source, stage.hasInterpolatedBody, stage.compiled);
+        }
       }
+      if (pending && typeof pending.then === "function" && typeof pending.catch === "function") {
+        pending.catch(function onUnhandledEventStageError(error) {
+          reportLifecycleHookFailure("qhtml event handler failed:", element, transformedSource, error);
+        });
+      }
+      return pending;
     };
     for (let i = 0; i < eventNames.length; i += 1) {
       element.addEventListener(eventNames[i], handler);
@@ -29376,6 +29813,7 @@
       eventNames: eventNames.slice(),
       handler: handler,
       source: transformedSource,
+      thenBodies: transformedThenBodies.slice(),
       signalBridge: signalBridge,
       runtimeSignalRegistration: runtimeSignalRegistration,
       runtimeSignalReference: runtimeSignalReference,
@@ -32572,6 +33010,15 @@
     return String(name || "").trim().toLowerCase() === "onready";
   }
 
+  function buildLifecycleHookKey(hook) {
+    const name = String(hook && hook.name ? hook.name : "onready");
+    const body = String(hook && hook.body ? hook.body : "");
+    const thenBodies = Array.isArray(hook && hook.thenBodies)
+      ? hook.thenBodies.map(function mapThenBody(entry) { return String(entry || "").trim(); }).filter(Boolean)
+      : [];
+    return name + "::" + body + "::" + thenBodies.join("::");
+  }
+
   function reportLifecycleHookFailure(errorLabel, target, source, error) {
     if (!(global.console && typeof global.console.error === "function")) {
       return;
@@ -32595,33 +33042,65 @@
     global.console.error(errorLabel, payload);
   }
 
-  function runLifecycleHookBody(target, body, doc, errorLabel) {
+  function runLifecycleHookBody(target, body, doc, errorLabel, thenBodies) {
     const source = typeof body === "string" ? body.trim() : "";
-    if (!source) {
+    const normalizedThenBodies = Array.isArray(thenBodies)
+      ? thenBodies.map(function mapThenBody(entry) { return String(entry || "").trim(); }).filter(Boolean)
+      : [];
+    const stages = [source].concat(normalizedThenBodies).filter(Boolean);
+    if (stages.length === 0) {
       return;
     }
-    try {
-      const componentContext =
-        target && (typeof target === "object" || typeof target === "function")
-          ? target.component || (typeof resolveNearestComponentHost === "function" ? resolveNearestComponentHost(target) : null)
-          : null;
-      const executableSource = interpolateInlineReferenceExpressions(
-        source,
-        target || {},
-        {
-          component: componentContext,
-          document: doc || (target && target.ownerDocument) || global.document || null,
-        },
-        "qhtml lifecycle interpolation failed:",
-        { scriptLiteral: true }
-      );
-      ensureScopedSelectorShortcut(target || {}, null);
-      const fn = new Function("event", "document", withScopedSelectorPrelude(executableSource));
-      runWithRuntimeExecutionHost(target, function invokeLifecycleHookBody() {
-        fn.call(target, null, doc);
+    const componentContext =
+      target && (typeof target === "object" || typeof target === "function")
+        ? target.component || (typeof resolveNearestComponentHost === "function" ? resolveNearestComponentHost(target) : null)
+        : null;
+    const runtimeDocument = doc || (target && target.ownerDocument) || global.document || null;
+    const executionThis = target || null;
+    const runStage = function runStage(stageSource) {
+      try {
+        const executableSource = interpolateInlineReferenceExpressions(
+          stageSource,
+          target || {},
+          {
+            component: componentContext,
+            document: runtimeDocument,
+          },
+          "qhtml lifecycle interpolation failed:",
+          { scriptLiteral: true }
+        );
+        ensureScopedSelectorShortcut(executionThis || {}, null);
+        const fn = new Function("event", "document", withScopedSelectorPrelude(executableSource));
+        const boundFn = fn.bind(executionThis);
+        return runWithRuntimeExecutionHost(executionThis, function invokeLifecycleHookBody() {
+          return boundFn(null, doc);
+        });
+      } catch (error) {
+        reportLifecycleHookFailure(errorLabel, target, stageSource, error);
+        return undefined;
+      }
+    };
+    let pending = null;
+    for (let i = 0; i < stages.length; i += 1) {
+      const stageSource = stages[i];
+      if (pending && typeof pending.then === "function") {
+        pending = pending.then(
+          function runAfterResolved() {
+            return runStage(stageSource);
+          },
+          function runAfterRejected(error) {
+            reportLifecycleHookFailure(errorLabel, target, stageSource, error);
+            return runStage(stageSource);
+          }
+        );
+      } else {
+        pending = runStage(stageSource);
+      }
+    }
+    if (pending && typeof pending.then === "function" && typeof pending.catch === "function") {
+      pending.catch(function onUnhandledLifecycleStageError(error) {
+        reportLifecycleHookFailure(errorLabel, target, source, error);
       });
-    } catch (error) {
-      reportLifecycleHookFailure(errorLabel, target, source, error);
     }
   }
 
@@ -32631,7 +33110,7 @@
     }
     const doc = binding.doc || getSignalDocument(binding.host);
     const state = ensureContentLoadedState(doc);
-    const key = String(hook.name || "onready") + "::" + String(hook.body || "");
+    const key = buildLifecycleHookKey(hook);
     if (!binding.readyHooksState || typeof binding.readyHooksState !== "object") {
       binding.readyHooksState = {};
     }
@@ -32645,7 +33124,7 @@
         return;
       }
       binding.readyHooksState[key] = "done";
-      runLifecycleHookBody(binding.host, hook.body, doc, "qhtml host lifecycle hook failed:");
+      runLifecycleHookBody(binding.host, hook.body, doc, "qhtml host lifecycle hook failed:", hook.thenBodies);
     };
 
     const alreadySignaled = !!(state && Number(state.sequence || 0) > 0 && Number(state.pending || 0) === 0);
@@ -35053,7 +35532,7 @@
       if (!body || !(hook && hook.isQConnect === true)) {
         continue;
       }
-      runLifecycleHookBody(binding.host, body, binding.doc, "qhtml host lifecycle hook failed:");
+      runLifecycleHookBody(binding.host, body, binding.doc, "qhtml host lifecycle hook failed:", hook.thenBodies);
     }
 
     for (let i = 0; i < lifecycleScripts.length; i += 1) {
@@ -35069,7 +35548,7 @@
       if (isOnReadyHookName(hookName)) {
         queueHostOnReadyHook(binding, hook);
       } else {
-        runLifecycleHookBody(binding.host, body, binding.doc, "qhtml host lifecycle hook failed:");
+        runLifecycleHookBody(binding.host, body, binding.doc, "qhtml host lifecycle hook failed:", hook.thenBodies);
       }
     }
 
@@ -43435,7 +43914,7 @@
   }
 
   const api = runtime;
-  api.version = "6.4.1";
+  api.version = "6.5.1";
   global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {

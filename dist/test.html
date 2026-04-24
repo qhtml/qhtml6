@@ -4438,6 +4438,35 @@ onReady {
 }
 </q-html>
       </article>
+      <article class="test-card" id="card-118">
+        <div class="test-head">
+          <h2>118. on* then-chain sequencing (lifecycle + signal)</h2>
+          <span id="badge-118" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> lifecycle-then-ok</div>
+<q-html id="host-t118" data-test-no="118">
+q-component mycomp118 {
+  onready {
+    /* nothing */
+  } then {
+    var host = document.querySelector("#host-t118");
+    var out = host ? host.querySelector("#t118-out") : null;
+    var actual = "lifecycle-then-ok";
+    if (out) {
+      out.textContent = actual;
+    }
+    var acc = document.querySelector("#acc-main");
+    if (acc) {
+      acc.resultReported(118, actual);
+      acc.passingReported(118, true);
+    }
+  }
+}
+
+mycomp118 { }
+div#t118-out { text { waiting } }
+</q-html>
+      </article>
     </section>
   </div>
 </body>
