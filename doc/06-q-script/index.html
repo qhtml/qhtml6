@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - q-script</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "q-script"
+  pathPrefix: "../"
+  pageTitle: "q-script"
+  pageIntro: "q-script runs JavaScript and replaces itself with the returned value. If the return looks like QHTML, it becomes new QHTML. Otherwise it becomes plain text."
+  main {
+    wiki-example-card {
+      title: "Inline replacement"
+      summary: "Return a QHTML string from q-script when you want script-generated markup."
+      note: "This is one of the few places where QHTML intentionally lets JavaScript generate content."
+      details {
+        html {
+          <q-editor>div {
+  q-script { return "p { text { Inserted by q-script } }"; }
+}</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Assignment form"
+      summary: "Use q-script wherever QHTML expects a value, such as an attribute or a text block."
+      note: "The script returns the final string that gets assigned."
+      details {
+        html {
+          <q-editor>div {
+  data-note: q-script { return "n:" + (4 + 1) }
+  text { q-script { return "script-inline"; } }
+}</q-editor>
+        }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

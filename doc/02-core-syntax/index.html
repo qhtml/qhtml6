@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - Core Syntax</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "core-syntax"
+  pathPrefix: "../"
+  pageTitle: "Core Syntax"
+  pageIntro: "Core syntax is the part that feels most like writing HTML with fewer angle brackets. These examples show how blocks, shorthand, attributes, and text work."
+  main {
+    wiki-example-card {
+      title: "Elements and nesting"
+      summary: "Put one element inside another by nesting braces. This is the basic shape of QHTML."
+      note: "Read it top to bottom: parent block, then child blocks."
+      details {
+        html {
+          <q-editor>div {
+  h2 { text { Product } }
+  p  { text { Lightweight UI syntax. } }
+}</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Selector chains"
+      summary: "Comma-separated selectors create nested elements in one line."
+      note: "Use this when the nesting is simple and you want a compact form."
+      details {
+        html {
+          <q-editor>div,section,h3 { text { Nested } }</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Class and id shorthand"
+      summary: "Use CSS-style shorthand to create ids and classes without writing full attributes."
+      note: "This works on normal elements and on component instances."
+      details {
+        html {
+          <q-editor>div#main.card {
+  p { text { Card body } }
+}
+
+q-component my-card { div { text { Card } } }
+my-card#card-1.primary { }</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Attributes"
+      summary: "Set normal HTML attributes with name/value lines inside an element block."
+      note: "Think of this as a cleaner attribute list."
+      details {
+        html {
+          <q-editor>a {
+  href: "https://example.com"
+  target: "_blank"
+  text { Open Example }
+}</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "text, html, and style blocks"
+      summary: "Use text for plain text, html for raw HTML fragments, and style for quick inline CSS."
+      note: "Choose text unless you really need raw HTML."
+      details {
+        html {
+          <q-editor>p {
+  style { font-size: 20px; margin: 0; }
+  text { Plain text content }
+}
+
+div { html { &lt;strong&gt;Real HTML fragment&lt;/strong&gt; } }</q-editor>
+        }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

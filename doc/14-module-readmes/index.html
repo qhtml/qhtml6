@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - Module READMEs</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "module-readmes"
+  pathPrefix: "../"
+  pageTitle: "Module READMEs"
+  pageIntro: "If you move from using QHTML into extending or debugging it, the module READMEs are the next layer down. They describe the framework parts that make the language work."
+  main {
+    wiki-example-card {
+      title: "Where to read next"
+      summary: "These READMEs describe the internal modules that parse, render, run, and bundle QHTML."
+      note: "Start with the part closest to the problem you are investigating."
+      details {
+        html {
+          <q-editor>modules/qdom-core/README.md
+modules/qhtml-parser/README.md
+modules/dom-renderer/README.md
+modules/qhtml-runtime/README.md
+modules/release-bundle/README.md</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "How to use them"
+      summary: "Read the parser README for grammar issues, the renderer README for mounting/output issues, the runtime README for lifecycle/signals/state, and the bundle README for dist builds."
+      note: "This section is a reading map, not a runtime feature."
+      details {
+        html {
+          <q-editor>Read the module closest to the behavior you are changing.
+Treat the README files as implementation guides for the framework itself.</q-editor>
+        }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

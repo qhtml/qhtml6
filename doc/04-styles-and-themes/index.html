@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - Styles and Themes</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+q-style panel-style-doc {
+  q-style-class { w3-container w3-round-large }
+  backgroundColor: #e0f2fe
+  color: #0c4a6e
+}
+
+q-style accent-card-doc {
+  backgroundColor: #eff6ff
+  color: #1e293b
+  border: 1px solid #93c5fd
+}
+
+q-style utility-card-doc {
+  q-style-class { w3-card w3-round-large w3-padding }
+  borderColor: #cbd5e1
+}
+
+q-style title-accent-doc { color: #1d4ed8 }
+q-style body-muted-doc { backgroundColor: #64748b color: #ffffff }
+q-style button-base-doc { q-style-class { w3-button w3-round } backgroundColor: #0f766e color: #ffffff }
+q-style button-danger-doc { backgroundColor: #b91c1c color: #ffffff }
+q-style fade-demo-doc { opacity: 0.35 }
+
+q-transition fade-transition-doc {
+  property { opacity }
+  delay { 50 }
+  timing { ease-in-out }
+  duration { 3000 }
+}
+
+q-style transition-card-doc {
+  q-style-transition { fade-transition-doc }
+}
+
+q-painter stripe-painter-doc {
+  q-property hue: 0
+  onpaint {
+    this.fillStyle = "#2563eb";
+    this.fillRect(0, 0, this.width / 2, this.height);
+    this.fillStyle = "#f97316";
+    this.fillRect(this.width / 2, 0, this.width / 2, this.height);
+  }
+}
+
+q-style painter-bg-doc {
+  q-style-painter { background { stripe-painter-doc } }
+}
+
+q-style painter-border-doc {
+  border: 12px solid transparent
+  borderImageSource: paint(stripe-painter-doc)
+  borderImageSlice: 0
+}
+
+q-style painter-mask-doc {
+  background: linear-gradient(135deg, #111827, #38bdf8)
+  q-style-painter { mask { stripe-painter-doc } }
+}
+
+q-default-theme fallback-card-doc {
+  .fallback-card { accent-card-doc }
+}
+
+q-theme article-theme-doc {
+  h3 { title-accent-doc }
+  p { body-muted-doc }
+}
+
+q-theme composed-theme-doc {
+  fallback-card-doc { }
+  .danger { button-danger-doc }
+}
+
+wiki-shell {
+  sectionKey: "styles"
+  pathPrefix: "../"
+  pageTitle: "Styles and Themes"
+  pageIntro: "QHTML styling is built around reusable style definitions and selector-based themes. Write the style once, then apply it directly or through a themed scope."
+  main {
+    wiki-example-card { title: "q-style with q-style-class" summary: "Combine utility classes and inline style declarations in one reusable style block." note: "Inline declarations still win when they target the same CSS property." details { html { <q-editor>q-style panel-style {
+  q-style-class { w3-container w3-round-large }
+  backgroundColor: #e0f2fe
+  color: #0c4a6e
+}
+
+panel-style,div {
+  text { Styled with class + inline rules }
+}</q-editor> } } }
+
+    wiki-example-card { title: "Basic reusable style" summary: "A plain q-style can hold only inline style declarations." note: "Use this when you want a reusable visual token without a full theme." details { html { <q-editor>q-style panel {
+  backgroundColor: #eff6ff
+  color: #1e293b
+  border: 1px solid #93c5fd
+}
+
+panel,div {
+  text { Basic reusable panel style }
+}</q-editor> } } }
+
+    wiki-example-card { title: "Apply a style directly in a selector chain" summary: "You can apply a style immediately without creating a separate theme." note: "This is good for one-off use or tiny demos." details { html { <q-editor>q-style panel {
+  backgroundColor: #dbeafe
+  color: #1e3a8a
+  border: 1px solid #93c5fd
+}
+
+panel,div { text { Styled panel } }</q-editor> } } }
+
+    wiki-example-card { title: "Theme maps selectors to styles" summary: "q-theme lets you say which selectors should receive which style definitions." note: "Think of a theme as a selector-to-style lookup table." details { html { <q-editor>q-style title-accent {
+  color: #1d4ed8
+}
+
+q-style body-muted {
+  color: #334155
+}
+
+q-style body-panel {
+  backgroundColor: #e2e8f0
+  padding: 0.5rem
+  borderRadius: 0.4rem
+}
+
+q-theme article-theme {
+  h3 { title-accent }
+  .summary { body-muted body-panel }
+}
+
+article-theme {
+  div {
+    h3 { text { Theme heading } }
+    p.summary { text { This paragraph uses two styles via one selector. } }
+  }
+}</q-editor> } } }
+
+    wiki-example-card { title: "q-default-theme fallback layer" summary: "A default theme provides baseline styling that a later q-theme can replace." note: "Use it when you want sane defaults without forcing the last word." details { html { <q-editor>q-style panel-base {
+  backgroundColor: #f8fafc
+  border: 1px solid #cbd5e1
+  color: #0f172a
+  padding: 0.5rem
+}
+
+q-default-theme card-theme {
+  .card { panel-base }
+}
+
+card-theme {
+  div.card { text { Styled by default theme } }
+}</q-editor> } } }
+
+    wiki-example-card { title: "Scoped theme application" summary: "Wrap a block in a theme invocation to style only that subtree." note: "This keeps style scopes local and predictable." details { html { <q-editor>q-style title-accent {
+  color: #1d4ed8
+}
+
+q-style body-muted {
+  color: #334155
+  backgroundColor: #f1f5f9
+  padding: 0.35rem
+}
+
+q-theme article-theme {
+  h3 { title-accent }
+  p  { body-muted }
+}
+
+article-theme {
+  div {
+    h3 { text { Title } }
+    p  { text { Description } }
+  }
+}</q-editor> } } }
+
+    wiki-example-card { title: "Compose themes" summary: "A theme can include another theme before adding its own rules." note: "Use this when you want a base design language plus page-specific overrides." details { html { <q-editor>q-style button-base {
+  backgroundColor: #0f766e
+  color: #ffffff
+  border: 0
+  padding: 0.35rem 0.6rem
+}
+
+q-style button-danger {
+  backgroundColor: #b91c1c
+  color: #ffffff
+}
+
+q-theme base-theme {
+  button { button-base }
+}
+
+q-theme admin-theme {
+  base-theme { }
+  .danger { button-danger }
+}
+
+admin-theme {
+  div {
+    button { text { Save } }
+    button.danger { text { Delete } }
+  }
+}</q-editor> } } }
+
+    wiki-example-card { title: "Override class CSS with inline declarations" summary: "q-style-class adds classes, and the inline part of q-style still wins on conflicting properties." note: "This makes utility classes and custom colors work well together." details { html { <q-editor>q-style button-base {
+  q-style-class { w3-button w3-round }
+  backgroundColor: #0f766e
+  color: #ffffff
+}
+
+button-base,button {
+  text { Save changes }
+}</q-editor> } } }
+
+    wiki-example-card { title: "q-transition and q-style-transition" summary: "Transitions are reusable declarations that can be attached through q-style." note: "Use this when you want CSS transitions without writing the raw transition string yourself." details { html { <q-editor>q-transition mytransition {
+  property { opacity }
+  duration { 800 }
+  timing { ease-in-out }
+  delay { 0 }
+}
+
+q-style mystyle {
+  q-style-transition { mytransition }
+}
+
+q-theme transition-theme {
+  .target { mystyle }
+}
+
+transition-theme {
+  div#transition-box.target {
+    style { opacity: 1 }
+    text { Transition target }
+  }
+}
+
+button {
+  text { Toggle opacity }
+  onclick {
+    var box = document.querySelector("#transition-box");
+    if (box) {
+      box.style.opacity = box.style.opacity === "0.25" ? "1" : "0.25";
+    }
+  }
+}</q-editor> } } }
+
+    wiki-example-card { title: "q-painter and q-style-painter" summary: "Painters register a CSS Paint Worklet and styles can attach that painter to background, border, or mask surfaces." note: "Use painter-based styling when the image should be generated procedurally instead of loaded from a file." details { html { <q-editor>q-painter mypainter {
+  onpaint {
+    this.fillStyle = "#2563eb";
+    this.fillRect(0, 0, this.width / 2, this.height);
+    this.fillStyle = "#f97316";
+    this.fillRect(this.width / 2, 0, this.width / 2, this.height);
+  }
+}
+
+q-style mystyle {
+  q-style-painter { background { mypainter } }
+}
+
+q-theme painter-theme {
+  .paint-target { mystyle }
+}
+
+painter-theme {
+  div.paint-target {
+    style {
+      width: 240px
+      height: 110px
+    }
+    text { Painter target }
+  }
+}</q-editor> } } }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

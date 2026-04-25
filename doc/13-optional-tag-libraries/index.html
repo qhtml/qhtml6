@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - Optional Tag Libraries</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "optional-tags"
+  pathPrefix: "../"
+  pageTitle: "Optional Tag Libraries"
+  pageIntro: "These older tag libraries are still supported, but the README marks them as deprecated. New code should usually prefer q-style and q-theme."
+  main {
+    wiki-example-card {
+      title: "W3CSS tags"
+      summary: "w3-tags.js lets you write wrapper tags like w3-card and w3-padding."
+      note: "The wrapper applies classes to the first non-w3 descendant and then removes itself."
+      details {
+        html {
+          <q-editor>&lt;link rel="stylesheet" href="w3.css" /&gt;
+&lt;script src="w3-tags.js"&gt;&lt;/script&gt;
+
+&lt;q-html&gt;
+  w3-card,w3-padding {
+    div { text { This div receives W3 classes. } }
+  }
+&lt;/q-html&gt;</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "q-style equivalent"
+      summary: "The README recommends replacing deprecated tag libraries with q-style and q-theme."
+      note: "This keeps the same effect in normal QHTML syntax."
+      details {
+        html {
+          <q-editor>q-style padded-card {
+  q-style-class { w3-card w3-padding }
+}
+q-theme main-theme {
+  div { padded-card }
+}
+main-theme {
+  div { text { This div receives W3 classes } }
+}</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Bootstrap tags"
+      summary: "bs-tags.js provides Bootstrap-flavored wrapper tags like bs-btn and bs-btn-primary."
+      note: "Like the W3 version, this is legacy support."
+      details {
+        html {
+          <q-editor>&lt;link rel="stylesheet" href="bs.css" /&gt;
+&lt;script src="bs-tags.js"&gt;&lt;/script&gt;
+
+&lt;q-html&gt;
+  bs-btn,bs-btn-primary {
+    button { text { Primary button } }
+  }
+&lt;/q-html&gt;</q-editor>
+        }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

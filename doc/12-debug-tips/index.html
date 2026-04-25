@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - Debug Tips</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "debug-tips"
+  pathPrefix: "../"
+  pageTitle: "Debug Tips"
+  pageIntro: "When a QHTML tree does not do what you expect, start with the smallest inspection tools first: runtime debug flags, update/invalidate calls, and q-logger."
+  main {
+    wiki-example-card {
+      title: "Enable runtime debug"
+      summary: "Turn on the global debug flag when you want more runtime visibility."
+      note: "Use this first before adding extra debugging code."
+      details {
+        html {
+          <q-editor>window.QHTML_RUNTIME_DEBUG = true;</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Force an update or invalidate"
+      summary: "If you already changed QDOM or state and want to force a render pass, call update() or invalidate(...)."
+      note: "Prefer the smallest targeted call that matches the change you made."
+      details {
+        html {
+          <q-editor>document.querySelector("q-html").update();
+document.querySelector("q-html").invalidate({ forceBindings: true });</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "q-logger"
+      summary: "q-logger enables scoped logging for component categories such as q-property and q-signal."
+      note: "It is lexical. Place it on the component definition or on a specific instance."
+      details {
+        html {
+          <q-editor>q-component my-comp {
+  q-logger { q-signal q-property }
+  q-property count: 0
+  q-signal ping(value)
+}</q-editor>
+        }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

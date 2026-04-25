@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - State with q-script</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "state-q-script"
+  pathPrefix: "../"
+  pageTitle: "State with q-script"
+  pageIntro: "This section shows the smallest state bridge in QHTML. Use q-script in a property when you need a JavaScript expression to produce a value that the component then renders declaratively."
+  main {
+    wiki-example-card {
+      title: "Bind a property to computed text"
+      summary: "Use q-script on the right side of a q-property to compute the starting value."
+      note: "The result becomes normal component state after the expression runs."
+      details {
+        html {
+          <q-editor>q-component my-component {
+  q-property myprop: q-script { return "bound-" + (2 + 3) }
+  div { text { ${this.component.myprop} } }
+}
+
+my-component { }</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "What this is for"
+      summary: "Use this pattern when a property needs a computed starting value but the UI should still stay declarative."
+      note: "Keep the script short. Treat it as value production, not as a component controller."
+      details {
+        html {
+          <q-editor>q-property totalLabel: q-script {
+  return "Total: $" + String(19.95)
+}</q-editor>
+        }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

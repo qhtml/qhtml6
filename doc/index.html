@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki</title>
+  <link rel="stylesheet" href="../dist/w3.css" />
+  <link rel="stylesheet" href="wiki.css" />
+  <script src="../dist/qhtml.js"></script>
+  <script src="../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <section class="doc-hero">
+      <h1>QHTML Wiki</h1>
+      <p>QHTML is a block-based UI language for writing HTML, components, styles, state, and runtime behaviors in a compact declarative form. This wiki is organized like a guided tour: start with basic syntax, then move into components, signals, styling, and editor tooling.</p>
+    </section>
+
+    <section class="doc-plain-panel">
+      <p>This landing page intentionally mixes plain HTML and multiple <span class="doc-inline-code">&lt;q-html&gt;</span> blocks. The goal is to show how QHTML can sit beside normal HTML instead of replacing the whole page.</p>
+      <div class="doc-link-grid">
+        <a href="01-quick-start/">
+          <strong>Quick Start</strong>
+          First render, first import, and the smallest working page.
+        </a>
+        <a href="02-core-syntax/">
+          <strong>Core Syntax</strong>
+          Nesting, selector chains, shorthand, attributes, and text/html/style blocks.
+        </a>
+        <a href="03-components/">
+          <strong>Components</strong>
+          Runtime pieces, named instances, properties, workers, timers, and more.
+        </a>
+        <a href="04-styles-and-themes/">
+          <strong>Styles and Themes</strong>
+          Reusable styles, theme mapping, transitions, and painters.
+        </a>
+        <a href="05-state-with-q-script/">
+          <strong>State with q-script</strong>
+          Compute property values from short JavaScript expressions.
+        </a>
+        <a href="06-q-script/">
+          <strong>q-script</strong>
+          Inline replacement and assignment-form script results.
+        </a>
+        <a href="07-inline-expressions/">
+          <strong>Inline Expressions</strong>
+          Use ${...} in text, attributes, macros, and scoped aliases.
+        </a>
+        <a href="08-signals/">
+          <strong>Signals</strong>
+          Function-style q-signal, slot signals, connect, and q-connect.
+        </a>
+        <a href="10-qdom-api/">
+          <strong>QDOM API</strong>
+          Mutate the source-of-truth tree and re-render explicitly.
+        </a>
+        <a href="12-debug-tips/">
+          <strong>Debug Tips</strong>
+          Runtime flags, update flows, and q-logger.
+        </a>
+        <a href="13-optional-tag-libraries/">
+          <strong>Optional Tag Libraries</strong>
+          Deprecated W3 and Bootstrap tag helpers plus q-style equivalents.
+        </a>
+        <a href="14-module-readmes/">
+          <strong>Module READMEs</strong>
+          Where to read next if you are extending the framework itself.
+        </a>
+        <a href="15-escape-sequences/">
+          <strong>Escape Sequences</strong>
+          Literal brace handling inside block content.
+        </a>
+        <a href="try-it-yourself/">
+          <strong>Try It Yourself</strong>
+          Open a live editor and send QHTML through a GET request.
+        </a>
+      </div>
+    </section>
+
+    <q-html>
+q-import { wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "home"
+  pathPrefix: ""
+  pageTitle: "Start here"
+  pageIntro: "Use the sidebar to move through the language in README order. Each section keeps the examples small so you can see one idea at a time."
+  main {
+    wiki-example-card {
+      title: "A first render"
+      summary: "This is the smallest useful QHTML block. It creates real DOM without any helper JavaScript."
+      note: "Use this pattern when you want to prove the runtime is mounted and parsing correctly."
+      details {
+        html {
+          <q-editor>&lt;q-html&gt;
+  h1 { text { Hello QHTML } }
+  p { text { Your first QHTML render is running. } }
+&lt;/q-html&gt;</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "One page can use many q-html blocks"
+      summary: "QHTML can be used in small islands. You can keep plain HTML for the page shell and add QHTML where you want live behavior."
+      note: "This page itself is built that way."
+      details {
+        html {
+          <q-editor>&lt;section&gt;Normal HTML hero&lt;/section&gt;
+
+&lt;q-html&gt;
+  div {
+    p { text { QHTML island one } }
+  }
+&lt;/q-html&gt;
+
+&lt;q-html&gt;
+  div {
+    p { text { QHTML island two } }
+  }
+&lt;/q-html&gt;</q-editor>
+        }
+      }
+    }
+  }
+}
+    </q-html>
+
+    <q-html>
+div.wiki-mini-card {
+  h3 { text { A tiny live component } }
+  q-component welcome-pill {
+    q-property title: "Readable blocks"
+    span.w3-tag.w3-round.w3-blue { text { ${this.component.title} } }
+  }
+  p { text { Below is a real component instance rendered on the page: } }
+  welcome-pill { }
+}
+    </q-html>
+  </main>
+</body>
+</html>

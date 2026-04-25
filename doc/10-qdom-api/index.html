@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - QDOM API</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "qdom-api"
+  pathPrefix: "../"
+  pageTitle: "QDOM API"
+  pageIntro: "Mounted q-html trees expose a source-of-truth QDOM tree. You mutate QDOM first, then call update() to re-render."
+  main {
+    wiki-example-card {
+      title: "Find and append"
+      summary: "Find a node in QDOM, append a new QDOM node, then call update()."
+      note: "This is the simplest manual mutation flow."
+      details {
+        html {
+          <q-editor>&lt;q-html id="page"&gt;
+  ul { id: "items" }
+&lt;/q-html&gt;
+
+&lt;script&gt;
+  const host = document.querySelector("#page");
+  const root = host.qdom();
+  const list = root.find("#items");
+  list.appendNode(list.createQElement("li", { textContent: "Added via qdom()" }));
+  host.update();
+&lt;/script&gt;</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Replace a node with QHTML"
+      summary: "replaceWithQHTML swaps the target node with newly parsed QHTML."
+      note: "Use this when replacing a whole branch is easier than mutating fields one by one."
+      details {
+        html {
+          <q-editor>const host = document.querySelector("q-html");
+host.qdom().find("#items").replaceWithQHTML("ul { li { text { Replaced } } }");
+host.update();</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "qdom().rewrite(...)"
+      summary: "This is the QDOM-side rewrite helper."
+      note: "It mirrors the idea of q-rewrite, but runs against a mounted QDOM node."
+      details {
+        html {
+          <q-editor>document.querySelector("q-html").qdom().find("#items").rewrite(function () {
+  return "div { class: 'box' text { Rewritten } }";
+});
+document.querySelector("q-html").update();</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Serialize and deserialize"
+      summary: "Serialize captures the QDOM tree. Deserialize appends or replaces it."
+      note: "This is useful for persistence, snapshots, and editor-style flows."
+      details {
+        html {
+          <q-editor>const host = document.querySelector("q-html");
+const serialized = host.qdom().serialize();
+
+host.qdom().deserialize(serialized, false); // append
+host.update();
+
+host.qdom().deserialize(serialized, true);  // replace
+host.update();</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Component instance property helpers"
+      summary: "A component instance qdom() gives property helper methods for reads and writes."
+      note: "Use these when mutating a component through its QDOM facade."
+      details {
+        html {
+          <q-editor>const comp = document.querySelector("my-component");
+const qnode = comp.qdom();
+const props = qnode.properties();
+const val = qnode.getProperty("title");
+qnode.property("title", "New title");
+comp.update();</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Scoped vs full updates"
+      summary: "Update only the component you changed or update the whole q-html host."
+      note: "Prefer the smaller update when you know the scope."
+      details {
+        html {
+          <q-editor>this.component.update();        // this component subtree
+this.component.root().update(); // whole &lt;q-html&gt;</q-editor>
+        }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

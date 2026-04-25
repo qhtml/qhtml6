@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - Quick Start</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "quick-start"
+  pathPrefix: "../"
+  pageTitle: "Quick Start"
+  pageIntro: "Start here if you have never used QHTML before. These examples cover setup, loading the runtime, and writing the first block."
+  main {
+    wiki-example-card {
+      title: "Project setup"
+      summary: "The repository ships the runtime and the optional component bundle. The smallest setup is just qhtml.js."
+      note: "The component bundle is optional. Use it when you want things like tabs, grid, modal, sidebar, or editor-ready widgets."
+      details {
+        html {
+          <q-editor>git clone https://github.com/qhtml/qhtml6.git
+source ./deploy.sh /path/to/project</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Include qhtml.js"
+      summary: "Load the runtime once in the page head or before the closing body tag."
+      note: "This is the only required file for a first render."
+      details {
+        html {
+          <q-editor>&lt;script src="qhtml.js"&gt;&lt;/script&gt;</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Import the shared component bundle"
+      summary: "If you want the stock components, import q-components.qhtml inside a q-html block."
+      note: "Use this when you want q-sidebar, q-tabs, q-grid, q-modal, q-form, and similar shared components."
+      details {
+        html {
+          <q-editor>&lt;q-html&gt;
+  q-import { q-components.qhtml }
+&lt;/q-html&gt;</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Write your first q-html block"
+      summary: "A q-html block is the place where QHTML source lives. The runtime parses it and mounts the resulting DOM."
+      note: "This is the smallest working example in the whole language."
+      details {
+        html {
+          <q-editor>&lt;q-html&gt;
+  h1 { text { Hello QHTML } }
+  p { text { Your first QHTML render is running. } }
+&lt;/q-html&gt;</q-editor>
+        }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - Signals</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "signals"
+  pathPrefix: "../"
+  pageTitle: "Signals"
+  pageIntro: "Signals are QHTML's event wiring tool. They let one part of the tree emit data and another part react without manual DOM event boilerplate."
+  main {
+    q-component signal-sender-doc {
+      q-signal sent(message)
+      button {
+        text { Send }
+        onclick { this.component.sent("Hello"); }
+      }
+    }
+
+    q-component signal-receiver-doc {
+      q-property value: "Waiting..."
+      function onMessage(message) {
+        this.component.value = message;
+      }
+      div.wiki-mini-card {
+        signal-sender-doc { id: "sender-doc" }
+        p { id: "out-doc" text { ${this.component.value} } }
+        onready { this.querySelector("#sender-doc").sent.connect(this.component.onMessage); }
+      }
+    }
+
+    q-component connect-sender-doc {
+      q-signal sent(message)
+      function sendNow(message) {
+        this.sent(message);
+      }
+    }
+
+    q-component connect-receiver-doc {
+      q-property value: "waiting"
+      function onMessage(message) {
+        this.component.value = message;
+      }
+      div.wiki-mini-card {
+        p { text { ${this.component.value} } }
+      }
+    }
+
+    wiki-example-card {
+      title: "Component signals (function-style)"
+      summary: "Define q-signal sent(message) and emit it like a normal function call."
+      note: "This is the most direct signal form for component-to-component communication."
+      details {
+        html {
+          <q-editor>q-component sender-box {
+  q-signal sent(message)
+  button {
+    text { Send }
+    onclick { this.component.sent("Hello"); }
+  }
+}</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "q-signal name { ... } definitions"
+      summary: "This form packages slot content into a CustomEvent payload."
+      note: "Use it when you want signal-like syntax with named slots."
+      details {
+        html {
+          <q-editor>q-signal menuItemClicked {
+  slot { itemId }
+}
+
+div {
+  menuItemClicked { itemId { A } }
+}</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Direct emit plus imperative connect"
+      summary: "Emit with this.sent(...) inside the sender, then connect sender1.sent.connect(receiver1.onMessage) at runtime."
+      note: "Use this when the wiring depends on a lifecycle step."
+      details {
+        html {
+          <q-editor>sender1.sent.connect(receiver1.onMessage);
+sender1.sendNow("hello-from-connect");</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Declarative wiring with q-connect"
+      summary: "q-connect removes the onready connect boilerplate when both names are already in scope."
+      note: "Think of it as declarative-only signal wiring."
+      details {
+        html {
+          <q-editor>q-connect { senderA.sent receiverA.onMessage }</q-editor>
+        }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

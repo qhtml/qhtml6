@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - Inline Expressions</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "inline-expressions"
+  pathPrefix: "../"
+  pageTitle: "Inline Expressions"
+  pageIntro: "Inline expressions are the string interpolation tool in QHTML. They are for text and attribute strings, not for creating keywords or tag names."
+  main {
+    wiki-example-card {
+      title: "Works in rendered text and attributes"
+      summary: "Use placeholder expressions inside text strings and attribute strings."
+      note: "It is string interpolation, not a standalone watcher."
+      details {
+        html {
+          <q-editor>div {
+  title: "Current user: ${window.currentUser}"
+  text { Hello ${window.currentUser} }
+}
+
+q-component user-card {
+  q-property name: "Guest"
+  h3 { text { ${this.component.name} } }
+}</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Macro slot placeholders"
+      summary: "Inside q-macro returns, placeholders can reference the incoming slot names."
+      note: "This is a scoped convenience. The name comes from the macro call."
+      details {
+        html {
+          <q-editor>q-macro badge {
+  slot { label }
+  return { span { text { ${label} } } }
+}</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Cannot create keyword-level symbols"
+      summary: "Do not try to use placeholder expressions for tag names, component names, or keyword names."
+      note: "Interpolation happens too late for keyword-level grammar."
+      details {
+        html {
+          <q-editor>q-component ${dynamicName} { }     // invalid
+q-keyword ${alias} { q-component } // invalid
+${tagName} { text { hi } }         // invalid</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Deprecated alias: q-bind"
+      summary: "q-bind is still accepted, but it maps to q-script. New code should use q-script."
+      note: "The wiki includes it so you can read older examples without confusion."
+      details {
+        html {
+          <q-editor>q-component counter-label {
+  q-property label: q-bind { return "Count: " + window.count; }
+  div { text { ${this.component.label} } }
+}</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "q-keyword scoped aliasing"
+      summary: "q-keyword gives a new local name to an existing keyword head inside the current scope."
+      note: "Aliases are local to the block where you define them."
+      details {
+        html {
+          <q-editor>q-keyword component { q-component }
+
+component card-box {
+  div { text { hello } }
+}
+
+div {
+  q-keyword box { span }
+  box { text { inside } }
+}
+
+box { text { outside } }  // unchanged outside the scope</q-editor>
+        }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

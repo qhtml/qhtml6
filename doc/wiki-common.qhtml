@@ -1,0 +1,277 @@
+q-import { ../dist/q-components.qhtml }
+
+q-style wiki-page-shell-style {
+  display: block
+  minHeight: 100vh
+}
+
+q-style wiki-nav-pane-style {
+  padding: 1rem
+  display: grid
+  gap: 0.75rem
+}
+
+q-style wiki-nav-title-style {
+  margin: 0
+  color: #0f172a
+}
+
+q-style wiki-nav-copy-style {
+  margin: 0
+  color: #475569
+}
+
+q-style wiki-nav-link-style {
+  display: block
+  padding: 0.7rem 0.8rem
+  borderRadius: 10px
+  textDecoration: none
+  color: #0f172a
+  backgroundColor: #eff6ff
+  border: 1px solid #dbeafe
+}
+
+q-style wiki-nav-current-style {
+  backgroundColor: #dbeafe
+  borderColor: #60a5fa
+  fontWeight: 700
+}
+
+q-style wiki-main-wrap-style {
+  padding: 1rem
+  display: grid
+  gap: 1rem
+}
+
+q-style wiki-main-hero-style {
+  background: linear-gradient(135deg, #ffffff, #eff6ff)
+  border: 1px solid #d7e2f0
+  borderRadius: 18px
+  padding: 1.15rem
+  boxShadow: 0 10px 28px rgba(15, 23, 42, 0.06)
+}
+
+q-style wiki-title-style {
+  margin: 0
+  color: #0f172a
+}
+
+q-style wiki-intro-style {
+  margin: 0.7rem 0 0 0
+  color: #475569
+}
+
+q-style wiki-stack-style {
+  display: grid
+  gap: 1rem
+}
+
+q-style wiki-example-style {
+  backgroundColor: #ffffff
+  border: 1px solid #d7e2f0
+  borderRadius: 18px
+  padding: 1rem
+  display: grid
+  gap: 0.9rem
+  boxShadow: 0 10px 28px rgba(15, 23, 42, 0.06)
+}
+
+q-style wiki-example-title-style {
+  margin: 0
+  color: #0f172a
+}
+
+q-style wiki-example-copy-style {
+  margin: 0
+  color: #475569
+}
+
+q-style wiki-preview-style {
+  backgroundColor: #f8fbff
+  border: 1px solid #dbeafe
+  borderRadius: 14px
+  padding: 0.9rem
+}
+
+q-style wiki-detail-style {
+  display: grid
+  gap: 0.75rem
+}
+
+q-style wiki-note-style {
+  margin: 0
+  color: #334155
+  fontSize: 0.95rem
+}
+
+q-style wiki-mini-card-style {
+  backgroundColor: #ffffff
+  border: 1px solid #d7e2f0
+  borderRadius: 16px
+  padding: 1rem
+}
+
+q-theme wiki-docs-theme {
+  .wiki-page-shell { wiki-page-shell-style }
+  .wiki-nav-pane { wiki-nav-pane-style }
+  .wiki-nav-title { wiki-nav-title-style }
+  .wiki-nav-copy { wiki-nav-copy-style }
+  .wiki-nav-link { wiki-nav-link-style }
+  .wiki-nav-current { wiki-nav-current-style }
+  .wiki-main-wrap { wiki-main-wrap-style }
+  .wiki-main-hero { wiki-main-hero-style }
+  .wiki-title { wiki-title-style }
+  .wiki-intro { wiki-intro-style }
+  .wiki-stack { wiki-stack-style }
+  .wiki-example { wiki-example-style }
+  .wiki-example-title { wiki-example-title-style }
+  .wiki-example-copy { wiki-example-copy-style }
+  .wiki-preview { wiki-preview-style }
+  .wiki-detail { wiki-detail-style }
+  .wiki-note { wiki-note-style }
+  .wiki-mini-card { wiki-mini-card-style }
+}
+
+q-component wiki-example-card {
+  q-property title: ""
+  q-property summary: ""
+  q-property note: ""
+
+  wiki-docs-theme {
+    article.wiki-example {
+      div {
+        h3.wiki-example-title { text { ${this.component.title} } }
+        p.wiki-example-copy { text { ${this.component.summary} } }
+      }
+      div.wiki-detail {
+        slot { details }
+        p.wiki-note { text { ${this.component.note} } }
+      }
+    }
+  }
+}
+
+q-component wiki-nav-link {
+  q-property prefix: ""
+  q-property suffix: ""
+  q-property label: ""
+  q-property navKey: ""
+  q-property currentKey: ""
+  q-signal currentChanged(value)
+
+  function syncHref() {
+    var link = this.querySelector("#nav-link-anchor");
+    if (link) {
+      link.setAttribute("href", String(this.component.prefix || "") + String(this.component.suffix || ""));
+    }
+  }
+
+  function applyCurrent(value) {
+    var nextValue = String(value == null ? "" : value);
+    this.component.currentKey = nextValue;
+    var link = this.querySelector("#nav-link-anchor");
+    if (link) {
+      link.className = this.component.navKey === nextValue ? "wiki-nav-link wiki-nav-current" : "wiki-nav-link";
+    }
+  }
+
+  onready {
+    this.component.syncHref();
+    this.component.applyCurrent(this.component.currentKey);
+  }
+
+  onprefixchanged(value) {
+    this.component.syncHref();
+  }
+
+  onsuffixchanged(value) {
+    this.component.syncHref();
+  }
+
+  oncurrentKeychanged(value) {
+    this.component.applyCurrent(value);
+  }
+
+  oncurrentChanged(value) {
+    this.component.applyCurrent(value);
+  }
+
+  a#nav-link-anchor.wiki-nav-link {
+    href: "#"
+    text { ${this.component.label} }
+  }
+}
+
+q-component wiki-section-relay {
+  q-signal currentChanged(value)
+}
+
+q-component wiki-shell {
+  q-property pageTitle: ""
+  q-property pageIntro: ""
+  q-property sectionKey: ""
+
+  wiki-docs-theme {
+    div.wiki-page-shell {
+      q-sidebar wikiSidebar {
+        sidebarWidth: "296"
+        content {
+          div.wiki-nav-pane {
+            h2.wiki-nav-title { text { QHTML Wiki } }
+            p.wiki-nav-copy { text { Read it like a guide and run the small examples as you go. } }
+            wiki-section-relay sectionRelay { }
+
+            wiki-nav-link navHome { prefix: "/doc/" suffix: "index.html" label: "Start here" navKey: "home" currentKey: "${this.component.sectionKey}" }
+            wiki-nav-link navQuickStart { prefix: "/doc/" suffix: "01-quick-start/" label: "Quick Start" navKey: "quick-start" currentKey: "${this.component.sectionKey}" }
+            wiki-nav-link navCoreSyntax { prefix: "/doc/" suffix: "02-core-syntax/" label: "Core Syntax" navKey: "core-syntax" currentKey: "${this.component.sectionKey}" }
+            wiki-nav-link navComponents { prefix: "/doc/" suffix: "03-components/" label: "Components" navKey: "components" currentKey: "${this.component.sectionKey}" }
+            wiki-nav-link navStyles { prefix: "/doc/" suffix: "04-styles-and-themes/" label: "Styles and Themes" navKey: "styles" currentKey: "${this.component.sectionKey}" }
+            wiki-nav-link navStateQScript { prefix: "/doc/" suffix: "05-state-with-q-script/" label: "State with q-script" navKey: "state-q-script" currentKey: "${this.component.sectionKey}" }
+            wiki-nav-link navQScript { prefix: "/doc/" suffix: "06-q-script/" label: "q-script" navKey: "q-script" currentKey: "${this.component.sectionKey}" }
+            wiki-nav-link navInlineExpressions { prefix: "/doc/" suffix: "07-inline-expressions/" label: "Inline Expressions" navKey: "inline-expressions" currentKey: "${this.component.sectionKey}" }
+            wiki-nav-link navSignals { prefix: "/doc/" suffix: "08-signals/" label: "Signals" navKey: "signals" currentKey: "${this.component.sectionKey}" }
+            wiki-nav-link navQdomApi { prefix: "/doc/" suffix: "10-qdom-api/" label: "QDOM API" navKey: "qdom-api" currentKey: "${this.component.sectionKey}" }
+            wiki-nav-link navDebugTips { prefix: "/doc/" suffix: "12-debug-tips/" label: "Debug Tips" navKey: "debug-tips" currentKey: "${this.component.sectionKey}" }
+            wiki-nav-link navOptionalTags { prefix: "/doc/" suffix: "13-optional-tag-libraries/" label: "Optional Tag Libraries" navKey: "optional-tags" currentKey: "${this.component.sectionKey}" }
+            wiki-nav-link navModuleReadmes { prefix: "/doc/" suffix: "14-module-readmes/" label: "Module READMEs" navKey: "module-readmes" currentKey: "${this.component.sectionKey}" }
+            wiki-nav-link navEscapeSequences { prefix: "/doc/" suffix: "15-escape-sequences/" label: "Escape Sequences" navKey: "escape-sequences" currentKey: "${this.component.sectionKey}" }
+            wiki-nav-link navTry { prefix: "/doc/" suffix: "try-it-yourself/" label: "Try It Yourself" navKey: "try" currentKey: "${this.component.sectionKey}" }
+
+            q-connect { sectionRelay.currentChanged navHome.currentChanged }
+            q-connect { sectionRelay.currentChanged navQuickStart.currentChanged }
+            q-connect { sectionRelay.currentChanged navCoreSyntax.currentChanged }
+            q-connect { sectionRelay.currentChanged navComponents.currentChanged }
+            q-connect { sectionRelay.currentChanged navStyles.currentChanged }
+            q-connect { sectionRelay.currentChanged navStateQScript.currentChanged }
+            q-connect { sectionRelay.currentChanged navQScript.currentChanged }
+            q-connect { sectionRelay.currentChanged navInlineExpressions.currentChanged }
+            q-connect { sectionRelay.currentChanged navSignals.currentChanged }
+            q-connect { sectionRelay.currentChanged navQdomApi.currentChanged }
+            q-connect { sectionRelay.currentChanged navDebugTips.currentChanged }
+            q-connect { sectionRelay.currentChanged navOptionalTags.currentChanged }
+            q-connect { sectionRelay.currentChanged navModuleReadmes.currentChanged }
+            q-connect { sectionRelay.currentChanged navEscapeSequences.currentChanged }
+            q-connect { sectionRelay.currentChanged navTry.currentChanged }
+          }
+        }
+        main {
+          div.wiki-main-wrap {
+            section.wiki-main-hero {
+              h1.wiki-title { text { ${this.component.pageTitle} } }
+              p.wiki-intro { text { ${this.component.pageIntro} } }
+            }
+            div.wiki-stack { slot { main } }
+          }
+        }
+      }
+    }
+  }
+
+  onready {
+    sectionRelay.currentChanged(wiki-shell.sectionKey);
+  }
+
+  onsectionKeychanged(value) {
+    sectionRelay.currentChanged(value);
+  }
+}

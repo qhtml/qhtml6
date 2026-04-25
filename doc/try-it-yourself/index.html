@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Try It Yourself</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "try"
+  pathPrefix: "../"
+  pageTitle: "Try It Yourself"
+  pageIntro: "This page reads QHTML from the URL and drops it straight into q-editor. Use qhtml64 for base64 text or qhtml for URL-encoded source."
+  main {
+    wiki-example-card {
+      title: "GET request format"
+      summary: "You can share a ready-to-edit example without building a server route. The page reads the query string in the browser."
+      note: "qhtml64 is checked first because it is safer for multiline source with braces and quotes."
+      details {
+        html {
+          <q-editor>?qhtml=div%20%7B%20text%20%7B%20hello%20%7D%20%7D
+?qhtml64=ZGl2IHsgdGV4dCB7IGhlbGxvIH0gfQ==</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "Live editor"
+      summary: "The editor below is a normal q-editor. The only custom JavaScript on this page is the tiny URL-decoding bridge."
+      note: "If no query string is provided, the page loads a beginner-friendly starter example."
+      details {
+        html {
+          <q-editor>&lt;q-editor id="try-editor"&gt;&lt;/q-editor&gt;
+&lt;script&gt;
+  // read qhtml64 or qhtml
+  // set editor source
+&lt;/script&gt;</q-editor>
+        }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var encoded64 = params.get("qhtml64");
+      var encoded = params.get("qhtml");
+      var errorNode = document.querySelector("#try-error");
+      var editor = document.querySelector("#try-editor");
+      var starter = [
+        'q-import { q-components.qhtml }',
+        '',
+        'q-component hello-card {',
+        '  q-property title: "Try changing me"',
+        '  div.w3-card.w3-padding.w3-round {',
+        '    h3 { text { ${this.component.title} } }',
+        '    p { text { This editor is seeded from the URL query string. } }',
+        '  }',
+        '}',
+        '',
+        'hello-card { }'
+      ].join("\n");
+      var source = starter;
+
+      try {
+        if (encoded64) {
+          source = decodeURIComponent(escape(window.atob(encoded64)));
+        } else if (encoded) {
+          source = encoded;
+        }
+      } catch (error) {
+        if (errorNode) {
+          errorNode.textContent = "Could not decode the GET payload. Showing the starter example instead.";
+        }
+      }
+
+      if (editor) {
+        editor.setQhtmlSource(source);
+      }
+    })();
+  </script>
+</body>
+</html>

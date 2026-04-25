@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - Components</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "components"
+  pageTitle: "Components"
+  pageIntro: "q-component creates reusable custom elements. This page teaches components in a strict order so each example only depends on features that were already introduced above it."
+  main {
+    wiki-example-card {
+      title: "1. Basic component structure"
+      summary: "A q-component definition creates a reusable custom element type."
+      note: "If you define q-component mycomponent, QHTML creates a <mycomponent> element you can use in the current scope."
+      details {
+        html { <q-editor>q-component mycomponent {
+  div,span { text { hello world } }
+}</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "2. Instantiation"
+      summary: "After defining a component, instantiate it like any other HTML element."
+      note: "This creates a real custom element instance in the rendered output."
+      details {
+        html { <q-editor>q-component mycomponent {
+  div,span { text { hello world } }
+}
+
+mycomponent { }</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "3. Named instances"
+      summary: "Give an instance a typed name when you want to reference it from other QHTML or JavaScript."
+      note: "The typed name is the handle you use later, such as myCard.title or myCard.someMethod()."
+      details {
+        html { <q-editor>q-component mycard {
+  div { text { hello from card } }
+}
+
+mycard card1 { }</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "4. q-properties"
+      summary: "Use q-property to store component state."
+      note: "Properties are the normal place for labels, flags, counts, and other component-level values."
+      details {
+        html { <q-editor>q-component mycard {
+  q-property title: "welcome"
+  div { text { ${this.component.title} } }
+}
+
+mycard { }</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "5. Accessing q-properties from JavaScript"
+      summary: "Inside event handlers and methods, read component properties through this.component."
+      note: "Use this.component inside JavaScript blocks. This version updates displayed state through oncountchanged instead of text interpolation."
+      details {
+        html { <q-editor>q-component mycounter {
+  q-property count: 0
+  oncountchanged {
+    $("#count-out").innerText = "count=" + String(this.component.count);
+  }
+
+  button {
+    text { bump }
+    onclick {
+      this.component.count = Number(this.component.count) + 1;
+    }
+  }
+  div#count-out { text { count=0 } }
+}
+
+mycounter { }</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "6a. Scope and context"
+      summary: "Named instances only resolve where their names are actually in scope."
+      note: "This keeps references predictable instead of behaving like global lookups."
+      details {
+        html { <q-editor>q-component comp-a {
+  q-property value: "hello"
+}
+
+comp-a rootA { }
+
+q-component comp-b {
+  q-property fromRoot: rootA.value
+  div { text { ${this.component.fromRoot} } }
+}
+
+comp-b { }</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "6b. Named references declaratively"
+      summary: "A q-property can point at another named instance declaratively."
+      note: "This is the simple binding form for sharing values between components."
+      details {
+        html { <q-editor>q-component source-box {
+  q-property title: "shared title"
+}
+
+source-box source1 { }
+
+q-component target-box {
+  q-property copiedTitle: source1.title
+  div { text { ${this.component.copiedTitle} } }
+}
+
+target-box { }</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "6c. Dot walking"
+      summary: "Use normal property paths when one named instance needs data from another named instance."
+      note: "Dot walking is the standard component-to-component reference style in QHTML."
+      details {
+        html { <q-editor>q-component catalog-store {
+  q-property title: "Main Catalog"
+  q-property currency: "USD"
+}
+
+catalog-store store1 { }
+
+div { text { ${store1.title} (${store1.currency}) } }</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "7. Dynamic components with a slot"
+      summary: "A slot lets the caller place arbitrary content inside a reusable component shell."
+      note: "This is the simplest way to make a component accept dynamic inner content."
+      details {
+        html { <q-editor>q-component panel-box {
+  div {
+    h3 { text { Panel shell } }
+    slot { body }
+  }
+}
+
+panel-box {
+  body {
+    ul {
+      li { text { arbitrary content } }
+      li { text { can go here } }
+    }
+  }
+}</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "8. q-signals"
+      summary: "q-signal declares a signal that the component can emit."
+      note: "Think of a signal as a component-level event with arguments."
+      details {
+        html { <q-editor>q-component sender-box {
+  q-signal sent(message)
+  button {
+    text { Send }
+    onclick { this.component.sent("hello"); }
+  }
+}
+
+sender-box { }</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "9. on<signal> handlers"
+      summary: "A component can handle a signal with an on<signal> hook."
+      note: "This is the direct way to react to emitted signal values."
+      details {
+        html { <q-editor>q-component sender-box {
+  q-signal sent(message)
+  onsent(message) {
+    alert("signal value: " + String(message));
+  }
+  button {
+    text { Send }
+    onclick { this.component.sent("hello"); }
+  }
+}
+
+q-component receiver-box {
+  q-property value: "waiting"
+  div {
+    sender-box { }
+    p#signal-out { text { value=waiting } }
+  }
+}
+
+receiver-box { }</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "10. q-connect"
+      summary: "q-connect wires one signal to another component method declaratively."
+      note: "Use it when both sender and receiver are already in scope and you want declarative-only wiring."
+      details {
+        html { <q-editor>q-component sender-box {
+  q-signal sent(message)
+  function sendNow(message) {
+    this.sent(message);
+  }
+}
+
+q-component receiver-box {
+  q-property value: "waiting"
+  function onMessage(message) {
+    this.component.value = message;
+  }
+  div { text { ${this.component.value} } }
+}
+
+sender-box sender1 { }
+receiver-box receiver1 { }
+
+q-connect { sender1.sent receiver1.onMessage }
+
+button {
+  text { send }
+  onclick { sender1.sendNow("hello from q-connect"); }
+}</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "11. on<property>changed { }"
+      summary: "Each q-property automatically gets a changed hook."
+      note: "Use this when one property update should cause another update or side effect."
+      details {
+        html { <q-editor>q-component counter-box {
+  q-property count: 0
+  oncountchanged(value) {
+    this.querySelector("#out").textContent = "count=" + String(value);
+  }
+  div {
+    button {
+      text { bump }
+      onclick { this.component.count = Number(this.component.count) + 1; }
+    }
+    p#out { text { count=0 } }
+  }
+}
+
+counter-box { }</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "12. onready"
+      summary: "onready runs after the component has mounted."
+      note: "Use it for startup work that needs the rendered DOM or connected child instances."
+      details {
+        html { <q-editor>q-component ready-box {
+  q-property label: "waiting"
+  onready {
+    this.component.label = "ready";
+  }
+  div { text { ${this.component.label} } }
+}
+
+ready-box { }</q-editor> }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

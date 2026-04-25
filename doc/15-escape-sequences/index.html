@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - Escape Sequences</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "escape-sequences"
+  pathPrefix: "../"
+  pageTitle: "Escape Sequences"
+  pageIntro: "Because braces are part of the language syntax, you sometimes need an escape when you want a literal brace inside block content."
+  main {
+    wiki-example-card {
+      title: "Escape literal braces"
+      summary: "Use \\{ and \\} inside block bodies when you want literal brace characters."
+      note: "This matters most in text blocks, code samples, and brace-heavy copy."
+      }
+      details {
+        html {
+          <q-editor>&lt;q-html&gt;
+  div {
+    text { hello \} world }
+  }
+&lt;/q-html&gt;</q-editor>
+        }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>
