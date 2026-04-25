@@ -24,6 +24,19 @@ q-spritesheet tmpSheet {
   interpolate: true
 }
 div#cf { text { ${tmpSheet.currentFrame} } }
+q-component mycounter {
+  q-property count: 0
+
+}
+
+mycounter counter { count: 1 }
+
+button {
+  text { count=${counter.count} }
+  onclick {
+    counter.count = Number(Number(counter.count) + 1);
+  }
+}
   </q-html>
 </body>
 </html>
