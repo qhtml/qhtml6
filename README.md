@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.5.1
+# QHTML.js v6.5.2
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,18 +12,7 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.5.1
-
-- Fixed `then { ... }` stage execution so chained stages keep the correct bound `this` context consistently in lifecycle/event/signal flows.
-- Updated test coverage for lifecycle `then` sequencing with explicit pass reporting behavior.
-
-## Whats New in v6.5.0
-
-- Refined `q-painter` runtime behavior so painter-side style assignments (`this.fillStyle`, etc.) correctly write through to paint context rendering.
-- Updated `q-style-painter` border/mask slot defaults to improve visible output consistency for `border-image-source` and `mask-image` mappings.
-- Added an explicit multi-panel `q-painter` border/background/mask demonstration in `dist/demo.html` with high-contrast paint output and runtime status probe.
-- Added declarative transition primitives: `q-transition` + `q-style-transition` for reusable CSS transition mappings through `q-style` / `q-theme`.
-- Updated `q-import` behavior to `nocache` by default; use explicit `cache` to enable localStorage-backed import caching for a given import.
+Whats new - added documentation [link to documentation](https://qhtml.github.com/qhtml6/doc)
 
 ## 1. Quick Start
 

@@ -1,5 +1,9 @@
 # QHTML.js Change Log
 
+## Whats New in v6.5.2
+
+- Added project documentation at https://qhtml.github.com/qhtml6/doc
+
 ## Whats New in v6.5.1
 
 - Fixed `then { ... }` chain stage execution to preserve bound `this` across lifecycle, event, and signal handler sequences.
