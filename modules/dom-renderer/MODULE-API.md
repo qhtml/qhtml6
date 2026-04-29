@@ -23,6 +23,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 
 ## Supported node kinds
 - `element`, `text`, `raw-html`
+- `q-state-machine` component-instance nodes with `meta.__qhtmlStateMachine` and inline component definitions
 - `callback` (`q-callback` declaration node; scope registration only, no direct DOM output)
 - `repeater` (runtime iteration)
 - `model` (repeater model container consumed by repeater rendering)
@@ -50,6 +51,15 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - duplicate name in the same lexical frame is a hard error.
   - alias handles are UUID-backed runtime pointers, resolved lazily when dereferenced.
   - nested instance names live in child lexical scope frames (visible through that instance context chain, not promoted globally).
+- Named `q-state-machine` hosts are registered in lexical/runtime scope by machine name:
+  - declaration form: `q-state-machine machineName { stateName { ... } }`
+  - renders through the normal q-component host path as `<q-state-machine q-component="q-state-machine" qhtml-component-instance="1">`.
+  - exposes `machineName` to event handlers, inline expressions, and root named runtime values using normal named component-instance alias registration.
+  - `state` is a declared q-property on the inline component definition, but its setter is owned by the state-machine bridge so assigning `machine.state = "stateName"` swaps only the machine host's active QDom subtree instead of remounting the whole `<q-html>`.
+  - `machine.statechanged` is the normal component `q-signal` callable installed by `bindComponentMethods`; it emits `(nextState, previousState, true)` after the state body is rendered.
+  - state-machine bodies can contain component-level `q-property`, `q-signal`, `function`, lifecycle, callback, alias, and timer declarations.
+  - active state bodies render in the machine component context so repeated aliases across states, such as `mycomponent mycomp`, are scoped as component children of the current machine host.
+  - invalid/unknown state names produce an empty state body while preserving the assigned `state` value.
 - `q-callback` declarations register callable symbols in render scope and runtime callback registry, enabling:
   - direct declarative invocation (`callbackName(...)`) in text/props/templates
   - pass-by-reference assignment into declared component properties (resolved lazily to callback functions)

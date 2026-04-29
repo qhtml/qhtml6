@@ -38,6 +38,15 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
         - normalized into a concrete `canvas` element node with `q-canvas="1"` and `q-canvas-name="myCanvas"`
         - avoids unknown-instantiable normalization errors while preserving named-canvas runtime export semantics
       - unknown typed targets with an instance alias throw a parse-time normalization error
+    - named state-machine syntax:
+      - `q-state-machine machineName { stateName { ... } }`
+      - emitted as a `component-instance` for component id `q-state-machine` with `q-state-machine="1"`, `q-state-machine-name`, and `meta.__qhtmlInstanceAlias`
+      - an inline `component` definition is stored at `node.meta.__qhtmlStateMachineComponent`
+      - the inline component always declares `q-property state` and `q-signal statechanged(value, previousValue, passing)`
+      - `q-property`, `q-signal`, `function`, lifecycle, callback, alias, timer, and other runtime-capable component declarations inside the state-machine body are parsed into that inline component definition
+      - state bodies are stored in `node.meta.__qhtmlStateMachine.states[]` and `node.meta.__qhtmlStateMachineComponent.meta.__qhtmlStateMachine.states[]` as reusable QDom node lists, not as direct child output
+      - optional `state: "stateName"` inside the machine body sets the initial active state; otherwise the first declared state is active
+      - typed component instances inside state bodies are normalized against the available definition registry
     - declared properties can be authored with either:
       - `q-property name: value`
       - `property name: value` (shorthand alias)
@@ -120,6 +129,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
   - Converts QDom document to canonical QHTML source.
   - `preserveOriginal` defaults to true.
   - Serializes array/object assignment values using typed container syntax (`q-array { ... }` / `q-map { ... }`) instead of stringifying them.
+  - Serializes dirty `q-state-machine` component-instance nodes back to named state-machine block syntax using stored state metadata.
 - `parseQScript(source)`
   - Parses q-script rules of form `selector.on("event"): { ... }`.
 - `serializeQScript(rules)`

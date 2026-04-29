@@ -36,6 +36,26 @@ q-component q-spritesheet {
     return Math.max(1, Math.floor(numeric));
   }
 
+  function normalizeBoolean(value, fallbackValue) {
+    if (value === true || value === false) {
+      return value;
+    }
+    if (value === 1 || value === "1") {
+      return true;
+    }
+    if (value === 0 || value === "0") {
+      return false;
+    }
+    var text = String(value == null ? "" : value).trim().toLowerCase();
+    if (text === "true" || text === "yes" || text === "on") {
+      return true;
+    }
+    if (text === "false" || text === "no" || text === "off" || text === "") {
+      return false;
+    }
+    return Boolean(fallbackValue);
+  }
+
   function resolveFrameStart() {
     var count = this.component.normalizePositiveInt(this.component.frameCount, 1);
     var start = Math.floor(Number(this.component.frameStart || 0));
@@ -140,7 +160,7 @@ q-component q-spritesheet {
     viewport.style.height = String(frameHeight) + "px";
     viewport.style.backgroundRepeat = "no-repeat";
     viewport.style.backgroundImage = this.component.source ? ("url(\"" + String(this.component.source) + "\")") : "none";
-    viewport.style.transition = this.component.interpolate === true ? "background-position 120ms linear" : "none";
+    viewport.style.transition = this.component.normalizeBoolean(this.component.interpolate, false) ? "background-position 120ms linear" : "none";
     viewport.style.backgroundPosition = String(-frame * frameWidth) + "px 0px";
 
     this.component.frameChanged(frame);
@@ -149,7 +169,7 @@ q-component q-spritesheet {
   function refreshTimer() {
     var duration = Math.max(0, Math.floor(Number(this.component.frameDuration || 0)));
     frameTimer.interval = duration;
-    if (this.component.running === true && this.component.loaded === true) {
+    if (this.component.normalizeBoolean(this.component.running, false) && this.component.loaded === true) {
       frameTimer.start();
       return;
     }
@@ -194,7 +214,7 @@ q-component q-spritesheet {
     var current = this.component.clampFrame(this.component.currentFrame);
     var next = current + 1;
     if (next > stop) {
-      if (this.component.repeat === true) {
+      if (this.component.normalizeBoolean(this.component.repeat, true)) {
         next = start;
       } else {
         next = stop;

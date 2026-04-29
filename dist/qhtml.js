@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-04-25T06:15:11Z */
+/* generated: 2026-04-29T02:07:41Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -4190,6 +4190,29 @@
         if (nameLower === "q-timer" && nextChar === "{") {
           throw ParseError("Anonymous q-timer is not allowed", parser.index);
         }
+        if (nameLower === "q-state-machine" && nextChar !== "{" && nextChar !== ",") {
+          const machineName = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-state-machine name", parser.index);
+          }
+          consume(parser);
+          const stateItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          items.push({
+            type: "QStateMachineDefinition",
+            name: String(machineName || "").trim(),
+            items: stateItems,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-state-machine" && nextChar === "{") {
+          throw ParseError("Anonymous q-state-machine is not allowed", parser.index);
+        }
         if (nameLower === "q-canvas" && nextChar !== "{" && nextChar !== ",") {
           const canvasId = parseIdentifier(parser);
           skipWhitespace(parser);
@@ -5401,6 +5424,31 @@
 
         if (firstLower === "q-timer" && peek(parser) === "{") {
           throw ParseError("Anonymous q-timer is not allowed", parser.index);
+        }
+
+        if (firstLower === "q-state-machine" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const machineName = parseIdentifier(parser);
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-state-machine name", parser.index);
+          }
+          consume(parser);
+          const stateItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          body.push({
+            type: "QStateMachineDefinition",
+            name: String(machineName || "").trim(),
+            items: stateItems,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-state-machine" && peek(parser) === "{") {
+          throw ParseError("Anonymous q-state-machine is not allowed", parser.index);
         }
 
         if (firstLower === "q-canvas" && peek(parser) !== "{" && peek(parser) !== ",") {
@@ -10703,11 +10751,41 @@
       return node;
     }
 
+    function normalizeStateMachineMeta(targetNode) {
+      if (
+        !targetNode ||
+        typeof targetNode !== "object" ||
+        !targetNode.meta ||
+        typeof targetNode.meta !== "object" ||
+        !targetNode.meta.__qhtmlStateMachine ||
+        !Array.isArray(targetNode.meta.__qhtmlStateMachine.states)
+      ) {
+        return;
+      }
+      for (let si = 0; si < targetNode.meta.__qhtmlStateMachine.states.length; si += 1) {
+        const state = targetNode.meta.__qhtmlStateMachine.states[si];
+        if (state && Array.isArray(state.nodes)) {
+          state.nodes = normalizeNodesForDefinitions(state.nodes, definitionRegistry);
+        }
+      }
+    }
+
     if (node.kind === core.NODE_TYPES.component) {
       if (Array.isArray(node.templateNodes)) {
         node.templateNodes = normalizeNodesForDefinitions(node.templateNodes, definitionRegistry);
       }
+      normalizeStateMachineMeta(node);
       return node;
+    }
+
+    if (
+      (node.kind === core.NODE_TYPES.componentInstance || node.kind === core.NODE_TYPES.templateInstance) &&
+      node.meta &&
+      node.meta.__qhtmlStateMachineComponent &&
+      typeof node.meta.__qhtmlStateMachineComponent === "object"
+    ) {
+      normalizeNodeForDefinitions(node.meta.__qhtmlStateMachineComponent, definitionRegistry);
+      normalizeStateMachineMeta(node);
     }
 
     if (
@@ -10737,6 +10815,7 @@
     }
 
     if (node.kind === core.NODE_TYPES.element) {
+      normalizeStateMachineMeta(node);
       if (Array.isArray(node.children)) {
         node.children = normalizeNodesForDefinitions(node.children, definitionRegistry);
       }
@@ -13194,6 +13273,150 @@
     return true;
   }
 
+  function buildQStateMachineNodeFromAst(astNode, source, context) {
+    const machineName = String(astNode && astNode.name || "").trim();
+    if (!machineName) {
+      throw new Error("q-state-machine requires a name.");
+    }
+    const scopedContext = createScopedConversionContext(context);
+    const stateItems = Array.isArray(astNode.items) ? astNode.items : [];
+    const componentItems = [];
+    const states = [];
+    let initialState = "";
+
+    for (let i = 0; i < stateItems.length; i += 1) {
+      const item = stateItems[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type === "Property") {
+        const propertyName = String(item.name || "").trim().toLowerCase();
+        if (propertyName === "state" || propertyName === "initial-state" || propertyName === "initialstate") {
+          initialState = coercePropertyValue(item.value);
+          continue;
+        }
+        componentItems.push(item);
+        continue;
+      }
+      if (item.type !== "Element" || !Array.isArray(item.selectors) || item.selectors.length !== 1) {
+        componentItems.push(item);
+        continue;
+      }
+      const token = parseTagToken(item.selectors[0]);
+      const stateName = String(token && token.tag || item.selectors[0] || "").trim();
+      if (!stateName) {
+        throw new Error("q-state-machine state block requires a name.");
+      }
+      const stateScope = core.createElementNode({
+        tagName: "q-state-machine-state",
+        selectorMode: "single",
+        selectorChain: ["q-state-machine-state"],
+        attributes: {},
+        children: [],
+        meta: {
+          generated: true,
+          stateName: stateName,
+          originalSource: item.raw || "",
+        },
+      });
+      processElementItems(stateScope, item.items, source, createScopedConversionContext(scopedContext));
+      states.push({
+        name: stateName,
+        nodes: Array.isArray(stateScope.children) ? stateScope.children : [],
+        source: item.raw || "",
+      });
+      if (!initialState) {
+        initialState = stateName;
+      }
+    }
+
+    const componentAst = Object.assign({}, astNode, {
+      items: componentItems,
+    });
+    const componentNode = buildComponentNodeFromAst(
+      componentAst,
+      source,
+      {
+        componentId: "q-state-machine",
+        definitionType: "component",
+      },
+      scopedContext
+    );
+    if (!Array.isArray(componentNode.properties)) {
+      componentNode.properties = [];
+    }
+    const hasStateProperty = componentNode.properties.some(function hasStatePropertyName(entry) {
+      return String(entry || "").trim().toLowerCase() === "state";
+    });
+    if (!hasStateProperty) {
+      componentNode.properties.push("state");
+    }
+    if (!Array.isArray(componentNode.signalDeclarations)) {
+      componentNode.signalDeclarations = [];
+    }
+    const hasStateChangedSignal = componentNode.signalDeclarations.some(function hasStateChangedSignalName(entry) {
+      return String(entry && entry.name || "").trim().toLowerCase() === "statechanged";
+    });
+    if (!hasStateChangedSignal) {
+      const declarationMeta = createDeclarationMeta({
+        declarationKind: "q-signal",
+        declarationName: "statechanged",
+      });
+      componentNode.signalDeclarations.push({
+        name: "statechanged",
+        signature: "statechanged(value, previousValue, passing)",
+        parameters: ["value", "previousValue", "passing"],
+        uuid: declarationMeta.uuid,
+        meta: declarationMeta,
+      });
+    }
+    if (!componentNode.meta || typeof componentNode.meta !== "object") {
+      componentNode.meta = {};
+    }
+    componentNode.meta.__qhtmlStateMachine = {
+      name: machineName,
+      initialState: initialState,
+      states: states,
+    };
+    componentNode.meta.__qhtmlStateMachineDefinition = true;
+
+    const attributes = {
+      "q-state-machine": "1",
+      "q-state-machine-name": machineName,
+    };
+    const props = {};
+    if (initialState) {
+      props.state = initialState;
+    }
+    const machineNode = core.createComponentInstanceNode({
+      kind: core.NODE_TYPES.componentInstance,
+      componentId: "q-state-machine",
+      tagName: "q-state-machine",
+      attributes: attributes,
+      props: props,
+      slots: [],
+      children: [],
+      selectorMode: "single",
+      selectorChain: ["q-state-machine"],
+      meta: {
+        originalSource: astNode.raw || "",
+        sourceRange:
+          typeof astNode.start === "number" && typeof astNode.end === "number"
+            ? [astNode.start, astNode.end]
+            : null,
+        __qhtmlInstanceAlias: machineName,
+        __qhtmlStateMachine: {
+          name: machineName,
+          initialState: initialState,
+          states: states,
+        },
+        __qhtmlStateMachineComponent: componentNode,
+      },
+    });
+    applyKeywordAliasesToNode(machineNode, astNode.keywords);
+    return machineNode;
+  }
+
   function buildElementFromAst(astElement, source, context) {
     const scopedContext = createScopedConversionContext(context);
     const colorContext = scopedContext.qColors;
@@ -13456,6 +13679,10 @@
 
     if (item.type === "ForDefinition") {
       return buildForNodeFromAst(item, source, context);
+    }
+
+    if (item.type === "QStateMachineDefinition") {
+      return buildQStateMachineNodeFromAst(item, source, context);
     }
 
     if (item.type === "QCanvasDefinition") {
@@ -14254,6 +14481,42 @@
     return '"' + escapeQuoted(normalized == null ? "" : normalized) + '"';
   }
 
+  function serializeQStateMachineNode(node, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    const meta = node && node.meta && typeof node.meta === "object" ? node.meta.__qhtmlStateMachine : null;
+    if (!meta || typeof meta !== "object") {
+      return "";
+    }
+    const attrs = node.attributes || {};
+    const props = node.props || {};
+    const machineName = String(meta.name || attrs["q-state-machine-name"] || "").trim();
+    if (!machineName) {
+      return "";
+    }
+    const lines = [indent + "q-state-machine " + machineName + " {"];
+    const initialState = String(meta.initialState || "").trim();
+    const activeState = String(props.state || attrs.state || "").trim();
+    if (activeState && activeState !== initialState) {
+      lines.push(indent + "  state: " + serializeAssignmentValue(activeState));
+    }
+    const states = Array.isArray(meta.states) ? meta.states : [];
+    for (let i = 0; i < states.length; i += 1) {
+      const state = states[i];
+      const stateName = String(state && state.name || "").trim();
+      if (!stateName) {
+        continue;
+      }
+      lines.push(indent + "  " + stateName + " {");
+      const nodes = Array.isArray(state.nodes) ? state.nodes : [];
+      for (let j = 0; j < nodes.length; j += 1) {
+        lines.push(serializeNode(nodes[j], indentLevel + 2));
+      }
+      lines.push(indent + "  }");
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
   function serializeNode(node, indentLevel) {
     const indent = "  ".repeat(indentLevel);
     if (!node || typeof node !== "object") {
@@ -14270,6 +14533,14 @@
 
     if (core.NODE_TYPES.text && node.kind === core.NODE_TYPES.text) {
       return serializeTextBlock("text", node.value, indentLevel);
+    }
+
+    if (
+      node.meta &&
+      node.meta.__qhtmlStateMachine &&
+      typeof node.meta.__qhtmlStateMachine === "object"
+    ) {
+      return serializeQStateMachineNode(node, indentLevel);
     }
 
     if (core.NODE_TYPES.repeater && node.kind === core.NODE_TYPES.repeater) {
@@ -23859,6 +24130,116 @@
     return next;
   }
 
+  function isQStateMachineNode(node) {
+    return !!(
+      node &&
+      typeof node === "object" &&
+      node.meta &&
+      node.meta.__qhtmlStateMachine &&
+      typeof node.meta.__qhtmlStateMachine === "object"
+    );
+  }
+
+  function readInlineQStateMachineComponent(node) {
+    return node &&
+      node.meta &&
+      node.meta.__qhtmlStateMachineComponent &&
+      typeof node.meta.__qhtmlStateMachineComponent === "object"
+        ? node.meta.__qhtmlStateMachineComponent
+        : null;
+  }
+
+  function readQStateMachineConfig(node) {
+    const meta = node && node.meta && typeof node.meta === "object" ? node.meta.__qhtmlStateMachine : null;
+    const attrs = node && node.attributes && typeof node.attributes === "object" ? node.attributes : {};
+    const props = node && node.props && typeof node.props === "object" ? node.props : {};
+    const states = meta && Array.isArray(meta.states) ? meta.states : [];
+    let initialState = String(meta && meta.initialState || props.state || attrs.state || "").trim();
+    if (!initialState && states.length > 0) {
+      initialState = String(states[0] && states[0].name || "").trim();
+    }
+    return {
+      name: String(meta && meta.name || attrs["q-state-machine-name"] || "").trim(),
+      initialState: initialState,
+      states: states,
+    };
+  }
+
+  function findQStateMachineState(config, stateName) {
+    const name = String(stateName || "").trim();
+    const states = config && Array.isArray(config.states) ? config.states : [];
+    for (let i = 0; i < states.length; i += 1) {
+      const state = states[i];
+      if (String(state && state.name || "").trim() === name) {
+        return state;
+      }
+    }
+    return null;
+  }
+
+  function createSyntheticQStateMachineComponent(node, config) {
+    const stateMachineConfig = config || readQStateMachineConfig(node);
+    return core.createComponentNode({
+      componentId: "q-state-machine",
+      definitionType: "component",
+      templateNodes: [],
+      methods: [],
+      propertyDefinitions: [],
+      signalDeclarations: [
+        {
+          name: "statechanged",
+          signature: "statechanged(value, previousValue, passing)",
+          parameters: ["value", "previousValue", "passing"],
+        },
+      ],
+      attributes: {},
+      properties: ["state"],
+      meta: {
+        __qhtmlStateMachine: stateMachineConfig,
+        __qhtmlStateMachineDefinition: true,
+      },
+    });
+  }
+
+  function createSyntheticQStateMachineInstance(node, config, componentNode) {
+    const stateMachineConfig = config || readQStateMachineConfig(node);
+    const attrs = Object.assign({}, node && node.attributes || {});
+    const props = Object.assign({}, node && node.props || {});
+    attrs["q-state-machine"] = "1";
+    if (stateMachineConfig.name) {
+      attrs["q-state-machine-name"] = stateMachineConfig.name;
+    }
+    if (!Object.prototype.hasOwnProperty.call(props, "state") && stateMachineConfig.initialState) {
+      props.state = stateMachineConfig.initialState;
+    }
+    return core.createComponentInstanceNode({
+      kind: core.NODE_TYPES.componentInstance,
+      componentId: "q-state-machine",
+      tagName: "q-state-machine",
+      attributes: attrs,
+      props: props,
+      slots: [],
+      children: [],
+      selectorMode: "single",
+      selectorChain: ["q-state-machine"],
+      meta: Object.assign({}, node && node.meta || {}, {
+        __qhtmlInstanceAlias: stateMachineConfig.name,
+        __qhtmlStateMachine: stateMachineConfig,
+        __qhtmlStateMachineComponent: componentNode,
+      }),
+    });
+  }
+
+  function renderQStateMachineNode(node, parent, targetDocument, context) {
+    const config = readQStateMachineConfig(node);
+    const inlineComponent = readInlineQStateMachineComponent(node) || createSyntheticQStateMachineComponent(node, config);
+    const instanceNode =
+      node.kind === core.NODE_TYPES.componentInstance || node.kind === core.NODE_TYPES.templateInstance
+        ? node
+        : createSyntheticQStateMachineInstance(node, config, inlineComponent);
+    renderComponentInstance(inlineComponent, instanceNode, parent, targetDocument, context);
+  }
+
   function parseCallableExpression(rawExpression) {
     const source = String(rawExpression || "").trim();
     if (!source) {
@@ -24336,6 +24717,10 @@
       }
 
       if (node.kind === core.NODE_TYPES.componentInstance || node.kind === core.NODE_TYPES.templateInstance) {
+        if (isQStateMachineNode(node)) {
+          renderQStateMachineNode(node, parent, targetDocument, context);
+          return;
+        }
         const registry = context.componentRegistry;
         const key = String(node.componentId || node.tagName || "").toLowerCase();
         const component = registry.get(key);
@@ -24346,6 +24731,11 @@
       }
 
       if (node.kind !== core.NODE_TYPES.element) {
+        return;
+      }
+
+      if (isQStateMachineNode(node)) {
+        renderQStateMachineNode(node, parent, targetDocument, context);
         return;
       }
 
@@ -24455,11 +24845,144 @@
     }
   }
 
+  function readQStateMachineActiveStateName(componentNode, instanceNode, hostElement) {
+    const config = readQStateMachineConfig(componentNode);
+    const fromHost =
+      hostElement && Object.prototype.hasOwnProperty.call(hostElement, "state")
+        ? hostElement.state
+        : undefined;
+    const props = instanceNode && instanceNode.props && typeof instanceNode.props === "object" ? instanceNode.props : {};
+    const fromProps = Object.prototype.hasOwnProperty.call(props, "state") ? props.state : undefined;
+    const activeState = String(
+      typeof fromProps !== "undefined"
+        ? fromProps
+        : typeof fromHost !== "undefined"
+          ? fromHost
+          : config.initialState || ""
+    ).trim();
+    return activeState || String(config.initialState || "").trim();
+  }
+
+  function readQStateMachineTemplateNodes(componentNode, instanceNode, hostElement) {
+    if (!componentNode || !componentNode.meta || !componentNode.meta.__qhtmlStateMachine) {
+      return null;
+    }
+    const config = readQStateMachineConfig(componentNode);
+    const activeState = readQStateMachineActiveStateName(componentNode, instanceNode, hostElement);
+    const state = findQStateMachineState(config, activeState);
+    if (hostElement && activeState && typeof hostElement.setAttribute === "function") {
+      hostElement.setAttribute("state", activeState);
+    }
+    if (instanceNode && typeof instanceNode === "object") {
+      if (!instanceNode.props || typeof instanceNode.props !== "object" || Array.isArray(instanceNode.props)) {
+        instanceNode.props = {};
+      }
+      if (activeState) {
+        instanceNode.props.state = activeState;
+      }
+    }
+    return state && Array.isArray(state.nodes) ? state.nodes : [];
+  }
+
+  function installQStateMachineStateBridge(componentNode, instanceNode, hostElement, targetDocument, context) {
+    if (
+      !componentNode ||
+      !componentNode.meta ||
+      !componentNode.meta.__qhtmlStateMachine ||
+      !hostElement ||
+      hostElement.__qhtmlStateMachineStateBridgeInstalled
+    ) {
+      return;
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(hostElement, "state");
+    if (!descriptor || typeof descriptor.get !== "function" || typeof descriptor.set !== "function") {
+      return;
+    }
+    try {
+      Object.defineProperty(hostElement, "__qhtmlStateMachineStateBridgeInstalled", {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: true,
+      });
+    } catch (markError) {
+      hostElement.__qhtmlStateMachineStateBridgeInstalled = true;
+    }
+    Object.defineProperty(hostElement, "states", {
+      configurable: true,
+      enumerable: true,
+      get: function getQStateMachineStates() {
+        const config = readQStateMachineConfig(componentNode);
+        return config.states.map(function mapState(entry) {
+          return String(entry && entry.name || "").trim();
+        }).filter(Boolean);
+      },
+    });
+    let localStateValue;
+    try {
+      localStateValue = descriptor.get.call(hostElement);
+    } catch (readInitialStateError) {
+      localStateValue = readQStateMachineActiveStateName(componentNode, instanceNode, hostElement);
+    }
+    Object.defineProperty(hostElement, "state", {
+      configurable: true,
+      enumerable: true,
+      get: function getQStateMachineState() {
+        if (instanceNode && instanceNode.props && Object.prototype.hasOwnProperty.call(instanceNode.props, "state")) {
+          return instanceNode.props.state;
+        }
+        return localStateValue;
+      },
+      set: function setQStateMachineState(value) {
+        const previousValue = this.state;
+        const nextValue = resolveCallbackReferenceValue(value);
+        localStateValue = nextValue;
+        if (instanceNode && typeof instanceNode === "object") {
+          if (!instanceNode.props || typeof instanceNode.props !== "object" || Array.isArray(instanceNode.props)) {
+            instanceNode.props = {};
+          }
+          instanceNode.props.state = nextValue;
+        }
+        if (typeof this.setAttribute === "function") {
+          this.setAttribute("state", String(nextValue == null ? "" : nextValue));
+        }
+        if (Object.is(previousValue, nextValue)) {
+          return;
+        }
+        const host = this;
+        const renderAndEmitStateChanged = function renderAndEmitQStateMachineStateChanged() {
+          if (host.ownerDocument) {
+            renderComponentContentIntoHost(
+              componentNode,
+              instanceNode,
+              host,
+              targetDocument || host.ownerDocument,
+              createChildRenderContext(context || {})
+            );
+          }
+          if (typeof host.statechanged === "function") {
+            host.statechanged(nextValue, previousValue, true);
+          }
+        };
+        if (typeof global.setTimeout === "function") {
+          global.setTimeout(renderAndEmitStateChanged, 0);
+        } else {
+          renderAndEmitStateChanged();
+        }
+      },
+    });
+  }
+
   function renderComponentContentIntoHost(componentNode, instanceNode, hostElement, targetDocument, context) {
     const persistRenderTree = !!(instanceNode && instanceNode.__qhtmlPersistRenderTree);
     let expanded = persistRenderTree && Array.isArray(instanceNode.__qhtmlRenderTree) ? instanceNode.__qhtmlRenderTree : null;
     if (!expanded) {
-      const templateNodes = Array.isArray(componentNode.templateNodes) ? componentNode.templateNodes : [];
+      const stateMachineNodes = readQStateMachineTemplateNodes(componentNode, instanceNode, hostElement);
+      const templateNodes = Array.isArray(stateMachineNodes)
+        ? stateMachineNodes
+        : Array.isArray(componentNode.templateNodes)
+          ? componentNode.templateNodes
+          : [];
       const singleSlotName = resolveSingleSlotName(componentNode);
       const slotNames = collectSlotNames(templateNodes);
       const ownerInstanceId = ensureInstanceId(instanceNode);
@@ -24712,6 +25235,7 @@
     }
 
     bindComponentMethods(componentNode, hostElement, instanceNode);
+    installQStateMachineStateBridge(componentNode, instanceNode, hostElement, targetDocument, context);
 
     stack.push(key);
     context.componentHostStack.push(hostElement);

@@ -4467,6 +4467,124 @@ mycomp118 { }
 div#t118-out { text { waiting } }
 </q-html>
       </article>
+      <article class="test-card" id="card-119">
+        <div class="test-head">
+          <h2>119. q-state-machine buttons + q-connect statechanged</h2>
+          <span id="badge-119" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> activated state2 | statechanged=state2 | component=1 | method=method-ok | signal=1</div>
+<q-html id="host-t119" data-test-no="119">
+q-component q-a {
+  q-property lastState: "waiting"
+
+  function setPassing(val) {
+    this.component.lastState = String(val == null ? "" : val);
+    var out = document.querySelector("#host-t119 #t119-signal");
+    if (out) {
+      out.textContent = "statechanged=" + this.component.lastState;
+    }
+    var acc = document.querySelector("#acc-main");
+    if (acc && typeof acc.passingReported === "function") {
+      acc.passingReported(119, this.component.lastState === "state2");
+    }
+    setTimeout(function() {
+      var host = document.querySelector("#host-t119");
+      var machine = host ? host.querySelector("q-state-machine") : null;
+      if (machine && typeof machine.markCustom === "function") {
+        machine.markCustom("method-ok");
+      }
+      var stateText = host && host.querySelector("#t119-state") ? String(host.querySelector("#t119-state").textContent || "").trim() : "";
+      var signalText = host && host.querySelector("#t119-signal") ? String(host.querySelector("#t119-signal").textContent || "").trim() : "";
+      var componentText = "component=" + (machine && machine.getAttribute("qhtml-component-instance") === "1" && typeof machine.statechanged === "function" ? "1" : "0");
+      var methodText = "method=" + (machine && machine.machineMarker ? String(machine.machineMarker) : "missing");
+      var declaredSignalText = "signal=" + (machine && typeof machine.customPing === "function" ? "1" : "0");
+      var actual = stateText + " | " + signalText + " | " + componentText + " | " + methodText + " | " + declaredSignalText;
+      var meta = host ? host.querySelector("#t119-meta") : null;
+      if (meta) {
+        meta.textContent = componentText + " | " + methodText + " | " + declaredSignalText;
+      }
+      var acc2 = document.querySelector("#acc-main");
+      if (acc2 && typeof acc2.outcomeReported === "function") {
+        acc2.outcomeReported(119, actual.indexOf("activated state2") >= 0 && actual.indexOf("statechanged=state2") >= 0 && actual.indexOf("component=1") >= 0 && actual.indexOf("method=method-ok") >= 0 && actual.indexOf("signal=1") >= 0, actual);
+      }
+    }, 40);
+  }
+}
+
+q-state-machine mymachine {
+  q-property machineMarker: "unset"
+  q-signal customPing(value)
+
+  function markCustom(value) {
+    this.component.machineMarker = String(value == null ? "" : value);
+  }
+
+  state1 {
+    div#t119-state.state-one {
+      style { padding: 10px; border: 2px solid #2563eb; background: #dbeafe; }
+      h3 { text { hello world } }
+    }
+  }
+  state2 {
+    div#t119-state.state-two {
+      style { padding: 10px; border: 2px solid #16a34a; background: #dcfce7; }
+      h4 { text { activated state2 } }
+    }
+  }
+}
+
+q-a othercomponent { }
+
+q-connect { mymachine.statechanged othercomponent.setPassing }
+
+button#t119-state1 {
+  type: "button"
+  onclick { mymachine.state = "state1"; }
+  text { toggle state1 }
+}
+button#t119-state2 {
+  type: "button"
+  onclick { mymachine.state = "state2"; }
+  text { toggle state2 }
+}
+div#t119-signal { text { statechanged=waiting } }
+div#t119-meta { text { component=0 | method=missing | signal=0 } }
+
+onReady {
+  var host = this;
+  if (mymachine && typeof mymachine.markCustom === "function") {
+    mymachine.markCustom("method-ok");
+  }
+  setTimeout(function() {
+    var btn = host.querySelector("#t119-state2");
+    if (btn) {
+      btn.click();
+    }
+  }, 40);
+  setTimeout(function() {
+    var machine = host.querySelector("q-state-machine");
+    if (machine && typeof machine.markCustom === "function") {
+      machine.markCustom("method-ok");
+    }
+  }, 140);
+  setTimeout(function() {
+    var acc = document.querySelector("#acc-main");
+    var stateText = host.querySelector("#t119-state") ? String(host.querySelector("#t119-state").textContent || "").trim() : "";
+    var signalText = host.querySelector("#t119-signal") ? String(host.querySelector("#t119-signal").textContent || "").trim() : "";
+    var machine = host.querySelector("q-state-machine");
+    var componentText = "component=" + (machine && machine.getAttribute("qhtml-component-instance") === "1" && typeof machine.statechanged === "function" ? "1" : "0");
+    var methodText = "method=" + (machine && machine.machineMarker ? String(machine.machineMarker) : "missing");
+    var declaredSignalText = "signal=" + (machine && typeof machine.customPing === "function" ? "1" : "0");
+    var actual = stateText + " | " + signalText + " | " + componentText + " | " + methodText + " | " + declaredSignalText;
+    if (acc && typeof acc.outcomeReported === "function") {
+      acc.outcomeReported(119, actual.indexOf("activated state2") >= 0 && actual.indexOf("statechanged=state2") >= 0 && actual.indexOf("component=1") >= 0 && actual.indexOf("method=method-ok") >= 0 && actual.indexOf("signal=1") >= 0, actual);
+    } else if (acc && typeof acc.resultReported === "function") {
+      acc.resultReported(119, actual);
+    }
+  }, 320);
+}
+</q-html>
+      </article>
     </section>
   </div>
 </body>
