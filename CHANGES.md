@@ -1,5 +1,14 @@
 # QHTML.js Change Log
 
+## Whats New in v6.6.0
+
+- Added `q-state-machine <name> { ... }` for declarative state-driven rendering.
+- State machines render as component-backed `<q-state-machine>` hosts, with `q-component="q-state-machine"` and normal named instance alias behavior.
+- Each state machine has a declared `state` q-property and a normal component `statechanged(value, previousValue, passing)` q-signal.
+- Changing `machine.state` swaps the active state subtree locally, without remounting the whole `<q-html>` root.
+- State-machine bodies now support component-level `q-property`, `q-signal`, and `function` declarations.
+- Added `dist/test.html` coverage for two-button state transfer, visible state differences, and `q-connect { mymachine.statechanged othercomponent.setPassing }`.
+
 ## Whats New in v6.5.2
 
 - Added project documentation at https://qhtml.github.com/qhtml6/doc

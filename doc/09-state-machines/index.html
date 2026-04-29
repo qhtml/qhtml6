@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - State Machines</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "state-machines"
+  pageTitle: "State Machines"
+  pageIntro: "q-state-machine is a component-backed runtime host that swaps one declarative QHTML state body at a time. Use it when a named UI region has discrete modes such as loading, editing, saved, failed, expanded, or collapsed."
+  main {
+    wiki-example-card {
+      title: "1. Mental model"
+      summary: "A q-state-machine is like a q-component with a main render slot and an onstatechanged handler, except the framework owns the slot swap."
+      note: "The state blocks are stored as QDOM and only the active state body is rendered inside the <q-state-machine> host. The outer <q-html> root is not remounted for normal state changes."
+      details {
+        html { <q-editor>q-state-machine mymachine {
+  state1 {
+    div { text { State one UI } }
+  }
+  state2 {
+    div { text { State two UI } }
+  }
+}</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "2. Basic state switch"
+      summary: "Give the machine a name, declare state blocks, then assign machine.state from buttons, handlers, or component methods."
+      note: "The first state is used as the initial state unless you add state: \"stateName\" inside the machine body."
+      details {
+        html { <q-editor>q-state-machine mymachine {
+  state1 {
+    div,span,h3 { text { hello world } }
+  }
+  state2 {
+    div,span,h4 { text { activated state2 } }
+  }
+}
+
+button {
+  text { show state1 }
+  onclick { mymachine.state = "state1"; }
+}
+
+button {
+  text { show state2 }
+  onclick { mymachine.state = "state2"; }
+}</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "3. The host is component-backed"
+      summary: "The rendered host is a normal component instance: <q-state-machine q-component=\"q-state-machine\" qhtml-component-instance=\"1\">."
+      note: "That means it participates in named instance scope, component methods, declared properties, and component signals."
+      details {
+        html { <q-editor>q-state-machine machineHost {
+  q-property note: "ready"
+  q-signal saved(value)
+
+  function markSaved(value) {
+    this.component.note = String(value);
+    this.component.saved(this.component.note);
+  }
+
+  state1 { p { text { Draft } } }
+  state2 { p { text { Saved } } }
+}</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "4. Built-in state property"
+      summary: "Every machine has state as a declared q-property. Reading machine.state returns the active state name."
+      note: "Writing machine.state updates the QDOM props for that machine and swaps only the active state subtree. Unknown state names are preserved as the assigned state value, but render an empty body."
+      details {
+        html { <q-editor>button {
+  text { publish }
+  onclick {
+    mymachine.state = "published";
+    console.log(mymachine.state);
+  }
+}</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "5. Built-in statechanged signal"
+      summary: "Every machine has a normal q-signal named statechanged. The first argument is the next state."
+      note: "Because this is the same signal implementation used by q-component, it works with .connect(...), q-connect, and queued signal routing."
+      details {
+        html { <q-editor>q-component status-panel {
+  q-property value: "waiting"
+
+  function setValue(value) {
+    this.component.value = String(value);
+    this.querySelector("#out").textContent = "state=" + this.component.value;
+  }
+
+  div#out { text { state=waiting } }
+}
+
+q-state-machine mymachine {
+  state1 { p { text { One } } }
+  state2 { p { text { Two } } }
+}
+
+status-panel panel { }
+q-connect { mymachine.statechanged panel.setValue }
+
+button {
+  text { activate state2 }
+  onclick { mymachine.state = "state2"; }
+}</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "6. State blocks"
+      summary: "A state block is named by its selector token: state1 { ... }, loading { ... }, failed { ... }, and so on."
+      note: "State body content is normal QHTML. You can use elements, selector chains, styles, components, model views, and other supported runtime declarations inside the active state body."
+      details {
+        html { <q-editor>q-state-machine panelState {
+  loading {
+    div.loading-panel { text { Loading... } }
+  }
+  ready {
+    section.ready-panel {
+      h3 { text { Ready } }
+      p { text { The data is available. } }
+    }
+  }
+  failed {
+    div.error-panel { text { Could not load data. } }
+  }
+}</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "7. Named component instances inside states"
+      summary: "State bodies can instantiate q-components. The active child aliases live under the machine host."
+      note: "Use machine.childName for stable access from outside the active state context. When the state changes, the active subtree and its child aliases are recreated."
+      details {
+        html { <q-editor>q-component message-card {
+  q-property label: ""
+  div { text { ${this.component.label} } }
+}
+
+q-state-machine mymachine {
+  state1 {
+    message-card card { label: "value from state1" }
+  }
+  state2 {
+    message-card card { label: "value from state2" }
+  }
+}
+
+button {
+  text { read active card }
+  onclick { console.log(mymachine.card.label); }
+}</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "8. Full two-button example"
+      summary: "This is the smallest practical pattern: one machine, two states, two buttons, and a connected observer."
+      note: "Use this structure when a page section has a finite set of visual modes and other components need to react when the mode changes."
+      details {
+        html { <q-editor>q-component observer-box {
+  q-property lastState: "waiting"
+
+  function setPassing(value) {
+    this.component.lastState = String(value);
+    this.querySelector("#out").textContent = "statechanged=" + this.component.lastState;
+  }
+
+  div#out { text { statechanged=waiting } }
+}
+
+q-state-machine mymachine {
+  state1 {
+    div.state-one { h3 { text { hello world } } }
+  }
+  state2 {
+    div.state-two { h4 { text { activated state2 } } }
+  }
+}
+
+observer-box othercomponent { }
+q-connect { mymachine.statechanged othercomponent.setPassing }
+
+button { text { toggle state1 } onclick { mymachine.state = "state1"; } }
+button { text { toggle state2 } onclick { mymachine.state = "state2"; } }</q-editor> }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

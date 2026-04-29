@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.5.2
+# QHTML.js v6.6.0
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,7 +12,13 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-Whats new - added documentation [link to documentation](https://qhtml.github.com/qhtml6/doc)
+## Whats New in v6.6.0
+
+- Added `q-state-machine <name> { ... }` for declarative state-driven rendering.
+- Each state machine is a component-backed runtime host with a declared `state` q-property.
+- Changing `machine.state` swaps the active state body without remounting the whole `<q-html>` tree.
+- State machines emit a normal component `statechanged(value, previousValue, passing)` q-signal, so they work with `q-connect`, `.connect(...)`, and the existing queued signal runtime.
+- State-machine bodies can also declare component-level `q-property`, `q-signal`, and `function` members on the `<q-state-machine>` host.
 
 ## 1. Quick Start
 
@@ -1427,7 +1433,153 @@ Use this rule of thumb:
 - Use `.connect(...)` when wiring at runtime in JS lifecycle/event logic.
 - Use `q-connect { ... }` for declarative-only wiring.
 
-## 8. `q-rewrite`
+## 8. State Machines
+
+`q-state-machine` is a component-backed state switcher. Use it when one named runtime host should render one of several declarative QHTML bodies based on a `state` property.
+
+You can think of it as a compact version of a component with a main render slot plus an `onstatechanged` handler that swaps that slot. The difference is that `q-state-machine` keeps the state blocks declarative and lets the framework do the active-state QDOM swap.
+
+### 8.1 Basic two-state machine
+
+```qhtml
+<q-html>
+  q-state-machine mymachine {
+    state1 {
+      div,span,h3 { text { hello world } }
+    }
+    state2 {
+      div,span,h4 { text { activated state2 } }
+    }
+  }
+
+  button {
+    text { show state1 }
+    onclick { mymachine.state = "state1"; }
+  }
+
+  button {
+    text { show state2 }
+    onclick { mymachine.state = "state2"; }
+  }
+</q-html>
+```
+
+Behavior:
+- `mymachine` is a named component instance.
+- `mymachine.state` is a declared q-property.
+- The first state is the initial state unless you set `state: "stateName"` in the machine body.
+- Assigning `mymachine.state` renders only that state's QHTML inside the `<q-state-machine>` host.
+
+### 8.2 State change signals with `q-connect`
+
+Every state machine has a normal component signal named `statechanged`. It emits the new state as the first argument.
+
+```qhtml
+<q-html>
+  q-component status-panel {
+    q-property current: "waiting"
+
+    function setStateName(value) {
+      this.component.current = String(value);
+      this.querySelector("#out").textContent = "state=" + this.component.current;
+    }
+
+    div#out { text { state=waiting } }
+  }
+
+  q-state-machine mymachine {
+    state1 { p { text { State one } } }
+    state2 { p { text { State two } } }
+  }
+
+  status-panel panel { }
+
+  q-connect { mymachine.statechanged panel.setStateName }
+
+  button {
+    text { activate state2 }
+    onclick { mymachine.state = "state2"; }
+  }
+</q-html>
+```
+
+Equivalent imperative wiring also works:
+
+```qhtml
+onReady {
+  mymachine.statechanged.connect(panel.setStateName);
+}
+```
+
+### 8.3 Component members on the machine host
+
+Because a state machine is component-backed, the machine body can include component-level declarations before the state blocks:
+
+```qhtml
+<q-html>
+  q-state-machine mymachine {
+    q-property note: "created"
+    q-signal saved(value)
+
+    function mark(value) {
+      this.component.note = String(value);
+      this.component.saved(this.component.note);
+    }
+
+    state1 {
+      div { text { Editing draft } }
+    }
+    state2 {
+      div { text { Published } }
+    }
+  }
+
+  button {
+    text { publish }
+    onclick {
+      mymachine.mark("published");
+      mymachine.state = "state2";
+    }
+  }
+</q-html>
+```
+
+Use these declarations the same way you use component declarations:
+- `q-property` stores machine-level values.
+- `function` adds methods to the `<q-state-machine>` host.
+- `q-signal` creates normal connectable signal functions.
+- State blocks stay declarative and contain the QHTML rendered for each state.
+
+### 8.4 Named instances inside states
+
+State bodies can instantiate components. Those named instances are scoped inside the active machine host, so the stable path is through the machine instance:
+
+```qhtml
+q-component message-card {
+  q-property label: ""
+  div { text { ${this.component.label} } }
+}
+
+q-state-machine mymachine {
+  state1 {
+    message-card card { label: "value from state1" }
+  }
+  state2 {
+    message-card card { label: "value from state2" }
+  }
+}
+
+button {
+  text { read active card }
+  onclick {
+    console.log(mymachine.card.label);
+  }
+}
+```
+
+When the state changes, the active state's QHTML is re-rendered and the active child aliases are recreated for that machine context.
+
+## 9. `q-rewrite`
 
 `q-rewrite` is a pre-parse macro that expands calls like `name { ... }` before the rest of QHTML is parsed.
 
@@ -1457,7 +1609,7 @@ q-rewrite choose-class {
 div { class: choose-class { active { true } } }
 ```
 
-## 9. QDOM API
+## 10. QDOM API
 
 Mounted `<q-html>` elements expose `.qdom()` (the source-of-truth tree). Mutate QDOM, then call `.update()` to re-render.
 Any HTMLElement inside a mounted tree can also call `.qdom()`, which resolves using the closest `q-component` host when present, then the nearest `<q-html>` host.
@@ -1528,7 +1680,7 @@ this.component.update();        // this component subtree
 this.component.root().update(); // whole <q-html>
 ```
 
-## 10. Builder and Editor
+## 11. Builder and Editor
 
 - `dist/demo.html` is the component usage gallery.
 - `q-editor` supports authoring live QHTML and previewing output.
@@ -1579,7 +1731,7 @@ Use `cache` to enable localStorage-backed import caching (`qhtml.import.records`
 </q-html>
 ```
 
-## 11. Debug Tips
+## 12. Debug Tips
 
 ```js
 window.QHTML_RUNTIME_DEBUG = true;
@@ -1608,7 +1760,7 @@ q-component my-comp {
   - inside a specific instance block: applies to that instance only
 - Supported categories: `q-property`, `q-signal`, `q-component`, `function`, `slot`, `model`, `instantiation`, `all`
 
-## 12. Optional Tag Libraries (`w3-tags.js`, `bs-tags.js`) [DEPRECATED]
+## 13. Optional Tag Libraries (`w3-tags.js`, `bs-tags.js`) [DEPRECATED]
 
 These libraries are now obsolete as their functionality has been fully merged into the core modules through various means.  
 While they will continue to work, it is recommended to use q-style and q-theme instead for simplicity and ease of implementation. 
@@ -1659,7 +1811,7 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 </q-html>
 ```
 
-## 13. Module READMEs
+## 14. Module READMEs
 
 - `modules/qdom-core/README.md`
 - `modules/qhtml-parser/README.md`
