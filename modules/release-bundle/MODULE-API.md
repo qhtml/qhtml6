@@ -19,10 +19,11 @@ Generate the distributable single-file QHTML runtime bundle.
 - `modules/dom-renderer/src/dom-renderer.js`
 - `modules/qhtml-runtime/src/qhtml-runtime.js`
 - `src/root-integration.js`
+- `src/particle-emitter.js`
 
 ## Outputs
 - `dist/qhtml.js`
-  - Contains synchronized parser/runtime behavior from source modules, including `q-property`, `q-bind`, assignment-form `q-script` bindings, and runtime `updateQHtmlElement`.
+  - Contains synchronized parser/runtime behavior from source modules, including `q-property`, `q-bind`, assignment-form `q-script` bindings, runtime `updateQHtmlElement`, and the native `particle-emitter` custom element.
 
 ## Exit behavior
 - Non-zero exit on missing input source.

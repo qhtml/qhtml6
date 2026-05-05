@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.7.0
+# QHTML.js v6.7.1
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,7 +12,7 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.7.0
+## Whats New in v6.7.1
 
 - Added the native `particle-emitter` custom element for canvas-backed particle effects from QHTML markup.
 - `particle-emitter` owns its own transparent canvas layer, seeded particle simulation, image/color sprite composition, and `start()`, `stop()`, and `clear()` controls.

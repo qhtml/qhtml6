@@ -14,6 +14,7 @@ sources=(
   "$PROJECT_ROOT/modules/dom-renderer/src/dom-renderer.js"
   "$PROJECT_ROOT/modules/qhtml-runtime/src/qhtml-runtime.js"
   "$PROJECT_ROOT/src/root-integration.js"
+  "$PROJECT_ROOT/src/particle-emitter.js"
 )
 
 for src in "${sources[@]}"; do
@@ -27,12 +28,15 @@ done
   echo "/* qhtml.js release bundle */"
   echo "/* generated: $(date -u +%Y-%m-%dT%H:%M:%SZ) */"
   echo ""
-  for src in "${sources[@]}"; do
+  for i in "${!sources[@]}"; do
+    src="${sources[$i]}"
     echo "/*** BEGIN: ${src#$PROJECT_ROOT/} ***/"
     cat "$src"
     echo ""
     echo "/*** END: ${src#$PROJECT_ROOT/} ***/"
-    echo ""
+    if (( i < ${#sources[@]} - 1 )); then
+      echo ""
+    fi
   done
 } > "$OUT_FILE"
 

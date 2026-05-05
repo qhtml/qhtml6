@@ -1,5 +1,11 @@
 # QHTML.js Change Log
 
+## Whats New in v6.7.1
+
+- Moved the native `particle-emitter` implementation into `src/particle-emitter.js` so release bundle rebuilds preserve the custom element.
+- Updated the release bundle source list to include `src/particle-emitter.js`.
+- Refined particle sprite color composition so `color` tints only the existing sprite alpha instead of painting a rectangular background.
+
 ## Whats New in v6.7.0
 
 - Added the native `particle-emitter` custom element for canvas-backed particle effects.

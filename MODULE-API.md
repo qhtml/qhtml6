@@ -19,6 +19,9 @@ Root integration module wires lower-level modules for browser consumers, exposes
     - `deserializeQDom(payload)`
     - `renderInto(qdomDocument, hostElement)`
     - runtime passthroughs including `updateQHtmlElement(qHtmlElement)`
+- `src/particle-emitter.js`
+  - Registers native custom element `<particle-emitter>`.
+  - Owns canvas-backed particle simulation, sprite loading/composition, alpha-preserving color tinting, and `start()`, `stop()`, and `clear()` controls.
 - `dist/q-editor.js`
   - Registers custom element `<q-editor>`.
   - Public element methods:

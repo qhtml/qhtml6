@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-04-29T02:07:41Z */
+/* generated: 2026-05-05T20:09:22Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -25755,7 +25755,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.7.0";
+  const RUNTIME_VERSION = "6.7.1";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -44438,7 +44438,7 @@
   }
 
   const api = runtime;
-  api.version = "6.7.0";
+  api.version = "6.7.1";
   global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {
@@ -44466,7 +44466,7 @@
 
 /*** END: src/root-integration.js ***/
 
-/*** BEGIN: particle-emitter custom element ***/
+/*** BEGIN: src/particle-emitter.js ***/
 (function installParticleEmitter(global) {
   if (!global || !global.customElements) {
     return;
@@ -44943,28 +44943,44 @@
         this.srcImage?.naturalWidth ?? this.maskImage?.naturalWidth ?? 64,
         this.srcImage?.naturalHeight ?? this.maskImage?.naturalHeight ?? 64
       );
-      const ctx = this.ctx;
 
       this.canvas.width = baseSize;
       this.canvas.height = baseSize;
+
+      const ctx = this.ctx;
       ctx.clearRect(0, 0, baseSize, baseSize);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = 1;
 
-      if (this.color) {
-        ctx.fillStyle = this.color;
-        ctx.fillRect(0, 0, baseSize, baseSize);
-      }
+      const hasSrc = Boolean(this.srcImage);
+      const hasMask = Boolean(this.maskImage);
+      const hasColor = Boolean(this.color);
 
-      if (this.srcImage) {
+      if (hasSrc) {
         ctx.drawImage(this.srcImage, 0, 0, baseSize, baseSize);
+      } else if (hasMask) {
+        ctx.drawImage(this.maskImage, 0, 0, baseSize, baseSize);
+      } else {
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        ctx.arc(baseSize / 2, baseSize / 2, baseSize / 2, 0, Math.PI * 2);
+        ctx.fill();
       }
 
-      if (this.maskImage) {
+      if (hasMask && hasSrc) {
         ctx.globalCompositeOperation = "destination-in";
         ctx.drawImage(this.maskImage, 0, 0, baseSize, baseSize);
         ctx.globalCompositeOperation = "source-over";
       }
 
-      this.ready = Boolean(this.color || this.srcImage || this.maskImage);
+      if (hasColor) {
+        ctx.globalCompositeOperation = "source-in";
+        ctx.fillStyle = this.color;
+        ctx.fillRect(0, 0, baseSize, baseSize);
+        ctx.globalCompositeOperation = "source-over";
+      }
+
+      this.ready = true;
     }
   }
 
@@ -45087,4 +45103,5 @@
   global.customElements.define("particle-emitter", ParticleEmitterElement);
 })(typeof globalThis !== "undefined" ? globalThis : window);
 
-/*** END: particle-emitter custom element ***/
+
+/*** END: src/particle-emitter.js ***/
