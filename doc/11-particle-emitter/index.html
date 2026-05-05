@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - Particle Emitter</title>
+  <link rel="stylesheet" href="../../dist/w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../../dist/qhtml.js"></script>
+  <script src="../../dist/q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "particle-emitter"
+  pageTitle: "Particle Emitter"
+  pageIntro: "particle-emitter is a native custom element registered by qhtml.js. It creates a transparent canvas layer inside its parent and simulates particles without creating one DOM node per particle."
+  main {
+    wiki-example-card {
+      title: "1. Mental model"
+      summary: "Use particle-emitter when you want a visual particle effect from declarative QHTML attributes."
+      note: "The element is not a q-component. It is a framework-registered custom element, so it works in plain HTML and in QHTML-rendered markup. Each emitter owns one canvas, one particle array, one seeded random generator, and one animation loop."
+      details {
+        html { <q-editor>div#field {
+  style {
+    position: relative;
+    width: 420px;
+    height: 220px;
+    overflow: hidden;
+    background: #07111f;
+  }
+
+  particle-emitter#energy {
+    running: "false"
+    src: "/dist/assets/particle.png"
+  }
+}</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "2. Complete rising energy example"
+      summary: "This example starts particles at the bottom of the container, spreads them horizontally, and moves them upward with a long fade."
+      note: "The parent must have real dimensions. If the parent has static positioning, particle-emitter changes it to relative so the canvas can fill it."
+      details {
+        html { <q-editor>div#energy-field {
+  style {
+    position: relative;
+    width: 420px;
+    height: 220px;
+    overflow: hidden;
+    background: #07111f;
+  }
+
+  particle-emitter#energy-emitter {
+    emitRate: "84"
+    lifetime: "3600"
+    lifetimeVariation: "900"
+    x: "210"
+    y: "214"
+    xVariation: "145"
+    yVariation: "8"
+    xVelocity: "0.35"
+    yVelocity: "-1.25"
+    xVelocityVariation: "0.45"
+    yVelocityVariation: "0.4"
+    xAcceleration: "0.015"
+    yAcceleration: "-0.018"
+    xAccelerationVariation: "0.08"
+    yAccelerationVariation: "0.05"
+    startSize: "10"
+    endSize: "30"
+    startSizeVariation: "7"
+    endSizeVariation: "10"
+    startOpacity: "0.35"
+    endOpacity: "0.02"
+    startOpacityVariation: "0.16"
+    endOpacityVariation: "0.02"
+    maxActiveParticles: "96"
+    maxActiveParticlesVariation: "18"
+    running: "false"
+    interval: "18"
+    src: "/dist/assets/particle.png"
+  }
+}
+
+button {
+  text { Start energy }
+  onclick { document.querySelector("#energy-emitter").start(); }
+}
+
+button {
+  text { Stop energy }
+  onclick { document.querySelector("#energy-emitter").stop(); }
+}</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "3. Lifecycle and controls"
+      summary: "The emitter starts an internal requestAnimationFrame loop when connected. The loop keeps rendering, but it only creates new particles while running is true."
+      note: "stop() stops emission but existing particles continue to age out. clear() immediately removes all current particles and resets total-created counters."
+      details {
+        html { <q-editor>particle-emitter#fx {
+  running: "false"
+  emitRate: "40"
+}
+
+button { text { Start } onclick { document.querySelector("#fx").start(); } }
+button { text { Stop } onclick { document.querySelector("#fx").stop(); } }
+button { text { Clear } onclick { document.querySelector("#fx").clear(); } }</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "4. Emission attributes"
+      summary: "These attributes decide how many particles are created and when emission stops."
+      note: "Attribute names may be written in camelCase in QHTML. The browser lowercases HTML attributes, and the emitter reads both forms."
+      details {
+        html { <q-editor>emitRate: particles created per second while running is true
+lifetime: base particle lifetime in milliseconds
+lifetimeVariation: random +/- milliseconds added to lifetime
+maxActiveParticles: maximum simultaneous live particles
+maxActiveParticlesVariation: random +/- applied to the active limit
+maxParticles: maximum total particles before auto-stop; 0 means unlimited
+stopAfter: alias-style total limit used when maxParticles is not set
+running: true/false emission switch
+interval: simulation scale baseline in milliseconds
+seed: deterministic random seed
+zIndex: layer order for the emitter element</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "5. Position and motion attributes"
+      summary: "Particles are born at x/y, then receive velocity and acceleration each frame."
+      note: "Use xVariation and yVariation for spawn spread. For rising energy, place y near the container bottom and make yVelocity negative."
+      details {
+        html { <q-editor>x: spawn origin x in CSS pixels
+y: spawn origin y in CSS pixels
+xVariation: random +/- x spawn spread
+yVariation: random +/- y spawn spread
+xVelocity: horizontal velocity per simulation step
+yVelocity: vertical velocity per simulation step
+xVelocityVariation: random +/- horizontal velocity
+yVelocityVariation: random +/- vertical velocity
+xAcceleration: horizontal acceleration per simulation step
+yAcceleration: vertical acceleration per simulation step
+xAccelerationVariation: random +/- horizontal acceleration
+yAccelerationVariation: random +/- vertical acceleration</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "6. Size and opacity attributes"
+      summary: "Each particle interpolates from start values to end values over its lifetime."
+      note: "The renderer computes progress as age / lifetime. Size and opacity are then linearly interpolated from start to end."
+      details {
+        html { <q-editor>startSize: particle size at birth
+endSize: particle size at expiration
+startSizeVariation: random +/- birth size
+endSizeVariation: random +/- end size
+startOpacity: opacity at birth, clamped 0..1
+endOpacity: opacity at expiration, clamped 0..1
+startOpacityVariation: random +/- birth opacity
+endOpacityVariation: random +/- end opacity</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "7. Sprite attributes"
+      summary: "Particles draw either a composed sprite canvas or a fallback colored circle."
+      note: "If src or mask cannot be loaded, the emitter still renders with color when color is provided. Images are loaded with crossOrigin=\"anonymous\"."
+      details {
+        html { <q-editor>src: image URL for the particle sprite
+mask: optional image URL used as a destination-in alpha mask
+color: fallback fill color, or a base fill before src/mask composition</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "8. Rendering details"
+      summary: "The emitter appends a canvas inside itself and sizes that canvas from the parent element."
+      note: "The canvas backing store is scaled by devicePixelRatio, while drawing coordinates stay in CSS pixels. This keeps the effect crisp on high-DPI screens."
+      details {
+        html { <q-editor>// DOM shape after upgrade:
+&lt;div id="field" style="position: relative"&gt;
+  &lt;particle-emitter id="energy" style="position:absolute; inset:0"&gt;
+    &lt;canvas&gt;&lt;/canvas&gt;
+  &lt;/particle-emitter&gt;
+&lt;/div&gt;</q-editor> }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

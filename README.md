@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.6.0
+# QHTML.js v6.7.0
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,13 +12,13 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://github.com/qhtml/qhtml.js
 
-## Whats New in v6.6.0
+## Whats New in v6.7.0
 
-- Added `q-state-machine <name> { ... }` for declarative state-driven rendering.
-- Each state machine is a component-backed runtime host with a declared `state` q-property.
-- Changing `machine.state` swaps the active state body without remounting the whole `<q-html>` tree.
-- State machines emit a normal component `statechanged(value, previousValue, passing)` q-signal, so they work with `q-connect`, `.connect(...)`, and the existing queued signal runtime.
-- State-machine bodies can also declare component-level `q-property`, `q-signal`, and `function` members on the `<q-state-machine>` host.
+- Added the native `particle-emitter` custom element for canvas-backed particle effects from QHTML markup.
+- `particle-emitter` owns its own transparent canvas layer, seeded particle simulation, image/color sprite composition, and `start()`, `stop()`, and `clear()` controls.
+- Particle behavior is configured with attributes for emission rate, lifetime, position, velocity, acceleration, size, opacity, active limits, source image, mask, seed, and z-index.
+- Added test #120 as a visual rising-energy particle emitter using `/dist/assets/particle.png`.
+- Added full docs at `doc/11-particle-emitter/`.
 
 ## 1. Quick Start
 
@@ -587,6 +587,61 @@ Notes:
 - `q-canvas <name>` exports the canvas handle as `window.<name>` and host-scoped `<name>`.
 - `<name>.context` points to the `2d` rendering context for that specific canvas.
 - Canvas rendering can be timer-driven (`q-timer`) or signal-driven depending on your component flow.
+
+### `particle-emitter` (canvas-backed particle effects)
+
+`particle-emitter` is a native custom element registered by `qhtml.js`. It is not a `q-component` and does not require `q-components.qhtml`. Place it inside any positioned container, configure it with attributes, and control it with `start()`, `stop()`, and `clear()`.
+
+```qhtml
+div#energy-field {
+  style {
+    position: relative;
+    width: 420px;
+    height: 220px;
+    overflow: hidden;
+    background: #07111f;
+  }
+
+  particle-emitter#energy-emitter {
+    emitRate: "84"
+    lifetime: "3600"
+    lifetimeVariation: "900"
+    x: "210"
+    y: "214"
+    xVariation: "145"
+    yVariation: "8"
+    xVelocity: "0.35"
+    yVelocity: "-1.25"
+    xVelocityVariation: "0.45"
+    yVelocityVariation: "0.4"
+    xAcceleration: "0.015"
+    yAcceleration: "-0.018"
+    startSize: "10"
+    endSize: "30"
+    startOpacity: "0.35"
+    endOpacity: "0.02"
+    maxActiveParticles: "96"
+    running: "false"
+    interval: "18"
+    src: "/dist/assets/particle.png"
+  }
+}
+
+button { text { Start } onclick { document.querySelector("#energy-emitter").start(); } }
+button { text { Stop } onclick { document.querySelector("#energy-emitter").stop(); } }
+```
+
+Useful attributes:
+- `emitRate`: particles created per second while `running` is true.
+- `lifetime` / `lifetimeVariation`: how long each particle lives, in milliseconds.
+- `x`, `y`, `xVariation`, `yVariation`: spawn origin and randomized spawn spread inside the emitter container.
+- `xVelocity`, `yVelocity`, `xAcceleration`, `yAcceleration`: per-frame movement controls.
+- `startSize`, `endSize`, `startOpacity`, `endOpacity`: interpolation values over each particle lifetime.
+- `maxActiveParticles`: maximum simultaneous particles.
+- `maxParticles` or `stopAfter`: optional total particle limit before auto-stopping.
+- `src`, `mask`, `color`: sprite source, optional mask, and fallback/tint color.
+
+See `doc/11-particle-emitter/` for the full attribute reference.
 
 ### `q-spritesheet [alpha]` (component-level state machine)
 

@@ -1,5 +1,13 @@
 # QHTML.js Change Log
 
+## Whats New in v6.7.0
+
+- Added the native `particle-emitter` custom element for canvas-backed particle effects.
+- `particle-emitter` is registered by `qhtml.js`, not by `q-components.qhtml`, and exposes `start()`, `stop()`, and `clear()` controls.
+- Particle emission is configured by attributes for rate, lifetime, spawn position, variation, velocity, acceleration, size, opacity, active/total limits, sprite source, mask, seed, and z-index.
+- Updated `dist/test.html` test `120` to use a bottom-origin rising-energy emitter with `/dist/assets/particle.png`.
+- Added full documentation at `doc/11-particle-emitter/` and a README usage example.
+
 ## Whats New in v6.6.0
 
 - Added `q-state-machine <name> { ... }` for declarative state-driven rendering.

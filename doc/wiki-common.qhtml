@@ -232,6 +232,7 @@ q-component wiki-shell {
             wiki-nav-link navSignals { prefix: "/doc/" suffix: "08-signals/" label: "Signals" navKey: "signals" currentKey: "${this.component.sectionKey}" }
             wiki-nav-link navStateMachines { prefix: "/doc/" suffix: "09-state-machines/" label: "State Machines" navKey: "state-machines" currentKey: "${this.component.sectionKey}" }
             wiki-nav-link navQdomApi { prefix: "/doc/" suffix: "10-qdom-api/" label: "QDOM API" navKey: "qdom-api" currentKey: "${this.component.sectionKey}" }
+            wiki-nav-link navParticleEmitter { prefix: "/doc/" suffix: "11-particle-emitter/" label: "Particle Emitter" navKey: "particle-emitter" currentKey: "${this.component.sectionKey}" }
             wiki-nav-link navDebugTips { prefix: "/doc/" suffix: "12-debug-tips/" label: "Debug Tips" navKey: "debug-tips" currentKey: "${this.component.sectionKey}" }
             wiki-nav-link navOptionalTags { prefix: "/doc/" suffix: "13-optional-tag-libraries/" label: "Optional Tag Libraries" navKey: "optional-tags" currentKey: "${this.component.sectionKey}" }
             wiki-nav-link navModuleReadmes { prefix: "/doc/" suffix: "14-module-readmes/" label: "Module READMEs" navKey: "module-readmes" currentKey: "${this.component.sectionKey}" }
@@ -249,6 +250,7 @@ q-component wiki-shell {
             q-connect { sectionRelay.currentChanged navSignals.currentChanged }
             q-connect { sectionRelay.currentChanged navStateMachines.currentChanged }
             q-connect { sectionRelay.currentChanged navQdomApi.currentChanged }
+            q-connect { sectionRelay.currentChanged navParticleEmitter.currentChanged }
             q-connect { sectionRelay.currentChanged navDebugTips.currentChanged }
             q-connect { sectionRelay.currentChanged navOptionalTags.currentChanged }
             q-connect { sectionRelay.currentChanged navModuleReadmes.currentChanged }

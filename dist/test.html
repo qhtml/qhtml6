@@ -4585,6 +4585,82 @@ onReady {
 }
 </q-html>
       </article>
+      <article class="test-card" id="card-120">
+        <div class="test-head">
+          <h2>120. particle-emitter custom element start/stop</h2>
+          <span id="badge-120" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Start particles | Stop particles | particle-emitter canvas layer</div>
+<q-html id="host-t120" data-test-no="120">
+div#t120-system {
+  style {
+    display: block;
+    position: relative;
+    width: 420px;
+    height: 220px;
+    margin: 8px 0;
+    border: 1px solid #334155;
+    background: #07111f;
+    overflow: hidden;
+  }
+
+  particle-emitter#t120-emitter {
+    emitRate: "84"
+    lifetime: "3600"
+    lifetimeVariation: "900"
+    xVelocity: "0.35"
+    yVelocity: "-1.25"
+    xAcceleration: "0.015"
+    yAcceleration: "-0.018"
+    startSize: "10"
+    endSize: "30"
+    startOpacity: "0.35"
+    endOpacity: "0.02"
+    startSizeVariation: "7"
+    endSizeVariation: "10"
+    startOpacityVariation: "0.16"
+    endOpacityVariation: "0.02"
+    x: "210"
+    y: "214"
+    xVariation: "145"
+    yVariation: "8"
+    xVelocityVariation: "0.45"
+    yVelocityVariation: "0.4"
+    xAccelerationVariation: "0.08"
+    yAccelerationVariation: "0.05"
+    maxActiveParticles: "96"
+    maxActiveParticlesVariation: "18"
+    running: "false"
+    interval: "18"
+    src: "/dist/assets/particle.png"
+  }
+}
+
+div#t120-controls {
+  button#t120-start {
+    type: "button"
+    onclick {
+      this.closest("q-html").querySelector("#t120-emitter").start();
+      $("#t120-status").textContent = "running";
+    }
+    text { Start particles }
+  }
+  button#t120-stop {
+    type: "button"
+    onclick {
+      this.closest("q-html").querySelector("#t120-emitter").stop();
+      $("#t120-status").textContent = "stopped";
+    }
+    text { Stop particles }
+  }
+  div#t120-status { text { stopped } }
+}
+
+onReady {
+  document.querySelector("#acc-main").resultReported(120, this.innerHTML);
+}
+</q-html>
+      </article>
     </section>
   </div>
 </body>
