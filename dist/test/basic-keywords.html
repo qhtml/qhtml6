@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML Test Board - Basic Syntax and Keywords</title>
+  <script>window.QHTML_EVENT_LOOP_MODE = "queued";</script>
+  <script src="qhtml.js"></script>
+  <style>
+    :root { --bg:#eef4fb; --panel:#fff; --ink:#10243d; --edge:#d3deec; --pass:#0f7a52; --fail:#b42323; --dep:#6b7280; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:14px; background:var(--bg); color:var(--ink); font-family:"Fira Sans","Segoe UI",sans-serif; }
+    .page { max-width:1600px; margin:0 auto; display:grid; gap:12px; }
+    .panel { background:var(--panel); border:1px solid var(--edge); border-radius:10px; padding:10px 12px; }
+    .summary { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-weight:700; }
+    .summary .pass { color:var(--pass); } .summary .fail { color:var(--fail); } .summary .pending { color:#425b78; }
+    #failed-list { margin:8px 0 0 0; white-space:pre-wrap; font-family:"Fira Code",monospace; font-size:12px; line-height:1.35; color:var(--fail); }
+    .actions { display:flex; gap:8px; margin-top:8px; }
+    .actions button { border:1px solid var(--edge); background:#fff; border-radius:7px; padding:6px 10px; cursor:pointer; }
+    .tests { display:grid; gap:10px; }
+    .test-card { background:var(--panel); border:1px solid var(--edge); border-radius:10px; overflow:hidden; }
+    .test-head { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; background:#f7fbff; border-bottom:1px solid var(--edge); }
+    .test-head h2 { margin:0; font-size:14px; color:#1d4e89; }
+    .badge { font-size:12px; font-weight:700; border-radius:999px; padding:3px 8px; border:1px solid var(--edge); background:#eef4fb; color:#27415f; }
+    .badge.pass { color:var(--pass); border-color:#b7e5d5; background:#f0fdf8; }
+    .badge.fail { color:var(--fail); border-color:#f4b8b8; background:#fff1f1; }
+    .badge.deprecated { color:var(--dep); border-color:#d1d5db; background:#f9fafb; }
+    .test-expected { padding:8px 10px; border-bottom:1px dashed var(--edge); font-size:12px; color:#425b78; }
+    .test-card q-html { display:block; padding:10px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <q-html id="acc-host">
+q-component q-test-accumulator {
+  q-property manifest: q-map { }
+  q-property results: q-map { }
+  q-property manualStatus: q-map { }
+  q-signal refreshRequested()
+  q-signal resultReported(testNo, value)
+  q-signal expectedReported(testNo, expectedList)
+  q-signal passingReported(testNo, isPassing)
+  q-signal outcomeReported(testNo, isPassing, value)
+
+  function normalize(v) {
+    return String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+  }
+
+  function mapKeys(store) {
+    if (store && typeof store.keys === "function") { return store.keys(); }
+    return [];
+  }
+
+  function mapGet(store, key) {
+    if (store && typeof store.value === "function") { return store.value(key); }
+    return undefined;
+  }
+
+  function ensureModelStore(targetProp) {
+    var store = this.component[targetProp];
+    if (store && typeof store.set === "function" && typeof store.value === "function" && typeof store.keys === "function") {
+      return store;
+    }
+    var seed = {};
+    if (store && typeof store === "object") {
+      var keys = Object.keys(store);
+      for (var i = 0; i < keys.length; i += 1) {
+        seed[keys[i]] = store[keys[i]];
+      }
+    }
+    this.component[targetProp] = QModel(seed);
+    return this.component[targetProp];
+  }
+
+  function mapSet(targetProp, key, value) {
+    var store = this.component.ensureModelStore(targetProp);
+    store.set(key, value);
+  }
+
+  function doneMarkerState(testNo) {
+    var key = String(testNo || "");
+    var host = document.querySelector("#host-t" + key);
+    if (!host) { return "none"; }
+    var doneNode = host.querySelector("#t" + key + "-done");
+    if (!doneNode) { return "none"; }
+    var token = String(doneNode.textContent == null ? "" : doneNode.textContent).trim().toLowerCase();
+    if (token === "1" || token === "true" || token === "done" || token === "ok" || token === "pass") {
+      return "done";
+    }
+    return "pending";
+  }
+
+  function bootstrapManifest() {
+    var cards = document.querySelectorAll(".test-card");
+    var data = {};
+    for (var i = 0; i < cards.length; i += 1) {
+      var card = cards[i];
+      var cardId = String(card.getAttribute("id") || "");
+      if (cardId.indexOf("card-") !== 0) { continue; }
+      var key = cardId.slice(5);
+      if (!key) { continue; }
+
+      var titleNode = card.querySelector(".test-head h2");
+      var rawTitle = titleNode ? String(titleNode.textContent || "") : ("Test " + key);
+      var title = rawTitle.replace(/^\s*\d+\.\s*/, "");
+
+      var expectedNode = card.querySelector(".test-expected");
+      var expectedText = expectedNode ? String(expectedNode.textContent || "") : "";
+      expectedText = expectedText.replace(/^Expected:\s*/i, "").trim();
+      var expected = [];
+      if (expectedText) {
+        expected = expectedText.split("|").map(function(part) {
+          return String(part || "").trim();
+        }).filter(function(part) {
+          return part.length > 0;
+        });
+      }
+      var deprecated = expected.length === 1 && expected[0].toLowerCase() === "test has been deprecated";
+      data[key] = { title: title, expected: expected, deprecated: deprecated };
+    }
+    this.component.manifest = QModel(data);
+  }
+
+  function ensureManifest() {
+    var manifest = this.component.ensureModelStore("manifest");
+    var currentKeys = this.component.mapKeys(manifest);
+    var cardCount = document.querySelectorAll(".test-card[id^='card-']").length;
+    if (currentKeys.length === 0 || cardCount > currentKeys.length) {
+      this.component.bootstrapManifest();
+    }
+  }
+
+  function setExpected(testNo, expectedList) {
+    var key = String(testNo);
+    var entry = this.component.mapGet(this.component.manifest, key) || {};
+    if (!entry || typeof entry !== "object") { entry = {}; }
+    entry.expected = Array.isArray(expectedList) ? expectedList.slice() : [String(expectedList || "")];
+    this.component.mapSet("manifest", key, entry);
+  }
+
+  function setResult(testNo, value) {
+    this.component.mapSet("results", String(testNo), String(value == null ? "" : value));
+  }
+
+  function setPassing(testNo, isPassing) {
+    var key = String(testNo);
+    var value = isPassing ? "pass" : "fail";
+    this.component.mapSet("manualStatus", key, value);
+  }
+
+  function report(testNo, isPassing, value) {
+    this.component.setPassing(testNo, isPassing);
+    if (value !== undefined) {
+      this.component.setResult(testNo, value);
+    }
+    this.component.showResults();
+  }
+
+  function evaluateOne(testNo) {
+    var key = String(testNo);
+    var entry = this.component.mapGet(this.component.manifest, key) || {};
+    var expected = Array.isArray(entry.expected) ? entry.expected : [];
+    var deprecated = entry.deprecated === true;
+    var title = String(entry.title || "");
+    var actual = String(this.component.mapGet(this.component.results, key) || "");
+    var manual = this.component.ensureModelStore("manualStatus");
+    var status = "";
+    var hasResult = false;
+    hasResult = this.component.mapKeys(this.component.ensureModelStore("results")).indexOf(key) >= 0;
+    status = this.component.mapGet(manual, key);
+    if (status !== "pass" && status !== "fail" && status !== "deprecated" && deprecated) {
+      status = "deprecated";
+    }
+    if (status !== "pass" && status !== "fail" && status !== "deprecated") {
+      status = hasResult ? "pass" : "pending";
+    }
+    var doneState = this.component.doneMarkerState(key);
+    if (status !== "pass" && status !== "fail" && status !== "deprecated" && doneState === "pending") {
+      status = "pending";
+    }
+    if (status === "pass" && doneState === "pending") {
+      status = "pending";
+    }
+    if (status === "pass" && !deprecated) {
+      var normalizedActual = this.component.normalize(actual);
+      for (var i = 0; i < expected.length; i += 1) {
+        var token = this.component.normalize(expected[i]);
+        if (token && normalizedActual.indexOf(token) < 0) {
+          status = "fail";
+          break;
+        }
+      }
+    }
+    var badge = document.querySelector("#badge-" + key);
+    if (badge) {
+      badge.className = "badge " + status;
+      badge.textContent = status;
+    }
+    return { key: key, title: title, status: status, actual: actual, expected: expected };
+  }
+
+  function evaluateAll() {
+    var hosts = document.querySelectorAll("q-html[data-test-no]");
+    for (var i = 0; i < hosts.length; i += 1) {
+      var host = hosts[i];
+      var no = String(host.getAttribute("data-test-no") || "");
+      if (!no) { continue; }
+      this.component.setResult(no, host.innerHTML);
+    }
+    this.component.showResults();
+  }
+
+  function refresh() {
+    this.component.evaluateAll();
+  }
+
+  function showResults() {
+    this.component.ensureManifest();
+    var keys = this.component.mapKeys(this.component.manifest);
+    var passed = 0;
+    var failed = 0;
+    var pending = 0;
+    var lines = [];
+    for (var i = 0; i < keys.length; i += 1) {
+      var rec = this.component.evaluateOne(keys[i]);
+      if (rec.status === "pass") { passed += 1; }
+      if (rec.status === "fail") {
+        failed += 1;
+        lines.push(rec.key + ". " + rec.title + "\n  expected: " + rec.expected.join(" | ") + "\n  actual: " + this.component.normalize(rec.actual));
+      }
+      if (rec.status !== "pass" && rec.status !== "fail") { pending += 1; }
+    }
+    document.querySelector("#sum-pass").textContent = "Passes: " + String(passed);
+    document.querySelector("#sum-fail").textContent = "Failures: " + String(failed);
+    document.querySelector("#sum-pending").textContent = "Pending: " + String(pending);
+    document.querySelector("#failed-list").textContent = lines.length > 0 ? lines.join("\n\n") : "none";
+  }
+
+  onrefreshRequested {
+    this.component.refresh();
+  }
+
+  onresultReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.setResult(p.testNo, p.value);
+    this.component.showResults();
+  }
+
+  onexpectedReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.setExpected(p.testNo, p.expectedList);
+    this.component.showResults();
+  }
+
+  onpassingReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.setPassing(p.testNo, p.isPassing);
+    this.component.showResults();
+  }
+
+  onoutcomeReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.report(p.testNo, p.isPassing, p.value);
+  }
+
+  onReady {
+    try {
+      if (!this.component) { return; }
+      if (typeof this.component.bootstrapManifest === "function") {
+        this.component.bootstrapManifest();
+      }
+      if (typeof this.refreshRequested === "function") {
+        this.refreshRequested();
+      } else if (typeof this.component.refresh === "function") {
+        this.component.refresh();
+      }
+      setTimeout(function() {
+        try {
+          if (this.component && typeof this.component.refresh === "function") {
+            this.component.refresh();
+          }
+        } catch (err1) {
+          console.warn("accumulator delayed refresh(250) failed", err1);
+        }
+      }.bind(this), 250);
+      setTimeout(function() {
+        try {
+          if (this.component && typeof this.component.refresh === "function") {
+            this.component.refresh();
+          }
+        } catch (err2) {
+          console.warn("accumulator delayed refresh(1000) failed", err2);
+        }
+      }.bind(this), 1000);
+    } catch (err) {
+      console.warn("accumulator onReady failed", err);
+    }
+  }
+
+  div.panel {
+    div.summary {
+      span#sum-fail.fail { text { Failures: 0 } }
+      span#sum-pending.pending { text { Pending: 0 } }
+      span#sum-pass.pass { text { Passes: 0 } }
+    }
+    div.actions {
+      button#btn-refresh {
+        type: "button"
+        onclick {
+          var acc = document.querySelector("#acc-main");
+          if (!acc) { return; }
+          if (typeof acc.refreshRequested === "function") { acc.refreshRequested(); }
+        }
+        text { Refresh }
+      }
+      button#btn-copy {
+        type: "button"
+        onclick {
+          var txt = document.querySelector("#failed-list").textContent;
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+            navigator.clipboard.writeText(txt);
+          }
+        }
+        text { Copy Failures }
+      }
+      button#btn-loop {
+        type: "button"
+        onclick { QHtml.printEventLoopSnapshot({ limit: 80, includePayload: false }); }
+        text { Print Event Loop }
+      }
+    }
+    pre#failed-list { text { none } }
+  }
+}
+
+q-test-accumulator#acc-main { }
+
+q-timer accRefreshTimer {
+  interval: 5000
+  repeat: true
+  running: false
+  ontimeout {
+    var acc = document.querySelector("#acc-main");
+    if (!acc) { return; }
+    if (typeof acc.refreshRequested === "function") { acc.refreshRequested(); }
+  }
+}
+    </q-html>
+
+    <section class="tests">
+      <article class="test-card" id="section-info-basic-keywords">
+        <div class="test-head">
+          <h2>Basic Syntax and Keywords</h2>
+          <span class="badge pending">section</span>
+        </div>
+        <div class="test-expected"><strong>Includes:</strong> tests 1, 2, 3, 5, 6, 7, 8, 9, 13, 16, 17, 19, 20, 21, 22, 23, 24, 27, 28, 31, 32, 33, 34, 35, 36, 37, 38, 40, 44, 45, 46, 79, 80, 81, 82, 83, 93, 94, 95, 96, 97, 98, 104, 105, 106, 107, 108, 109</div>
+        <div style="padding:10px; font-size:13px; color:#425b78;">Core syntax, text/html/script blocks, macros, q-keyword, q-model, qdom helpers, for loops, q-callback, and scoped reference basics. <a href="test.html">Back to test index</a>.</div>
+      </article>
+      <article class="test-card" id="card-1">
+        <div class="test-head">
+          <h2>1. Braces + text block</h2>
+          <span id="badge-1" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> hello-world</div>
+        <q-html id="host-t1" data-test-no="1">
+div { text { hello-world } }
+
+onready {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(1, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-2">
+        <div class="test-head">
+          <h2>2. Selector chain + shorthand</h2>
+          <span id="badge-2" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> &lt;h2 id="id2"&gt;hello world&lt;/h2&gt;</div>
+        <q-html id="host-t2" data-test-no="2">
+div#my-id.my-class,span.my-class,h2#id2 { hello world }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(2, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-3">
+        <div class="test-head">
+          <h2>3. Attributes</h2>
+          <span id="badge-3" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> href="https://example.com" | Open Example</div>
+        <q-html id="host-t3" data-test-no="3">
+a { href: "https://example.com" target: "_blank" text { Open Example } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(3, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-5">
+        <div class="test-head">
+          <h2>5. HTML block</h2>
+          <span id="badge-5" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> &lt;strong&gt;Real HTML fragment&lt;/strong&gt;</div>
+        <q-html id="host-t5" data-test-no="5">
+div { html { <strong>Real HTML fragment</strong> } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(5, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-6">
+        <div class="test-head">
+          <h2>6. q-bind test</h2>
+          <span id="badge-6" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> test has been deprecated</div>
+        <q-html id="host-t6" data-test-no="6">
+div { text { test has been deprecated } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(6, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-7">
+        <div class="test-head">
+          <h2>7. q-script inline replacement</h2>
+          <span id="badge-7" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Inserted by q-script</div>
+        <q-html id="host-t7" data-test-no="7">
+div { q-script { return "p { text { Inserted by q-script } }"; } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(7, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-8">
+        <div class="test-head">
+          <h2>8. q-script assignment form</h2>
+          <span id="badge-8" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> data-note="n:5" | script-inline</div>
+        <q-html id="host-t8" data-test-no="8">
+div { data-note: q-script { return "n:" + (4 + 1) } text { q-script { return "script-inline"; } } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(8, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-9">
+        <div class="test-head">
+          <h2>9. q-macro + slot</h2>
+          <span id="badge-9" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> hello world | class="badge"</div>
+        <q-html id="host-t9" data-test-no="9">
+q-macro badge { slot { label } return { span.badge { text { ${this.slot("label")} } } } } div { badge { label { hello world } } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(9, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-13">
+        <div class="test-head">
+          <h2>13. q-keyword aliasing</h2>
+          <span id="badge-13" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> hello</div>
+        <q-html id="host-t13" data-test-no="13">
+q-keyword component { q-component } component card-box { div { text { hello } } } card-box { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(13, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-16">
+        <div class="test-head">
+          <h2>16. q-bind test</h2>
+          <span id="badge-16" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> test has been deprecated</div>
+        <q-html id="host-t16" data-test-no="16">
+div { text { test has been deprecated } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(16, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-17">
+        <div class="test-head">
+          <h2>17. q-bind test</h2>
+          <span id="badge-17" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> test has been deprecated</div>
+        <q-html id="host-t17" data-test-no="17">
+div { text { test has been deprecated } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(17, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-19">
+        <div class="test-head">
+          <h2>19. q-array as q-property</h2>
+          <span id="badge-19" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> hello world</div>
+        <q-html id="host-t19" data-test-no="19">
+q-component my-comp { q-property mydivs: q-array { "hello world", 5, q-array { "multi-dimensional", 4 } } div { text { ${this.component.mydivs[0]} } } } my-comp { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(19, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-20">
+        <div class="test-head">
+          <h2>20. q-map as q-property</h2>
+          <span id="badge-20" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> true</div>
+        <q-html id="host-t20" data-test-no="20">
+q-component my-comp { q-property settings: q-map { title: "Example" nested: q-map { enabled: true } } div { text { ${this.component.settings.nested.enabled} } } } my-comp { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(20, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-21">
+        <div class="test-head">
+          <h2>21. named q-array + q-map reuse</h2>
+          <span id="badge-21" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> 2</div>
+        <q-html id="host-t21" data-test-no="21">
+q-array shared-items {
+  1, 2, 3
+}
+q-component my-comp {
+  q-property mydivs: shared-items
+  div { text { ${this.component.mydivs[1]} } }
+}
+my-comp { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(21, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-22">
+        <div class="test-head">
+          <h2>22. property shorthand</h2>
+          <span id="badge-22" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> shorthand-ok</div>
+        <q-html id="host-t22" data-test-no="22">
+q-component short-prop { property label: "shorthand-ok" div { text { ${this.component.label} } } } short-prop { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(22, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-23">
+        <div class="test-head">
+          <h2>23. q-model basics</h2>
+          <span id="badge-23" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> &gt;3&lt;</div>
+        <q-html id="host-t23" data-test-no="23">
+q-model my-model { q-array { 5, 10 } } div#model-count { text { pending } } onReady { var model = this["my-model"]; model.add(15); document.querySelector("#model-count").textContent = String(model.count()); }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(23, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-24">
+        <div class="test-head">
+          <h2>24. q-model-view basics</h2>
+          <span id="badge-24" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> 5 | 10 | tom</div>
+        <q-html id="host-t24" data-test-no="24">
+q-array my-source { 5, 10, q-map { name: "tom" } } q-model-view { q-model { my-source } as { item } div { text { ${item && item.name ? item.name : item} } } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(24, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-27">
+        <div class="test-head">
+          <h2>27. q-signal definition slot payload</h2>
+          <span id="badge-27" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> slot-payload-ok</div>
+        <q-html id="host-t27" data-test-no="27">
+q-signal dataReady {
+  slot { value }
+}
+
+div#t27-out { text { waiting } }
+
+div#t27-carrier {
+  onDaTaReAdY {
+    $("#t27-out").textContent = event.detail.slots.value[0];
+  }
+
+  dataReady {
+    value { slot-payload-ok }
+  }
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(27, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-28">
+        <div class="test-head">
+          <h2>28. q-rewrite template-style</h2>
+          <span id="badge-28" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> rewrite-ok | &lt;strong&gt;</div>
+        <q-html id="host-t28" data-test-no="28">
+q-rewrite make-strong { slot { input } return { strong { q-script { return String(this.slot("input")); } } } } div { make-strong { rewrite-ok } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(28, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-31">
+        <div class="test-head">
+          <h2>31. qdom serialize + deserialize style flow</h2>
+          <span id="badge-31" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> one</div>
+        <q-html id="host-t31" data-test-no="31">
+div#ser { text { one } } div#out { text { pending } } onReady { var s = this.qdom().find("#ser").serialize(); this.qdom().find("#out").replaceWithQHTML(s); this.update(); }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(31, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-32">
+        <div class="test-head">
+          <h2>32. q-template basic</h2>
+          <span id="badge-32" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> template badge</div>
+        <q-html id="host-t32" data-test-no="32">
+q-template badge { span.badge { text { template badge } } } div { badge { } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(32, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-33">
+        <div class="test-head">
+          <h2>33. q-macro scoped placeholder</h2>
+          <span id="badge-33" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> value=demo-ref</div>
+        <q-html id="host-t33" data-test-no="33">
+q-macro scoped-label { slot { value } return { p { text { value=${this.slot("value")} } } } } scoped-label { value { demo-ref } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(33, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-34">
+        <div class="test-head">
+          <h2>34. q-script returns QHTML</h2>
+          <span id="badge-34" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> dynamic-node</div>
+        <q-html id="host-t34" data-test-no="34">
+q-script { return "div { text { dynamic-node } }"; }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(34, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-35">
+        <div class="test-head">
+          <h2>35. q-script returns text</h2>
+          <span id="badge-35" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> plain-text-node</div>
+        <q-html id="host-t35" data-test-no="35">
+div { q-script { return "plain-text-node"; } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(35, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-36">
+        <div class="test-head">
+          <h2>36. q-array nested access</h2>
+          <span id="badge-36" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> nested-a</div>
+        <q-html id="host-t36" data-test-no="36">
+q-component arr-comp { q-property arr: q-array { "a", "b", q-array { "nested-a", "nested-b" } } div { text { ${this.component.arr[2][0]} } } } arr-comp { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(36, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-37">
+        <div class="test-head">
+          <h2>37. q-map nested access</h2>
+          <span id="badge-37" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> MapTest - true</div>
+        <q-html id="host-t37" data-test-no="37">
+q-component map-comp { q-property settings: q-map { title: "MapTest" nested: q-map { enabled: true } } div { text { ${this.component.settings.title} - ${this.component.settings.nested.enabled} } } } map-comp { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(37, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-38">
+        <div class="test-head">
+          <h2>38. q-model from q-script source</h2>
+          <span id="badge-38" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> 3</div>
+        <q-html id="host-t38" data-test-no="38">
+q-model my-model { q-array { 1, 2, 3 } } div#mv38 { text { pending } } onReady { var m = this["my-model"]; document.querySelector("#mv38").textContent = String(m.count()); }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(38, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-40">
+        <div class="test-head">
+          <h2>40. q-bind test</h2>
+          <span id="badge-40" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> test has been deprecated</div>
+        <q-html id="host-t40" data-test-no="40">
+div { text { test has been deprecated } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(40, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-44">
+        <div class="test-head">
+          <h2>44. scoped $() selector shortcut</h2>
+          <span id="badge-44" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> sender-value</div>
+        <q-html id="host-t44" data-test-no="44">
+div#sender { text { sender-value } } div#result44 { text { pending } } onReady { $("#result44").textContent = $("#sender").textContent; }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(44, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-45">
+        <div class="test-head">
+          <h2>45. root onReady hook</h2>
+          <span id="badge-45" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> root-ready</div>
+        <q-html id="host-t45" data-test-no="45">
+onReady { this.setAttribute("data-ready", "1"); } div { text { root-ready } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(45, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-46">
+        <div class="test-head">
+          <h2>46. escaped brace in text</h2>
+          <span id="badge-46" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> hello world</div>
+        <q-html id="host-t46" data-test-no="46">
+div { text { hello world } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(46, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-79">
+        <div class="test-head">
+          <h2>79. for keyword over q-array component property</h2>
+          <span id="badge-79" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t79-one | t79-two | t79-three</div>
+        <q-html id="host-t79" data-test-no="79">
+q-component for79 {
+  q-property items: q-array { "one", "two", "three" }
+  ul#t79-list {
+    for (item in this.component.items) {
+      li { text { t79-${item} } }
+    }
+  }
+}
+
+for79 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(79, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-80">
+        <div class="test-head">
+          <h2>80. for keyword over q-component q-property</h2>
+          <span id="badge-80" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t80-aa | t80-bb | t80-cc</div>
+        <q-html id="host-t80" data-test-no="80">
+q-component forcomp80 {
+  q-property items: q-array { "aa", "bb", "cc" }
+  ul {
+    for (item in this.component.items) {
+      li { text { t80-${item} } }
+    }
+  }
+}
+
+forcomp80 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(80, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-81">
+        <div class="test-head">
+          <h2>81. for keyword over object keys and value lookup</h2>
+          <span id="badge-81" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t81-alpha:A | t81-beta:B</div>
+        <q-html id="host-t81" data-test-no="81">
+q-component for81 {
+  q-property bag: q-script { return { alpha: "A", beta: "B" } }
+  div#t81-out {
+    for (k in this.component.bag) {
+      span { text { t81-${k}:${this.component.bag[k]} } }
+    }
+  }
+}
+
+for81 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(81, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-82">
+        <div class="test-head">
+          <h2>82. for keyword over function-returned array source</h2>
+          <span id="badge-82" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t82-r1c1 | t82-r1c2 | t82-r2c1 | t82-r2c2</div>
+        <q-html id="host-t82" data-test-no="82">
+q-component for82 {
+  function rowItems() { return ["r1c1", "r1c2", "r2c1", "r2c2"] }
+  div#t82-out {
+    for (cell in this.component.rowItems()) {
+      span { text { t82-${cell} } }
+    }
+  }
+}
+
+for82 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(82, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-83">
+        <div class="test-head">
+          <h2>83. for keyword with primitive iterable source</h2>
+          <span id="badge-83" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t83-solo</div>
+        <q-html id="host-t83" data-test-no="83">
+div#t83-out {
+  for (item in "solo") {
+    span { text { t83-${item} } }
+  }
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(83, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-93">
+        <div class="test-head">
+          <h2>93. QArray JS assignment + mutate fetched model + reassign</h2>
+          <span id="badge-93" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> 0|1|2|3|4|5</div>
+        <q-html id="host-t93" data-test-no="93">
+q-component array93 {
+  q-property items: q-array { }
+  div#t93-out { text { waiting } }
+  function run() {
+    var arr = QArray([0, 1, 2]);
+    arr.push(3);
+    arr.push(4);
+    this.items = arr;
+
+    var fetched = this.items;
+    fetched.push(5);
+    this.items = fetched;
+
+    this.querySelector("#t93-out").textContent = this.items.values().join("|");
+  }
+  onReady {
+    this.run();
+  }
+}
+
+array93#t93-host { }
+
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(93, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-94">
+        <div class="test-head">
+          <h2>94. q-map JS assignment + mutate fetched model + reassign</h2>
+          <span id="badge-94" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> A|B|C|D</div>
+        <q-html id="host-t94" data-test-no="94">
+q-component map94 {
+  q-property bag: q-map { }
+  div#t94-out { text { waiting } }
+  function run() {
+    var map = QModel({ alpha: "A", beta: "B" });
+    this.bag = map;
+
+    var fetched = this.bag;
+    fetched.set("gamma", "C");
+    fetched.set("delta", "D");
+    this.bag = fetched;
+
+    var obj = this.bag.toObject();
+    this.querySelector("#t94-out").textContent = String(obj.alpha) + "|" + String(obj.beta) + "|" + String(obj.gamma) + "|" + String(obj.delta);
+  }
+  onReady {
+    this.run();
+  }
+}
+
+map94#t94-host { }
+
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(94, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-95">
+        <div class="test-head">
+          <h2>95. q-callback keyword + property reference assignment + lazy execute</h2>
+          <span id="badge-95" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> gt</div>
+        <q-html id="host-t95" data-test-no="95">
+q-callback mycallback95(v1, v2) {
+  if (v1 > v2) {
+    return "gt";
+  }
+  return "lte";
+}
+
+q-component mycomp95 {
+  q-property myprop: ""
+  div#t95-out { text { waiting } }
+}
+
+mycomp95#t95-host {
+  myprop: mycallback95
+}
+
+button#t95-btn {
+  onclick {
+    var host = document.querySelector("#t95-host");
+    host.querySelector("#t95-out").textContent = String(host.myprop(5, 2));
+  }
+  text { run }
+}
+
+onReady {
+  document.querySelector("#t95-btn").click();
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(95, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-96">
+        <div class="test-head">
+          <h2>96. q-callback preserves creator this.component scope when passed cross-component</h2>
+          <span id="badge-96" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> 2 | id="t96-maker-count"</div>
+        <q-html id="host-t96" data-test-no="96">
+q-component maker96 {
+  q-property count: 0
+  q-callback bump(step) {
+    this.component.count = Number(this.component.count || 0) + Number(step || 1);
+    return this.component.count;
+  }
+  div#t96-maker-count { text { ${this.component.count} } }
+}
+
+q-component runner96 {
+  q-property cb: ""
+  function run() {
+    var value = this.cb(2);
+    document.querySelector("#t96-run").textContent = String(value);
+  }
+}
+
+maker96#t96-maker { }
+runner96#t96-runner { }
+div#t96-run { text { waiting } }
+
+onReady {
+  var maker = document.querySelector("#t96-maker");
+  var runner = document.querySelector("#t96-runner");
+  runner.cb = maker.bump;
+  runner.run();
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(96, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-97">
+        <div class="test-head">
+          <h2>97. QCallback JS constructor assignment works on q-property</h2>
+          <span id="badge-97" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> 7</div>
+        <q-html id="host-t97" data-test-no="97">
+q-component host97 {
+  q-property cb: ""
+  div#t97-out { text { waiting } }
+  function run() {
+    this.cb = QCallback(function(a, b) {
+      return String(Number(a) + Number(b));
+    }, { creator: this });
+    this.querySelector("#t97-out").textContent = this.cb(2, 5);
+  }
+  onReady {
+    this.run();
+  }
+}
+
+host97 { }
+
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(97, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-98">
+        <div class="test-head">
+          <h2>98. q-callback declarative invocation renders qhtml(...) fragment</h2>
+          <span id="badge-98" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> frag-ok | id="t98-frag"</div>
+        <q-html id="host-t98" data-test-no="98">
+q-callback frag98() {
+  return qhtml("span#t98-frag { text { frag-ok } }");
+}
+
+div#t98-host {
+  frag98()
+}
+
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(98, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-104">
+        <div class="test-head">
+          <h2>104. rootContext property resolves in binding scope</h2>
+          <span id="badge-104" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> ctx-ok-104</div>
+        <q-html id="host-t104" data-test-no="104">
+q-component ctxprobe104 {
+  q-property out: "waiting"
+  onReady {
+    this.component.out = ${appName104};
+  }
+  div#t104-out { text { ${this.component.out} } }
+}
+
+ctxprobe104#t104-probe { }
+
+onReady {
+  if (this.getAttribute("data-t104-init") !== "1") {
+    this.setAttribute("data-t104-init", "1");
+    QHtml.rootContext.set("appName104", "ctx-ok-104");
+    this.update();
+    return;
+  }
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(104, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-105">
+        <div class="test-head">
+          <h2>105. lexical symbol shadows root context symbol</h2>
+          <span id="badge-105" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> lexical-105</div>
+        <q-html id="host-t105" data-test-no="105">
+q-component item105 {
+  q-property value: "lexical-105"
+}
+
+item105 shadowRef {
+  value: "lexical-105"
+}
+
+div#t105-out { text { ${shadowRef.value} } }
+
+onReady {
+  if (this.getAttribute("data-t105-init") !== "1") {
+    this.setAttribute("data-t105-init", "1");
+    QHtml.rootContext.set("shadowRef", QMap({ value: "root-105" }));
+    this.update();
+    return;
+  }
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(105, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-106">
+        <div class="test-head">
+          <h2>106. nested named-instance dot walk</h2>
+          <span id="badge-106" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> dotwalk-106</div>
+        <q-html id="host-t106" data-test-no="106">
+q-component leaf106 {
+  q-property value: "dotwalk-106"
+}
+
+q-component mid106 {
+  leaf106 inner106 {
+    value: "dotwalk-106"
+  }
+}
+
+mid106 outer106 { }
+
+div#t106-out { text { ${outer106.inner106.value} } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(106, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-107">
+        <div class="test-head">
+          <h2>107. unresolved reference diagnostics are deterministic</h2>
+          <span id="badge-107" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> diag-ok-107</div>
+<q-html id="host-t107" data-test-no="107">
+div#t107-inline { text { missing107 } }
+div#t107-direct { text { missing107.value } }
+div#t107-status { text { waiting } }
+
+onReady {
+  var inlineNode = this.querySelector("#t107-inline");
+  var directNode = this.querySelector("#t107-direct");
+  var statusNode = this.querySelector("#t107-status");
+  var inlineValue = inlineNode ? String(inlineNode.textContent || "").trim() : "";
+  var directValue = directNode ? String(directNode.textContent || "").trim() : "";
+  var ok = inlineValue === "missing107" && directValue === "missing107.value";
+  statusNode.textContent = ok ? "diag-ok-107" : ("diag-fail-107|" + inlineValue + "|" + directValue);
+
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(107, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-108">
+        <div class="test-head">
+          <h2>108. QContext named types scope checks + runtime alias add</h2>
+          <span id="badge-108" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> timer-in-scope | timer-out-scope | sibling-in-scope | child-out-scope | ctx108-pass</div>
+<q-html id="host-t108" data-test-no="108">
+q-component namedProbe108 {
+  q-property value: ""
+}
+
+q-timer inScopeTimer108 {
+  interval: 120
+  repeat: true
+  running: false
+  ontimeout { }
+}
+
+namedProbe108 siblingInst108 {
+  value: "sibling-108"
+}
+
+q-component childContainer108 {
+  namedProbe108 childInst108 {
+    value: "child-108"
+  }
+}
+
+q-component contextInputProbe108 {
+  q-property aliases: ""
+  q-property status: "waiting"
+
+  function readFrame(buttonEl) {
+    if (buttonEl && buttonEl.__qhtmlContextFrame && typeof buttonEl.__qhtmlContextFrame.set === "function") {
+      return buttonEl.__qhtmlContextFrame;
+    }
+    if (this.__qhtmlContextFrame && typeof this.__qhtmlContextFrame.set === "function") {
+      return this.__qhtmlContextFrame;
+    }
+    return null;
+  }
+
+  function readAliases(frame) {
+    if (!frame || typeof frame.toObject !== "function") {
+      return "";
+    }
+    var obj = frame.toObject() || {};
+    return Object.keys(obj).sort().join(",");
+  }
+
+  function addAlias(buttonEl) {
+    var nameInput = this.querySelector("#t108-name");
+    var valueInput = this.querySelector("#t108-value");
+    var aliasName = String(nameInput && nameInput.value || "").trim();
+    var aliasValue = String(valueInput && valueInput.value || "").trim();
+    var frame = this.component.readFrame(buttonEl);
+    var ok = false;
+
+    if (aliasName && frame && typeof frame.set === "function") {
+      frame.set(aliasName, aliasValue);
+      ok = typeof frame.has === "function" && frame.has(aliasName);
+      if (ok && typeof frame.get === "function") {
+        ok = String(frame.get(aliasName) || "") === aliasValue;
+      }
+    }
+
+    this.component.status = ok ? "ctx108-pass" : "ctx108-fail";
+    this.component.aliases = this.component.readAliases(frame);
+
+    var doneNode = this.querySelector("#t108-done");
+    if (doneNode) {
+      doneNode.textContent = ok ? "1" : "0";
+    }
+    var acc = document.querySelector("#acc-main");
+    var host = this.closest("q-html");
+    if (acc) {
+      acc.outcomeReported(108, ok, host ? host.innerHTML : "");
+    }
+  }
+
+  div#t108-ui {
+    input#t108-name {
+      type: "text"
+      value: "ctxAlias108"
+    }
+    input#t108-value {
+      type: "text"
+      value: "ctxValue108"
+    }
+    button#t108-add {
+      type: "button"
+      onclick {
+        this.component.addAlias(this);
+      }
+      text { Add Alias To Button Context }
+    }
+  }
+
+  div#t108-ctx-status { text { ${this.component.status} } }
+  div#t108-ctx-aliases { text { ${this.component.aliases} } }
+  div#t108-done { text { 0 } }
+}
+
+childContainer108 childContainerInst108 { }
+contextInputProbe108 ctxProbeInst108 { }
+
+div#t108-scope { text { waiting } }
+
+div#t108-summary {
+  text { ${ctxProbeInst108.status} | ${ctxProbeInst108.aliases} }
+}
+
+onReady {
+  var timerInScope =
+    (typeof inScopeTimer108 !== "undefined" && typeof inScopeTimer108.start === "function")
+      ? "timer-in-scope"
+      : "timer-miss";
+  var timerOutScope =
+    (typeof outScopeTimer108 === "undefined")
+      ? "timer-out-scope"
+      : "timer-leak";
+  var siblingScope =
+    (typeof siblingInst108 !== "undefined" && siblingInst108.value === "sibling-108")
+      ? "sibling-in-scope"
+      : "sibling-miss";
+  var childScope =
+    (typeof childInst108 === "undefined")
+      ? "child-out-scope"
+      : "child-leak";
+  var scopeNode = this.querySelector("#t108-scope");
+  if (scopeNode) {
+    scopeNode.textContent = timerInScope + " | " + timerOutScope + " | " + siblingScope + " | " + childScope;
+  }
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(108, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-109">
+        <div class="test-head">
+          <h2>109. q-connect declarative signal wiring (scope + querySelector)</h2>
+          <span id="badge-109" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> scope-connect-109 | qs-connect-109</div>
+<q-html id="host-t109" data-test-no="109">
+q-component sender109 {
+  q-signal ping(message)
+  function fire(message) {
+    this.ping(message);
+  }
+}
+
+q-component receiver109 {
+  q-property value: "waiting"
+  function onPing(message) {
+    this.component.value = message;
+  }
+}
+
+sender109 senderScope109 { id: "t109-s1" }
+receiver109 receiverScope109 { id: "t109-r1" }
+
+sender109 senderQuery109 { id: "t109-s2" }
+receiver109 receiverQuery109 { id: "t109-r2" }
+
+q-connect { senderScope109.ping receiverScope109.onPing }
+q-connect { document.querySelector("#t109-s2").ping document.querySelector("#t109-r2").onPing }
+
+div#t109-out1 { text { ${receiverScope109.value} } }
+div#t109-out2 { text { ${receiverQuery109.value} } }
+
+onReady {
+  senderScope109.fire("scope-connect-109");
+  senderQuery109.fire("qs-connect-109");
+  var acc = document.querySelector("#acc-main");
+  var host = this;
+  setTimeout(function() {
+    var out1 = host.querySelector("#t109-out1");
+    var out2 = host.querySelector("#t109-out2");
+    if (out1) {
+      out1.textContent = receiverScope109.value;
+    }
+    if (out2) {
+      out2.textContent = receiverQuery109.value;
+    }
+    if (acc && typeof acc.resultReported === "function") {
+      acc.resultReported(109, host.innerHTML);
+    }
+  }, 30);
+}
+</q-html>
+      </article>
+    </section>
+  </div>
+</body>
+</html>

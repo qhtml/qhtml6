@@ -5,6 +5,9 @@
 - Moved the native `particle-emitter` implementation into `src/particle-emitter.js` so release bundle rebuilds preserve the custom element.
 - Updated the release bundle source list to include `src/particle-emitter.js`.
 - Refined particle sprite color composition so `color` tints only the existing sprite alpha instead of painting a rectangular background.
+- Added `q-particle-emitter` as a custom element alias for `particle-emitter`.
+- Added a particle test that applies an SVG star mask asset through the emitter `mask` attribute.
+- Added a reflected boolean `running` property to `particle-emitter` / `q-particle-emitter` so QHTML handlers can use `emitter.running = true/false`.
 
 ## Whats New in v6.7.0
 

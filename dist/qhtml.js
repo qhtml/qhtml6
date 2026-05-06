@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-05T20:09:22Z */
+/* generated: 2026-05-06T07:08:13Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -44476,6 +44476,8 @@
 
   if (existingParticleEmitter) {
     installParticleEmitterControls(existingParticleEmitter.prototype);
+    global.ParticleEmitterElement = existingParticleEmitter;
+    defineParticleEmitterAlias(existingParticleEmitter);
     return;
   }
 
@@ -44592,12 +44594,20 @@
       this._applyLayerStyle();
     }
 
+    get running() {
+      return readBool(this, "running", false);
+    }
+
+    set running(value) {
+      this.setAttribute("running", value ? "true" : "false");
+    }
+
     start() {
-      this.setAttribute("running", "true");
+      this.running = true;
     }
 
     stop() {
-      this.setAttribute("running", "false");
+      this.running = false;
     }
 
     clear() {
@@ -45076,13 +45086,25 @@
     }
     if (typeof proto.start !== "function") {
       proto.start = function startParticleEmitter() {
-        this.setAttribute("running", "true");
+        this.running = true;
       };
     }
     if (typeof proto.stop !== "function") {
       proto.stop = function stopParticleEmitter() {
-        this.setAttribute("running", "false");
+        this.running = false;
       };
+    }
+    if (!Object.getOwnPropertyDescriptor(proto, "running")) {
+      Object.defineProperty(proto, "running", {
+        configurable: true,
+        enumerable: true,
+        get() {
+          return readBool(this, "running", false);
+        },
+        set(value) {
+          this.setAttribute("running", value ? "true" : "false");
+        },
+      });
     }
     if (typeof proto.clear !== "function") {
       proto.clear = function clearParticleEmitter() {
@@ -45098,10 +45120,30 @@
     }
   }
 
+  function defineParticleEmitterAlias(BaseElement) {
+    const existingAlias = global.customElements.get("q-particle-emitter");
+
+    if (existingAlias) {
+      installParticleEmitterControls(existingAlias.prototype);
+      global.QParticleEmitterElement = existingAlias;
+      return;
+    }
+
+    if (!BaseElement) {
+      return;
+    }
+
+    class QParticleEmitterElement extends BaseElement {}
+
+    installParticleEmitterControls(QParticleEmitterElement.prototype);
+    global.QParticleEmitterElement = QParticleEmitterElement;
+    global.customElements.define("q-particle-emitter", QParticleEmitterElement);
+  }
+
   installParticleEmitterControls(ParticleEmitterElement.prototype);
   global.ParticleEmitterElement = ParticleEmitterElement;
   global.customElements.define("particle-emitter", ParticleEmitterElement);
+  defineParticleEmitterAlias(ParticleEmitterElement);
 })(typeof globalThis !== "undefined" ? globalThis : window);
-
 
 /*** END: src/particle-emitter.js ***/

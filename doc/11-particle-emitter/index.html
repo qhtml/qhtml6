@@ -17,12 +17,12 @@ q-import { ../wiki-common.qhtml }
 wiki-shell {
   sectionKey: "particle-emitter"
   pageTitle: "Particle Emitter"
-  pageIntro: "particle-emitter is a native custom element registered by qhtml.js. It creates a transparent canvas layer inside its parent and simulates particles without creating one DOM node per particle."
+  pageIntro: "particle-emitter is a native custom element registered by qhtml.js. q-particle-emitter is an alias for the same emitter system. It creates a transparent canvas layer inside its parent and simulates particles without creating one DOM node per particle."
   main {
     wiki-example-card {
       title: "1. Mental model"
       summary: "Use particle-emitter when you want a visual particle effect from declarative QHTML attributes."
-      note: "The element is not a q-component. It is a framework-registered custom element, so it works in plain HTML and in QHTML-rendered markup. Each emitter owns one canvas, one particle array, one seeded random generator, and one animation loop."
+      note: "The element is not a q-component. It is a framework-registered custom element, so it works in plain HTML and in QHTML-rendered markup. Use particle-emitter or q-particle-emitter interchangeably. Each emitter owns one canvas, one particle array, one seeded random generator, and one animation loop."
       details {
         html { <q-editor>div#field {
   style {
@@ -89,12 +89,12 @@ wiki-shell {
 
 button {
   text { Start energy }
-  onclick { document.querySelector("#energy-emitter").start(); }
+  onclick { document.querySelector("#energy-emitter").running = true; }
 }
 
 button {
   text { Stop energy }
-  onclick { document.querySelector("#energy-emitter").stop(); }
+  onclick { document.querySelector("#energy-emitter").running = false; }
 }</q-editor> }
       }
     }
@@ -102,15 +102,15 @@ button {
     wiki-example-card {
       title: "3. Lifecycle and controls"
       summary: "The emitter starts an internal requestAnimationFrame loop when connected. The loop keeps rendering, but it only creates new particles while running is true."
-      note: "stop() stops emission but existing particles continue to age out. clear() immediately removes all current particles and resets total-created counters."
+      note: "Setting running to false or calling stop() stops emission but existing particles continue to age out. clear() immediately removes all current particles and resets total-created counters."
       details {
         html { <q-editor>particle-emitter#fx {
   running: "false"
   emitRate: "40"
 }
 
-button { text { Start } onclick { document.querySelector("#fx").start(); } }
-button { text { Stop } onclick { document.querySelector("#fx").stop(); } }
+button { text { Start } onclick { document.querySelector("#fx").running = true; } }
+button { text { Stop } onclick { document.querySelector("#fx").running = false; } }
 button { text { Clear } onclick { document.querySelector("#fx").clear(); } }</q-editor> }
       }
     }
@@ -127,7 +127,7 @@ maxActiveParticles: maximum simultaneous live particles
 maxActiveParticlesVariation: random +/- applied to the active limit
 maxParticles: maximum total particles before auto-stop; 0 means unlimited
 stopAfter: alias-style total limit used when maxParticles is not set
-running: true/false emission switch
+running: true/false emission switch and reflected JS property
 interval: simulation scale baseline in milliseconds
 seed: deterministic random seed
 zIndex: layer order for the emitter element</q-editor> }
@@ -173,10 +173,10 @@ endOpacityVariation: random +/- end opacity</q-editor> }
     wiki-example-card {
       title: "7. Sprite attributes"
       summary: "Particles draw either a composed sprite canvas or a fallback colored circle."
-      note: "If src or mask cannot be loaded, the emitter still renders with color when color is provided. Images are loaded with crossOrigin=\"anonymous\"."
+      note: "The mask is applied to each particle sprite's alpha, not to the whole emitter canvas. If src and mask are both provided, the mask alpha clips the source alpha. If only mask is provided, the mask becomes the particle shape. Changing mask at runtime reloads and recomposes the sprite. Images are loaded with crossOrigin=\"anonymous\"."
       details {
         html { <q-editor>src: image URL for the particle sprite
-mask: optional image URL used as a destination-in alpha mask
+mask: optional image URL used as a per-particle destination-in alpha mask
 color: fallback fill color, or a base fill before src/mask composition</q-editor> }
       }
     }

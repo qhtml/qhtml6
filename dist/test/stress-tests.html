@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML Test Board - Stress Tests</title>
+  <script>window.QHTML_EVENT_LOOP_MODE = "queued";</script>
+  <script src="qhtml.js"></script>
+  <style>
+    :root { --bg:#eef4fb; --panel:#fff; --ink:#10243d; --edge:#d3deec; --pass:#0f7a52; --fail:#b42323; --dep:#6b7280; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:14px; background:var(--bg); color:var(--ink); font-family:"Fira Sans","Segoe UI",sans-serif; }
+    .page { max-width:1600px; margin:0 auto; display:grid; gap:12px; }
+    .panel { background:var(--panel); border:1px solid var(--edge); border-radius:10px; padding:10px 12px; }
+    .summary { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-weight:700; }
+    .summary .pass { color:var(--pass); } .summary .fail { color:var(--fail); } .summary .pending { color:#425b78; }
+    #failed-list { margin:8px 0 0 0; white-space:pre-wrap; font-family:"Fira Code",monospace; font-size:12px; line-height:1.35; color:var(--fail); }
+    .actions { display:flex; gap:8px; margin-top:8px; }
+    .actions button { border:1px solid var(--edge); background:#fff; border-radius:7px; padding:6px 10px; cursor:pointer; }
+    .tests { display:grid; gap:10px; }
+    .test-card { background:var(--panel); border:1px solid var(--edge); border-radius:10px; overflow:hidden; }
+    .test-head { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; background:#f7fbff; border-bottom:1px solid var(--edge); }
+    .test-head h2 { margin:0; font-size:14px; color:#1d4e89; }
+    .badge { font-size:12px; font-weight:700; border-radius:999px; padding:3px 8px; border:1px solid var(--edge); background:#eef4fb; color:#27415f; }
+    .badge.pass { color:var(--pass); border-color:#b7e5d5; background:#f0fdf8; }
+    .badge.fail { color:var(--fail); border-color:#f4b8b8; background:#fff1f1; }
+    .badge.deprecated { color:var(--dep); border-color:#d1d5db; background:#f9fafb; }
+    .test-expected { padding:8px 10px; border-bottom:1px dashed var(--edge); font-size:12px; color:#425b78; }
+    .test-card q-html { display:block; padding:10px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <q-html id="acc-host">
+q-component q-test-accumulator {
+  q-property manifest: q-map { }
+  q-property results: q-map { }
+  q-property manualStatus: q-map { }
+  q-signal refreshRequested()
+  q-signal resultReported(testNo, value)
+  q-signal expectedReported(testNo, expectedList)
+  q-signal passingReported(testNo, isPassing)
+  q-signal outcomeReported(testNo, isPassing, value)
+
+  function normalize(v) {
+    return String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+  }
+
+  function mapKeys(store) {
+    if (store && typeof store.keys === "function") { return store.keys(); }
+    return [];
+  }
+
+  function mapGet(store, key) {
+    if (store && typeof store.value === "function") { return store.value(key); }
+    return undefined;
+  }
+
+  function ensureModelStore(targetProp) {
+    var store = this.component[targetProp];
+    if (store && typeof store.set === "function" && typeof store.value === "function" && typeof store.keys === "function") {
+      return store;
+    }
+    var seed = {};
+    if (store && typeof store === "object") {
+      var keys = Object.keys(store);
+      for (var i = 0; i < keys.length; i += 1) {
+        seed[keys[i]] = store[keys[i]];
+      }
+    }
+    this.component[targetProp] = QModel(seed);
+    return this.component[targetProp];
+  }
+
+  function mapSet(targetProp, key, value) {
+    var store = this.component.ensureModelStore(targetProp);
+    store.set(key, value);
+  }
+
+  function doneMarkerState(testNo) {
+    var key = String(testNo || "");
+    var host = document.querySelector("#host-t" + key);
+    if (!host) { return "none"; }
+    var doneNode = host.querySelector("#t" + key + "-done");
+    if (!doneNode) { return "none"; }
+    var token = String(doneNode.textContent == null ? "" : doneNode.textContent).trim().toLowerCase();
+    if (token === "1" || token === "true" || token === "done" || token === "ok" || token === "pass") {
+      return "done";
+    }
+    return "pending";
+  }
+
+  function bootstrapManifest() {
+    var cards = document.querySelectorAll(".test-card");
+    var data = {};
+    for (var i = 0; i < cards.length; i += 1) {
+      var card = cards[i];
+      var cardId = String(card.getAttribute("id") || "");
+      if (cardId.indexOf("card-") !== 0) { continue; }
+      var key = cardId.slice(5);
+      if (!key) { continue; }
+
+      var titleNode = card.querySelector(".test-head h2");
+      var rawTitle = titleNode ? String(titleNode.textContent || "") : ("Test " + key);
+      var title = rawTitle.replace(/^\s*\d+\.\s*/, "");
+
+      var expectedNode = card.querySelector(".test-expected");
+      var expectedText = expectedNode ? String(expectedNode.textContent || "") : "";
+      expectedText = expectedText.replace(/^Expected:\s*/i, "").trim();
+      var expected = [];
+      if (expectedText) {
+        expected = expectedText.split("|").map(function(part) {
+          return String(part || "").trim();
+        }).filter(function(part) {
+          return part.length > 0;
+        });
+      }
+      var deprecated = expected.length === 1 && expected[0].toLowerCase() === "test has been deprecated";
+      data[key] = { title: title, expected: expected, deprecated: deprecated };
+    }
+    this.component.manifest = QModel(data);
+  }
+
+  function ensureManifest() {
+    var manifest = this.component.ensureModelStore("manifest");
+    var currentKeys = this.component.mapKeys(manifest);
+    var cardCount = document.querySelectorAll(".test-card[id^='card-']").length;
+    if (currentKeys.length === 0 || cardCount > currentKeys.length) {
+      this.component.bootstrapManifest();
+    }
+  }
+
+  function setExpected(testNo, expectedList) {
+    var key = String(testNo);
+    var entry = this.component.mapGet(this.component.manifest, key) || {};
+    if (!entry || typeof entry !== "object") { entry = {}; }
+    entry.expected = Array.isArray(expectedList) ? expectedList.slice() : [String(expectedList || "")];
+    this.component.mapSet("manifest", key, entry);
+  }
+
+  function setResult(testNo, value) {
+    this.component.mapSet("results", String(testNo), String(value == null ? "" : value));
+  }
+
+  function setPassing(testNo, isPassing) {
+    var key = String(testNo);
+    var value = isPassing ? "pass" : "fail";
+    this.component.mapSet("manualStatus", key, value);
+  }
+
+  function report(testNo, isPassing, value) {
+    this.component.setPassing(testNo, isPassing);
+    if (value !== undefined) {
+      this.component.setResult(testNo, value);
+    }
+    this.component.showResults();
+  }
+
+  function evaluateOne(testNo) {
+    var key = String(testNo);
+    var entry = this.component.mapGet(this.component.manifest, key) || {};
+    var expected = Array.isArray(entry.expected) ? entry.expected : [];
+    var deprecated = entry.deprecated === true;
+    var title = String(entry.title || "");
+    var actual = String(this.component.mapGet(this.component.results, key) || "");
+    var manual = this.component.ensureModelStore("manualStatus");
+    var status = "";
+    var hasResult = false;
+    hasResult = this.component.mapKeys(this.component.ensureModelStore("results")).indexOf(key) >= 0;
+    status = this.component.mapGet(manual, key);
+    if (status !== "pass" && status !== "fail" && status !== "deprecated" && deprecated) {
+      status = "deprecated";
+    }
+    if (status !== "pass" && status !== "fail" && status !== "deprecated") {
+      status = hasResult ? "pass" : "pending";
+    }
+    var doneState = this.component.doneMarkerState(key);
+    if (status !== "pass" && status !== "fail" && status !== "deprecated" && doneState === "pending") {
+      status = "pending";
+    }
+    if (status === "pass" && doneState === "pending") {
+      status = "pending";
+    }
+    if (status === "pass" && !deprecated) {
+      var normalizedActual = this.component.normalize(actual);
+      for (var i = 0; i < expected.length; i += 1) {
+        var token = this.component.normalize(expected[i]);
+        if (token && normalizedActual.indexOf(token) < 0) {
+          status = "fail";
+          break;
+        }
+      }
+    }
+    var badge = document.querySelector("#badge-" + key);
+    if (badge) {
+      badge.className = "badge " + status;
+      badge.textContent = status;
+    }
+    return { key: key, title: title, status: status, actual: actual, expected: expected };
+  }
+
+  function evaluateAll() {
+    var hosts = document.querySelectorAll("q-html[data-test-no]");
+    for (var i = 0; i < hosts.length; i += 1) {
+      var host = hosts[i];
+      var no = String(host.getAttribute("data-test-no") || "");
+      if (!no) { continue; }
+      this.component.setResult(no, host.innerHTML);
+    }
+    this.component.showResults();
+  }
+
+  function refresh() {
+    this.component.evaluateAll();
+  }
+
+  function showResults() {
+    this.component.ensureManifest();
+    var keys = this.component.mapKeys(this.component.manifest);
+    var passed = 0;
+    var failed = 0;
+    var pending = 0;
+    var lines = [];
+    for (var i = 0; i < keys.length; i += 1) {
+      var rec = this.component.evaluateOne(keys[i]);
+      if (rec.status === "pass") { passed += 1; }
+      if (rec.status === "fail") {
+        failed += 1;
+        lines.push(rec.key + ". " + rec.title + "\n  expected: " + rec.expected.join(" | ") + "\n  actual: " + this.component.normalize(rec.actual));
+      }
+      if (rec.status !== "pass" && rec.status !== "fail") { pending += 1; }
+    }
+    document.querySelector("#sum-pass").textContent = "Passes: " + String(passed);
+    document.querySelector("#sum-fail").textContent = "Failures: " + String(failed);
+    document.querySelector("#sum-pending").textContent = "Pending: " + String(pending);
+    document.querySelector("#failed-list").textContent = lines.length > 0 ? lines.join("\n\n") : "none";
+  }
+
+  onrefreshRequested {
+    this.component.refresh();
+  }
+
+  onresultReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.setResult(p.testNo, p.value);
+    this.component.showResults();
+  }
+
+  onexpectedReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.setExpected(p.testNo, p.expectedList);
+    this.component.showResults();
+  }
+
+  onpassingReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.setPassing(p.testNo, p.isPassing);
+    this.component.showResults();
+  }
+
+  onoutcomeReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.report(p.testNo, p.isPassing, p.value);
+  }
+
+  onReady {
+    try {
+      if (!this.component) { return; }
+      if (typeof this.component.bootstrapManifest === "function") {
+        this.component.bootstrapManifest();
+      }
+      if (typeof this.refreshRequested === "function") {
+        this.refreshRequested();
+      } else if (typeof this.component.refresh === "function") {
+        this.component.refresh();
+      }
+      setTimeout(function() {
+        try {
+          if (this.component && typeof this.component.refresh === "function") {
+            this.component.refresh();
+          }
+        } catch (err1) {
+          console.warn("accumulator delayed refresh(250) failed", err1);
+        }
+      }.bind(this), 250);
+      setTimeout(function() {
+        try {
+          if (this.component && typeof this.component.refresh === "function") {
+            this.component.refresh();
+          }
+        } catch (err2) {
+          console.warn("accumulator delayed refresh(1000) failed", err2);
+        }
+      }.bind(this), 1000);
+    } catch (err) {
+      console.warn("accumulator onReady failed", err);
+    }
+  }
+
+  div.panel {
+    div.summary {
+      span#sum-fail.fail { text { Failures: 0 } }
+      span#sum-pending.pending { text { Pending: 0 } }
+      span#sum-pass.pass { text { Passes: 0 } }
+    }
+    div.actions {
+      button#btn-refresh {
+        type: "button"
+        onclick {
+          var acc = document.querySelector("#acc-main");
+          if (!acc) { return; }
+          if (typeof acc.refreshRequested === "function") { acc.refreshRequested(); }
+        }
+        text { Refresh }
+      }
+      button#btn-copy {
+        type: "button"
+        onclick {
+          var txt = document.querySelector("#failed-list").textContent;
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+            navigator.clipboard.writeText(txt);
+          }
+        }
+        text { Copy Failures }
+      }
+      button#btn-loop {
+        type: "button"
+        onclick { QHtml.printEventLoopSnapshot({ limit: 80, includePayload: false }); }
+        text { Print Event Loop }
+      }
+    }
+    pre#failed-list { text { none } }
+  }
+}
+
+q-test-accumulator#acc-main { }
+
+q-timer accRefreshTimer {
+  interval: 5000
+  repeat: true
+  running: false
+  ontimeout {
+    var acc = document.querySelector("#acc-main");
+    if (!acc) { return; }
+    if (typeof acc.refreshRequested === "function") { acc.refreshRequested(); }
+  }
+}
+    </q-html>
+
+    <section class="tests">
+      <article class="test-card" id="section-info-stress-tests">
+        <div class="test-head">
+          <h2>Stress Tests</h2>
+          <span class="badge pending">section</span>
+        </div>
+        <div class="test-expected"><strong>Includes:</strong> tests 49, 67, 88, 89, 90, 91, 92</div>
+        <div style="padding:10px; font-size:13px; color:#425b78;">Higher-load model/view, UUID lookup, fan-out, randomized component, and regression stress coverage. <a href="test.html">Back to test index</a>.</div>
+      </article>
+      <article class="test-card" id="card-49">
+        <div class="test-head">
+          <h2>49. q-model-view randomized components with timers</h2>
+          <span id="badge-49" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t49-model-view-randomize | Start timers | Status: | Ticks:</div>
+        <q-html id="host-t49" data-test-no="49">
+q-component mycomp {
+  q-property randomText: "0"
+  div.randomText { text { ${this.component.randomText} } }
+  onrandomTextChanged {
+    this.querySelector(".randomText").innerHTML = String(this.randomText)
+  }
+  function randomize() {
+    var randomString = "";
+    var randomLettersStr = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    var randomLetters = randomLettersStr.split("");
+    for (var i=0; i<24; i++) {
+      randomString = randomString + randomLetters[(Math.floor(Math.random() * randomLetters.length - 1))]
+
+  }
+  this.randomText = randomString;
+  }
+}
+
+q-array t49-model {
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+  11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+  21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+  31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+  41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+}
+
+div#t49-title { text { t49-model-view-randomize } }
+button#t49-start {
+  type: "button"
+  text { Start timers }
+  onclick {
+    if ($("#t49-status").textContent === "running") {
+      return
+    }
+    $("#t49-status").textContent = "running"
+    this.disabled = true
+    $("#t49-ticks").textContent = "0"
+    t49MainTimer.start()
+    t49EndTimer.start()
+  }
+}
+div { text { Status: } } div#t49-status { text { idle } }
+div { text { Ticks: } } div#t49-ticks { text { 0 } }
+
+q-model-view {
+  q-model { t49-model }
+  as { index }
+  mycomp { }
+}
+
+q-timer t49MainTimer {
+  repeat: true
+  interval: 60
+  running: false
+  ontimeout {
+    var nodes = document.querySelectorAll("#host-t49 mycomp")
+    var i = 0
+    while (i < nodes.length) {
+      nodes[i].randomize()
+      i = i + 1
+    }
+    var tick = document.querySelector("#host-t49 #t49-ticks")
+    tick.textContent = String(Number(tick.textContent || "0") + 1)
+  }
+}
+
+q-timer t49EndTimer {
+  repeat: false
+  interval: 30000
+  running: false
+  ontimeout {
+    t49MainTimer.stop()
+    document.querySelector("#host-t49 #t49-status").textContent = "stopped"
+    document.querySelector("#host-t49 #t49-start").disabled = false
+  }
+}
+
+onReady {
+  document.querySelector("#host-t49 #t49-status").textContent = "idle"
+  document.querySelector("#host-t49 #t49-start").disabled = false
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(49, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-67">
+        <div class="test-head">
+          <h2>67. extends q-model-view inheritance chain + timer probe</h2>
+          <span id="badge-67" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> inherited components that inherit components 1 | what about inherited stuff form test-comp1? 1 | hello world | testing 1 2 3</div>
+        <q-html id="host-t67" data-test-no="67">
+q-import { q-components.qhtml }
+
+q-component test-comp1 extends q-model-view {
+  model { q-array { 1, 2, 3, 4, 5 } }
+  as { item }
+  div#test-div1 {
+    text { inherited components that inherit components ${this.component.item} }
+    slot { main-slot }
+  }
+}
+
+q-component test-comp2 extends test-comp1 {
+  as { item2 }
+  div#test-div2 {
+    text { what about inherited stuff form test-comp1? ${this.component.item2 || this.component.item} }
+  }
+}
+
+test-comp1#tc1 {
+  main-slot { span { text { hello world } } }
+}
+
+test-comp2#tc2 {
+  main-slot { span { text { testing 1 2 3 } } }
+}
+
+q-timer testtimer67 {
+  interval: 15000
+  repeat: false
+  ontimeout { console.log(document.querySelector("#tc2")) }
+  running: true
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(67, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-88">
+        <div class="test-head">
+          <h2>88. UUID maps + uuidFor/qdomForUuid/elementForUuid</h2>
+          <span id="badge-88" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> uuid|map|lookup|qdom|element</div>
+        <q-html id="host-t88" data-test-no="88">
+div#t88-node {
+  text { uuid-target }
+}
+div#t88-out { text { waiting } }
+onReady {
+  var host = this;
+  var node = $("#t88-node");
+  var uuid = host.uuidFor(node);
+  var hasMap = !!(window.QHTML_UUID_MAP && uuid && window.QHTML_UUID_MAP.has(uuid));
+  var hasLookup = !!(window.QHTML_UUID_LOOKUP_MAP && uuid && window.QHTML_UUID_LOOKUP_MAP.has(uuid));
+  var q = uuid ? host.qdomForUuid(uuid) : null;
+  var sameElement = uuid ? host.elementForUuid(uuid) === node : false;
+  var ok =
+    !!uuid &&
+    hasMap &&
+    hasLookup &&
+    !!(q && String(q.tagName || "").toLowerCase() === "div") &&
+    sameElement;
+  $("#t88-out").textContent = ok ? "uuid|map|lookup|qdom|element" : "fail";
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(88, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-89">
+        <div class="test-head">
+          <h2>89. declaration UUID lookup coverage (q-property/q-signal)</h2>
+          <span id="badge-89" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> prop-uuid|signal-uuid|lookup-prop|lookup-signal</div>
+        <q-html id="host-t89" data-test-no="89">
+q-component decl89 {
+  q-property count
+  q-signal done(value)
+  div { text { decl89 } }
+}
+decl89#t89-inst { }
+div#t89-out { text { waiting } }
+onReady {
+  var map = window.QHTML_UUID_LOOKUP_MAP;
+  var prop = 0;
+  var sig = 0;
+  if (map && typeof map.forEach === "function") {
+    map.forEach(function(entry) {
+      var t = String(entry && entry.entityType || "");
+      if (t === "q-property-declaration") { prop = prop + 1; }
+      if (t === "q-signal-declaration") { sig = sig + 1; }
+    });
+  }
+  $("#t89-out").textContent = (prop > 0 && sig > 0) ? "prop-uuid|signal-uuid|lookup-prop|lookup-signal" : "fail";
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(89, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-90">
+        <div class="test-head">
+          <h2>90. lookupUuid facade children()</h2>
+          <span id="badge-90" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> children-ok</div>
+        <q-html id="host-t90" data-test-no="90">
+div#t90-parent {
+  span#t90-child { text { child90 } }
+}
+div#t90-out { text { waiting } }
+onReady {
+  var host = this;
+  var parent = $("#t90-parent");
+  var uuid = host.uuidFor(parent);
+  var proxy = uuid ? host.lookupUuid(uuid) : null;
+  var kids = proxy ? proxy.children().toArray() : [];
+  var first = kids.length > 0 ? kids[0] : null;
+  var ok = kids.length === 1 && first && String(first.tagName || "").toLowerCase() === "span";
+  $("#t90-out").textContent = ok ? "children-ok" : "fail";
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(90, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-91">
+        <div class="test-head">
+          <h2>91. UUID lookup miss soft-fail</h2>
+          <span id="badge-91" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> miss-ok</div>
+        <q-html id="host-t91" data-test-no="91">
+div#t91-out { text { waiting } }
+onReady {
+  var host = this;
+  var a = host.lookupUuid("missing-uuid-value");
+  var b = host.qdomForUuid("missing-uuid-value");
+  var c = host.elementForUuid("missing-uuid-value");
+  $("#t91-out").textContent = (a === null && b === null && c === null) ? "miss-ok" : "miss-fail";
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(91, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-92">
+        <div class="test-head">
+          <h2>92. q-signal fan-out with q-array driven instances (50/100/250/500/1000)</h2>
+          <span id="badge-92" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> connections-ready | size= | connected= | mutated=</div>
+        <q-html id="host-t92" data-test-no="92">
+q-component test-component92-1 {
+  q-property currentText: "0"
+  function mutate() {
+    this.component.currentText = String(Math.random());
+  }
+  function setInnerText(newText) {
+    var node = this.querySelector(".t92-text");
+    if (node) {
+      node.innerText = String(newText);
+    }
+  }
+  oncurrentTextchanged {
+    this.component.setInnerText(this.component.currentText);
+  }
+  div,span.t92-text { text { ${this.component.currentText} } }
+}
+
+q-component test-component92-2 {
+  q-signal mysignal()
+  q-property instances: q-array { }
+
+  div.t92-list {
+    for (item in this.component.instances.values()) {
+      test-component92-1 { }
+    }
+  }
+
+  function clearConnections() {
+    var handlers = this.component.__t92Handlers;
+    if (!Array.isArray(handlers) || typeof this.component.mysignal !== "function") {
+      this.component.__t92Handlers = [];
+      return;
+    }
+    for (var i = 0; i < handlers.length; i += 1) {
+      this.component.mysignal.disconnect(handlers[i]);
+    }
+    this.component.__t92Handlers = [];
+  }
+
+  function createConnections() {
+    this.component.clearConnections();
+    var handlers = [];
+    var targets = Array.from(document.querySelectorAll("#t92-hub test-component92-1"));
+    var signal = this.component.mysignal;
+    targets.forEach(function(target) {
+      if (!target || typeof target.mutate !== "function") {
+        return;
+      }
+      var h = function() { target.mutate(); };
+      handlers.push(h);
+      signal.connect(h);
+    });
+    this.component.__t92Handlers = handlers;
+    return targets.length;
+  }
+}
+
+div#t92-controls {
+  button#t92-start-5 { type: "button" text { start 5 } }
+  button#t92-start-10 { type: "button" text { start 10 } }
+  button#t92-start-50 { type: "button" text { start 50 } }
+  button#t92-start-100 { type: "button" text { start 100 } }
+  button#t92-start-250 { type: "button" text { start 250 } }
+  button#t92-start-500 { type: "button" text { start 500 } }
+  button#t92-start-1000 { type: "button" text { start 1000 } }
+  button#t92-start-2000 { type: "button" text { start 2000 } }
+}
+div#t92-status { text { waiting } }
+div#t92-results { text { waiting } }
+div#t92-done { text { 0 } }
+test-component92-2#t92-hub { }
+
+onReady {
+  var sizes = [5, 10, 50, 100, 250, 500, 1000, 2000];
+  var hub = $("#t92-hub");
+  var statusNode = $("#t92-status");
+  var resultsNode = $("#t92-results");
+  var doneNode = $("#t92-done");
+  var running = false;
+  var stats = {};
+
+  function setButtonsDisabled(disabled) {
+    sizes.forEach(function(size) {
+      var btn = $("#t92-start-" + size);
+      if (btn) {
+        btn.disabled = !!disabled;
+      }
+    });
+  }
+
+  function renderStats() {
+    var lines = [];
+    sizes.forEach(function(size) {
+      var row = stats[size];
+      if (!row) {
+        lines.push("size=" + size + "|pending");
+        return;
+      }
+      lines.push("size=" + size + "|connected=" + row.connected + "|mutated=" + row.mutated + "|ms=" + row.ms.toFixed(3));
+    });
+    resultsNode.textContent = lines.join("\n");
+  }
+
+  function runSize(size) {
+    if (running || !hub) {
+      return;
+    }
+    running = true;
+    doneNode.textContent = "0";
+    statusNode.textContent = "building-" + size;
+    setButtonsDisabled(true);
+
+    var values = [];
+    for (var i = 0; i < size; i += 1) {
+      values.push(i);
+    }
+    hub.instances = QArray(values);
+    if (typeof hub.update === "function") {
+      hub.update();
+    }
+
+    window.setTimeout(function() {
+      var childCount = document.querySelectorAll("#t92-hub test-component92-1").length;
+      var connected = hub.createConnections();
+      var startedAt = performance.now();
+      window.setTimeout(function() {
+        hub.mysignal();
+      }, 60);
+      window.setTimeout(function() {
+        var elapsed = performance.now() - startedAt;
+        var rows = document.querySelectorAll("#t92-hub .t92-text");
+        var mutated = 0;
+        for (var j = 0; j < rows.length; j += 1) {
+          var text = String(rows[j].textContent || "").trim();
+          if (text !== "0" && text !== "") {
+            mutated = mutated + 1;
+          }
+        }
+        stats[size] = {
+          connected: connected,
+          mutated: mutated,
+          ms: elapsed
+        };
+        console.log("[t92] summary", { size: size, connected: connected, mutated: mutated, ms: elapsed });
+        renderStats();
+        statusNode.textContent = "connections-ready|size=" + size;
+        doneNode.textContent = "1";
+        running = false;
+        setButtonsDisabled(false);
+      }, 220);
+    }, 120);
+  }
+
+  sizes.forEach(function(size) {
+    var btn = $("#t92-start-" + size);
+    if (!btn) {
+      return;
+    }
+    btn.onclick = function() {
+      runSize(size);
+    };
+  });
+
+  renderStats();
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(92, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+    </section>
+  </div>
+</body>
+</html>

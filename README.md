@@ -15,7 +15,7 @@ QHTML is a compact language and runtime for building web UIs with readable block
 ## Whats New in v6.7.1
 
 - Added the native `particle-emitter` custom element for canvas-backed particle effects from QHTML markup.
-- `particle-emitter` owns its own transparent canvas layer, seeded particle simulation, image/color sprite composition, and `start()`, `stop()`, and `clear()` controls.
+- `particle-emitter` owns its own transparent canvas layer, seeded particle simulation, image/color sprite composition, a boolean `running` property, and `start()`, `stop()`, and `clear()` controls.
 - Particle behavior is configured with attributes for emission rate, lifetime, position, velocity, acceleration, size, opacity, active limits, source image, mask, seed, and z-index.
 - Added test #120 as a visual rising-energy particle emitter using `/dist/assets/particle.png`.
 - Added full docs at `doc/11-particle-emitter/`.
@@ -588,9 +588,9 @@ Notes:
 - `<name>.context` points to the `2d` rendering context for that specific canvas.
 - Canvas rendering can be timer-driven (`q-timer`) or signal-driven depending on your component flow.
 
-### `particle-emitter` (canvas-backed particle effects)
+### `particle-emitter` / `q-particle-emitter` (canvas-backed particle effects)
 
-`particle-emitter` is a native custom element registered by `qhtml.js`. It is not a `q-component` and does not require `q-components.qhtml`. Place it inside any positioned container, configure it with attributes, and control it with `start()`, `stop()`, and `clear()`.
+`particle-emitter` is a native custom element registered by `qhtml.js`. `q-particle-emitter` is an alias for the same emitter system. It is not a `q-component` and does not require `q-components.qhtml`. Place it inside any positioned container, configure it with attributes, and control it with the boolean `running` property or the `start()`, `stop()`, and `clear()` methods.
 
 ```qhtml
 div#energy-field {
@@ -627,19 +627,20 @@ div#energy-field {
   }
 }
 
-button { text { Start } onclick { document.querySelector("#energy-emitter").start(); } }
-button { text { Stop } onclick { document.querySelector("#energy-emitter").stop(); } }
+button { text { Start } onclick { document.querySelector("#energy-emitter").running = true; } }
+button { text { Stop } onclick { document.querySelector("#energy-emitter").running = false; } }
 ```
 
 Useful attributes:
 - `emitRate`: particles created per second while `running` is true.
+- `running`: boolean emission switch; assigning `emitter.running = true/false` updates the `running` attribute.
 - `lifetime` / `lifetimeVariation`: how long each particle lives, in milliseconds.
 - `x`, `y`, `xVariation`, `yVariation`: spawn origin and randomized spawn spread inside the emitter container.
 - `xVelocity`, `yVelocity`, `xAcceleration`, `yAcceleration`: per-frame movement controls.
 - `startSize`, `endSize`, `startOpacity`, `endOpacity`: interpolation values over each particle lifetime.
 - `maxActiveParticles`: maximum simultaneous particles.
 - `maxParticles` or `stopAfter`: optional total particle limit before auto-stopping.
-- `src`, `mask`, `color`: sprite source, optional mask, and fallback/tint color.
+- `src`, `mask`, `color`: sprite source, optional per-particle alpha mask, and fallback/tint color. Changing `mask` at runtime reloads and recomposes the particle sprite.
 
 See `doc/11-particle-emitter/` for the full attribute reference.
 
