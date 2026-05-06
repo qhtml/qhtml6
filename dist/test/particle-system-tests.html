@@ -354,8 +354,8 @@ q-timer accRefreshTimer {
           <h2>Particle System Tests</h2>
           <span class="badge pending">section</span>
         </div>
-        <div class="test-expected"><strong>Includes:</strong> tests 120, 121</div>
-        <div style="padding:10px; font-size:13px; color:#425b78;">Native particle-emitter visual, start/stop behavior, q-particle-emitter alias, and SVG star mask tests. <a href="test.html">Back to test index</a>.</div>
+        <div class="test-expected"><strong>Includes:</strong> tests 120, 121, 122</div>
+        <div style="padding:10px; font-size:13px; color:#425b78;">Native particle-emitter visual, start/stop behavior, q-particle-emitter alias, SVG star mask tests, and mixed-container emitter tests. <a href="test.html">Back to test index</a>.</div>
       </article>
       <article class="test-card" id="card-120">
         <div class="test-head">
@@ -516,6 +516,305 @@ div#t121-system {
 	onReady {
 	  document.querySelector("#acc-main").resultReported(121, "q-particle-emitter | star mask | SVG mask");
 	}
+</q-html>
+      </article>
+
+      <article class="test-card" id="card-122">
+        <div class="test-head">
+          <h2>122. particle emitters on mixed container elements</h2>
+          <span id="badge-122" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> div emitter | h3 emitter | button emitter | span emitter | q-modal emitter</div>
+<q-html id="host-t122" data-test-no="122">
+q-import { q-components/q-modal.qhtml }
+
+div#t122-board {
+  style {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    padding: 10px;
+    background: #07111f;
+    border: 1px solid #334155;
+    border-radius: 10px;
+  }
+
+  div#t122-div-host {
+    style {
+      display: block;
+      position: relative;
+      min-height: 130px;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid #155e75;
+      background: #062336;
+      color: #dffcff;
+      padding: 12px;
+    }
+    strong { text { div host } }
+    particle-emitter#t122-div-emitter {
+      emitRate: "76"
+      lifetime: "2100"
+      lifetimeVariation: "180"
+      x: "110"
+      y: "128"
+      xVariation: "116"
+      yVariation: "10"
+      xVelocity: "0.12"
+      yVelocity: "-1.45"
+      xVelocityVariation: "0.12"
+      yVelocityVariation: "0.08"
+      xAcceleration: "0.006"
+      yAcceleration: "-0.001"
+      xAccelerationVariation: "0.006"
+      yAccelerationVariation: "0.002"
+      startSize: "22"
+      endSize: "9"
+      startSizeVariation: "5"
+      endSizeVariation: "3"
+      startOpacity: "0.82"
+      endOpacity: "0.03"
+      startOpacityVariation: "0.06"
+      endOpacityVariation: "0.02"
+      maxActiveParticles: "44"
+      maxActiveParticlesVariation: "5"
+      interval: "10"
+      running: "false"
+      src: "/dist/assets/particle.png"
+      color: "#67e8f9"
+    }
+  }
+
+  h3#t122-h3-host {
+    style {
+      display: block;
+      position: relative;
+      min-height: 130px;
+      margin: 0;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid #7c3aed;
+      background: #1e1238;
+      color: #f0e8ff;
+      padding: 12px;
+      font-size: 17px;
+      font-weight: 700;
+    }
+    text { h3 host }
+    q-particle-emitter#t122-h3-emitter {
+      emitRate: "68"
+      lifetime: "2300"
+      lifetimeVariation: "220"
+      x: "108"
+      y: "126"
+      xVariation: "130"
+      yVariation: "12"
+      xVelocity: "-0.08"
+      yVelocity: "-1.32"
+      xVelocityVariation: "0.18"
+      yVelocityVariation: "0.1"
+      xAcceleration: "-0.003"
+      yAcceleration: "-0.001"
+      xAccelerationVariation: "0.008"
+      yAccelerationVariation: "0.003"
+      startSize: "24"
+      endSize: "10"
+      startSizeVariation: "4"
+      endSizeVariation: "4"
+      startOpacity: "0.78"
+      endOpacity: "0.025"
+      startOpacityVariation: "0.07"
+      endOpacityVariation: "0.02"
+      maxActiveParticles: "40"
+      maxActiveParticlesVariation: "4"
+      interval: "10"
+      running: "false"
+      src: "/dist/assets/particle.png"
+      color: "#c084fc"
+    }
+  }
+
+  button#t122-button-host {
+    type: "button"
+    style {
+      display: block;
+      position: relative;
+      min-height: 130px;
+      width: 100%;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid #f59e0b;
+      background: #33220a;
+      color: #fff7d6;
+      padding: 12px;
+      text-align: left;
+      font: inherit;
+    }
+    text { button host }
+    particle-emitter#t122-button-emitter {
+      emitRate: "82"
+      lifetime: "1950"
+      lifetimeVariation: "160"
+      x: "116"
+      y: "128"
+      xVariation: "122"
+      yVariation: "9"
+      xVelocity: "0.02"
+      yVelocity: "-1.58"
+      xVelocityVariation: "0.2"
+      yVelocityVariation: "0.11"
+      xAcceleration: "0.002"
+      yAcceleration: "-0.002"
+      xAccelerationVariation: "0.006"
+      yAccelerationVariation: "0.003"
+      startSize: "20"
+      endSize: "8"
+      startSizeVariation: "6"
+      endSizeVariation: "2"
+      startOpacity: "0.86"
+      endOpacity: "0.035"
+      startOpacityVariation: "0.05"
+      endOpacityVariation: "0.018"
+      maxActiveParticles: "48"
+      maxActiveParticlesVariation: "6"
+      interval: "10"
+      running: "false"
+      src: "/dist/assets/particle.png"
+      color: "#facc15"
+    }
+  }
+
+  span#t122-span-host {
+    style {
+      display: block;
+      position: relative;
+      min-height: 130px;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid #16a34a;
+      background: #082915;
+      color: #dcfce7;
+      padding: 12px;
+    }
+    text { span host }
+    q-particle-emitter#t122-span-emitter {
+      emitRate: "72"
+      lifetime: "2200"
+      lifetimeVariation: "200"
+      x: "112"
+      y: "126"
+      xVariation: "138"
+      yVariation: "14"
+      xVelocity: "0.1"
+      yVelocity: "-1.38"
+      xVelocityVariation: "0.22"
+      yVelocityVariation: "0.12"
+      xAcceleration: "0.004"
+      yAcceleration: "-0.001"
+      xAccelerationVariation: "0.007"
+      yAccelerationVariation: "0.003"
+      startSize: "23"
+      endSize: "9"
+      startSizeVariation: "5"
+      endSizeVariation: "3"
+      startOpacity: "0.8"
+      endOpacity: "0.03"
+      startOpacityVariation: "0.06"
+      endOpacityVariation: "0.02"
+      maxActiveParticles: "42"
+      maxActiveParticlesVariation: "5"
+      interval: "10"
+      running: "false"
+      src: "/dist/assets/particle.png"
+      color: "#86efac"
+    }
+  }
+}
+
+q-modal#t122-modal-host {
+  title { text { q-modal host } }
+  body {
+    div#t122-modal-particle-box {
+      style {
+        display: block;
+        position: relative;
+        min-height: 150px;
+        overflow: hidden;
+        border-radius: 12px;
+        border: 1px solid #ef4444;
+        background: #330d12;
+        color: #ffe4e6;
+        padding: 12px;
+      }
+      text { q-modal body emitter }
+      particle-emitter#t122-modal-emitter {
+        emitRate: "88"
+        lifetime: "2400"
+        lifetimeVariation: "240"
+        x: "180"
+        y: "146"
+        xVariation: "180"
+        yVariation: "12"
+        xVelocity: "-0.02"
+        yVelocity: "-1.5"
+        xVelocityVariation: "0.26"
+        yVelocityVariation: "0.1"
+        xAcceleration: "0.001"
+        yAcceleration: "-0.002"
+        xAccelerationVariation: "0.008"
+        yAccelerationVariation: "0.003"
+        startSize: "25"
+        endSize: "10"
+        startSizeVariation: "5"
+        endSizeVariation: "4"
+        startOpacity: "0.84"
+        endOpacity: "0.025"
+        startOpacityVariation: "0.06"
+        endOpacityVariation: "0.02"
+        maxActiveParticles: "52"
+        maxActiveParticlesVariation: "6"
+        interval: "10"
+        running: "false"
+        src: "/dist/assets/particle.png"
+        mask: "/dist/assets/particle-mask-star.svg"
+        color: "#fb7185"
+      }
+    }
+  }
+}
+
+div#t122-controls {
+  style { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  button#t122-start {
+    type: "button"
+    onclick {
+      var host = this.closest("q-html");
+      var emitters = host.querySelectorAll("particle-emitter,q-particle-emitter");
+      for (var i = 0; i < emitters.length; i += 1) { emitters[i].running = true; }
+      $("#t122-status").textContent = "running";
+      document.querySelector("#acc-main").resultReported(122, "div emitter | h3 emitter | button emitter | span emitter | q-modal emitter");
+    }
+    text { Start all mixed emitters }
+  }
+  button#t122-stop {
+    type: "button"
+    onclick {
+      var host = this.closest("q-html");
+      var emitters = host.querySelectorAll("particle-emitter,q-particle-emitter");
+      for (var i = 0; i < emitters.length; i += 1) { emitters[i].running = false; }
+      $("#t122-status").textContent = "stopped";
+      document.querySelector("#acc-main").resultReported(122, "div emitter | h3 emitter | button emitter | span emitter | q-modal emitter");
+    }
+    text { Stop all mixed emitters }
+  }
+  span#t122-status { text { stopped } }
+  span#t122-expected { text { div emitter h3 emitter button emitter span emitter q-modal emitter } }
+}
+
+onReady {
+  this.querySelector("#t122-modal-host").show();
+  document.querySelector("#acc-main").resultReported(122, "div emitter | h3 emitter | button emitter | span emitter | q-modal emitter");
+}
 </q-html>
       </article>
     </section>
