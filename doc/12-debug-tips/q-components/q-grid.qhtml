@@ -1,0 +1,17 @@
+q-rewrite q-grid {
+  slot { main }
+  return {
+    q-script {
+      var src = this.qdom().slot("main");
+      var match = src.match(/\bcolumns\s*:\s*(\d+)\s*;?/i);
+      var cols = match ? Math.max(1, parseInt(match[1], 10)) : 1;
+      var body = src.replace(/\bcolumns\s*:\s*\d+\s*;?/i, "").trim();
+
+      return "div {" +
+        " class: \"q-grid-rewrite\"" +
+        " style { display: grid; grid-template-columns: repeat(" + cols + ", minmax(0, 1fr)); gap: 12px; align-items: stretch; } " +
+        body +
+      " }";
+    }
+  }
+}

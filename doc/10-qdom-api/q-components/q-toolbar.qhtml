@@ -1,0 +1,241 @@
+q-import { q-draggable-item.qhtml }
+q-import { q-resizable-item.qhtml }
+q-import { q-toolbutton.qhtml }
+
+q-component q-toolbar extends q-draggable-item extends q-resizable-item {
+  q-property open: "1"
+  q-property title: "Toolbar"
+  q-property orientation: "horizontal"
+  q-signal resized(width, height)
+  q-signal closed()
+
+  function numberOr(value, fallback) {
+    var parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      return Number(fallback);
+    }
+    return parsed;
+  }
+
+  function applyToolbarLayout(rawWidth, rawHeight) {
+    var width = Math.max(64, Math.round(this.numberOr(rawWidth, this.width || 360)));
+    var height = Math.max(44, Math.round(this.numberOr(rawHeight, this.height || 64)));
+    var horizontal = width >= height;
+    var nextOrientation = horizontal ? "horizontal" : "vertical";
+    var buttonSize = Math.max(24, Math.floor((horizontal ? height : width) - 22));
+    var items = this.querySelector("[q-toolbar-items='1']");
+    var count = this.querySelectorAll("q-toolbutton").length;
+    if (count <= 0) {
+      count = 1;
+    }
+
+    this.orientation = nextOrientation;
+    this.setAttribute("orientation", nextOrientation);
+    this.style.setProperty("--q-toolbutton-size", String(buttonSize) + "px");
+
+    if (items && items.style) {
+      if (horizontal) {
+        items.style.gridTemplateColumns = "repeat(" + String(count) + ", minmax(0, 1fr))";
+        items.style.gridTemplateRows = "1fr";
+        items.style.gridAutoFlow = "column";
+      } else {
+        items.style.gridTemplateColumns = "1fr";
+        items.style.gridTemplateRows = "repeat(" + String(count) + ", minmax(0, 1fr))";
+        items.style.gridAutoFlow = "row";
+      }
+    }
+
+    if (typeof this.resized === "function") {
+      this.resized(width, height);
+    }
+    if (typeof CustomEvent === "function") {
+      this.dispatchEvent(new CustomEvent("q-toolbar:resized", {
+        detail: { width: width, height: height, orientation: nextOrientation },
+        bubbles: true
+      }));
+    }
+    return { width: width, height: height };
+  }
+
+  function afterResize(width, height) {
+    return this.applyToolbarLayout(width, height);
+  }
+
+  function minWidth() {
+    return 64;
+  }
+
+  function minHeight() {
+    return 44;
+  }
+
+  function shellNode() {
+    return this.querySelector("[q-toolbar-shell='1']");
+  }
+
+  function applyPosition(rawX, rawY) {
+    var nextX = Math.round(this.numberOr(rawX, this.x == null ? 24 : this.x));
+    var nextY = Math.round(this.numberOr(rawY, this.y == null ? 24 : this.y));
+    var shell = this.shellNode();
+    this.x = nextX;
+    this.y = nextY;
+    if (shell && shell.style) {
+      shell.style.position = "fixed";
+      shell.style.left = String(nextX) + "px";
+      shell.style.top = String(nextY) + "px";
+      shell.style.zIndex = "1000";
+    }
+    return { x: nextX, y: nextY };
+  }
+
+  function applySize(rawWidth, rawHeight) {
+    var nextWidth = Math.max(this.minWidth(), Math.round(this.numberOr(rawWidth, this.width == null ? 360 : this.width)));
+    var nextHeight = Math.max(this.minHeight(), Math.round(this.numberOr(rawHeight, this.height == null ? 64 : this.height)));
+    var shell = this.shellNode();
+    this.width = nextWidth;
+    this.height = nextHeight;
+    if (shell && shell.style) {
+      shell.style.width = String(nextWidth) + "px";
+      shell.style.height = String(nextHeight) + "px";
+      shell.style.boxSizing = "border-box";
+    }
+    this.afterResize(nextWidth, nextHeight);
+    return { width: nextWidth, height: nextHeight };
+  }
+
+  function syncOpenState() {
+    var visible = String(this.open || "1") !== "0";
+    var shell = this.shellNode();
+    if (shell && shell.style) {
+      shell.style.display = visible ? "grid" : "none";
+    }
+    this.style.display = visible ? "block" : "none";
+    return visible;
+  }
+
+  function closeToolbar() {
+    this.open = "0";
+    this.syncOpenState();
+    if (typeof this.closed === "function") {
+      this.closed();
+    }
+    if (typeof CustomEvent === "function") {
+      this.dispatchEvent(new CustomEvent("q-toolbar:closed", { detail: {}, bubbles: true }));
+    }
+  }
+
+  function showToolbar() {
+    this.open = "1";
+    this.syncOpenState();
+    var shell = this.shellNode();
+    var rect = shell && shell.getBoundingClientRect
+      ? shell.getBoundingClientRect()
+      : { width: this.width || 360, height: this.height || 64 };
+    this.applyToolbarLayout(rect.width, rect.height);
+  }
+
+  onReady {
+    if (typeof this.setupDragging === "function") {
+      this.setupDragging();
+    }
+    if (typeof this.setupResizing === "function") {
+      this.setupResizing();
+    }
+    this.applyPosition(this.x == null ? 24 : this.x, this.y == null ? 24 : this.y);
+    this.applySize(this.width == null ? 360 : this.width, this.height == null ? 64 : this.height);
+    this.syncOpenState();
+    if (String(this.open || "1") !== "0") {
+      this.showToolbar();
+    }
+  }
+
+  div.q-toolbar-shell {
+    q-toolbar-shell: "1"
+    style {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-rows: 1fr;
+      border: 1px solid #64748b;
+      border-radius: 10px;
+      background: #e2e8f0;
+      box-shadow: 0 10px 28px rgba(2, 6, 23, 0.25);
+      overflow: hidden;
+      box-sizing: border-box;
+      user-select: none;
+      position: relative;
+    }
+
+    div.q-toolbar-drag-strip {
+      q-drag-handle: "1"
+      style {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 26px;
+        height: 12px;
+        cursor: move;
+        background: transparent;
+        z-index: 2;
+      }
+    }
+
+    div.q-toolbar-items {
+      q-toolbar-items: "1"
+      style {
+        display: grid;
+        grid-template-columns: repeat(1, minmax(0, 1fr));
+        grid-template-rows: 1fr;
+        grid-auto-flow: column;
+        align-items: center;
+        justify-items: center;
+        gap: 6px;
+        padding: 12px 8px 10px 8px;
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+      }
+      slot { content }
+    }
+
+    button.q-toolbar-close {
+      type: "button"
+      title: "Close toolbar"
+      style {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        width: 18px;
+        height: 18px;
+        border: 0;
+        border-radius: 4px;
+        cursor: pointer;
+        background: #ef4444;
+        color: #ffffff;
+        font-weight: 700;
+        line-height: 1;
+        padding: 0;
+        z-index: 4;
+      }
+      onmousedown { event.stopPropagation(); }
+      onclick { this.closest("q-toolbar").closeToolbar(); }
+      text { x }
+    }
+
+    div.q-toolbar-resizer {
+      q-resize-handle: "1"
+      title: "Resize toolbar"
+      style {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        width: 16px;
+        height: 16px;
+        cursor: nwse-resize;
+        z-index: 3;
+        background: linear-gradient(135deg, transparent 0%, transparent 40%, #475569 40%, #475569 52%, transparent 52%, transparent 64%, #475569 64%, #475569 76%, transparent 76%);
+      }
+      onmousedown { event.stopPropagation(); }
+    }
+  }
+}

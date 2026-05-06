@@ -1,0 +1,111 @@
+q-component q-resizable-item {
+  q-property { width height }
+
+  function numberOr(value, fallback) {
+    var n = Number(value);
+    if (!Number.isFinite(n)) {
+      return Number(fallback);
+    }
+    return n;
+  }
+
+  function minWidth() {
+    return 64;
+  }
+
+  function minHeight() {
+    return 44;
+  }
+
+  function afterResize(width, height) {
+    return { width: width, height: height };
+  }
+
+  function applySize(rawWidth, rawHeight) {
+    var nextWidth = Math.max(this.minWidth(), Math.round(this.numberOr(rawWidth, this.width == null ? 320 : this.width)));
+    var nextHeight = Math.max(this.minHeight(), Math.round(this.numberOr(rawHeight, this.height == null ? 56 : this.height)));
+
+    this.width = nextWidth;
+    this.height = nextHeight;
+
+    if (this.style) {
+      this.style.width = String(nextWidth) + "px";
+      this.style.height = String(nextHeight) + "px";
+      this.style.boxSizing = "border-box";
+    }
+
+    this.afterResize(nextWidth, nextHeight);
+    return { width: nextWidth, height: nextHeight };
+  }
+
+  function resizeHandle() {
+    return this.querySelector("[q-resize-handle='1']") || this;
+  }
+
+  function handleResizeStart(event) {
+    if (!event || (event.button != null && event.button !== 0)) {
+      return;
+    }
+
+    var rect = this.getBoundingClientRect ? this.getBoundingClientRect() : { width: this.width || 320, height: this.height || 56 };
+    this.__resizeState = {
+      mouseX: Number(event.clientX || 0),
+      mouseY: Number(event.clientY || 0),
+      startWidth: Number(rect.width || this.width || 320),
+      startHeight: Number(rect.height || this.height || 56)
+    };
+
+    var win = this.ownerDocument && this.ownerDocument.defaultView ? this.ownerDocument.defaultView : window;
+    if (!this.__resizeMoveHandler) {
+      var host = this;
+      this.__resizeMoveHandler = function(moveEvent) {
+        if (!host.__resizeState) {
+          return;
+        }
+        var dx = Number(moveEvent.clientX || 0) - host.__resizeState.mouseX;
+        var dy = Number(moveEvent.clientY || 0) - host.__resizeState.mouseY;
+        host.applySize(host.__resizeState.startWidth + dx, host.__resizeState.startHeight + dy);
+      };
+    }
+
+    if (!this.__resizeEndHandler) {
+      var hostEnd = this;
+      this.__resizeEndHandler = function() {
+        hostEnd.__resizeState = null;
+        win.removeEventListener("mousemove", hostEnd.__resizeMoveHandler);
+        win.removeEventListener("mouseup", hostEnd.__resizeEndHandler);
+      };
+    }
+
+    win.addEventListener("mousemove", this.__resizeMoveHandler);
+    win.addEventListener("mouseup", this.__resizeEndHandler);
+
+    if (typeof event.preventDefault === "function") {
+      event.preventDefault();
+    }
+  }
+
+  function setupResizing() {
+    if (this.__resizeReady) {
+      return;
+    }
+    this.__resizeReady = true;
+
+    var handle = this.resizeHandle();
+    if (!handle || typeof handle.addEventListener !== "function") {
+      return;
+    }
+
+    var host = this;
+    this.__resizeStartHandler = function(event) {
+      host.handleResizeStart(event);
+    };
+
+    handle.addEventListener("mousedown", this.__resizeStartHandler);
+  }
+
+  onReady {
+    this.setupResizing();
+    this.applySize(this.width, this.height);
+  }
+}

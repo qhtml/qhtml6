@@ -1,0 +1,64 @@
+q-component q-toolbutton {
+  q-property src: ""
+  q-property label: ""
+  q-property size: 44
+
+  function numberOr(value, fallback) {
+    var parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      return Number(fallback);
+    }
+    return parsed;
+  }
+
+  function applySize(rawSize) {
+    var nextSize = Math.max(24, Math.round(this.numberOr(rawSize, this.size || 44)));
+    this.size = nextSize;
+    this.style.setProperty("--q-toolbutton-size", String(nextSize) + "px");
+    return nextSize;
+  }
+
+  function setSize(rawSize) {
+    return this.applySize(rawSize);
+  }
+
+  onReady {
+    this.applySize(this.size);
+  }
+
+  button.q-toolbutton-root {
+    q-toolbutton-root: "1"
+    type: "button"
+    title: "${this.component.label}"
+    aria-label: "${this.component.label}"
+    style {
+      width: var(--q-toolbutton-size, 44px);
+      height: var(--q-toolbutton-size, 44px);
+      padding: 6px;
+      margin: 0;
+      border: 1px solid #94a3b8;
+      border-radius: 8px;
+      background: #f8fafc;
+      cursor: pointer;
+      display: inline-grid;
+      place-items: center;
+      box-sizing: border-box;
+    }
+
+    img.q-toolbutton-image {
+      q-toolbutton-image: "1"
+      src: "${this.component.src}"
+      alt: "${this.component.label}"
+      draggable: "false"
+      style {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+        pointer-events: none;
+      }
+    }
+
+    slot { content }
+  }
+}

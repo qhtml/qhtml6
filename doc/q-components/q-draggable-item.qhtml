@@ -1,0 +1,101 @@
+q-component q-draggable-item {
+  q-property { x y }
+
+  function numberOr(value, fallback) {
+    var n = Number(value);
+    if (!Number.isFinite(n)) {
+      return Number(fallback);
+    }
+    return n;
+  }
+
+  function applyPosition(rawX, rawY) {
+    var nextX = Math.round(this.numberOr(rawX, this.x == null ? 40 : this.x));
+    var nextY = Math.round(this.numberOr(rawY, this.y == null ? 40 : this.y));
+
+    this.x = nextX;
+    this.y = nextY;
+
+    if (this.style) {
+      this.style.position = "fixed";
+      this.style.left = String(nextX) + "px";
+      this.style.top = String(nextY) + "px";
+      if (!this.style.zIndex) {
+        this.style.zIndex = "1000";
+      }
+    }
+
+    return { x: nextX, y: nextY };
+  }
+
+  function dragHandle() {
+    return this.querySelector("[q-drag-handle='1']") || this;
+  }
+
+  function handleDragStart(event) {
+    if (!event || (event.button != null && event.button !== 0)) {
+      return;
+    }
+
+    var start = this.getBoundingClientRect ? this.getBoundingClientRect() : { left: 0, top: 0 };
+    this.__dragState = {
+      mouseX: Number(event.clientX || 0),
+      mouseY: Number(event.clientY || 0),
+      startLeft: Number(start.left || 0),
+      startTop: Number(start.top || 0)
+    };
+
+    var win = this.ownerDocument && this.ownerDocument.defaultView ? this.ownerDocument.defaultView : window;
+    if (!this.__dragMoveHandler) {
+      var host = this;
+      this.__dragMoveHandler = function(moveEvent) {
+        if (!host.__dragState) {
+          return;
+        }
+        var dx = Number(moveEvent.clientX || 0) - host.__dragState.mouseX;
+        var dy = Number(moveEvent.clientY || 0) - host.__dragState.mouseY;
+        host.applyPosition(host.__dragState.startLeft + dx, host.__dragState.startTop + dy);
+      };
+    }
+
+    if (!this.__dragEndHandler) {
+      var hostEnd = this;
+      this.__dragEndHandler = function() {
+        hostEnd.__dragState = null;
+        win.removeEventListener("mousemove", hostEnd.__dragMoveHandler);
+        win.removeEventListener("mouseup", hostEnd.__dragEndHandler);
+      };
+    }
+
+    win.addEventListener("mousemove", this.__dragMoveHandler);
+    win.addEventListener("mouseup", this.__dragEndHandler);
+
+    if (typeof event.preventDefault === "function") {
+      event.preventDefault();
+    }
+  }
+
+  function setupDragging() {
+    if (this.__dragReady) {
+      return;
+    }
+    this.__dragReady = true;
+
+    var handle = this.dragHandle();
+    if (!handle || typeof handle.addEventListener !== "function") {
+      return;
+    }
+
+    var host = this;
+    this.__dragStartHandler = function(event) {
+      host.handleDragStart(event);
+    };
+
+    handle.addEventListener("mousedown", this.__dragStartHandler);
+  }
+
+  onReady {
+    this.setupDragging();
+    this.applyPosition(this.x, this.y);
+  }
+}

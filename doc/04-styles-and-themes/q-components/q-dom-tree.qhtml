@@ -1,0 +1,127 @@
+q-component q-dom-tree extends q-tree-view {
+  q-property filters: q-array { "q-property", "q-signal", "slot" }
+  q-property includeFullTree: true
+
+  function _effectiveModel() {
+    if (this.__qdomTreeRawModel && typeof this.__qdomTreeRawModel === "object") {
+      return this.__qdomTreeRawModel
+    }
+    if (this.__treeRawModel && typeof this.__treeRawModel === "object") {
+      return this.__treeRawModel
+    }
+    var value = this.treeModel
+    if (value === null || typeof value === "undefined" || value === "") { value = this.model }
+    if (value === null || typeof value === "undefined" || value === "") { value = this.getAttribute("treeModel") }
+    if (value === null || typeof value === "undefined" || value === "") { value = this.getAttribute("model") }
+    return value
+  }
+
+  function _setRawModel(value) {
+    var normalized = value && typeof value === "object" ? value : {}
+    this.__qdomTreeRawModel = normalized
+    this.treeModel = ""
+    this.model = ""
+    return normalized
+  }
+
+  function _normalizeFilters(input) {
+    if (Array.isArray(input)) {
+      var out = []
+      var i = 0
+      while (i < input.length) {
+        var token = String(input[i] || "").trim().toLowerCase()
+        if (token && out.indexOf(token) < 0) {
+          out.push(token)
+        }
+        i += 1
+      }
+      return out
+    }
+    if (typeof input === "string") {
+      return this._normalizeFilters(String(input || "").split(/[\s,]+/g))
+    }
+    return this._normalizeFilters(this.filters)
+  }
+
+  function _resolveIncludeFullTree(options) {
+    if (options && typeof options === "object" && Object.prototype.hasOwnProperty.call(options, "includeFullTree")) {
+      return options.includeFullTree === true
+    }
+    return this.includeFullTree === true
+  }
+
+  function load(source, options) {
+    if (source && typeof source === "object" && typeof source.qmap === "function") {
+      return this.loadFromQDom(source, options)
+    }
+    if (source && source.nodeType === 1) {
+      return this.loadFromElement(source, options)
+    }
+    if (source && typeof source === "object" && typeof source.kind === "string") {
+      return this.loadFromQDom(source, options)
+    }
+    if (typeof source === "string") {
+      var selector = String(source || "").trim()
+      if (selector) {
+        var element = document.querySelector(selector)
+        if (element) {
+          return this.loadFromElement(element, options)
+        }
+      }
+      return this.loadFromObject({}, options)
+    }
+    if (Array.isArray(source)) {
+      return this.loadFromArray(source, options)
+    }
+    if (source && typeof source === "object") {
+      return this.loadFromObject(source, options)
+    }
+    return this.loadFromObject({}, options)
+  }
+
+  function loadFromQDom(qdomNode, options) {
+    var filters = this._normalizeFilters(options && options.filters)
+    var includeFullTree = this._resolveIncludeFullTree(options)
+    var mapped = {}
+    if (qdomNode && typeof qdomNode.qmap === "function") {
+      mapped = qdomNode.qmap(filters, includeFullTree)
+    } else if (globalThis.QHtml && typeof globalThis.QHtml.qmapNode === "function") {
+      mapped = globalThis.QHtml.qmapNode(qdomNode, {
+        filters: filters,
+        includeFullTree: includeFullTree
+      })
+    }
+    this._setRawModel(mapped)
+    this.refresh()
+    return mapped
+  }
+
+  function loadFromElement(element, options) {
+    if (!element || typeof element.qdom !== "function") {
+      return this.loadFromObject({}, options)
+    }
+    return this.loadFromQDom(element.qdom(), options)
+  }
+
+  function loadFromObject(value) {
+    var out = this._setRawModel(value)
+    this.refresh()
+    return out
+  }
+
+  function loadFromArray(value) {
+    var out = this._setRawModel(Array.isArray(value) ? value : [])
+    this.refresh()
+    return out
+  }
+
+  function import(value, options) {
+    return this.load(value, options)
+  }
+
+  function export() {
+    return this.__qdomTreeRawModel && typeof this.__qdomTreeRawModel === "object"
+      ? this.__qdomTreeRawModel
+      : {}
+  }
+}

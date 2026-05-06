@@ -1,0 +1,77 @@
+.cm-editor {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.cm-scroller {
+  position: relative;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  flex: 1 1 auto;
+  font-family: monospace;
+  line-height: 1.4;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cm-content {
+  margin: 0;
+  flex: 1 1 auto;
+  display: block;
+  white-space: pre;
+  word-break: normal;
+  box-sizing: border-box;
+  padding: 4px 0;
+  outline: none;
+}
+
+.cm-line {
+  display: block;
+  padding: 0 4px 0 0;
+}
+
+.cm-lineWrapping {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cm-gutters {
+  display: flex;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.cm-gutter {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.cm-gutterElement {
+  padding: 0 6px;
+  box-sizing: border-box;
+}
+
+.cm-cursor {
+  position: absolute;
+  border-left: 1.2px solid currentColor;
+  margin-left: -0.5px;
+  pointer-events: none;
+}
+
+.cm-selectionLayer {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.cm-selectionBackground {
+  position: absolute;
+}
+
+.cm-editor .cm-scroller {
+  overflow-anchor: none;
+}

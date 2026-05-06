@@ -1,0 +1,131 @@
+q-component q-tree-view {
+  q-property model: ""
+  q-property treeModel: ""
+
+  function _normalizeSetModelInput(input) {
+    if (input && typeof input === "object") {
+      return input
+    }
+    if (typeof input === "string") {
+      var text = String(input || "").trim()
+      if (!text) {
+        return {}
+      }
+      try {
+        return JSON.parse(text)
+      } catch (error) {
+        return {}
+      }
+    }
+    return {}
+  }
+
+  function setModel(qdomModel) {
+    var normalized = this._normalizeSetModelInput(qdomModel)
+    this.__treeRawModel = normalized
+    this.treeModel = ""
+    this.model = ""
+    this.refresh()
+    return normalized
+  }
+
+  function _effectiveModel() {
+    if (this.__treeRawModel && typeof this.__treeRawModel === "object") {
+      return this.__treeRawModel
+    }
+    var value = this.treeModel
+    if (value === null || typeof value === "undefined" || value === "") { value = this.model }
+    if (value === null || typeof value === "undefined" || value === "") { value = this.getAttribute("treeModel") }
+    if (value === null || typeof value === "undefined" || value === "") { value = this.getAttribute("model") }
+    return value
+  }
+
+  function _unbindModelObserver() {
+    if (typeof this.__treeModelUnsubscribe === "function") {
+      this.__treeModelUnsubscribe()
+    }
+    this.__treeModelUnsubscribe = null
+    this.__treeObservedModel = null
+  }
+
+  function _bindModelObserver(modelValue) {
+    if (!modelValue || typeof modelValue.subscribe !== "function") {
+      this._unbindModelObserver()
+      return
+    }
+    if (this.__treeObservedModel === modelValue && typeof this.__treeModelUnsubscribe === "function") {
+      return
+    }
+    this._unbindModelObserver()
+    var component = this
+    this.__treeModelUnsubscribe = modelValue.subscribe(function() {
+      component.refresh()
+    })
+    this.__treeObservedModel = modelValue
+  }
+
+  function _normalizeBranches() {
+    var component = this
+    function setBranchState(branchNode, summaryNode, openState) {
+      if (!branchNode || !summaryNode) { return }
+      var open = openState === true
+      var marker = summaryNode.querySelector(".q-tree-marker")
+      var children = branchNode.querySelector(".q-tree-children")
+      branchNode.open = open
+      branchNode.setAttribute("q-tree-open", open ? "1" : "0")
+      if (children) { children.style.display = open ? "block" : "none" }
+      if (marker) {
+        marker.className = "q-tree-marker " + (open ? "q-tree-marker-open" : "q-tree-marker-closed")
+        marker.textContent = open ? "-" : "+"
+      }
+    }
+    var detailsBranches = component.querySelectorAll("details.q-tree-branch")
+    var i = 0
+    while (i < detailsBranches.length) {
+      var details = detailsBranches[i]
+      var summary = details.querySelector(":scope > .q-tree-summary")
+      var children = details.querySelector(":scope > .q-tree-children")
+      if (summary && children) {
+        if (String(summary.tagName || "").toLowerCase() !== "summary") {
+          var realSummary = document.createElement("summary")
+          realSummary.className = summary.className
+          while (summary.firstChild) {
+            realSummary.appendChild(summary.firstChild)
+          }
+          details.replaceChild(realSummary, summary)
+          summary = realSummary
+        }
+        setBranchState(details, summary, details.open === true)
+      }
+      i += 1
+    }
+  }
+
+  function _queueNormalizeBranches() {
+    var component = this
+    if (typeof component.__normalizeRaf === "number") {
+      cancelAnimationFrame(component.__normalizeRaf)
+    }
+    component.__normalizeRaf = requestAnimationFrame(function() {
+      component.__normalizeRaf = null
+      component._normalizeBranches()
+    })
+  }
+
+  function refresh() {
+    var host = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || this.closest("q-html")
+    var root = this.querySelector("[q-tree-root='1']")
+    if (!root || typeof root.qdom !== "function") { return }
+    var modelInput = this._effectiveModel()
+    this._bindModelObserver(modelInput)
+    var rootQdom = root.qdom()
+    if (!rootQdom || typeof rootQdom.createQTreeSource !== "function") { return }
+    var body = rootQdom.createQTreeSource(modelInput, { host: host, targetElement: this })
+    rootQdom.replaceWithQHTML("ul.q-tree.q-tree-list { q-tree-root: \"1\" " + body + " }")
+    this._queueNormalizeBranches()
+  }
+
+  onReady { this.refresh() }
+
+  ul.q-tree.q-tree-list { q-tree-root: "1" }
+}
