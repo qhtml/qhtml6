@@ -93,7 +93,8 @@ wiki-shell {
   pageTitle: "Styles and Themes"
   pageIntro: "QHTML styling is built around reusable style definitions and selector-based themes. Write the style once, then apply it directly or through a themed scope."
   main {
-    wiki-example-card { title: "q-style with q-style-class" summary: "Combine utility classes and inline style declarations in one reusable style block." note: "Inline declarations still win when they target the same CSS property." details { html { <q-editor>q-style panel-style {
+    wiki-example-card { title: "q-style with q-style-class" summary: "Combine utility classes and inline style declarations in one reusable style block." note: "Inline declarations still win when they target the same CSS property." details { html { <q-editor>&lt;q-html&gt;
+q-style panel-style {
   q-style-class { w3-container w3-round-large }
   backgroundColor: #e0f2fe
   color: #0c4a6e
@@ -101,9 +102,11 @@ wiki-shell {
 
 panel-style,div {
   text { Styled with class + inline rules }
-}</q-editor> } } }
+}
+&lt;/q-html&gt;</q-editor> } } }
 
-    wiki-example-card { title: "Basic reusable style" summary: "A plain q-style can hold only inline style declarations." note: "Use this when you want a reusable visual token without a full theme." details { html { <q-editor>q-style panel {
+    wiki-example-card { title: "Basic reusable style" summary: "A plain q-style can hold only inline style declarations." note: "Use this when you want a reusable visual token without a full theme." details { html { <q-editor>&lt;q-html&gt;
+q-style panel {
   backgroundColor: #eff6ff
   color: #1e293b
   border: 1px solid #93c5fd
@@ -111,17 +114,21 @@ panel-style,div {
 
 panel,div {
   text { Basic reusable panel style }
-}</q-editor> } } }
+}
+&lt;/q-html&gt;</q-editor> } } }
 
-    wiki-example-card { title: "Apply a style directly in a selector chain" summary: "You can apply a style immediately without creating a separate theme." note: "This is good for one-off use or tiny demos." details { html { <q-editor>q-style panel {
+    wiki-example-card { title: "Apply a style directly in a selector chain" summary: "You can apply a style immediately without creating a separate theme." note: "This is good for one-off use or tiny demos." details { html { <q-editor>&lt;q-html&gt;
+q-style panel {
   backgroundColor: #dbeafe
   color: #1e3a8a
   border: 1px solid #93c5fd
 }
 
-panel,div { text { Styled panel } }</q-editor> } } }
+panel,div { text { Styled panel } }
+&lt;/q-html&gt;</q-editor> } } }
 
-    wiki-example-card { title: "Theme maps selectors to styles" summary: "q-theme lets you say which selectors should receive which style definitions." note: "Think of a theme as a selector-to-style lookup table." details { html { <q-editor>q-style title-accent {
+    wiki-example-card { title: "Theme maps selectors to styles" summary: "q-theme lets you say which selectors should receive which style definitions." note: "Think of a theme as a selector-to-style lookup table." details { html { <q-editor>&lt;q-html&gt;
+q-style title-accent {
   color: #1d4ed8
 }
 
@@ -145,9 +152,11 @@ article-theme {
     h3 { text { Theme heading } }
     p.summary { text { This paragraph uses two styles via one selector. } }
   }
-}</q-editor> } } }
+}
+&lt;/q-html&gt;</q-editor> } } }
 
-    wiki-example-card { title: "q-default-theme fallback layer" summary: "A default theme provides baseline styling that a later q-theme can replace." note: "Use it when you want sane defaults without forcing the last word." details { html { <q-editor>q-style panel-base {
+    wiki-example-card { title: "q-default-theme fallback layer" summary: "A default theme provides baseline styling that a later q-theme can replace." note: "Use it when you want sane defaults without forcing the last word." details { html { <q-editor>&lt;q-html&gt;
+q-style panel-base {
   backgroundColor: #f8fafc
   border: 1px solid #cbd5e1
   color: #0f172a
@@ -160,9 +169,11 @@ q-default-theme card-theme {
 
 card-theme {
   div.card { text { Styled by default theme } }
-}</q-editor> } } }
+}
+&lt;/q-html&gt;</q-editor> } } }
 
-    wiki-example-card { title: "Scoped theme application" summary: "Wrap a block in a theme invocation to style only that subtree." note: "This keeps style scopes local and predictable." details { html { <q-editor>q-style title-accent {
+    wiki-example-card { title: "Scoped theme application" summary: "Wrap a block in a theme invocation to style only that subtree." note: "This keeps style scopes local and predictable." details { html { <q-editor>&lt;q-html&gt;
+q-style title-accent {
   color: #1d4ed8
 }
 
@@ -182,9 +193,11 @@ article-theme {
     h3 { text { Title } }
     p  { text { Description } }
   }
-}</q-editor> } } }
+}
+&lt;/q-html&gt;</q-editor> } } }
 
-    wiki-example-card { title: "Compose themes" summary: "A theme can include another theme before adding its own rules." note: "Use this when you want a base design language plus page-specific overrides." details { html { <q-editor>q-style button-base {
+    wiki-example-card { title: "Compose themes" summary: "A theme can include another theme before adding its own rules." note: "Use this when you want a base design language plus page-specific overrides." details { html { <q-editor>&lt;q-html&gt;
+q-style button-base {
   backgroundColor: #0f766e
   color: #ffffff
   border: 0
@@ -210,9 +223,11 @@ admin-theme {
     button { text { Save } }
     button.danger { text { Delete } }
   }
-}</q-editor> } } }
+}
+&lt;/q-html&gt;</q-editor> } } }
 
-    wiki-example-card { title: "Override class CSS with inline declarations" summary: "q-style-class adds classes, and the inline part of q-style still wins on conflicting properties." note: "This makes utility classes and custom colors work well together." details { html { <q-editor>q-style button-base {
+    wiki-example-card { title: "Override class CSS with inline declarations" summary: "q-style-class adds classes, and the inline part of q-style still wins on conflicting properties." note: "This makes utility classes and custom colors work well together." details { html { <q-editor>&lt;q-html&gt;
+q-style button-base {
   q-style-class { w3-button w3-round }
   backgroundColor: #0f766e
   color: #ffffff
@@ -220,9 +235,11 @@ admin-theme {
 
 button-base,button {
   text { Save changes }
-}</q-editor> } } }
+}
+&lt;/q-html&gt;</q-editor> } } }
 
-    wiki-example-card { title: "q-transition and q-style-transition" summary: "Transitions are reusable declarations that can be attached through q-style." note: "Use this when you want CSS transitions without writing the raw transition string yourself." details { html { <q-editor>q-transition mytransition {
+    wiki-example-card { title: "q-transition and q-style-transition" summary: "Transitions are reusable declarations that can be attached through q-style." note: "Use this when you want CSS transitions without writing the raw transition string yourself." details { html { <q-editor>&lt;q-html&gt;
+q-transition mytransition {
   property { opacity }
   duration { 800 }
   timing { ease-in-out }
@@ -252,9 +269,11 @@ button {
       box.style.opacity = box.style.opacity === "0.25" ? "1" : "0.25";
     }
   }
-}</q-editor> } } }
+}
+&lt;/q-html&gt;</q-editor> } } }
 
-    wiki-example-card { title: "q-painter and q-style-painter" summary: "Painters register a CSS Paint Worklet and styles can attach that painter to background, border, or mask surfaces." note: "Use painter-based styling when the image should be generated procedurally instead of loaded from a file." details { html { <q-editor>q-painter mypainter {
+    wiki-example-card { title: "q-painter and q-style-painter" summary: "Painters register a CSS Paint Worklet and styles can attach that painter to background, border, or mask surfaces." note: "Use painter-based styling when the image should be generated procedurally instead of loaded from a file." details { html { <q-editor>&lt;q-html&gt;
+q-painter mypainter {
   onpaint {
     this.fillStyle = "#2563eb";
     this.fillRect(0, 0, this.width / 2, this.height);
@@ -279,7 +298,8 @@ painter-theme {
     }
     text { Painter target }
   }
-}</q-editor> } } }
+}
+&lt;/q-html&gt;</q-editor> } } }
   }
 }
     </q-html>

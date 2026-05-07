@@ -26,7 +26,8 @@ wiki-shell {
       note: "This is the simplest manual mutation flow."
       details {
         html {
-          <q-editor>&lt;q-html id="page"&gt;
+          <q-editor>&lt;q-html&gt;
+&lt;q-html id="page"&gt;
   ul { id: "items" }
 &lt;/q-html&gt;
 
@@ -36,7 +37,8 @@ wiki-shell {
   const list = root.find("#items");
   list.appendNode(list.createQElement("li", { textContent: "Added via qdom()" }));
   host.update();
-&lt;/script&gt;</q-editor>
+&lt;/script&gt;
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -47,9 +49,11 @@ wiki-shell {
       note: "Use this when replacing a whole branch is easier than mutating fields one by one."
       details {
         html {
-          <q-editor>const host = document.querySelector("q-html");
+          <q-editor>&lt;q-html&gt;
+const host = document.querySelector("q-html");
 host.qdom().find("#items").replaceWithQHTML("ul { li { text { Replaced } } }");
-host.update();</q-editor>
+host.update();
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -60,10 +64,12 @@ host.update();</q-editor>
       note: "It mirrors the idea of q-rewrite, but runs against a mounted QDOM node."
       details {
         html {
-          <q-editor>document.querySelector("q-html").qdom().find("#items").rewrite(function () {
+          <q-editor>&lt;q-html&gt;
+document.querySelector("q-html").qdom().find("#items").rewrite(function () {
   return "div { class: 'box' text { Rewritten } }";
 });
-document.querySelector("q-html").update();</q-editor>
+document.querySelector("q-html").update();
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -74,14 +80,16 @@ document.querySelector("q-html").update();</q-editor>
       note: "This is useful for persistence, snapshots, and editor-style flows."
       details {
         html {
-          <q-editor>const host = document.querySelector("q-html");
+          <q-editor>&lt;q-html&gt;
+const host = document.querySelector("q-html");
 const serialized = host.qdom().serialize();
 
 host.qdom().deserialize(serialized, false); // append
 host.update();
 
 host.qdom().deserialize(serialized, true);  // replace
-host.update();</q-editor>
+host.update();
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -92,12 +100,14 @@ host.update();</q-editor>
       note: "Use these when mutating a component through its QDOM facade."
       details {
         html {
-          <q-editor>const comp = document.querySelector("my-component");
+          <q-editor>&lt;q-html&gt;
+const comp = document.querySelector("my-component");
 const qnode = comp.qdom();
 const props = qnode.properties();
 const val = qnode.getProperty("title");
 qnode.property("title", "New title");
-comp.update();</q-editor>
+comp.update();
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -108,8 +118,10 @@ comp.update();</q-editor>
       note: "Prefer the smaller update when you know the scope."
       details {
         html {
-          <q-editor>this.component.update();        // this component subtree
-this.component.root().update(); // whole &lt;q-html&gt;</q-editor>
+          <q-editor>&lt;q-html&gt;
+this.component.update();        // this component subtree
+this.component.root().update(); // whole &lt;q-html&gt;
+&lt;/q-html&gt;</q-editor>
         }
       }
     }

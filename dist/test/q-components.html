@@ -2079,6 +2079,70 @@ onReady {
 }
 </q-html>
       </article>
+      <article class="test-card" id="card-122">
+        <div class="test-head">
+          <h2>122. q-tech-panel paints direct child divs</h2>
+          <span id="badge-122" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> hello world | borderWidth=5px | topLeft=12px | background=paint | mask=paint</div>
+<q-html id="host-t122" data-test-no="122">
+q-import { q-components/q-tech-panel.qhtml }
+
+q-tech-panel {
+  borderWidth: "5px"
+  borderColor: "#67e8f9"
+  shadowColor: "#22c55e"
+  topLeft: "12px"
+  topDent: "2vh"
+  topDentLength: "18%"
+  patternSize: "16px"
+
+  q-style divstyle {
+    width: 40vw
+    minWidth: 220px
+    height: 20vh
+    minHeight: 80px
+    padding: 18px
+    color: #e0f2fe
+    fontWeight: 700
+  }
+
+  q-theme mytheme {
+    div { divstyle }
+  }
+
+  mytheme {
+    div#t122-panel { text { hello world } }
+  }
+}
+div#t122-out { text { waiting } }
+
+onReady {
+  var host = this;
+  setTimeout(function() {
+    var panel = host.querySelector("#t122-panel");
+    var out = host.querySelector("#t122-out");
+    var acc = document.querySelector("#acc-main");
+    var support = typeof CSS !== "undefined" && CSS && CSS.paintWorklet;
+    var text = panel ? String(panel.textContent || "").trim() : "";
+    var borderWidth = panel && panel.style ? String(panel.style.getPropertyValue("--borderWidth") || "").trim() : "";
+    var topLeft = panel && panel.style ? String(panel.style.getPropertyValue("--topLeft") || "").trim() : "";
+    var bg = panel && panel.style ? String(panel.style.backgroundImage || "") : "";
+    var mask = panel && panel.style ? String(panel.style.maskImage || panel.style.webkitMaskImage || "") : "";
+    var backgroundStatus = support ? (bg.indexOf("paint(") >= 0 ? "paint" : "missing") : "unsupported";
+    var maskStatus = support ? (mask.indexOf("paint(") >= 0 ? "paint" : "missing") : "unsupported";
+    var actual = text + " | borderWidth=" + borderWidth + " | topLeft=" + topLeft + " | background=" + backgroundStatus + " | mask=" + maskStatus;
+    var ok = text === "hello world" && borderWidth === "5px" && topLeft === "12px" && (!support || (backgroundStatus === "paint" && maskStatus === "paint"));
+    if (out) {
+      out.textContent = actual;
+    }
+    if (acc && typeof acc.outcomeReported === "function") {
+      acc.outcomeReported(122, ok, actual);
+    }
+  }, 650);
+}
+</q-html>
+      </article>
     </section>
   </div>
 </body>

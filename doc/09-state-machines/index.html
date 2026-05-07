@@ -24,14 +24,16 @@ wiki-shell {
       summary: "A q-state-machine is like a q-component with a main render slot and an onstatechanged handler, except the framework owns the slot swap."
       note: "The state blocks are stored as QDOM and only the active state body is rendered inside the <q-state-machine> host. The outer <q-html> root is not remounted for normal state changes."
       details {
-        html { <q-editor>q-state-machine mymachine {
+        html { <q-editor>&lt;q-html&gt;
+q-state-machine mymachine {
   state1 {
     div { text { State one UI } }
   }
   state2 {
     div { text { State two UI } }
   }
-}</q-editor> }
+}
+&lt;/q-html&gt;</q-editor> }
       }
     }
 
@@ -40,7 +42,8 @@ wiki-shell {
       summary: "Give the machine a name, declare state blocks, then assign machine.state from buttons, handlers, or component methods."
       note: "The first state is used as the initial state unless you add state: \"stateName\" inside the machine body."
       details {
-        html { <q-editor>q-state-machine mymachine {
+        html { <q-editor>&lt;q-html&gt;
+q-state-machine mymachine {
   state1 {
     div,span,h3 { text { hello world } }
   }
@@ -57,7 +60,8 @@ button {
 button {
   text { show state2 }
   onclick { mymachine.state = "state2"; }
-}</q-editor> }
+}
+&lt;/q-html&gt;</q-editor> }
       }
     }
 
@@ -66,7 +70,8 @@ button {
       summary: "The rendered host is a normal component instance: <q-state-machine q-component=\"q-state-machine\" qhtml-component-instance=\"1\">."
       note: "That means it participates in named instance scope, component methods, declared properties, and component signals."
       details {
-        html { <q-editor>q-state-machine machineHost {
+        html { <q-editor>&lt;q-html&gt;
+q-state-machine machineHost {
   q-property note: "ready"
   q-signal saved(value)
 
@@ -77,7 +82,8 @@ button {
 
   state1 { p { text { Draft } } }
   state2 { p { text { Saved } } }
-}</q-editor> }
+}
+&lt;/q-html&gt;</q-editor> }
       }
     }
 
@@ -86,13 +92,15 @@ button {
       summary: "Every machine has state as a declared q-property. Reading machine.state returns the active state name."
       note: "Writing machine.state updates the QDOM props for that machine and swaps only the active state subtree. Unknown state names are preserved as the assigned state value, but render an empty body."
       details {
-        html { <q-editor>button {
+        html { <q-editor>&lt;q-html&gt;
+button {
   text { publish }
   onclick {
     mymachine.state = "published";
     console.log(mymachine.state);
   }
-}</q-editor> }
+}
+&lt;/q-html&gt;</q-editor> }
       }
     }
 
@@ -101,7 +109,8 @@ button {
       summary: "Every machine has a normal q-signal named statechanged. The first argument is the next state."
       note: "Because this is the same signal implementation used by q-component, it works with .connect(...), q-connect, and queued signal routing."
       details {
-        html { <q-editor>q-component status-panel {
+        html { <q-editor>&lt;q-html&gt;
+q-component status-panel {
   q-property value: "waiting"
 
   function setValue(value) {
@@ -123,7 +132,8 @@ q-connect { mymachine.statechanged panel.setValue }
 button {
   text { activate state2 }
   onclick { mymachine.state = "state2"; }
-}</q-editor> }
+}
+&lt;/q-html&gt;</q-editor> }
       }
     }
 
@@ -132,7 +142,8 @@ button {
       summary: "A state block is named by its selector token: state1 { ... }, loading { ... }, failed { ... }, and so on."
       note: "State body content is normal QHTML. You can use elements, selector chains, styles, components, model views, and other supported runtime declarations inside the active state body."
       details {
-        html { <q-editor>q-state-machine panelState {
+        html { <q-editor>&lt;q-html&gt;
+q-state-machine panelState {
   loading {
     div.loading-panel { text { Loading... } }
   }
@@ -145,7 +156,8 @@ button {
   failed {
     div.error-panel { text { Could not load data. } }
   }
-}</q-editor> }
+}
+&lt;/q-html&gt;</q-editor> }
       }
     }
 
@@ -154,7 +166,8 @@ button {
       summary: "State bodies can instantiate q-components. The active child aliases live under the machine host."
       note: "Use machine.childName for stable access from outside the active state context. When the state changes, the active subtree and its child aliases are recreated."
       details {
-        html { <q-editor>q-component message-card {
+        html { <q-editor>&lt;q-html&gt;
+q-component message-card {
   q-property label: ""
   div { text { ${this.component.label} } }
 }
@@ -171,7 +184,8 @@ q-state-machine mymachine {
 button {
   text { read active card }
   onclick { console.log(mymachine.card.label); }
-}</q-editor> }
+}
+&lt;/q-html&gt;</q-editor> }
       }
     }
 
@@ -180,7 +194,8 @@ button {
       summary: "This is the smallest practical pattern: one machine, two states, two buttons, and a connected observer."
       note: "Use this structure when a page section has a finite set of visual modes and other components need to react when the mode changes."
       details {
-        html { <q-editor>q-component observer-box {
+        html { <q-editor>&lt;q-html&gt;
+q-component observer-box {
   q-property lastState: "waiting"
 
   function setPassing(value) {
@@ -204,7 +219,8 @@ observer-box othercomponent { }
 q-connect { mymachine.statechanged othercomponent.setPassing }
 
 button { text { toggle state1 } onclick { mymachine.state = "state1"; } }
-button { text { toggle state2 } onclick { mymachine.state = "state2"; } }</q-editor> }
+button { text { toggle state2 } onclick { mymachine.state = "state2"; } }
+&lt;/q-html&gt;</q-editor> }
       }
     }
   }

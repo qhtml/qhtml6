@@ -24,7 +24,8 @@ wiki-shell {
       summary: "Use particle-emitter when you want a visual particle effect from declarative QHTML attributes."
       note: "The element is not a q-component. It is a framework-registered custom element, so it works in plain HTML and in QHTML-rendered markup. Use particle-emitter or q-particle-emitter interchangeably. Each emitter owns one canvas, one particle array, one seeded random generator, and one animation loop."
       details {
-        html { <q-editor>div#field {
+        html { <q-editor>&lt;q-html&gt;
+div#field {
   style {
     position: relative;
     width: 420px;
@@ -35,9 +36,10 @@ wiki-shell {
 
   particle-emitter#energy {
     running: "false"
-    src: "/dist/assets/particle.png"
+    src: "particle.png"
   }
-}</q-editor> }
+}
+&lt;/q-html&gt;</q-editor> }
       }
     }
 
@@ -46,7 +48,8 @@ wiki-shell {
       summary: "This example starts particles at the bottom of the container, spreads them horizontally, and moves them upward with a long fade."
       note: "The parent must have real dimensions. If the parent has static positioning, particle-emitter changes it to relative so the canvas can fill it."
       details {
-        html { <q-editor>div#energy-field {
+        html { <q-editor>&lt;q-html&gt;
+div#energy-field {
   style {
     position: relative;
     width: 420px;
@@ -83,7 +86,7 @@ wiki-shell {
     maxActiveParticlesVariation: "18"
     running: "false"
     interval: "18"
-    src: "/dist/assets/particle.png"
+    src: "particle.png"
   }
 }
 
@@ -95,7 +98,8 @@ button {
 button {
   text { Stop energy }
   onclick { document.querySelector("#energy-emitter").running = false; }
-}</q-editor> }
+}
+&lt;/q-html&gt;</q-editor> }
       }
     }
 
@@ -104,14 +108,16 @@ button {
       summary: "The emitter starts an internal requestAnimationFrame loop when connected. The loop keeps rendering, but it only creates new particles while running is true."
       note: "Setting running to false or calling stop() stops emission but existing particles continue to age out. clear() immediately removes all current particles and resets total-created counters."
       details {
-        html { <q-editor>particle-emitter#fx {
+        html { <q-editor>&lt;q-html&gt;
+particle-emitter#fx {
   running: "false"
   emitRate: "40"
 }
 
 button { text { Start } onclick { document.querySelector("#fx").running = true; } }
 button { text { Stop } onclick { document.querySelector("#fx").running = false; } }
-button { text { Clear } onclick { document.querySelector("#fx").clear(); } }</q-editor> }
+button { text { Clear } onclick { document.querySelector("#fx").clear(); } }
+&lt;/q-html&gt;</q-editor> }
       }
     }
 
@@ -120,17 +126,31 @@ button { text { Clear } onclick { document.querySelector("#fx").clear(); } }</q-
       summary: "These attributes decide how many particles are created and when emission stops."
       note: "Attribute names may be written in camelCase in QHTML. The browser lowercases HTML attributes, and the emitter reads both forms."
       details {
-        html { <q-editor>emitRate: particles created per second while running is true
-lifetime: base particle lifetime in milliseconds
-lifetimeVariation: random +/- milliseconds added to lifetime
-maxActiveParticles: maximum simultaneous live particles
-maxActiveParticlesVariation: random +/- applied to the active limit
-maxParticles: maximum total particles before auto-stop; 0 means unlimited
-stopAfter: alias-style total limit used when maxParticles is not set
-running: true/false emission switch and reflected JS property
-interval: simulation scale baseline in milliseconds
-seed: deterministic random seed
-zIndex: layer order for the emitter element</q-editor> }
+        html { <q-editor>&lt;q-html&gt;
+div#emission-demo {
+  style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #07111f; }
+
+  particle-emitter#emission-emitter {
+    emitRate: "70"
+    lifetime: "1800"
+    lifetimeVariation: "250"
+    maxActiveParticles: "48"
+    maxActiveParticlesVariation: "6"
+    maxParticles: "0"
+    stopAfter: "0"
+    running: "true"
+    interval: "10"
+    seed: "1212"
+    zIndex: "2"
+    x: "180"
+    y: "176"
+    yVelocity: "-1.35"
+    xVariation: "130"
+    src: "particle.png"
+    color: "#67e8f9"
+  }
+}
+&lt;/q-html&gt;</q-editor> }
       }
     }
 
@@ -139,18 +159,33 @@ zIndex: layer order for the emitter element</q-editor> }
       summary: "Particles are born at x/y, then receive velocity and acceleration each frame."
       note: "Use xVariation and yVariation for spawn spread. For rising energy, place y near the container bottom and make yVelocity negative."
       details {
-        html { <q-editor>x: spawn origin x in CSS pixels
-y: spawn origin y in CSS pixels
-xVariation: random +/- x spawn spread
-yVariation: random +/- y spawn spread
-xVelocity: horizontal velocity per simulation step
-yVelocity: vertical velocity per simulation step
-xVelocityVariation: random +/- horizontal velocity
-yVelocityVariation: random +/- vertical velocity
-xAcceleration: horizontal acceleration per simulation step
-yAcceleration: vertical acceleration per simulation step
-xAccelerationVariation: random +/- horizontal acceleration
-yAccelerationVariation: random +/- vertical acceleration</q-editor> }
+        html { <q-editor>&lt;q-html&gt;
+div#motion-demo {
+  style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #0f172a; }
+
+  particle-emitter#motion-emitter {
+    x: "180"
+    y: "176"
+    xVariation: "150"
+    yVariation: "8"
+    xVelocity: "0.18"
+    yVelocity: "-1.45"
+    xVelocityVariation: "0.35"
+    yVelocityVariation: "0.16"
+    xAcceleration: "0.004"
+    yAcceleration: "-0.002"
+    xAccelerationVariation: "0.008"
+    yAccelerationVariation: "0.003"
+    emitRate: "64"
+    lifetime: "2200"
+    maxActiveParticles: "52"
+    running: "true"
+    interval: "10"
+    src: "particle.png"
+    color: "#a7f3d0"
+  }
+}
+&lt;/q-html&gt;</q-editor> }
       }
     }
 
@@ -159,14 +194,33 @@ yAccelerationVariation: random +/- vertical acceleration</q-editor> }
       summary: "Each particle interpolates from start values to end values over its lifetime."
       note: "The renderer computes progress as age / lifetime. Size and opacity are then linearly interpolated from start to end."
       details {
-        html { <q-editor>startSize: particle size at birth
-endSize: particle size at expiration
-startSizeVariation: random +/- birth size
-endSizeVariation: random +/- end size
-startOpacity: opacity at birth, clamped 0..1
-endOpacity: opacity at expiration, clamped 0..1
-startOpacityVariation: random +/- birth opacity
-endOpacityVariation: random +/- end opacity</q-editor> }
+        html { <q-editor>&lt;q-html&gt;
+div#size-demo {
+  style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #1e1238; }
+
+  particle-emitter#size-emitter {
+    startSize: "28"
+    endSize: "8"
+    startSizeVariation: "8"
+    endSizeVariation: "3"
+    startOpacity: "0.85"
+    endOpacity: "0.03"
+    startOpacityVariation: "0.08"
+    endOpacityVariation: "0.02"
+    x: "180"
+    y: "176"
+    xVariation: "135"
+    yVelocity: "-1.25"
+    emitRate: "72"
+    lifetime: "2000"
+    maxActiveParticles: "56"
+    running: "true"
+    interval: "10"
+    src: "particle.png"
+    color: "#c084fc"
+  }
+}
+&lt;/q-html&gt;</q-editor> }
       }
     }
 
@@ -175,9 +229,31 @@ endOpacityVariation: random +/- end opacity</q-editor> }
       summary: "Particles draw either a composed sprite canvas or a fallback colored circle."
       note: "The mask is applied to each particle sprite's alpha, not to the whole emitter canvas. If src and mask are both provided, the mask alpha clips the source alpha. If only mask is provided, the mask becomes the particle shape. Changing mask at runtime reloads and recomposes the sprite. Images are loaded with crossOrigin=\"anonymous\"."
       details {
-        html { <q-editor>src: image URL for the particle sprite
-mask: optional image URL used as a per-particle destination-in alpha mask
-color: fallback fill color, or a base fill before src/mask composition</q-editor> }
+        html { <q-editor>&lt;q-html&gt;
+div#sprite-demo {
+  style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #330d12; }
+
+  particle-emitter#sprite-emitter {
+    src: "particle.png"
+    mask: "particle.png"
+    color: "#fb7185"
+    x: "180"
+    y: "176"
+    xVariation: "150"
+    yVelocity: "-1.35"
+    yVelocityVariation: "0.12"
+    startSize: "26"
+    endSize: "10"
+    startOpacity: "0.82"
+    endOpacity: "0.03"
+    emitRate: "68"
+    lifetime: "1900"
+    maxActiveParticles: "46"
+    running: "true"
+    interval: "10"
+  }
+}
+&lt;/q-html&gt;</q-editor> }
       }
     }
 
@@ -186,12 +262,29 @@ color: fallback fill color, or a base fill before src/mask composition</q-editor
       summary: "The emitter appends a canvas inside itself and sizes that canvas from the parent element."
       note: "The canvas backing store is scaled by devicePixelRatio, while drawing coordinates stay in CSS pixels. This keeps the effect crisp on high-DPI screens."
       details {
-        html { <q-editor>// DOM shape after upgrade:
-&lt;div id="field" style="position: relative"&gt;
-  &lt;particle-emitter id="energy" style="position:absolute; inset:0"&gt;
-    &lt;canvas&gt;&lt;/canvas&gt;
-  &lt;/particle-emitter&gt;
-&lt;/div&gt;</q-editor> }
+        html { <q-editor>&lt;q-html&gt;
+div#render-demo {
+  style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #082915; }
+
+  particle-emitter#render-emitter {
+    emitRate: "60"
+    lifetime: "2100"
+    x: "180"
+    y: "176"
+    xVariation: "130"
+    yVelocity: "-1.3"
+    startSize: "24"
+    endSize: "9"
+    startOpacity: "0.8"
+    endOpacity: "0.03"
+    maxActiveParticles: "44"
+    running: "true"
+    interval: "10"
+    src: "particle.png"
+    color: "#86efac"
+  }
+}
+&lt;/q-html&gt;</q-editor> }
       }
     }
   }

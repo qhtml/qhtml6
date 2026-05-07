@@ -63,13 +63,15 @@ wiki-shell {
       note: "This is the most direct signal form for component-to-component communication."
       details {
         html {
-          <q-editor>q-component sender-box {
+          <q-editor>&lt;q-html&gt;
+q-component sender-box {
   q-signal sent(message)
   button {
     text { Send }
     onclick { this.component.sent("Hello"); }
   }
-}</q-editor>
+}
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -80,13 +82,15 @@ wiki-shell {
       note: "Use it when you want signal-like syntax with named slots."
       details {
         html {
-          <q-editor>q-signal menuItemClicked {
+          <q-editor>&lt;q-html&gt;
+q-signal menuItemClicked {
   slot { itemId }
 }
 
 div {
   menuItemClicked { itemId { A } }
-}</q-editor>
+}
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -97,8 +101,10 @@ div {
       note: "Use this when the wiring depends on a lifecycle step."
       details {
         html {
-          <q-editor>sender1.sent.connect(receiver1.onMessage);
-sender1.sendNow("hello-from-connect");</q-editor>
+          <q-editor>&lt;q-html&gt;
+sender1.sent.connect(receiver1.onMessage);
+sender1.sendNow("hello-from-connect");
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -109,7 +115,9 @@ sender1.sendNow("hello-from-connect");</q-editor>
       note: "Think of it as declarative-only signal wiring."
       details {
         html {
-          <q-editor>q-connect { senderA.sent receiverA.onMessage }</q-editor>
+          <q-editor>&lt;q-html&gt;
+q-connect { senderA.sent receiverA.onMessage }
+&lt;/q-html&gt;</q-editor>
         }
       }
     }

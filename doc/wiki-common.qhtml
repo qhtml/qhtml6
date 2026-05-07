@@ -203,7 +203,7 @@ q-component wiki-nav-link {
 }
 
 q-component wiki-section-relay {
-  q-signal currentChanged(value)
+  q-property current: ""
 }
 
 q-component wiki-shell {
@@ -239,7 +239,7 @@ q-component wiki-shell {
             wiki-nav-link navEscapeSequences { prefix: "/doc/" suffix: "15-escape-sequences/" label: "Escape Sequences" navKey: "escape-sequences" currentKey: "${this.component.sectionKey}" }
             wiki-nav-link navTry { prefix: "/doc/" suffix: "try-it-yourself/" label: "Try It Yourself" navKey: "try" currentKey: "${this.component.sectionKey}" }
 
-            q-connect { sectionRelay.currentChanged navHome.currentChanged }
+/*             q-connect { sectionRelay.currentChanged navHome.currentChanged }
             q-connect { sectionRelay.currentChanged navQuickStart.currentChanged }
             q-connect { sectionRelay.currentChanged navCoreSyntax.currentChanged }
             q-connect { sectionRelay.currentChanged navComponents.currentChanged }
@@ -255,7 +255,7 @@ q-component wiki-shell {
             q-connect { sectionRelay.currentChanged navOptionalTags.currentChanged }
             q-connect { sectionRelay.currentChanged navModuleReadmes.currentChanged }
             q-connect { sectionRelay.currentChanged navEscapeSequences.currentChanged }
-            q-connect { sectionRelay.currentChanged navTry.currentChanged }
+            q-connect { sectionRelay.currentChanged navTry.currentChanged } */
           }
         }
         main {
@@ -271,11 +271,11 @@ q-component wiki-shell {
     }
   }
 
-  onready {
+/*  onready {
     sectionRelay.currentChanged(wiki-shell.sectionKey);
-  }
+  } */
 
-  onsectionKeychanged(value) {
+/*  onsectionKeychanged(value) {
     sectionRelay.currentChanged(value);
-  }
+  } */
 }

@@ -977,6 +977,122 @@ onready {
         </div>
       </section>
 
+      <section class="example-class" id="q-tech-panel" data-title="q-tech-panel Houdini panel showcase">
+        <div class="example-head">
+          <h3>q-tech-panel Houdini panel showcase</h3>
+          <p>Five large direct child divs using different clipped corners, top dents, border widths, shadows, and grid patterns.</p>
+        </div>
+        <div class="example-body">
+          <q-editor>
+q-import { q-components/q-tech-panel.qhtml }
+
+q-style tech-panel-stage {
+  display: grid
+  gridTemplateColumns: repeat(auto-fit, minmax(320px, 1fr))
+  gap: 22px
+  padding: 18px
+  background: #07111f
+}
+
+q-style tech-panel-box {
+  minHeight: 24vh
+  height: 260px
+  padding: 30px 34px
+  color: #e6fbff
+  fontFamily: monospace
+  fontWeight: 700
+  letterSpacing: 0.04em
+  display: flex
+  alignItems: center
+  justifyContent: center
+  textAlign: center
+}
+
+q-theme techPanelDemoTheme {
+  .tech-stage { tech-panel-stage }
+  .tech-box { tech-panel-box }
+}
+
+techPanelDemoTheme {
+  div.tech-stage {
+    q-tech-panel {
+      borderWidth: "8px"
+      borderColor: "#6ee7ff"
+      shadowColor: "#00ff99"
+      topLeft: "34px"
+      bottomRight: "42px"
+      topDent: "30px"
+      topDentLength: "24%"
+      patternSize: "22px"
+      div.tech-box { text { CYAN COMMAND PANEL } }
+    }
+
+    q-tech-panel {
+      borderWidth: "5px"
+      borderColor: "#ffcc66"
+      shadowColor: "#ff7a18"
+      topRight: "54px"
+      bottomLeft: "48px"
+      topDent: "46px"
+      topDentLength: "34%"
+      patternShift: "20px 36px"
+      patternSize: "28px"
+      percentage: "0.35"
+      div.tech-box { text { AMBER REACTOR SLOT } }
+    }
+
+    q-tech-panel {
+      borderWidth: "4px"
+      borderColor: "#d8b4fe"
+      shadowColor: "#a855f7"
+      topLeft: "58px 38px"
+      topRight: "38px 58px"
+      bottomRight: "70px 44px"
+      bottomLeft: "44px 70px"
+      topDent: "26px"
+      topDentLength: "42%"
+      patternSize: "18px"
+      percentage: "0.55"
+      div.tech-box { text { VIOLET SYMMETRY FRAME } }
+    }
+
+    q-tech-panel {
+      borderWidth: "2px"
+      borderColor: "#86efac"
+      shadowColor: "#22c55e"
+      topLeft: "20px"
+      topRight: "72px"
+      bottomRight: "32px"
+      bottomLeft: "86px"
+      topDent: "54px"
+      topDentLength: "18%"
+      patternShift: "-18px 26px"
+      patternSize: "34px"
+      percentage: "0.2"
+      div.tech-box { text { GREEN HEAVY ARMOR PANEL } }
+    }
+
+    q-tech-panel {
+      borderWidth: "1px"
+      borderColor: "#fca5a5"
+      shadowColor: "#ef4444"
+      topLeft: "46px"
+      topRight: "18px"
+      bottomRight: "58px"
+      bottomLeft: "28px"
+      topDent: "18px"
+      topDentLength: "30%"
+      patternShift: "12px -18px"
+      patternSize: "20px"
+      percentage: "0.48"
+      div.tech-box { text { RED THIN SIGNAL PANEL } }
+    }
+  }
+}
+          </q-editor>
+        </div>
+      </section>
+
       <section class="example-class" id="q-toolbar" data-title="q-toolbar + q-toolbutton usage">
         <div class="example-head">
           <h3>q-toolbar + q-toolbutton usage</h3>

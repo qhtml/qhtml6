@@ -157,7 +157,6 @@ q-component wiki-nav-link {
   q-property label: ""
   q-property navKey: ""
   q-property currentKey: ""
-  q-signal currentChanged(value)
 
   function syncHref() {
     var link = this.querySelector("#nav-link-anchor");
@@ -168,7 +167,6 @@ q-component wiki-nav-link {
 
   function applyCurrent(value) {
     var nextValue = String(value == null ? "" : value);
-    this.component.currentKey = nextValue;
     var link = this.querySelector("#nav-link-anchor");
     if (link) {
       link.className = this.component.navKey === nextValue ? "wiki-nav-link wiki-nav-current" : "wiki-nav-link";
@@ -188,22 +186,10 @@ q-component wiki-nav-link {
     this.component.syncHref();
   }
 
-  oncurrentKeychanged(value) {
-    this.component.applyCurrent(value);
-  }
-
-  oncurrentChanged(value) {
-    this.component.applyCurrent(value);
-  }
-
   a#nav-link-anchor.wiki-nav-link {
     href: "#"
     text { ${this.component.label} }
   }
-}
-
-q-component wiki-section-relay {
-  q-signal currentChanged(value)
 }
 
 q-component wiki-shell {
@@ -219,7 +205,6 @@ q-component wiki-shell {
           div.wiki-nav-pane {
             h2.wiki-nav-title { text { QHTML Wiki } }
             p.wiki-nav-copy { text { Read it like a guide and run the small examples as you go. } }
-            wiki-section-relay sectionRelay { }
 
             wiki-nav-link navHome { prefix: "/doc/" suffix: "index.html" label: "Start here" navKey: "home" currentKey: "${this.component.sectionKey}" }
             wiki-nav-link navQuickStart { prefix: "/doc/" suffix: "01-quick-start/" label: "Quick Start" navKey: "quick-start" currentKey: "${this.component.sectionKey}" }
@@ -238,24 +223,6 @@ q-component wiki-shell {
             wiki-nav-link navModuleReadmes { prefix: "/doc/" suffix: "14-module-readmes/" label: "Module READMEs" navKey: "module-readmes" currentKey: "${this.component.sectionKey}" }
             wiki-nav-link navEscapeSequences { prefix: "/doc/" suffix: "15-escape-sequences/" label: "Escape Sequences" navKey: "escape-sequences" currentKey: "${this.component.sectionKey}" }
             wiki-nav-link navTry { prefix: "/doc/" suffix: "try-it-yourself/" label: "Try It Yourself" navKey: "try" currentKey: "${this.component.sectionKey}" }
-
-            q-connect { sectionRelay.currentChanged navHome.currentChanged }
-            q-connect { sectionRelay.currentChanged navQuickStart.currentChanged }
-            q-connect { sectionRelay.currentChanged navCoreSyntax.currentChanged }
-            q-connect { sectionRelay.currentChanged navComponents.currentChanged }
-            q-connect { sectionRelay.currentChanged navStyles.currentChanged }
-            q-connect { sectionRelay.currentChanged navStateQScript.currentChanged }
-            q-connect { sectionRelay.currentChanged navQScript.currentChanged }
-            q-connect { sectionRelay.currentChanged navInlineExpressions.currentChanged }
-            q-connect { sectionRelay.currentChanged navSignals.currentChanged }
-            q-connect { sectionRelay.currentChanged navStateMachines.currentChanged }
-            q-connect { sectionRelay.currentChanged navQdomApi.currentChanged }
-            q-connect { sectionRelay.currentChanged navParticleEmitter.currentChanged }
-            q-connect { sectionRelay.currentChanged navDebugTips.currentChanged }
-            q-connect { sectionRelay.currentChanged navOptionalTags.currentChanged }
-            q-connect { sectionRelay.currentChanged navModuleReadmes.currentChanged }
-            q-connect { sectionRelay.currentChanged navEscapeSequences.currentChanged }
-            q-connect { sectionRelay.currentChanged navTry.currentChanged }
           }
         }
         main {
@@ -269,13 +236,5 @@ q-component wiki-shell {
         }
       }
     }
-  }
-
-  onready {
-    sectionRelay.currentChanged(wiki-shell.sectionKey);
-  }
-
-  onsectionKeychanged(value) {
-    sectionRelay.currentChanged(value);
   }
 }

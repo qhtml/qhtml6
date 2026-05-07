@@ -1,0 +1,947 @@
+q-painter q-tech-panel-painter {
+  q-property borderWidth: "5px"
+  q-property borderColor: "white"
+  q-property shadowColor: "green"
+  q-property topLeft: "0px 0px"
+  q-property topRight: "0px 0px"
+  q-property bottomRight: "0px 0px"
+  q-property bottomLeft: "0px 0px"
+  q-property patternShift: "0px 0px"
+  q-property patternSize: "20px"
+  q-property topDent: "10px"
+  q-property topDentLength: "10%"
+  q-property percentage: "0.5"
+  q-property backgroundSeed: "117"
+  q-property backgroundImage: ""
+  q-property backgroundSize: "cover"
+  q-property backgroundPosition: "center"
+  q-property backgroundRepeat: "no-repeat"
+
+  onpaint {
+    function isNumericStart(value) {
+      var text = String(value == null ? "" : value).trim();
+      var first = text.charAt(0);
+      return (first >= "0" && first <= "9") || first === "-" || first === ".";
+    }
+
+    function normalizeCssValue(value, maxValue, fallback) {
+      var text = String(value == null ? "" : value).trim();
+      if (!text) {
+        return fallback;
+      }
+      if (!isNumericStart(text)) {
+        return text;
+      }
+      if (text.charAt(text.length - 1) === "%" && maxValue != null) {
+        var pct = Number.parseFloat(text.slice(0, -1));
+        return Number.isFinite(pct) ? (pct / 100) * maxValue : fallback;
+      }
+      var parsed = Number.parseFloat(text);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function normalizePair(value, maxV, maxH) {
+      var text = String(value == null ? "" : value).trim();
+      if (!text) {
+        return { v: 0, h: 0 };
+      }
+      var parts = text.split(/\s+/).filter(Boolean);
+      if (parts.length === 1) {
+        return {
+          v: normalizeCssValue(parts[0], maxV, 0),
+          h: normalizeCssValue(parts[0], maxH, 0)
+        };
+      }
+      return {
+        v: normalizeCssValue(parts[0], maxV, 0),
+        h: normalizeCssValue(parts[1], maxH, 0)
+      };
+    }
+
+    function asNumber(value, fallback) {
+      var parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function buildBorderPath(width, height, cfg) {
+      var offset = cfg.offset || 0;
+      var topLeft = cfg.topLeft;
+      var topRight = cfg.topRight;
+      var bottomRight = cfg.bottomRight;
+      var bottomLeft = cfg.bottomLeft;
+      var topDent = Math.max(0, cfg.topDent || 0);
+      var topDentLength = Math.max(0, cfg.topDentLength || 0);
+      var path = new Path2D();
+      var topStartX = offset + topLeft.h;
+      var topEndX = width - offset - topRight.h;
+      var topY = offset;
+
+      path.moveTo(offset, offset + topLeft.v);
+      if (topLeft.h !== 0 || topLeft.v !== 0) {
+        path.lineTo(topStartX, topY);
+      } else {
+        path.lineTo(offset, topY);
+      }
+
+      var topSpan = Math.max(0, topEndX - topStartX);
+      if (topDent > 0 && topDentLength > 0 && topSpan > 0) {
+        var dentLength = Math.min(topDentLength, topSpan);
+        var slope = Math.min(topDent, Math.max(0, (topSpan - dentLength) / 2));
+        var side = Math.max(0, (topSpan - dentLength - (2 * slope)) / 2);
+        var x1 = topStartX + side;
+        path.lineTo(x1, topY);
+        path.lineTo(x1 + slope, topY + topDent);
+        path.lineTo(x1 + slope + dentLength, topY + topDent);
+        path.lineTo(x1 + (2 * slope) + dentLength, topY);
+      }
+
+      path.lineTo(topEndX, topY);
+      if (topRight.h !== 0 || topRight.v !== 0) {
+        path.lineTo(width - offset, offset + topRight.v);
+      }
+
+      path.lineTo(width - offset, height - offset - bottomRight.v);
+      if (bottomRight.h !== 0 || bottomRight.v !== 0) {
+        path.lineTo(width - offset - bottomRight.h, height - offset);
+      }
+
+      path.lineTo(offset + bottomLeft.h, height - offset);
+      if (bottomLeft.h !== 0 || bottomLeft.v !== 0) {
+        path.lineTo(offset, height - offset - bottomLeft.v);
+      }
+
+      path.closePath();
+      return path;
+    }
+
+    function drawHexagon(ctx, hexSize, start) {
+      var ang = Math.sin(Math.PI / 3);
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(start.x + hexSize, start.y);
+      ctx.lineTo(start.x + hexSize + (hexSize * ang), start.y + (1.5 * hexSize * ang));
+      ctx.lineTo(start.x + hexSize, start.y + (3 * hexSize * ang));
+      ctx.lineTo(start.x, start.y + (3 * hexSize * ang));
+      ctx.lineTo(start.x - (hexSize * ang), start.y + (1.5 * hexSize * ang));
+      ctx.closePath();
+    }
+
+    function drawHexaGrid(ctx, width, height, hexSize, shift) {
+      if (!Number.isFinite(hexSize) || hexSize <= 0) {
+        return;
+      }
+      var ang = Math.sin(Math.PI / 3);
+      var rowHeight = Math.max(1, 3 * ang * hexSize);
+      var colWidth = Math.max(1, hexSize + (hexSize * ang));
+      var rows = Math.ceil(height / rowHeight) + 3;
+      var cols = Math.ceil(width / colWidth) + 3;
+      for (var row = -1; row < rows; row += 1) {
+        for (var col = -1; col < cols; col += 1) {
+          drawHexagon(ctx, hexSize, {
+            x: (col * colWidth) + shift.h,
+            y: (row * rowHeight) + (col % 2 ? 0 : 1.5 * hexSize * ang) + shift.v
+          });
+        }
+      }
+    }
+
+    function createRng(seed) {
+      var state = Number(seed);
+      if (!Number.isFinite(state)) {
+        state = 117;
+      }
+      state = state >>> 0;
+      return {
+        next: function() {
+          state = ((1664525 * state) + 1013904223) >>> 0;
+          return state / 4294967296;
+        },
+        range: function(min, max) {
+          return min + ((max - min) * this.next());
+        },
+        int: function(min, max) {
+          return Math.floor(this.range(min, max + 1));
+        }
+      };
+    }
+
+    function roundedPath(ctx, x, y, w, h, r) {
+      var rr = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.lineTo(x + w - rr, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+      ctx.lineTo(x + w, y + h - rr);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+      ctx.lineTo(x + rr, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+      ctx.lineTo(x, y + rr);
+      ctx.quadraticCurveTo(x, y, x + rr, y);
+      ctx.closePath();
+    }
+
+    function metalStroke(ctx, pathFn, width, color, shadowBlur, shadowColor) {
+      ctx.save();
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.lineWidth = width;
+      ctx.strokeStyle = color;
+      ctx.shadowBlur = shadowBlur || 0;
+      ctx.shadowColor = shadowColor || "transparent";
+      pathFn();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawBrushedLines(ctx, rng, x, y, w, h, count, alpha, mostlyHorizontal) {
+      ctx.save();
+      ctx.lineWidth = 1;
+      for (var i = 0; i < count; i += 1) {
+        var sx = rng.range(x, x + w);
+        var sy = rng.range(y, y + h);
+        var len = rng.range(8, mostlyHorizontal ? 90 : 48);
+        var angle = mostlyHorizontal ? rng.range(-0.04, 0.04) : rng.range(-0.95, 0.95);
+        ctx.strokeStyle = rng.next() > 0.5 ? "rgba(255,255,255," + (alpha * rng.range(0.15, 1)) + ")" : "rgba(0,0,0," + (alpha * rng.range(0.25, 1.4)) + ")";
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + (Math.cos(angle) * len), sy + (Math.sin(angle) * len));
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawCloudyMetal(ctx, rng, x, y, w, h) {
+      for (var i = 0; i < 64; i += 1) {
+        var rx = rng.range(x, x + w);
+        var ry = rng.range(y, y + h);
+        var r = rng.range(18, 95);
+        var a = rng.range(0.018, 0.075);
+        var g = ctx.createRadialGradient(rx, ry, 0, rx, ry, r);
+        g.addColorStop(0, rng.next() > 0.55 ? "rgba(255,255,255," + a + ")" : "rgba(0,0,0," + (a * 1.5) + ")");
+        g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.ellipse(rx, ry, r * rng.range(0.8, 1.7), r * rng.range(0.25, 0.75), rng.range(-0.7, 0.7), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawVent(ctx, x, y, w, h, side) {
+      ctx.save();
+      roundedPath(ctx, x, y, w, h, 10);
+      var g = ctx.createLinearGradient(x, y, x + w, y);
+      g.addColorStop(0, side < 0 ? "#020203" : "#4d504d");
+      g.addColorStop(0.35, "#565955");
+      g.addColorStop(0.52, "#111314");
+      g.addColorStop(1, side < 0 ? "#4d504d" : "#020203");
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.clip();
+      for (var i = 0; i < 9; i += 1) {
+        var yy = y + 12 + (i * 14);
+        ctx.fillStyle = "#090a0b";
+        ctx.fillRect(x - 2, yy, w + 4, 7);
+        ctx.fillStyle = "rgba(220,220,210,.28)";
+        ctx.fillRect(x + 3, yy - 1, w - 6, 1.5);
+      }
+      ctx.restore();
+      metalStroke(ctx, function() { roundedPath(ctx, x, y, w, h, 10); }, 3, "rgba(210,210,200,.7)", 0);
+      metalStroke(ctx, function() { roundedPath(ctx, x + 3, y + 3, w - 6, h - 6, 7); }, 3, "rgba(0,0,0,.9)", 0);
+    }
+
+    function drawPit(ctx, rng, x, y, r) {
+      ctx.save();
+      var g = ctx.createRadialGradient(x - (r * 0.2), y - (r * 0.4), 0, x, y, r * 2.1);
+      g.addColorStop(0, "rgba(255,255,255,.25)");
+      g.addColorStop(0.35, "rgba(0,0,0,.55)");
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r * 1.5, r, rng.range(-0.6, 0.6), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawScratchCluster(ctx, rng, x, y, spread, count) {
+      ctx.save();
+      for (var i = 0; i < count; i += 1) {
+        var sx = x + rng.range(-spread * 0.45, spread * 0.45);
+        var sy = y + rng.range(-spread * 0.25, spread * 0.25);
+        var len = rng.range(12, spread);
+        var ang = rng.range(-0.65, 0.65);
+        ctx.strokeStyle = rng.next() > 0.5 ? "rgba(235,235,225,.14)" : "rgba(0,0,0,.5)";
+        ctx.lineWidth = rng.range(0.6, 1.4);
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + (Math.cos(ang) * len), sy + (Math.sin(ang) * len));
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawRivet(ctx, x, y, r) {
+      var g = ctx.createRadialGradient(x - (r * 0.45), y - (r * 0.45), 0, x, y, r * 1.5);
+      g.addColorStop(0, "#eeeeea");
+      g.addColorStop(0.24, "#9c9d98");
+      g.addColorStop(0.72, "#282b2c");
+      g.addColorStop(1, "#050606");
+      ctx.save();
+      ctx.fillStyle = g;
+      ctx.strokeStyle = "rgba(0,0,0,.95)";
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawTechMetalBackground(ctx, width, height, seed) {
+      var rng = createRng(seed);
+      var sx = width / 640;
+      var sy = height / 480;
+      ctx.save();
+      ctx.scale(sx, sy);
+
+      var backdrop = ctx.createLinearGradient(0, 0, 640, 480);
+      backdrop.addColorStop(0, "#07080b");
+      backdrop.addColorStop(0.45, "#15191e");
+      backdrop.addColorStop(1, "#030405");
+      ctx.fillStyle = backdrop;
+      ctx.fillRect(0, 0, 640, 480);
+
+      var f = { x: 8, y: 10, w: 624, h: 458, r: 23 };
+      ctx.save();
+      roundedPath(ctx, f.x, f.y, f.w, f.h, f.r);
+      var frameFill = ctx.createLinearGradient(f.x, f.y, f.x, f.y + f.h);
+      frameFill.addColorStop(0, "#1e2223");
+      frameFill.addColorStop(0.08, "#a9aaa4");
+      frameFill.addColorStop(0.16, "#2d3030");
+      frameFill.addColorStop(0.5, "#111314");
+      frameFill.addColorStop(0.88, "#8b8c87");
+      frameFill.addColorStop(1, "#161819");
+      ctx.fillStyle = frameFill;
+      ctx.fill();
+      ctx.clip();
+      drawBrushedLines(ctx, rng, f.x, f.y, f.w, f.h, 180, 0.16, true);
+      ctx.restore();
+
+      metalStroke(ctx, function() { roundedPath(ctx, f.x + 2, f.y + 2, f.w - 4, f.h - 4, f.r - 2); }, 9, "#111314", 18, "rgba(0,0,0,.9)");
+      metalStroke(ctx, function() { roundedPath(ctx, f.x + 7, f.y + 7, f.w - 14, f.h - 14, f.r - 7); }, 4, "#d2d2cd", 4, "rgba(255,255,255,.25)");
+      metalStroke(ctx, function() { roundedPath(ctx, f.x + 13, f.y + 13, f.w - 26, f.h - 26, f.r - 11); }, 5, "#070809", 0);
+      metalStroke(ctx, function() { roundedPath(ctx, f.x + 20, f.y + 20, f.w - 40, f.h - 40, f.r - 15); }, 2, "rgba(255,255,255,.35)", 0);
+
+      var p = { x: 28, y: 32, w: 584, h: 418, r: 9 };
+      ctx.save();
+      roundedPath(ctx, p.x, p.y, p.w, p.h, p.r);
+      var plateFill = ctx.createLinearGradient(p.x, p.y, p.x + p.w, p.y + p.h);
+      plateFill.addColorStop(0, "#464947");
+      plateFill.addColorStop(0.22, "#343838");
+      plateFill.addColorStop(0.55, "#222629");
+      plateFill.addColorStop(1, "#111416");
+      ctx.fillStyle = plateFill;
+      ctx.fill();
+      ctx.clip();
+
+      var glow = ctx.createRadialGradient(p.x + (p.w * 0.43), p.y + (p.h * 0.35), 0, p.x + (p.w * 0.43), p.y + (p.h * 0.35), p.w * 0.72);
+      glow.addColorStop(0, "rgba(255,255,255,.13)");
+      glow.addColorStop(0.38, "rgba(190,205,205,.04)");
+      glow.addColorStop(1, "rgba(0,0,0,.35)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      drawCloudyMetal(ctx, rng, p.x, p.y, p.w, p.h);
+      drawBrushedLines(ctx, rng, p.x, p.y, p.w, p.h, 520, 0.13, false);
+
+      for (var ti = 0; ti < 1400; ti += 1) {
+        var v = rng.int(0, 255);
+        var a = rng.range(0.012, 0.038);
+        ctx.fillStyle = "rgba(" + v + "," + v + "," + v + "," + a + ")";
+        ctx.fillRect(rng.range(p.x, p.x + p.w), rng.range(p.y, p.y + p.h), rng.range(0.6, 1.8), rng.range(0.6, 1.8));
+      }
+
+      for (var pi = 0; pi < 72; pi += 1) {
+        drawPit(ctx, rng, rng.range(p.x + 30, p.x + p.w - 30), rng.range(p.y + 35, p.y + p.h - 35), rng.range(1.2, 3.2));
+      }
+      drawScratchCluster(ctx, rng, 150, 318, 72, 14);
+      drawScratchCluster(ctx, rng, 450, 340, 70, 8);
+      drawScratchCluster(ctx, rng, 530, 112, 56, 8);
+      drawScratchCluster(ctx, rng, 210, 95, 70, 10);
+      ctx.restore();
+
+      metalStroke(ctx, function() { roundedPath(ctx, p.x, p.y, p.w, p.h, p.r); }, 7, "rgba(0,0,0,.82)", 10, "rgba(0,0,0,.85)");
+      metalStroke(ctx, function() { roundedPath(ctx, p.x + 3, p.y + 3, p.w - 6, p.h - 6, p.r - 2); }, 2, "rgba(196,198,192,.7)", 0);
+      metalStroke(ctx, function() { roundedPath(ctx, p.x + 9, p.y + 9, p.w - 18, p.h - 18, p.r - 4); }, 2, "rgba(0,0,0,.95)", 0);
+
+      drawVent(ctx, 1, 59, 30, 147, -1);
+      drawVent(ctx, 608, 59, 31, 147, 1);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 235, 14, 128);
+      ctx.clip();
+      ctx.fillStyle = "#0b0b08";
+      ctx.fillRect(0, 230, 20, 140);
+      for (var hi = -100; hi < 130; hi += 24) {
+        ctx.save();
+        ctx.translate(0, 235 + hi);
+        ctx.rotate(0.62);
+        ctx.fillStyle = "#d8b10e";
+        ctx.fillRect(-30, 0, 68, 12);
+        ctx.restore();
+      }
+      ctx.globalAlpha = 0.45;
+      drawBrushedLines(ctx, rng, 0, 235, 14, 128, 45, 0.22, false);
+      ctx.restore();
+
+      ctx.save();
+      ctx.strokeStyle = "rgba(210,210,200,.8)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(14, 236);
+      ctx.lineTo(14, 363);
+      ctx.stroke();
+      ctx.restore();
+
+      var rivets = [];
+      var rx;
+      for (rx = 38; rx <= 604; rx += 190) { rivets.push([rx, 38, 4.1]); }
+      for (rx = 38; rx <= 604; rx += 190) { rivets.push([rx, 451, 4.2]); }
+      rivets.push([217, 37, 4.2], [414, 38, 4.2], [606, 231, 4.7], [604, 404, 4.7], [35, 230, 4.5], [217, 452, 4.2], [415, 452, 4.2], [217, 161, 3.3], [414, 160, 3.3], [320, 240, 2.8], [500, 254, 3.0]);
+      for (var ri = 0; ri < rivets.length; ri += 1) {
+        drawRivet(ctx, rivets[ri][0], rivets[ri][1], rivets[ri][2]);
+      }
+
+      ctx.save();
+      var bullet = ctx.createRadialGradient(149, 322, 0, 152, 326, 25);
+      bullet.addColorStop(0, "#d2d0c7");
+      bullet.addColorStop(0.2, "#202020");
+      bullet.addColorStop(0.52, "#030303");
+      bullet.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = bullet;
+      ctx.beginPath();
+      ctx.arc(152, 326, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      var anchors = [[69,155,70], [218,45,48], [414,45,62], [462,220,75], [500,254,48], [590,90,78], [84,318,60], [565,366,48]];
+      ctx.save();
+      ctx.lineCap = "round";
+      for (var gi = 0; gi < anchors.length; gi += 1) {
+        var ax = anchors[gi][0];
+        var ay = anchors[gi][1];
+        var len = anchors[gi][2];
+        var grime = ctx.createLinearGradient(ax, ay, ax, ay + len);
+        grime.addColorStop(0, "rgba(56,72,32,.5)");
+        grime.addColorStop(0.5, "rgba(42,61,24,.25)");
+        grime.addColorStop(1, "rgba(42,61,24,0)");
+        ctx.strokeStyle = grime;
+        ctx.lineWidth = rng.range(2, 4);
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.bezierCurveTo(ax + rng.range(-5, 5), ay + (len * 0.25), ax + rng.range(-6, 6), ay + (len * 0.6), ax + rng.range(-4, 4), ay + len);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.globalAlpha = 0.22;
+      var shine = ctx.createLinearGradient(0, 0, 0, 480);
+      shine.addColorStop(0, "#ffffff");
+      shine.addColorStop(0.08, "rgba(255,255,255,0)");
+      shine.addColorStop(0.92, "rgba(255,255,255,0)");
+      shine.addColorStop(1, "#ffffff");
+      ctx.fillStyle = shine;
+      ctx.fillRect(0, 0, 640, 480);
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalCompositeOperation = "multiply";
+      var vignette = ctx.createRadialGradient(320, 230, 80, 320, 230, 420);
+      vignette.addColorStop(0, "rgba(0,0,0,0)");
+      vignette.addColorStop(1, "rgba(0,0,0,.38)");
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, 640, 480);
+      ctx.restore();
+
+      ctx.restore();
+    }
+
+    function drawShapeMetalFrame(ctx, path, width, height, borderWidth, shadowColor) {
+      if (!Number.isFinite(borderWidth) || borderWidth <= 0) {
+        return;
+      }
+
+      var outer = ctx.createLinearGradient(0, 0, width, height);
+      outer.addColorStop(0, "#141718");
+      outer.addColorStop(0.12, "#d0d0c9");
+      outer.addColorStop(0.28, "#4a4d4b");
+      outer.addColorStop(0.52, "#08090a");
+      outer.addColorStop(0.78, "#9b9c96");
+      outer.addColorStop(1, "#101213");
+
+      var bevel = ctx.createLinearGradient(0, 0, 0, height);
+      bevel.addColorStop(0, "rgba(255,255,255,.88)");
+      bevel.addColorStop(0.22, "rgba(25,27,28,.82)");
+      bevel.addColorStop(0.72, "rgba(8,9,10,.92)");
+      bevel.addColorStop(1, "rgba(230,230,220,.55)");
+
+      ctx.save();
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+
+      ctx.shadowColor = shadowColor || "rgba(0,0,0,.8)";
+      ctx.shadowBlur = Math.max(8, borderWidth * 1.15);
+      ctx.lineWidth = borderWidth;
+      ctx.strokeStyle = "rgba(0,0,0,.72)";
+      ctx.stroke(path);
+
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = Math.max(1, borderWidth * 0.86);
+      ctx.strokeStyle = outer;
+      ctx.stroke(path);
+
+      ctx.lineWidth = Math.max(1, borderWidth * 0.48);
+      ctx.strokeStyle = "rgba(6,7,8,.72)";
+      ctx.stroke(path);
+
+      ctx.lineWidth = Math.max(1, borderWidth * 0.18);
+      ctx.strokeStyle = bevel;
+      ctx.stroke(path);
+      ctx.restore();
+    }
+
+    var ctx = this.context;
+    var canvasWidth = this.width;
+    var canvasHeight = this.height;
+    var borderWidth = Math.max(0, normalizeCssValue(this.borderWidth, canvasWidth, 5));
+    var patternSize = Math.max(1, normalizeCssValue(this.patternSize, canvasWidth, 20));
+    var borderColor = String(this.borderColor || "white");
+    var shadowColor = String(this.shadowColor || "green");
+    var percentage = clamp(asNumber(this.percentage, 0.5), 0, 1);
+    var cfg = {
+      offset: borderWidth / 2,
+      topLeft: normalizePair(this.topLeft, canvasHeight, canvasWidth),
+      topRight: normalizePair(this.topRight, canvasHeight, canvasWidth),
+      bottomRight: normalizePair(this.bottomRight, canvasHeight, canvasWidth),
+      bottomLeft: normalizePair(this.bottomLeft, canvasHeight, canvasWidth),
+      patternShift: normalizePair(this.patternShift, canvasHeight, canvasWidth),
+      topDent: normalizeCssValue(this.topDent, canvasHeight, 0),
+      topDentLength: normalizeCssValue(this.topDentLength, canvasWidth, 0)
+    };
+
+    var borderPath = buildBorderPath(canvasWidth, canvasHeight, cfg);
+    var clipPath = buildBorderPath(canvasWidth, canvasHeight, Object.assign({}, cfg, { offset: 0 }));
+
+    ctx.save();
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+    ctx.save();
+    ctx.clip(clipPath);
+    drawTechMetalBackground(ctx, canvasWidth, canvasHeight, this.backgroundSeed);
+    ctx.restore();
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+    ctx.fill(borderPath);
+    ctx.clip(clipPath);
+    drawShapeMetalFrame(ctx, borderPath, canvasWidth, canvasHeight, borderWidth, shadowColor);
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.globalAlpha = 0.34;
+    var grad = ctx.createRadialGradient(
+      (canvasWidth / 2) + cfg.patternShift.h,
+      (canvasHeight / 2) + cfg.patternShift.v,
+      0.25 * Math.max(canvasWidth, canvasHeight),
+      (canvasWidth / 2) + cfg.patternShift.h,
+      (canvasHeight / 2) + cfg.patternShift.v,
+      Math.max(canvasWidth, canvasHeight)
+    );
+    grad.addColorStop(percentage, "transparent");
+    grad.addColorStop(1, borderColor);
+    ctx.beginPath();
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 1;
+    drawHexaGrid(ctx, canvasWidth, canvasHeight, patternSize, cfg.patternShift);
+    ctx.stroke();
+    ctx.restore();
+    ctx.restore();
+  }
+}
+
+q-painter q-tech-panel-mask-painter {
+  q-property topLeft: "0px 0px"
+  q-property topRight: "0px 0px"
+  q-property bottomRight: "0px 0px"
+  q-property bottomLeft: "0px 0px"
+  q-property topDent: "10px"
+  q-property topDentLength: "10%"
+
+  onpaint {
+    function isNumericStart(value) {
+      var text = String(value == null ? "" : value).trim();
+      var first = text.charAt(0);
+      return (first >= "0" && first <= "9") || first === "-" || first === ".";
+    }
+
+    function normalizeCssValue(value, maxValue, fallback) {
+      var text = String(value == null ? "" : value).trim();
+      if (!text) {
+        return fallback;
+      }
+      if (!isNumericStart(text)) {
+        return text;
+      }
+      if (text.charAt(text.length - 1) === "%" && maxValue != null) {
+        var pct = Number.parseFloat(text.slice(0, -1));
+        return Number.isFinite(pct) ? (pct / 100) * maxValue : fallback;
+      }
+      var parsed = Number.parseFloat(text);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function normalizePair(value, maxV, maxH) {
+      var text = String(value == null ? "" : value).trim();
+      if (!text) {
+        return { v: 0, h: 0 };
+      }
+      var parts = text.split(/\s+/).filter(Boolean);
+      if (parts.length === 1) {
+        return {
+          v: normalizeCssValue(parts[0], maxV, 0),
+          h: normalizeCssValue(parts[0], maxH, 0)
+        };
+      }
+      return {
+        v: normalizeCssValue(parts[0], maxV, 0),
+        h: normalizeCssValue(parts[1], maxH, 0)
+      };
+    }
+
+    function buildPanelPath(width, height, cfg) {
+      var offset = cfg.offset || 0;
+      var topLeft = cfg.topLeft;
+      var topRight = cfg.topRight;
+      var bottomRight = cfg.bottomRight;
+      var bottomLeft = cfg.bottomLeft;
+      var topDent = Math.max(0, cfg.topDent || 0);
+      var topDentLength = Math.max(0, cfg.topDentLength || 0);
+      var path = new Path2D();
+      var topStartX = offset + topLeft.h;
+      var topEndX = width - offset - topRight.h;
+      var topY = offset;
+
+      path.moveTo(offset, offset + topLeft.v);
+      if (topLeft.h !== 0 || topLeft.v !== 0) {
+        path.lineTo(topStartX, topY);
+      } else {
+        path.lineTo(offset, topY);
+      }
+
+      var topSpan = Math.max(0, topEndX - topStartX);
+      if (topDent > 0 && topDentLength > 0 && topSpan > 0) {
+        var dentLength = Math.min(topDentLength, topSpan);
+        var slope = Math.min(topDent, Math.max(0, (topSpan - dentLength) / 2));
+        var side = Math.max(0, (topSpan - dentLength - (2 * slope)) / 2);
+        var x1 = topStartX + side;
+        path.lineTo(x1, topY);
+        path.lineTo(x1 + slope, topY + topDent);
+        path.lineTo(x1 + slope + dentLength, topY + topDent);
+        path.lineTo(x1 + (2 * slope) + dentLength, topY);
+      }
+
+      path.lineTo(topEndX, topY);
+      if (topRight.h !== 0 || topRight.v !== 0) {
+        path.lineTo(width - offset, offset + topRight.v);
+      }
+      path.lineTo(width - offset, height - offset - bottomRight.v);
+      if (bottomRight.h !== 0 || bottomRight.v !== 0) {
+        path.lineTo(width - offset - bottomRight.h, height - offset);
+      }
+      path.lineTo(offset + bottomLeft.h, height - offset);
+      if (bottomLeft.h !== 0 || bottomLeft.v !== 0) {
+        path.lineTo(offset, height - offset - bottomLeft.v);
+      }
+      path.closePath();
+      return path;
+    }
+
+    var width = this.width;
+    var height = this.height;
+    var cfg = {
+      offset: 0,
+      topLeft: normalizePair(this.topLeft, height, width),
+      topRight: normalizePair(this.topRight, height, width),
+      bottomRight: normalizePair(this.bottomRight, height, width),
+      bottomLeft: normalizePair(this.bottomLeft, height, width),
+      topDent: normalizeCssValue(this.topDent, height, 0),
+      topDentLength: normalizeCssValue(this.topDentLength, width, 0)
+    };
+    this.clearRect(0, 0, width, height);
+    this.fillStyle = "black";
+    this.fill(buildPanelPath(width, height, cfg));
+  }
+}
+
+q-style q-tech-panel-surface-style {
+  q-style-class { q-tech-panel-surface }
+  display: block
+  position: relative
+  minHeight: 1px
+  background-repeat: no-repeat
+  background-size: 100% 100%
+  background-position: center
+  q-style-painter {
+    background { q-tech-panel-painter }
+  }
+}
+
+q-style q-tech-panel-mask-style {
+  mask-repeat: no-repeat
+  mask-size: 100% 100%
+  mask-position: center
+  -webkit-mask-repeat: no-repeat
+  -webkit-mask-size: 100% 100%
+  -webkit-mask-position: center
+  q-style-painter {
+    mask { q-tech-panel-mask-painter }
+  }
+}
+
+q-theme q-tech-panel-theme {
+  .q-tech-panel-painter-primer { q-tech-panel-surface-style }
+  .q-tech-panel-mask-primer { q-tech-panel-mask-style }
+}
+
+q-component q-tech-panel {
+  q-property borderWidth: "5px"
+  q-property borderColor: "white"
+  q-property shadowColor: "green"
+  q-property topLeft: "0px 0px"
+  q-property topRight: "0px 0px"
+  q-property bottomRight: "0px 0px"
+  q-property bottomLeft: "0px 0px"
+  q-property patternShift: "0px 0px"
+  q-property patternSize: "20px"
+  q-property topDent: "10px"
+  q-property topDentLength: "10%"
+  q-property percentage: "0.5"
+  q-property backgroundSeed: "117"
+  q-property backgroundImage: ""
+  q-property backgroundSize: "cover"
+  q-property backgroundPosition: "center"
+  q-property backgroundRepeat: "no-repeat"
+
+  function hostElement() {
+    return this.component || this;
+  }
+
+  function directPanelDivs() {
+    var host = this.hostElement();
+    var out = [];
+    if (!host || !host.children) {
+      return out;
+    }
+    for (var i = 0; i < host.children.length; i += 1) {
+      var child = host.children[i];
+      if (
+        child &&
+        String(child.tagName || "").toLowerCase() === "div" &&
+        String(child.getAttribute && child.getAttribute("q-tech-panel-primer") || "") !== "1"
+      ) {
+        out.push(child);
+      }
+    }
+    return out;
+  }
+
+  function painterBackgroundImage() {
+    var host = this.hostElement();
+    var primer = host && typeof host.querySelector === "function" ? host.querySelector("[q-tech-panel-primer='1']") : null;
+    var fromPrimer = primer && primer.style ? String(primer.style.backgroundImage || "").trim() : "";
+    if (fromPrimer.indexOf("paint(") >= 0) {
+      return fromPrimer;
+    }
+    var registry = typeof globalThis !== "undefined" ? globalThis.__qhtmlPainterRegistry : null;
+    if (registry && typeof registry.forEach === "function") {
+      var found = "";
+      registry.forEach(function(value, key) {
+        var name = String(key || "");
+        if (!found && name.indexOf("q-tech-panel-painter") >= 0) {
+          found = "paint(" + name + ")";
+        }
+      });
+      return found;
+    }
+    return "";
+  }
+
+  function hidePainterPrimer() {
+    var host = this.hostElement();
+    var primers = host && typeof host.querySelectorAll === "function" ? host.querySelectorAll("[q-tech-panel-primer='1']") : [];
+    for (var i = 0; i < primers.length; i += 1) {
+      var primer = primers[i];
+      if (!primer || !primer.style) {
+        continue;
+      }
+      primer.style.setProperty("display", "none");
+      primer.style.setProperty("width", "0");
+      primer.style.setProperty("height", "0");
+      primer.style.setProperty("overflow", "hidden");
+      primer.style.setProperty("pointer-events", "none");
+    }
+  }
+
+  function painterMaskImage() {
+    var host = this.hostElement();
+    var primer = host && typeof host.querySelector === "function" ? host.querySelector("[q-tech-panel-mask-primer='1']") : null;
+    var fromPrimer = primer && primer.style ? String(primer.style.maskImage || primer.style.webkitMaskImage || "").trim() : "";
+    if (fromPrimer.indexOf("paint(") >= 0) {
+      return fromPrimer;
+    }
+    var registry = typeof globalThis !== "undefined" ? globalThis.__qhtmlPainterRegistry : null;
+    if (registry && typeof registry.forEach === "function") {
+      var found = "";
+      registry.forEach(function(value, key) {
+        var name = String(key || "");
+        if (!found && name.indexOf("q-tech-panel-mask-painter") >= 0) {
+          found = "paint(" + name + ")";
+        }
+      });
+      return found;
+    }
+    return "";
+  }
+
+  function composeBackgroundImage(target, paintBackground) {
+    if (!target || !target.style || !paintBackground) {
+      return "";
+    }
+    var host = this.hostElement();
+    var configured = host ? String(host.backgroundImage || "").trim() : "";
+    if (configured && configured !== "none") {
+      return paintBackground + ", " + configured;
+    }
+    var existing = String(target.style.backgroundImage || "").trim();
+    if (!existing || existing === "none") {
+      return paintBackground;
+    }
+    if (existing.indexOf("paint(") >= 0) {
+      return existing;
+    }
+    return paintBackground + ", " + existing;
+  }
+
+  function panelPropertyMap() {
+    var host = this.hostElement();
+    return {
+      borderWidth: host.borderWidth,
+      borderColor: host.borderColor,
+      shadowColor: host.shadowColor,
+      topLeft: host.topLeft,
+      topRight: host.topRight,
+      bottomRight: host.bottomRight,
+      bottomLeft: host.bottomLeft,
+      patternShift: host.patternShift,
+      patternSize: host.patternSize,
+      topDent: host.topDent,
+      topDentLength: host.topDentLength,
+      percentage: host.percentage,
+      backgroundSeed: host.backgroundSeed
+    };
+  }
+
+  function applyTechPanelProperties() {
+    var targets = this.directPanelDivs();
+    var props = this.panelPropertyMap();
+    var names = Object.keys(props);
+    var paintBackground = this.painterBackgroundImage();
+    var paintMask = this.painterMaskImage();
+    this.hidePainterPrimer();
+    for (var i = 0; i < targets.length; i += 1) {
+      var target = targets[i];
+      if (target.classList && typeof target.classList.add === "function") {
+        target.classList.add("q-tech-panel-surface");
+      }
+      if (!target.style || typeof target.style.setProperty !== "function") {
+        continue;
+      }
+      for (var ni = 0; ni < names.length; ni += 1) {
+        var name = names[ni];
+        var value = props[name];
+        target.style.setProperty("--" + name, String(value == null ? "" : value));
+      }
+      if (paintBackground) {
+        target.style.setProperty("background-image", this.composeBackgroundImage(target, paintBackground));
+      }
+      if (paintMask) {
+        target.style.setProperty("mask-image", paintMask);
+        target.style.setProperty("-webkit-mask-image", paintMask);
+        target.style.setProperty("mask-mode", "alpha");
+        target.style.setProperty("mask-repeat", "no-repeat");
+        target.style.setProperty("mask-size", "100% 100%");
+        target.style.setProperty("mask-position", "center");
+        target.style.setProperty("-webkit-mask-repeat", "no-repeat");
+        target.style.setProperty("-webkit-mask-size", "100% 100%");
+        target.style.setProperty("-webkit-mask-position", "center");
+      }
+      if (String(this.hostElement().backgroundImage || "").trim()) {
+        target.style.setProperty("background-size", "100% 100%, " + String(this.hostElement().backgroundSize || "cover"));
+        target.style.setProperty("background-position", "center, " + String(this.hostElement().backgroundPosition || "center"));
+        target.style.setProperty("background-repeat", "no-repeat, " + String(this.hostElement().backgroundRepeat || "no-repeat"));
+      }
+      if (!String(target.style.getPropertyValue("background-repeat") || "").trim()) {
+        target.style.setProperty("background-repeat", "no-repeat");
+      }
+      if (!String(target.style.getPropertyValue("background-size") || "").trim()) {
+        target.style.setProperty("background-size", "100% 100%");
+      }
+      if (!String(target.style.getPropertyValue("background-position") || "").trim()) {
+        target.style.setProperty("background-position", "center");
+      }
+    }
+  }
+
+  onready {
+    this.component.applyTechPanelProperties();
+  }
+
+  onborderWidthchanged { this.component.applyTechPanelProperties(); }
+  onborderColorchanged { this.component.applyTechPanelProperties(); }
+  onshadowColorchanged { this.component.applyTechPanelProperties(); }
+  ontopLeftchanged { this.component.applyTechPanelProperties(); }
+  ontopRightchanged { this.component.applyTechPanelProperties(); }
+  onbottomRightchanged { this.component.applyTechPanelProperties(); }
+  onbottomLeftchanged { this.component.applyTechPanelProperties(); }
+  onpatternShiftchanged { this.component.applyTechPanelProperties(); }
+  onpatternSizechanged { this.component.applyTechPanelProperties(); }
+  ontopDentchanged { this.component.applyTechPanelProperties(); }
+  ontopDentLengthchanged { this.component.applyTechPanelProperties(); }
+  onpercentagechanged { this.component.applyTechPanelProperties(); }
+  onbackgroundSeedchanged { this.component.applyTechPanelProperties(); }
+  onbackgroundImagechanged { this.component.applyTechPanelProperties(); }
+  onbackgroundSizechanged { this.component.applyTechPanelProperties(); }
+  onbackgroundPositionchanged { this.component.applyTechPanelProperties(); }
+  onbackgroundRepeatchanged { this.component.applyTechPanelProperties(); }
+
+  q-tech-panel-theme {
+    q-tech-panel-surface-style,div.q-tech-panel-painter-primer {
+      q-tech-panel-primer: "1"
+      aria-hidden: "true"
+      style { display: none; width: 1px; height: 1px; }
+      text { }
+    }
+    q-tech-panel-mask-style,div.q-tech-panel-mask-primer {
+      q-tech-panel-primer: "1"
+      q-tech-panel-mask-primer: "1"
+      aria-hidden: "true"
+      style { display: none; width: 1px; height: 1px; }
+      text { }
+    }
+    slot { default }
+  }
+}

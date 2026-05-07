@@ -26,7 +26,8 @@ wiki-shell {
       note: "It is string interpolation, not a standalone watcher."
       details {
         html {
-          <q-editor>div {
+          <q-editor>&lt;q-html&gt;
+div {
   title: "Current user: ${window.currentUser}"
   text { Hello ${window.currentUser} }
 }
@@ -34,7 +35,8 @@ wiki-shell {
 q-component user-card {
   q-property name: "Guest"
   h3 { text { ${this.component.name} } }
-}</q-editor>
+}
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -45,37 +47,12 @@ q-component user-card {
       note: "This is a scoped convenience. The name comes from the macro call."
       details {
         html {
-          <q-editor>q-macro badge {
+          <q-editor>&lt;q-html&gt;
+q-macro badge {
   slot { label }
   return { span { text { ${label} } } }
-}</q-editor>
-        }
-      }
-    }
-
-    wiki-example-card {
-      title: "Cannot create keyword-level symbols"
-      summary: "Do not try to use placeholder expressions for tag names, component names, or keyword names."
-      note: "Interpolation happens too late for keyword-level grammar."
-      details {
-        html {
-          <q-editor>q-component ${dynamicName} { }     // invalid
-q-keyword ${alias} { q-component } // invalid
-${tagName} { text { hi } }         // invalid</q-editor>
-        }
-      }
-    }
-
-    wiki-example-card {
-      title: "Deprecated alias: q-bind"
-      summary: "q-bind is still accepted, but it maps to q-script. New code should use q-script."
-      note: "The wiki includes it so you can read older examples without confusion."
-      details {
-        html {
-          <q-editor>q-component counter-label {
-  q-property label: q-bind { return "Count: " + window.count; }
-  div { text { ${this.component.label} } }
-}</q-editor>
+}
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -86,7 +63,8 @@ ${tagName} { text { hi } }         // invalid</q-editor>
       note: "Aliases are local to the block where you define them."
       details {
         html {
-          <q-editor>q-keyword component { q-component }
+          <q-editor>&lt;q-html&gt;
+q-keyword component { q-component }
 
 component card-box {
   div { text { hello } }
@@ -97,7 +75,8 @@ div {
   box { text { inside } }
 }
 
-box { text { outside } }  // unchanged outside the scope</q-editor>
+box { text { outside } }  // unchanged outside the scope
+&lt;/q-html&gt;</q-editor>
         }
       }
     }

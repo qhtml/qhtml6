@@ -26,13 +26,15 @@ wiki-shell {
       note: "The wrapper applies classes to the first non-w3 descendant and then removes itself."
       details {
         html {
-          <q-editor>&lt;link rel="stylesheet" href="w3.css" /&gt;
+          <q-editor>&lt;q-html&gt;
+&lt;link rel="stylesheet" href="w3.css" /&gt;
 &lt;script src="w3-tags.js"&gt;&lt;/script&gt;
 
 &lt;q-html&gt;
   w3-card,w3-padding {
     div { text { This div receives W3 classes. } }
   }
+&lt;/q-html&gt;
 &lt;/q-html&gt;</q-editor>
         }
       }
@@ -44,7 +46,8 @@ wiki-shell {
       note: "This keeps the same effect in normal QHTML syntax."
       details {
         html {
-          <q-editor>q-style padded-card {
+          <q-editor>&lt;q-html&gt;
+q-style padded-card {
   q-style-class { w3-card w3-padding }
 }
 q-theme main-theme {
@@ -52,7 +55,8 @@ q-theme main-theme {
 }
 main-theme {
   div { text { This div receives W3 classes } }
-}</q-editor>
+}
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -63,13 +67,15 @@ main-theme {
       note: "Like the W3 version, this is legacy support."
       details {
         html {
-          <q-editor>&lt;link rel="stylesheet" href="bs.css" /&gt;
+          <q-editor>&lt;q-html&gt;
+&lt;link rel="stylesheet" href="bs.css" /&gt;
 &lt;script src="bs-tags.js"&gt;&lt;/script&gt;
 
 &lt;q-html&gt;
   bs-btn,bs-btn-primary {
     button { text { Primary button } }
   }
+&lt;/q-html&gt;
 &lt;/q-html&gt;</q-editor>
         }
       }

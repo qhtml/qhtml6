@@ -26,8 +26,8 @@ wiki-shell {
       note: "The component bundle is optional. Use it when you want things like tabs, grid, modal, sidebar, or editor-ready widgets."
       details {
         html {
-          <q-editor>git clone https://github.com/qhtml/qhtml6.git
-source ./deploy.sh /path/to/project</q-editor>
+          <pre><code>git clone https://github.com/qhtml/qhtml6.git
+source ./deploy.sh /path/to/project</code></pre>
         }
       }
     }
@@ -38,20 +38,7 @@ source ./deploy.sh /path/to/project</q-editor>
       note: "This is the only required file for a first render."
       details {
         html {
-          <q-editor>&lt;script src="qhtml6.js"&gt;&lt;/script&gt;</q-editor>
-        }
-      }
-    }
-
-    wiki-example-card {
-      title: "Import the shared component bundle"
-      summary: "If you want the stock components, import q-components.qhtml inside a q-html block."
-      note: "Use this when you want q-sidebar, q-tabs, q-grid, q-modal, q-form, and similar shared components."
-      details {
-        html {
-          <q-editor>&lt;q-html&gt;
-  q-import { q-components.qhtml }
-&lt;/q-html&gt;</q-editor>
+          <pre><code>&lt;script src="qhtml6.js"&gt;&lt;/script&gt;</code></pre>
         }
       }
     }

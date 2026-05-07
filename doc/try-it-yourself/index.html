@@ -26,8 +26,10 @@ wiki-shell {
       note: "qhtml64 is checked first because it is safer for multiline source with braces and quotes."
       details {
         html {
-          <q-editor>?qhtml=div%20%7B%20text%20%7B%20hello%20%7D%20%7D
-?qhtml64=ZGl2IHsgdGV4dCB7IGhlbGxvIH0gfQ==</q-editor>
+          <q-editor>&lt;q-html&gt;
+?qhtml=div%20%7B%20text%20%7B%20hello%20%7D%20%7D
+?qhtml64=ZGl2IHsgdGV4dCB7IGhlbGxvIH0gfQ==
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -38,11 +40,13 @@ wiki-shell {
       note: "If no query string is provided, the page loads a beginner-friendly starter example."
       details {
         html {
-          <q-editor>&lt;q-editor id="try-editor"&gt;&lt;/q-editor&gt;
+          <q-editor>&lt;q-html&gt;
+&lt;q-editor id="try-editor"&gt;&lt;/q-editor&gt;
 &lt;script&gt;
   // read qhtml64 or qhtml
   // set editor source
-&lt;/script&gt;</q-editor>
+&lt;/script&gt;
+&lt;/q-html&gt;</q-editor>
         }
       }
     }

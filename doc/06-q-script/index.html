@@ -26,9 +26,11 @@ wiki-shell {
       note: "This is one of the few places where QHTML intentionally lets JavaScript generate content."
       details {
         html {
-          <q-editor>div {
+          <q-editor>&lt;q-html&gt;
+div {
   q-script { return "p { text { Inserted by q-script } }"; }
-}</q-editor>
+}
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -39,10 +41,12 @@ wiki-shell {
       note: "The script returns the final string that gets assigned."
       details {
         html {
-          <q-editor>div {
+          <q-editor>&lt;q-html&gt;
+div {
   data-note: q-script { return "n:" + (4 + 1) }
   text { q-script { return "script-inline"; } }
-}</q-editor>
+}
+&lt;/q-html&gt;</q-editor>
         }
       }
     }

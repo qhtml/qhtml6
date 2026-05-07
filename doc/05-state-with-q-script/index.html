@@ -26,12 +26,14 @@ wiki-shell {
       note: "The result becomes normal component state after the expression runs."
       details {
         html {
-          <q-editor>q-component my-component {
+          <q-editor>&lt;q-html&gt;
+q-component my-component {
   q-property myprop: q-script { return "bound-" + (2 + 3) }
   div { text { ${this.component.myprop} } }
 }
 
-my-component { }</q-editor>
+my-component { }
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -42,9 +44,11 @@ my-component { }</q-editor>
       note: "Keep the script short. Treat it as value production, not as a component controller."
       details {
         html {
-          <q-editor>q-property totalLabel: q-script {
+          <q-editor>&lt;q-html&gt;
+q-property totalLabel: q-script {
   return "Total: $" + String(19.95)
-}</q-editor>
+}
+&lt;/q-html&gt;</q-editor>
         }
       }
     }

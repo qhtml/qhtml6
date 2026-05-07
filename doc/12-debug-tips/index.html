@@ -26,7 +26,9 @@ wiki-shell {
       note: "Use this first before adding extra debugging code."
       details {
         html {
-          <q-editor>window.QHTML_RUNTIME_DEBUG = true;</q-editor>
+          <q-editor>&lt;q-html&gt;
+window.QHTML_RUNTIME_DEBUG = true;
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -37,8 +39,10 @@ wiki-shell {
       note: "Prefer the smallest targeted call that matches the change you made."
       details {
         html {
-          <q-editor>document.querySelector("q-html").update();
-document.querySelector("q-html").invalidate({ forceBindings: true });</q-editor>
+          <q-editor>&lt;q-html&gt;
+document.querySelector("q-html").update();
+document.querySelector("q-html").invalidate({ forceBindings: true });
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
@@ -49,11 +53,13 @@ document.querySelector("q-html").invalidate({ forceBindings: true });</q-editor>
       note: "It is lexical. Place it on the component definition or on a specific instance."
       details {
         html {
-          <q-editor>q-component my-comp {
+          <q-editor>&lt;q-html&gt;
+q-component my-comp {
   q-logger { q-signal q-property }
   q-property count: 0
   q-signal ping(value)
-}</q-editor>
+}
+&lt;/q-html&gt;</q-editor>
         }
       }
     }
