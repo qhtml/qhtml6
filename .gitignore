@@ -16,3 +16,7 @@ wiki/*
 /package-lock.json
 /tmp-page-builder*.spec.js
 /dist/Text File.txt
+
+*.backup
+*.conf
+/dist/assets/tech-bg.png
