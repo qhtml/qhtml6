@@ -104,10 +104,14 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - `q-array` named-definition parsing now handles quoted strings and inline nested typed values (`q-map`/`q-array`) without token splitting loss
       - `q-model`/repeater model values also accept inline `q-script { return ... }` when statically resolvable
       - `q-script` inside `q-model` blocks is preserved for model parsing (not pre-evaluated as global q-script replacement text)
-      - property assignments accept typed anonymous container values:
+    - property assignments accept typed anonymous container values:
         - `propName: q-array { "a", 1, q-array { "b", 2 } }`
         - `propName: q-map { key: "v", nested: q-map { ok: true } }`
       - typed property values are emitted in QDom as native JavaScript arrays/objects
+      - static QHTML fragment values can be authored with `qhtml("...")` or `qhtmlString("...")`
+        inside `q-property`, `q-map`, and `q-array` values
+      - fragment values are emitted as `{ __qhtmlFragment: true, source: "..." }` so the
+        renderer/runtime can inline them without treating the fragment source as literal text
       - `model { ... }` and `slot { itemName }` syntax compiled into runtime-ready repeater QDom:
         - `repeater.kind === "repeater"`
         - `repeater.model.kind === "model"` (`QDomModel`) with `entries`

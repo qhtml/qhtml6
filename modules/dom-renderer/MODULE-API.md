@@ -65,6 +65,14 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - pass-by-reference assignment into declared component properties (resolved lazily to callback functions)
   - `qhtml(...)` fragment-return rendering when callbacks return QHTML fragment tokens
   - callback names are also stored in the active lexical/runtime context frame so later expressions in the same scope resolve by name.
+- `qhtml(...)` and `qhtmlString(...)` fragment tokens render inline from text nodes, direct-call
+  property values, callback returns, and repeater scopes.
+  - String fragments are parsed as QHTML and projected into the current DOM location.
+  - Named instance, QDom facade, or DOM element references are resolved back to QDom, cloned with
+    fresh UUIDs, and rendered inline without remounting the entire host.
+  - If a live referenced instance cannot produce projected DOM from the cloned QDom in the current
+    render context, the renderer falls back to cloning the referenced DOM element.
+  - This enables dynamic palette/layout entries such as `source: qhtmlString(item.sourceText)`.
 
 ## Component host assignment behavior
 - `component-instance.attributes` map to DOM attributes.

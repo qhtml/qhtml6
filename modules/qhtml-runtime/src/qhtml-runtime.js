@@ -1068,6 +1068,17 @@
   }
 
   function createQHtmlFragment(source) {
+    if (source && typeof source === "object" && source.__qhtmlFragment === true) {
+      return source;
+    }
+    if (source && (typeof source === "object" || typeof source === "function")) {
+      return {
+        __qhtmlFragment: true,
+        source: "",
+        reference: source,
+        referenceUuid: readResolverNodeUuid(source),
+      };
+    }
     return {
       __qhtmlFragment: true,
       source: String(source == null ? "" : source),
@@ -3479,7 +3490,9 @@
       "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
       " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
       "const qhtml = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtml === \"function\")" +
-      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n";
+      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n" +
+      "const qhtmlString = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtmlString === \"function\")" +
+      " ? globalThis.qhtmlString : qhtml;\n";
     const scopedBlock =
       "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
       "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
@@ -18641,6 +18654,7 @@
     unregisterWorkerRuntime: unregisterWorkerRuntime,
     getWorkerRuntime: getWorkerRuntime,
     qhtml: createQHtmlFragment,
+    qhtmlString: createQHtmlFragment,
     qmapNode: createQMapNodeTree,
     hydrateComponentElement: hydrateComponentElement,
     setDomMutationObserversEnabled: setDomMutationSyncEnabled,
@@ -18674,6 +18688,7 @@
     global.QComponentInstance = runtimeApi.QComponentInstance;
   }
   global.qhtml = createQHtmlFragment;
+  global.qhtmlString = createQHtmlFragment;
 
   if (global.document && global.document.readyState === "loading") {
     global.document.addEventListener("DOMContentLoaded", function onReady() {

@@ -126,6 +126,12 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - Creates QHTML fragment tokens consumable by renderer callback/direct-call paths.
   - Typical usage from callbacks: `return qhtml("div { text { hello } }");`
   - Exposed as both `QHtml.qhtml(...)` and global `qhtml(...)`.
+- `qhtmlString(sourceOrReference)`
+  - Alias of `qhtml(...)` for explicit source-string intent in QHTML property/map/array data.
+  - Accepts QHTML source strings, existing fragment tokens, and named instance/QDom/DOM references.
+  - Reference inputs are stored with UUID metadata where possible so the renderer can clone the
+    referenced QDom fragment at render time.
+  - Exposed as both `QHtml.qhtmlString(...)` and global `qhtmlString(...)`.
 - `qmapNode(qdomNode, options?)`
   - Normalizes a QDom node/document into a tree-shaped map object for model/tree rendering.
   - `options.filters` (array/string) narrows output to matching keywords/tags when `includeFullTree` is `false`.

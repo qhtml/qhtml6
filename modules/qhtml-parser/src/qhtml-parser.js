@@ -775,6 +775,68 @@
     };
   }
 
+  function isQHtmlFragmentCallName(name) {
+    const normalized = String(name || "").trim().toLowerCase();
+    return normalized === "qhtml" || normalized === "qhtmlstring";
+  }
+
+  function createQHtmlFragmentValue(source) {
+    return {
+      __qhtmlFragment: true,
+      source: String(source == null ? "" : source),
+    };
+  }
+
+  function tryReadStaticQHtmlFragmentCall(parser) {
+    const snapshot = parser.index;
+    if (!isIdentifierStartChar(peek(parser))) {
+      return {
+        matched: false,
+        value: null,
+        raw: "",
+      };
+    }
+    const name = parseIdentifier(parser);
+    if (!isQHtmlFragmentCallName(name)) {
+      parser.index = snapshot;
+      return {
+        matched: false,
+        value: null,
+        raw: "",
+      };
+    }
+    skipWhitespace(parser);
+    if (peek(parser) !== "(") {
+      parser.index = snapshot;
+      return {
+        matched: false,
+        value: null,
+        raw: "",
+      };
+    }
+    consume(parser);
+    const body = readBalancedParenthesizedContent(parser);
+    const raw = parser.source.slice(snapshot, parser.index);
+    const argParser = parserFor(String(body || "").trim());
+    skipWhitespace(argParser);
+    if (peek(argParser) === '"' || peek(argParser) === "'") {
+      const source = parseQuotedString(argParser);
+      skipWhitespace(argParser);
+      if (eof(argParser)) {
+        return {
+          matched: true,
+          value: createQHtmlFragmentValue(source),
+          raw: raw,
+        };
+      }
+    }
+    return {
+      matched: true,
+      value: String(raw || "").trim(),
+      raw: raw,
+    };
+  }
+
   function parseTypedArrayBodyToValue(rawBody, keywordAliases) {
     const body = String(rawBody || "");
     const trimmedBody = body.trim();
@@ -925,6 +987,11 @@
       return "";
     }
 
+    const qhtmlFragmentCall = tryReadStaticQHtmlFragmentCall(parser);
+    if (qhtmlFragmentCall.matched) {
+      return qhtmlFragmentCall.value;
+    }
+
     const first = peek(parser);
     if (first === '"' || first === "'") {
       return parseQuotedString(parser);
@@ -1037,6 +1104,10 @@
 
   function parseValue(parser, keywordAliases) {
     skipWhitespace(parser);
+    const qhtmlFragmentCall = tryReadStaticQHtmlFragmentCall(parser);
+    if (qhtmlFragmentCall.matched) {
+      return qhtmlFragmentCall.value;
+    }
     const ch = peek(parser);
     if (ch === '"' || ch === "'") {
       return parseQuotedString(parser);

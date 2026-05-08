@@ -253,18 +253,37 @@
     return null;
   }
 
-  function cloneNodeDeep(node) {
+  function cloneNodeDeep(node, seen) {
     if (!node || typeof node !== "object") {
       return node;
     }
+    const seenMap =
+      seen && typeof seen.get === "function" && typeof seen.set === "function"
+        ? seen
+        : typeof WeakMap === "function"
+          ? new WeakMap()
+          : null;
+    if (seenMap && seenMap.has(node)) {
+      return seenMap.get(node);
+    }
     if (Array.isArray(node)) {
-      return node.map(cloneNodeDeep);
+      const outArray = [];
+      if (seenMap) {
+        seenMap.set(node, outArray);
+      }
+      for (let i = 0; i < node.length; i += 1) {
+        outArray.push(cloneNodeDeep(node[i], seenMap));
+      }
+      return outArray;
     }
     const out = {};
+    if (seenMap) {
+      seenMap.set(node, out);
+    }
     const keys = Object.keys(node);
     for (let i = 0; i < keys.length; i += 1) {
       const key = keys[i];
-      out[key] = cloneNodeDeep(node[key]);
+      out[key] = cloneNodeDeep(node[key], seenMap);
     }
     const sourceNode =
       node && typeof node === "object" && node.__qhtmlSourceNode && typeof node.__qhtmlSourceNode === "object"
@@ -2680,6 +2699,17 @@
   }
 
   function createQHtmlFragmentToken(source) {
+    if (isQHtmlFragmentToken(source)) {
+      return source;
+    }
+    if (source && (typeof source === "object" || typeof source === "function")) {
+      return {
+        __qhtmlFragment: true,
+        source: "",
+        reference: source,
+        referenceUuid: readResolverNodeUuid(source),
+      };
+    }
     return {
       __qhtmlFragment: true,
       source: String(source == null ? "" : source),
@@ -2691,7 +2721,7 @@
       value &&
       typeof value === "object" &&
       value[QHTML_FRAGMENT_MARKER] === true &&
-      typeof value.source === "string"
+      (typeof value.source === "string" || typeof value.reference !== "undefined")
     );
   }
 
@@ -2829,7 +2859,9 @@
       "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
       " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
       "const qhtml = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtml === \"function\")" +
-      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n";
+      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n" +
+      "const qhtmlString = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtmlString === \"function\")" +
+      " ? globalThis.qhtmlString : qhtml;\n";
     const scopedBlock =
       "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
       "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
@@ -9084,6 +9116,12 @@
         scope[key] = context.inlineScope[key];
       }
     }
+    if (!Object.prototype.hasOwnProperty.call(scope, "qhtml")) {
+      scope.qhtml = createQHtmlFragmentToken;
+    }
+    if (!Object.prototype.hasOwnProperty.call(scope, "qhtmlString")) {
+      scope.qhtmlString = createQHtmlFragmentToken;
+    }
     scope.component = resolveComponentForInterpolation(context, fallbackNode);
     scope.componentQdom = resolveComponentQdomForInterpolation(context);
     return scope;
@@ -9370,6 +9408,35 @@
     if (!isQHtmlFragmentToken(value)) {
       return false;
     }
+    if (typeof value.reference !== "undefined") {
+      const referenceTarget = resolveQHtmlFragmentReferenceTarget(value.reference);
+      const referenceNode = resolveQHtmlFragmentReferenceNode(referenceTarget);
+      if (referenceNode) {
+        const beforeCount = readFragmentParentChildCount(parent);
+        renderQHtmlFragmentQDomNode(referenceNode, parent, targetDocument, context);
+        if (readFragmentParentChildCount(parent) !== beforeCount) {
+          return true;
+        }
+      }
+      if (appendQHtmlFragmentDomFallback(referenceTarget, parent, targetDocument)) {
+        return true;
+      }
+      if (value.referenceUuid && runtime && typeof runtime.resolveUuidPointer === "function") {
+        const pointer = runtime.resolveUuidPointer(value.referenceUuid);
+        const pointerTarget = resolveQHtmlFragmentReferenceTarget(pointer);
+        const pointerNode = resolveQHtmlFragmentReferenceNode(pointerTarget);
+        if (pointerNode) {
+          const beforeCount = readFragmentParentChildCount(parent);
+          renderQHtmlFragmentQDomNode(pointerNode, parent, targetDocument, context);
+          if (readFragmentParentChildCount(parent) !== beforeCount) {
+            return true;
+          }
+        }
+        if (appendQHtmlFragmentDomFallback(pointerTarget, parent, targetDocument)) {
+          return true;
+        }
+      }
+    }
     const source = String(value.source || "");
     if (!source.trim()) {
       return true;
@@ -9394,6 +9461,88 @@
       parent.appendChild(targetDocument.createTextNode(source));
     }
     return true;
+  }
+
+  function resolveQHtmlFragmentReferenceTarget(reference) {
+    if (!reference || (typeof reference !== "object" && typeof reference !== "function")) {
+      return null;
+    }
+    if (isContextSymbolHandle(reference)) {
+      return readHandleResolutionTarget(reference) || reference;
+    }
+    return reference;
+  }
+
+  function resolveQHtmlFragmentReferenceNode(reference) {
+    if (!reference || (typeof reference !== "object" && typeof reference !== "function")) {
+      return null;
+    }
+    const target = reference;
+    if (target && target.nodeType === 1 && typeof target.qdom === "function") {
+      try {
+        const qdomNode = target.qdom();
+        return sourceNodeOf(qdomNode) || qdomNode || null;
+      } catch (readQdomError) {
+        return null;
+      }
+    }
+    if (target && typeof target.qdom === "function") {
+      try {
+        const qdomNode = target.qdom();
+        return sourceNodeOf(qdomNode) || qdomNode || null;
+      } catch (readQdomError) {
+        return null;
+      }
+    }
+    return sourceNodeOf(target) || null;
+  }
+
+  function readFragmentParentChildCount(parent) {
+    if (!parent || !parent.childNodes || typeof parent.childNodes.length !== "number") {
+      return -1;
+    }
+    return parent.childNodes.length;
+  }
+
+  function appendQHtmlFragmentDomFallback(referenceTarget, parent, targetDocument) {
+    if (!referenceTarget || !parent || !targetDocument || referenceTarget.nodeType !== 1) {
+      return false;
+    }
+    try {
+      const clone =
+        typeof targetDocument.importNode === "function"
+          ? targetDocument.importNode(referenceTarget, true)
+          : typeof referenceTarget.cloneNode === "function"
+            ? referenceTarget.cloneNode(true)
+            : null;
+      if (!clone) {
+        return false;
+      }
+      parent.appendChild(clone);
+      return true;
+    } catch (cloneError) {
+      return false;
+    }
+  }
+
+  function renderQHtmlFragmentQDomNode(referenceNode, parent, targetDocument, context) {
+    if (!referenceNode || typeof referenceNode !== "object") {
+      return;
+    }
+    const sourceNode = sourceNodeOf(referenceNode) || referenceNode;
+    const nodes =
+      Array.isArray(sourceNode.nodes)
+        ? sourceNode.nodes
+        : [sourceNode];
+    for (let i = 0; i < nodes.length; i += 1) {
+      const nodeClone = cloneNodeDeep(nodes[i]);
+      if (nodeClone && nodeClone.meta && typeof nodeClone.meta === "object") {
+        delete nodeClone.meta[QINSTANCE_ALIAS_META_KEY];
+      }
+      refreshQDomNodeUuidsDeep(nodeClone);
+      stripQDomSourceRefsDeep(nodeClone);
+      renderNode(nodeClone, parent, targetDocument, context);
+    }
   }
 
   function createPathResolutionContext(existingContext) {
