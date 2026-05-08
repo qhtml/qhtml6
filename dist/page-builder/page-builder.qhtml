@@ -28,7 +28,7 @@ q-component page-builder-toolbar {
       div.pb-logo { text { Q } }
       div {
         h1 { text { QHTML Page Builder } }
-        p { text { Drag palette items into q-layout, q-row, and q-col containers. Export emits QHTML. } }
+        p { text { Drag palette items into the canvas. Export emits clean QHTML layout source. } }
       }
     }
     div.pb-actions {
@@ -74,7 +74,7 @@ q-component page-builder-palette {
       q-palette-toolbox-button {
         name: "Two Column Copy"
         component: "pb-two-column-copy"
-        qhtml: "div.pb-two-column-copy { div { h3 { text { Left Column } } p { text { Drop this into a q-col or compose it inside a row. } } } div { h3 { text { Right Column } } p { text { The exported QHTML keeps this as a component instance. } } } }"
+        qhtml: "div.pb-two-column-copy { div { h3 { text { Left Column } } p { text { Drop this into the canvas or compose it beside another block. } } } div { h3 { text { Right Column } } p { text { The exported QHTML keeps this as a component instance. } } } }"
         div.pb-palette-preview.columns {
           h3 { text { Columns } }
           p { text { Two content areas } }
@@ -109,7 +109,7 @@ q-component page-builder-canvas {
     div.pb-canvas-meta {
       div {
         h2 { text { Layout Canvas } }
-        p { text { Drop zones are real q-layout / q-row / q-col elements. Red indicators show insert position. } }
+        p { text { Drop blocks where they belong. Red indicators show insert position. } }
       }
       div.pb-status { id: "pb-builder-status" text { Ready } }
     }
@@ -118,12 +118,11 @@ q-component page-builder-canvas {
       q-layout {
         id: "pb-builder-layout"
         width: "100%"
-        height: "720px"
         gap: "14px"
         q-row {
-          height: "fill"
+          height: "auto"
           q-col {
-            width: "fill"
+            width: "auto"
             div.pb-empty-drop {
               h3 { text { Drop a block here } }
               p { text { Start with a hero, card, callout, or button row. } }
@@ -139,7 +138,7 @@ q-component page-builder-export-panel {
   section.pb-export-panel {
     div.pb-export-head {
       h2 { text { Exported QHTML } }
-      p { text { The export includes q-component definitions for palette items used in the layout, followed by the q-layout tree. } }
+      p { text { The export includes q-component definitions for palette items used in the layout, followed by the generated layout tree. } }
     }
     textarea {
       id: "pb-export-output"

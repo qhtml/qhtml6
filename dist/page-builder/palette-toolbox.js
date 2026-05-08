@@ -68,7 +68,7 @@
 
   function track(v) {
     v = sizeValue(v, Q.fill);
-    return v === Q.fill ? "minmax(0, 1fr)" : v;
+    return v === Q.fill ? "auto" : v;
   }
 
   function rootOf(el) {
@@ -207,7 +207,7 @@
       children.forEach(function (child) {
         var s = sizeValue(childSize(child, axis), Q.fill);
         if (s === Q.fill) {
-          child.style.flex = "1 1 0";
+          child.style.flex = "0 1 auto";
         } else {
           child.style.flex = "0 0 " + s;
           if (axis === "rows") { child.style.height = s; } else { child.style.width = s; }
@@ -259,6 +259,24 @@
     });
   }
 
+  function createEmptyDrop() {
+    var empty = document.createElement("div");
+    empty.className = "pb-empty-drop";
+    empty.innerHTML = "<div><h3>Drop a block here</h3><p>Start with a hero, card, callout, or button row.</p></div>";
+    return empty;
+  }
+
+  function ensureCanvasPlaceholder(layout) {
+    var row;
+    var col;
+    if (!layout || layout.querySelector(Q.item) || layout.querySelector(".pb-empty-drop")) {
+      return;
+    }
+    row = layout.addRow(Infinity, { height: "auto" });
+    col = row.addCol(Infinity, { width: "auto" });
+    col.appendChild(createEmptyDrop());
+  }
+
   function directAndNested(root, tagName) {
     var out = [];
     if (tag(root) === tagName) { out.push(root); }
@@ -282,8 +300,8 @@
       ".pb-actions{display:flex;gap:10px;flex-wrap:wrap}.pb-action{border:0;border-radius:999px;padding:10px 15px;font-weight:800;cursor:pointer;box-shadow:0 8px 22px rgba(15,23,42,.08)}.pb-action.primary{background:#0f172a;color:white}.pb-action.secondary{background:white;color:#1d4ed8;border:1px solid #c7d2fe}.pb-action.danger{background:#fff1f2;color:#be123c;border:1px solid #fecdd3}",
       ".pb-workspace{min-height:0;display:grid;grid-template-columns:300px minmax(0,1fr);gap:18px;padding:18px}.pb-main{min-width:0;display:grid;grid-template-rows:minmax(0,1fr) 260px;gap:18px}.pb-sidebar{min-height:0;background:rgba(15,23,42,.92);border:1px solid rgba(148,163,184,.24);border-radius:26px;box-shadow:0 28px 80px rgba(15,23,42,.22);overflow:hidden;color:white}.pb-sidebar-head{padding:22px 22px 10px}.pb-sidebar h2,.pb-canvas-meta h2,.pb-export-head h2{margin:0;font-size:18px;letter-spacing:-.03em}.pb-sidebar p,.pb-canvas-meta p,.pb-export-head p{margin:.45rem 0 0;color:#93a4bc;font-size:13px;line-height:1.4}",
       "q-layout,q-row,q-col,q-palette-toolbox,q-palette-toolbox-button,q-builder-item{box-sizing:border-box;min-width:0;min-height:0}",
-      "q-layout{display:grid;gap:12px;background:linear-gradient(180deg,#f8fbff,#edf4ff);border:1px solid #cbd8ea;border-radius:24px;padding:14px;overflow:auto;color:#0f172a;position:relative}",
-      "q-row{display:grid;gap:12px;overflow:visible;border:1px dashed rgba(37,99,235,.24);border-radius:20px;padding:10px;background:rgba(255,255,255,.38)}",
+      "q-layout{display:grid;gap:12px;background:transparent;border:0;border-radius:0;padding:0;overflow:visible;color:#0f172a;position:relative}",
+      "q-row{display:grid;gap:12px;overflow:visible;border:0;border-radius:0;padding:0;background:transparent}",
       "q-col{display:block;overflow:visible;background:rgba(255,255,255,.92);border:1px solid #d8e0ec;border-radius:18px;padding:14px;color:#0f172a;box-shadow:0 12px 28px rgba(15,23,42,.08);position:relative;transition:border-color .14s ease,box-shadow .14s ease,background .14s ease}",
       "q-col.q-col-empty:after{content:'Drop here';display:grid;place-items:center;min-height:92px;border:1px dashed #adc2df;border-radius:14px;color:#7b8da5;font-weight:800;background:rgba(241,245,249,.72)}",
       ".pb-canvas-shell,.pb-export-panel{background:rgba(255,255,255,.78);border:1px solid rgba(148,163,184,.42);border-radius:26px;box-shadow:0 22px 70px rgba(15,23,42,.12);overflow:hidden}.pb-canvas-meta,.pb-export-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid rgba(148,163,184,.28);background:rgba(248,250,252,.82)}.pb-status{font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:#1d4ed8;background:#dbeafe;border:1px solid #bfdbfe;border-radius:999px;padding:8px 11px}.pb-stage{padding:18px;overflow:auto}.pb-empty-drop{min-height:180px;display:grid;place-items:center;text-align:center;border:1px dashed #b7c6dc;border-radius:16px;background:linear-gradient(180deg,#f8fbff,#eef5ff);color:#64748b}.pb-empty-drop h3{margin:0 0 6px;font-size:20px;color:#1e293b}.pb-empty-drop p{margin:0;font-size:13px}",
@@ -652,8 +670,22 @@
 
     removeItem() {
       var root = rootOf(this);
-      this.remove();
-      if (root) { schedule(root); }
+      var cell = this.closest(Q.col);
+      var row = cell && cell.closest ? cell.closest(Q.row) : null;
+      if (cell && root && !cell.closest(Q.toolbox)) {
+        cell.remove();
+        if (row && direct(row, Q.col).length === 0) {
+          row.remove();
+        }
+        ensureCanvasPlaceholder(root);
+        relayout(root);
+      } else {
+        this.remove();
+        if (root) {
+          ensureCanvasPlaceholder(root);
+          relayout(root);
+        }
+      }
       BuilderStore.saveSoon();
     }
   }
@@ -740,7 +772,7 @@
         var row = document.createElement(Q.row);
         var col = document.createElement(Q.col);
         row.setAttribute("height", "auto");
-        col.setAttribute("width", Q.fill);
+        col.setAttribute("width", "auto");
         col.appendChild(button);
         row.appendChild(col);
         body.appendChild(row);
@@ -933,8 +965,8 @@
       }
 
       if (intent.type === "insert-row") {
-        row = intent.container.addRow(intent.index, { height: Q.fill });
-        col = row.addCol(Infinity, { width: Q.fill });
+        row = intent.container.addRow(intent.index, { height: "auto" });
+        col = row.addCol(Infinity, { width: "auto" });
         col.appendChild(payload);
         schedule(intent.container);
         BuilderStore.saveSoon();
@@ -942,7 +974,7 @@
       }
 
       if (intent.type === "insert-col") {
-        col = intent.container.addCol(intent.index, { width: Q.fill });
+        col = intent.container.addCol(intent.index, { width: "auto" });
         col.appendChild(payload);
         schedule(intent.container);
         BuilderStore.saveSoon();
@@ -1218,14 +1250,13 @@
 
   function clearCanvas() {
     var layout = document.getElementById("pb-builder-layout");
+    var row;
+    var col;
     if (!layout) { return; }
     layout.innerHTML = "";
-    var row = layout.addRow(Infinity, { height: Q.fill });
-    var col = row.addCol(Infinity, { width: Q.fill });
-    var empty = document.createElement("div");
-    empty.className = "pb-empty-drop";
-    empty.innerHTML = "<div><h3>Drop a block here</h3><p>Start with a hero, card, callout, or button row.</p></div>";
-    col.appendChild(empty);
+    row = layout.addRow(Infinity, { height: "auto" });
+    col = row.addCol(Infinity, { width: "auto" });
+    col.appendChild(createEmptyDrop());
     relayout(layout);
     BuilderStore.saveSoon();
     setStatus("Canvas cleared");
@@ -1236,8 +1267,8 @@
     var row;
     var col;
     if (!layout) { return; }
-    row = layout.addRow(Infinity, { height: Q.fill });
-    col = row.addCol(Infinity, { width: Q.fill });
+    row = layout.addRow(Infinity, { height: "auto" });
+    col = row.addCol(Infinity, { width: "auto" });
     col.classList.add("q-col-empty");
     relayout(layout);
     setStatus("Row added");
@@ -1250,7 +1281,7 @@
     var col;
     if (!row && layout) { row = layout.row(0); }
     if (!row) { return; }
-    col = row.addCol(Infinity, { width: Q.fill });
+    col = row.addCol(Infinity, { width: "auto" });
     col.classList.add("q-col-empty");
     relayout(layout || row);
     setStatus("Column added");
