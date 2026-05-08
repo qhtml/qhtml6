@@ -1,1539 +1,217 @@
-q-component q-component-wrapper {
-  function node() {
-    return typeof this.builderNode === "function" ? this.builderNode() : null;
-  }
-
-  function highlight(shouldHighlight) {
-    var facade = this.node();
-    if (facade && typeof facade.highlight === "function") {
-      facade.highlight(!!shouldHighlight);
+q-component page-builder-toolbar {
+  function exportLayout() {
+    if (window.QPageBuilder && typeof window.QPageBuilder.exportToPanel === "function") {
+      window.QPageBuilder.exportToPanel();
     }
-    return !!shouldHighlight;
   }
 
-  function isMouseWithin(x, y) {
-    var facade = this.node();
-    return !!(facade && typeof facade.isMouseWithin === "function" && facade.isMouseWithin(x, y));
-  }
-
-  function hasSlots() {
-    var facade = this.node();
-    return !!(facade && typeof facade.hasSlots === "function" && facade.hasSlots());
-  }
-
-  function hasChildComponent(componentName) {
-    var facade = this.node();
-    return !!(facade && typeof facade.hasChildComponent === "function" && facade.hasChildComponent(componentName));
-  }
-
-  function hasChildComponentInSlot(slotName, componentName) {
-    var facade = this.node();
-    return !!(
-      facade &&
-      typeof facade.hasChildComponentInSlot === "function" &&
-      facade.hasChildComponentInSlot(slotName, componentName)
-    );
-  }
-
-  function appendToSlot(slotName, qdomNodeOrSource, options) {
-    var facade = this.node();
-    if (!facade || typeof facade.appendToSlot !== "function") {
-      return null;
+  function clearLayout() {
+    if (window.QPageBuilder && typeof window.QPageBuilder.clearCanvas === "function") {
+      window.QPageBuilder.clearCanvas();
     }
-    return facade.appendToSlot(slotName, qdomNodeOrSource, options || { autoUpdate: true });
   }
 
-  function replaceSlotContent(slotName, qdomNodeOrSource, options) {
-    var facade = this.node();
-    if (!facade || typeof facade.replaceSlotContent !== "function") {
-      return null;
+  function addRow() {
+    if (window.QPageBuilder && typeof window.QPageBuilder.addRow === "function") {
+      window.QPageBuilder.addRow();
     }
-    return facade.replaceSlotContent(slotName, qdomNodeOrSource, options || { autoUpdate: true });
   }
 
-  div.q-component-wrapper {
-    data-page-builder-wrapper: "1"
-    style {
-      display: block;
-      min-height: 2.4rem;
-      min-width: 2.4rem;
-      padding: 0.45rem;
-      border: 1px dashed #d6e2f2;
-      border-radius: 0.65rem;
-      background: #ffffff;
-      transition: border-color 140ms ease, box-shadow 140ms ease;
+  function addColumn() {
+    if (window.QPageBuilder && typeof window.QPageBuilder.addColumn === "function") {
+      window.QPageBuilder.addColumn();
     }
-    slot { default }
+  }
+
+  header.pb-toolbar {
+    div.pb-brand {
+      div.pb-logo { text { Q } }
+      div {
+        h1 { text { QHTML Page Builder } }
+        p { text { Drag palette items into q-layout, q-row, and q-col containers. Export emits QHTML. } }
+      }
+    }
+    div.pb-actions {
+      button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").addRow(); } text { Add Row } }
+      button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").addColumn(); } text { Add Column } }
+      button.pb-action.danger { type: "button" onclick { this.closest("page-builder-toolbar").clearLayout(); } text { Clear } }
+      button.pb-action.primary { type: "button" onclick { this.closest("page-builder-toolbar").exportLayout(); } text { Export QHTML } }
+    }
   }
 }
 
-q-component page-builder-runtime {
-  function state() {
-    if (!this.__pageBuilderRuntimeState || typeof this.__pageBuilderRuntimeState !== "object") {
-      this.__pageBuilderRuntimeState = {
-        dragging: false,
-        dragWidgetId: "",
-        dragSource: "",
-        pointerX: 0,
-        pointerY: 0,
-        hoverTarget: null,
-        hoverHighlightNodes: [],
-        paletteEntries: null
-      };
+q-component page-builder-palette {
+  aside.pb-sidebar {
+    div.pb-sidebar-head {
+      h2 { text { Palette } }
+      p { text { Drag blocks onto the canvas. Items can be moved after they are dropped. } }
     }
-    return this.__pageBuilderRuntimeState;
-  }
 
-  function canvasHost() {
-    return document.querySelector("#page-builder-canvas");
-  }
+    q-palette-toolbox {
+      docked: "true"
+      title: "Blocks"
 
-  function canvasDropzone() {
-    return document.querySelector("#page-builder-dropzone");
-  }
-
-  function defaultPaletteEntries() {
-    return [
-      { id: "title", label: "Title", type: "q-component", canonicalName: "title", slots: ["default"], signals: [], properties: [] },
-      { id: "text", label: "Text Block", type: "q-component", canonicalName: "text-block", slots: ["default"], signals: [], properties: [] },
-      { id: "button", label: "Button", type: "q-component", canonicalName: "button", slots: ["default"], signals: [], properties: [] },
-      { id: "input", label: "Input", type: "q-component", canonicalName: "input", slots: ["default"], signals: [], properties: [] },
-      { id: "card", label: "Card", type: "q-component", canonicalName: "card", slots: ["default"], signals: [], properties: [] },
-      { id: "group", label: "Group Box", type: "q-component", canonicalName: "group-box", slots: ["default"], signals: [], properties: [] },
-      { id: "form", label: "Form", type: "q-component", canonicalName: "form", slots: ["default"], signals: [], properties: [] },
-      { id: "grid", label: "Grid", type: "q-component", canonicalName: "grid", slots: ["default"], signals: [], properties: [] },
-      { id: "frame", label: "Frame", type: "q-component", canonicalName: "frame", slots: ["header", "body", "footer"], signals: [], properties: [] }
-    ];
-  }
-
-  function normalizePaletteEntry(entry, fallbackIndex) {
-    var source = entry && typeof entry === "object" ? entry : {};
-    var rawId = String(source.id || "").trim();
-    var rawLabel = String(source.label || "").trim();
-    var id = rawId || ("custom-" + String(Number(fallbackIndex || 0)));
-    var label = rawLabel || id;
-    var qhtmlSource = typeof source.source === "string" ? String(source.source || "").trim() : "";
-    var wrapWithBuilder = source.wrapWithBuilder !== false;
-    var type = String(source.type || "q-component").trim() || "q-component";
-    var canonicalName = String(source.canonicalName || "").trim();
-    var slotValues = Array.isArray(source.slots) ? source.slots : [];
-    var signalValues = Array.isArray(source.signals) ? source.signals : [];
-    var propertyValues = Array.isArray(source.properties) ? source.properties : [];
-    var slots = [];
-    for (var i = 0; i < slotValues.length; i += 1) {
-      var slotName = String(slotValues[i] || "").trim();
-      if (!slotName || slots.indexOf(slotName) >= 0) {
-        continue;
-      }
-      slots.push(slotName);
-    }
-    var signals = [];
-    for (var j = 0; j < signalValues.length; j += 1) {
-      var signalName = String(signalValues[j] || "").trim();
-      if (!signalName || signals.indexOf(signalName) >= 0) {
-        continue;
-      }
-      signals.push(signalName);
-    }
-    var properties = [];
-    for (var p = 0; p < propertyValues.length; p += 1) {
-      var propertyName = String(propertyValues[p] || "").trim();
-      if (!propertyName || properties.indexOf(propertyName) >= 0) {
-        continue;
-      }
-      properties.push(propertyName);
-    }
-    return {
-      id: id,
-      label: label,
-      source: qhtmlSource,
-      wrapWithBuilder: wrapWithBuilder,
-      type: type,
-      canonicalName: canonicalName,
-      slots: slots,
-      signals: signals,
-      properties: properties
-    };
-  }
-
-  function ensurePaletteEntries() {
-    var s = this.state();
-    if (Array.isArray(s.paletteEntries)) {
-      return s.paletteEntries;
-    }
-    var defaults = this.defaultPaletteEntries();
-    var normalized = [];
-    for (var i = 0; i < defaults.length; i += 1) {
-      normalized.push(this.normalizePaletteEntry(defaults[i], i + 1));
-    }
-    s.paletteEntries = normalized;
-    return s.paletteEntries;
-  }
-
-  function paletteEntries() {
-    var entries = this.ensurePaletteEntries();
-    var out = [];
-    for (var i = 0; i < entries.length; i += 1) {
-      var entry = entries[i] || {};
-      out.push({
-        id: String(entry.id || ""),
-        label: String(entry.label || ""),
-        source: typeof entry.source === "string" ? String(entry.source || "") : "",
-        wrapWithBuilder: entry.wrapWithBuilder !== false,
-        type: String(entry.type || "q-component"),
-        canonicalName: String(entry.canonicalName || ""),
-        slots: Array.isArray(entry.slots) ? entry.slots.slice() : [],
-        signals: Array.isArray(entry.signals) ? entry.signals.slice() : [],
-        properties: Array.isArray(entry.properties) ? entry.properties.slice() : []
-      });
-    }
-    return out;
-  }
-
-  function paletteEntryById(entryId) {
-    var key = String(entryId || "").trim();
-    if (!key) {
-      return null;
-    }
-    var entries = this.ensurePaletteEntries();
-    for (var i = 0; i < entries.length; i += 1) {
-      var entry = entries[i];
-      if (!entry) {
-        continue;
-      }
-      if (String(entry.id || "") === key) {
-        return entry;
-      }
-    }
-    return null;
-  }
-
-  function notifyPaletteChanged() {
-    document.dispatchEvent(new CustomEvent("page-builder-palette-change", {
-      detail: {
-        entries: this.paletteEntries()
-      }
-    }));
-  }
-
-  function addPaletteEntry(entry) {
-    var normalized = this.normalizePaletteEntry(entry, Date.now());
-    var entries = this.ensurePaletteEntries();
-    var replaced = false;
-    for (var i = 0; i < entries.length; i += 1) {
-      if (!entries[i]) {
-        continue;
-      }
-      if (String(entries[i].id || "") === normalized.id) {
-        entries[i] = normalized;
-        replaced = true;
-        break;
-      }
-    }
-    if (!replaced) {
-      entries.push(normalized);
-    }
-    this.notifyPaletteChanged();
-    return normalized;
-  }
-
-  function widgetSource(widgetId) {
-    var key = String(widgetId || "").trim().toLowerCase();
-    if (key === "title") {
-      return "h2.w3-margin-0 { style { min-width: 200px; min-height: 52px; display: block; } text { Section Title } }";
-    }
-    if (key === "text") {
-      return "p { style { min-width: 220px; min-height: 70px; display: block; } text { Replace with your text. } }";
-    }
-    if (key === "button") {
-      return "button.w3-button.w3-blue.w3-round-large { type: \"button\" style { min-width: 160px; min-height: 44px; } text { Action } }";
-    }
-    if (key === "input") {
-      return "input.w3-input.w3-border.w3-round-large { type: \"text\" placeholder: \"Input\" style { min-width: 220px; min-height: 40px; } }";
-    }
-    if (key === "card") {
-      return "div.w3-card.w3-round-large.w3-padding { style { min-width: 220px; min-height: 140px; } h3 { text { Card } } p { text { Card body text. } } }";
-    }
-    if (key === "group") {
-      return "fieldset.w3-border.w3-round-large.w3-padding { style { min-width: 240px; min-height: 140px; } legend { text { Group } } p { text { Group content } } }";
-    }
-    if (key === "form") {
-      return "form { style { min-width: 260px; min-height: 180px; display: flex; flex-direction: column; gap: 0.5rem; } input { type: \"text\" placeholder: \"Name\" } input { type: \"email\" placeholder: \"Email\" } button.w3-button.w3-dark-grey.w3-round-large { type: \"submit\" text { Submit } } }";
-    }
-    if (key === "grid") {
-      return "div { style { min-width: 280px; min-height: 160px; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; } q-component-wrapper { p { text { A } } } q-component-wrapper { p { text { B } } } }";
-    }
-    if (key === "frame") {
-      return "q-page-builder-frame { header { q-component-wrapper { h3 { text { Header Slot } } } } body { q-component-wrapper { p { text { Body Slot } } } } footer { q-component-wrapper { p { text { Footer Slot } } } } }";
-    }
-    return "p { text { New element } }";
-  }
-
-  function wrapWithBuilder(source) {
-    var body = String(source || "").trim();
-    if (!body) {
-      return "q-component-wrapper { }";
-    }
-    if (body.toLowerCase().indexOf("q-component-wrapper") === 0) {
-      return body;
-    }
-    return "q-component-wrapper { " + body + " }";
-  }
-
-  function wrappedWidgetSource(widgetId) {
-    var entry = this.paletteEntryById(widgetId);
-    var source = entry && typeof entry.source === "string" && String(entry.source || "").trim()
-      ? String(entry.source || "").trim()
-      : this.widgetSource(widgetId);
-    if (entry && entry.wrapWithBuilder === false) {
-      return source;
-    }
-    return this.wrapWithBuilder(source);
-  }
-
-  function paletteCreatorModal() {
-    return this.querySelector("q-modal[q-page-builder-create-modal='1']");
-  }
-
-  function paletteCreatorEditor() {
-    return this.querySelector("q-editor[q-page-builder-create-editor='1']");
-  }
-
-  function paletteCreatorNameInput() {
-    return this.querySelector("input[q-page-builder-create-name='1']");
-  }
-
-  function paletteCreatorTypeInput() {
-    return this.querySelector("select[q-page-builder-create-type='1']");
-  }
-
-  function paletteCreatorCanonicalInput() {
-    return this.querySelector("input[q-page-builder-create-canonical='1']");
-  }
-
-  function paletteCreatorAutoNameInput() {
-    return this.querySelector("input[q-page-builder-create-auto-name='1']");
-  }
-
-  function paletteCreatorQHtmlTree() {
-    var localTree = this.querySelector("q-tree-view[q-page-builder-create-qhtml-tree='1']");
-    if (!localTree) {
-      localTree = this.querySelector("q-dom-tree[q-page-builder-create-qhtml-tree='1']");
-    }
-    if (!localTree) {
-      localTree = this.querySelector("[q-page-builder-create-qhtml-tree='1']");
-    }
-    if (localTree) {
-      return localTree;
-    }
-    var globalTree = document.querySelector("q-tree-view[q-page-builder-create-qhtml-tree='1']");
-    if (!globalTree) {
-      globalTree = document.querySelector("q-dom-tree[q-page-builder-create-qhtml-tree='1']");
-    }
-    if (!globalTree) {
-      globalTree = document.querySelector("[q-page-builder-create-qhtml-tree='1']");
-    }
-    return globalTree;
-  }
-
-  function paletteCreatorStatusNode() {
-    return this.querySelector("[q-page-builder-create-status='1']");
-  }
-
-  function defaultPaletteCreatorSource() {
-    return "div.w3-card.w3-round-large.w3-padding { h3 { text { Custom Block } } p { text { Replace this with your custom content. } } }";
-  }
-
-  function normalizePaletteCreatorType(value) {
-    var type = String(value || "").trim().toLowerCase();
-    if (type === "q-template") {
-      return "q-template";
-    }
-    if (type === "q-macro") {
-      return "q-macro";
-    }
-    return "q-component";
-  }
-
-  function paletteCreatorDefinitionName() {
-    var canonicalInput = this.paletteCreatorCanonicalInput();
-    var canonical = String(canonicalInput && typeof canonicalInput.value === "string" ? canonicalInput.value : "").trim();
-    if (canonical) {
-      return canonical;
-    }
-    var nameInput = this.paletteCreatorNameInput();
-    var name = String(nameInput && typeof nameInput.value === "string" ? nameInput.value : "").trim();
-    var generated = this.canonicalizeName(name);
-    return generated || "custom-item";
-  }
-
-  function parsePaletteCreatorDefinitionSource(source) {
-    var text = String(source || "");
-    var trimmed = text.trim();
-    var openIndex = trimmed.indexOf("{");
-    if (openIndex < 0) {
-      return {
-        hasWrapper: false,
-        type: "",
-        name: "",
-        extendsClause: "",
-        body: trimmed
-      };
-    }
-    var header = trimmed.slice(0, openIndex).trim();
-    var headerParts = header ? header.split(/\s+/g) : [];
-    if (headerParts.length < 2) {
-      return {
-        hasWrapper: false,
-        type: "",
-        name: "",
-        extendsClause: "",
-        body: trimmed
-      };
-    }
-    var type = this.normalizePaletteCreatorType(headerParts[0]);
-    if (type !== "q-component" && type !== "q-template" && type !== "q-macro") {
-      return {
-        hasWrapper: false,
-        type: "",
-        name: "",
-        extendsClause: "",
-        body: trimmed
-      };
-    }
-    var name = String(headerParts[1] || "").trim();
-    if (!name) {
-      return {
-        hasWrapper: false,
-        type: "",
-        name: "",
-        extendsClause: "",
-        body: trimmed
-      };
-    }
-    var closeIndex = trimmed.lastIndexOf("}");
-    var body = "";
-    if (openIndex >= 0 && closeIndex > openIndex) {
-      body = trimmed.slice(openIndex + 1, closeIndex).trim();
-    } else if (openIndex >= 0) {
-      body = trimmed.slice(openIndex + 1).trim();
-    }
-    var extendsClause = headerParts.length > 2 ? headerParts.slice(2).join(" ").trim() : "";
-    return {
-      hasWrapper: true,
-      type: type,
-      name: name,
-      extendsClause: extendsClause,
-      body: body
-    };
-  }
-
-  function buildPaletteCreatorDefinitionSource(type, name, body, extendsClause) {
-    var normalizedType = this.normalizePaletteCreatorType(type);
-    var normalizedName = String(name || "").trim() || "custom-item";
-    var header = normalizedType + " " + normalizedName;
-    var ext = String(extendsClause || "").trim();
-    if (normalizedType === "q-component" && ext) {
-      header += " " + ext;
-    }
-    var payload = String(body || "").trim();
-    if (!payload) {
-      return header + " {\n}";
-    }
-    return header + " {\n" + payload + "\n}";
-  }
-
-  function ensurePaletteCreatorDefinitionSource(options) {
-    var opts = options && typeof options === "object" ? options : {};
-    var editor = this.paletteCreatorEditor();
-    if (!editor || typeof editor.setQhtmlSource !== "function") {
-      return "";
-    }
-    var source = this.readPaletteCreatorSource();
-    var parsed = this.parsePaletteCreatorDefinitionSource(source);
-    var typeInput = this.paletteCreatorTypeInput();
-    var desiredType = this.normalizePaletteCreatorType(typeInput && typeof typeInput.value === "string" ? typeInput.value : "q-component");
-    var desiredName = this.paletteCreatorDefinitionName();
-    var force = opts.force === true;
-    var needsWrapper = !parsed.hasWrapper;
-    var hasTrailingBrace = String(source || "").trim().slice(-1) === "}";
-    var typeChanged = parsed.hasWrapper && parsed.type !== desiredType;
-    var nameChanged = parsed.hasWrapper && parsed.name !== desiredName;
-    var shouldRewrite = force || needsWrapper || !hasTrailingBrace || typeChanged || nameChanged;
-    if (!shouldRewrite) {
-      return source;
-    }
-    var preserveExtends = desiredType === "q-component" && parsed.type === "q-component"
-      ? parsed.extendsClause
-      : "";
-    var nextSource = this.buildPaletteCreatorDefinitionSource(
-      desiredType,
-      desiredName,
-      parsed.body,
-      preserveExtends
-    );
-    editor.setQhtmlSource(nextSource);
-    return nextSource;
-  }
-
-  function autoNameStorageKey() {
-    return "qhtml.pageBuilder.palette.autoName";
-  }
-
-  function readAutoNamePreference() {
-    try {
-      var stored = localStorage.getItem(this.autoNameStorageKey());
-      if (stored === "0") {
-        return false;
-      }
-      if (stored === "1") {
-        return true;
-      }
-    } catch (error) {
-    }
-    return true;
-  }
-
-  function writeAutoNamePreference(enabled) {
-    try {
-      localStorage.setItem(this.autoNameStorageKey(), enabled ? "1" : "0");
-    } catch (error) {
-    }
-  }
-
-  function canonicalizeName(value) {
-    var text = String(value || "").trim().toLowerCase();
-    if (!text) {
-      return "";
-    }
-    return text.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-  }
-
-  function setPaletteCreatorStatus(message, tone) {
-    var node = this.paletteCreatorStatusNode();
-    if (!node) {
-      return;
-    }
-    var text = String(message || "");
-    node.textContent = text;
-    if (!node.style) {
-      return;
-    }
-    if (!text) {
-      node.style.color = "#64748b";
-      return;
-    }
-    if (String(tone || "").toLowerCase() === "error") {
-      node.style.color = "#b91c1c";
-      return;
-    }
-    if (String(tone || "").toLowerCase() === "success") {
-      node.style.color = "#166534";
-      return;
-    }
-    node.style.color = "#0f172a";
-  }
-
-  function paletteEntryIdFromLabel(label) {
-    var base = this.canonicalizeName(label);
-    if (!base) {
-      return "custom-item";
-    }
-    return base || "custom-item";
-  }
-
-  function uniquePaletteEntryId(baseId) {
-    var base = String(baseId || "").trim() || "custom-item";
-    if (!this.paletteEntryById(base)) {
-      return base;
-    }
-    var index = 2;
-    while (this.paletteEntryById(base + "-" + String(index))) {
-      index += 1;
-    }
-    return base + "-" + String(index);
-  }
-
-  function readPaletteCreatorSource() {
-    var editor = this.paletteCreatorEditor();
-    if (!editor) {
-      return "";
-    }
-    if (typeof editor.getQhtmlSource === "function") {
-      return String(editor.getQhtmlSource() || "").trim();
-    }
-    return String(editor.textContent || "").trim();
-  }
-
-  function setPaletteCreatorTreeModel(model) {
-    var tree = this.paletteCreatorQHtmlTree();
-    if (!tree) {
-      return false;
-    }
-    if (typeof tree.setModel === "function") {
-      tree.setModel(model);
-      return true;
-    }
-    if (typeof tree.import === "function") {
-      tree.import(model);
-      return true;
-    }
-    tree.model = model;
-    if (typeof tree.refresh === "function") {
-      tree.refresh();
-    }
-    return true;
-  }
-
-  function readPaletteCreatorTreeModel() {
-    var tree = this.paletteCreatorQHtmlTree();
-    if (!tree) {
-      return {};
-    }
-    if (tree.__treeRawModel && typeof tree.__treeRawModel === "object") {
-      return tree.__treeRawModel;
-    }
-    if (typeof tree._effectiveModel === "function") {
-      var effective = tree._effectiveModel();
-      if (effective && typeof effective === "object") {
-        return effective;
-      }
-    }
-    if (typeof tree.export === "function") {
-      return tree.export();
-    }
-    return tree.model || {};
-  }
-
-  function parsePaletteCreatorSourceToQDom(source) {
-    if (globalThis.QHtml && typeof globalThis.QHtml.parseQHtml === "function") {
-      return globalThis.QHtml.parseQHtml(source);
-    }
-    if (
-      globalThis.QHtmlModules &&
-      globalThis.QHtmlModules.qhtmlParser &&
-      typeof globalThis.QHtmlModules.qhtmlParser.parseQHtmlToQDom === "function"
-    ) {
-      return globalThis.QHtmlModules.qhtmlParser.parseQHtmlToQDom(source);
-    }
-    throw new Error("QHTML parser is unavailable.");
-  }
-
-  function readPaletteCreatorTreeDataFromSource(source) {
-    var normalizedSource = this.ensurePaletteCreatorDefinitionSource({ force: false }) || source;
-    var parsed = this.parsePaletteCreatorSourceToQDom(normalizedSource);
-    if (globalThis.QHtml && typeof globalThis.QHtml.qmapNode === "function") {
-      return globalThis.QHtml.qmapNode(parsed, {
-        filters: ["q-property", "q-signal", "slot"],
-        includeFullTree: true
-      });
-    }
-    return parsed && typeof parsed === "object" ? parsed : {};
-  }
-
-  function syncPaletteTreeFromSource(attempt) {
-    var tryCount = Number(attempt || 0);
-    var source = this.readPaletteCreatorSource();
-    if (!source) {
-      this.setPaletteCreatorStatus("QHTML source is required before sync.", "error");
-      return false;
-    }
-    try {
-      var model = this.readPaletteCreatorTreeDataFromSource(source);
-      var applied = this.setPaletteCreatorTreeModel(model);
-      if (!applied) {
-        if (tryCount < 3) {
-          var component = this;
-          requestAnimationFrame(function() {
-            component.syncPaletteTreeFromSource(tryCount + 1);
-          });
-          return false;
-        }
-        this.setPaletteCreatorStatus("QHTML tree view was not found in Create Palette modal.", "error");
-        return false;
-      }
-      this.setPaletteCreatorStatus("QHTML tree synced from source.", "success");
-      return true;
-    } catch (error) {
-      var reason = error && error.message ? String(error.message) : String(error);
-      this.setPaletteCreatorStatus("Tree sync failed: " + reason, "error");
-      return false;
-    }
-  }
-
-  function collectPaletteTreeMetadata(nodeValue, parentKey, out) {
-    if (Array.isArray(nodeValue)) {
-      var ai = 0;
-      while (ai < nodeValue.length) {
-        this.collectPaletteTreeMetadata(nodeValue[ai], parentKey, out);
-        ai += 1;
-      }
-      return;
-    }
-    if (!nodeValue || typeof nodeValue !== "object") {
-      return;
-    }
-    var keys = Object.keys(nodeValue);
-    var i = 0;
-    while (i < keys.length) {
-      var key = String(keys[i] || "").trim();
-      var value = nodeValue[keys[i]];
-      var lower = key.toLowerCase();
-      if (lower === "q-property" && value && typeof value === "object" && !Array.isArray(value)) {
-        var propertyNames = Object.keys(value);
-        var p = 0;
-        while (p < propertyNames.length) {
-          var propertyName = String(propertyNames[p] || "").replace(/\s+#\d+$/, "").trim();
-          if (propertyName && out.properties.indexOf(propertyName) < 0) {
-            out.properties.push(propertyName);
-          }
-          p += 1;
+      q-palette-toolbox-button {
+        name: "Hero"
+        component: "pb-hero-block"
+        qhtml: "section.pb-hero-block { h1 { text { Launch Faster } } p { text { Compose a clean landing page visually, then export declarative QHTML. } } button { class: \"pb-demo-button\" text { Start Building } } }"
+        div.pb-palette-preview.hero {
+          h3 { text { Hero } }
+          p { text { Headline, copy, CTA } }
         }
       }
-      if (lower === "q-signal" && value && typeof value === "object" && !Array.isArray(value)) {
-        var signalNames = Object.keys(value);
-        var s = 0;
-        while (s < signalNames.length) {
-          var signalName = String(signalNames[s] || "").replace(/\s+#\d+$/, "").trim();
-          if (signalName && out.signals.indexOf(signalName) < 0) {
-            out.signals.push(signalName);
-          }
-          s += 1;
+
+      q-palette-toolbox-button {
+        name: "Feature Card"
+        component: "pb-feature-card"
+        qhtml: "article.pb-feature-card { h3 { text { Feature Card } } p { text { Explain one product benefit with a compact reusable component. } } }"
+        div.pb-palette-preview.card {
+          h3 { text { Feature } }
+          p { text { Card block } }
         }
       }
-      if (lower.indexOf("slot ") === 0) {
-        var slotName = key.slice(5).replace(/\s+#\d+$/, "").trim();
-        if (slotName && out.slots.indexOf(slotName) < 0) {
-          out.slots.push(slotName);
+
+      q-palette-toolbox-button {
+        name: "Two Column Copy"
+        component: "pb-two-column-copy"
+        qhtml: "div.pb-two-column-copy { div { h3 { text { Left Column } } p { text { Drop this into a q-col or compose it inside a row. } } } div { h3 { text { Right Column } } p { text { The exported QHTML keeps this as a component instance. } } } }"
+        div.pb-palette-preview.columns {
+          h3 { text { Columns } }
+          p { text { Two content areas } }
         }
       }
-      if (lower === "slot" && value && typeof value === "object" && !Array.isArray(value)) {
-        var slotNames = Object.keys(value);
-        var si = 0;
-        while (si < slotNames.length) {
-          var namedSlot = String(slotNames[si] || "").replace(/\s+#\d+$/, "").trim();
-          if (namedSlot && out.slots.indexOf(namedSlot) < 0) {
-            out.slots.push(namedSlot);
-          }
-          si += 1;
+
+      q-palette-toolbox-button {
+        name: "Callout"
+        component: "pb-callout"
+        qhtml: "aside.pb-callout { strong { text { Note } } p { text { Use callouts for announcements, warnings, or highlighted copy. } } }"
+        div.pb-palette-preview.callout {
+          h3 { text { Callout } }
+          p { text { Highlight panel } }
         }
       }
-      this.collectPaletteTreeMetadata(value, key, out);
-      i += 1;
-    }
-  }
 
-  function readPaletteCreatorTreeMetadata() {
-    var out = { slots: [], signals: [], properties: [] };
-    var model = this.readPaletteCreatorTreeModel();
-    this.collectPaletteTreeMetadata(model, "", out);
-    return out;
-  }
-
-  function onPaletteNameInput(rawValue) {
-    var autoInput = this.paletteCreatorAutoNameInput();
-    var canonicalInput = this.paletteCreatorCanonicalInput();
-    var autoEnabled = !!(autoInput && autoInput.checked);
-    if (!autoEnabled || !canonicalInput) {
-      return;
-    }
-    canonicalInput.value = this.canonicalizeName(rawValue);
-  }
-
-  function onPaletteAutoNameToggle(checked) {
-    var enabled = !!checked;
-    this.writeAutoNamePreference(enabled);
-    var nameInput = this.paletteCreatorNameInput();
-    this.onPaletteNameInput(nameInput && typeof nameInput.value === "string" ? nameInput.value : "");
-  }
-
-  function onPaletteTypeChange(rawType) {
-    var typeInput = this.paletteCreatorTypeInput();
-    if (typeInput) {
-      typeInput.value = this.normalizePaletteCreatorType(rawType);
-    }
-  }
-
-  function openPaletteCreator() {
-    var modal = this.paletteCreatorModal();
-    if (!modal || typeof modal.show !== "function") {
-      return;
-    }
-    var nameInput = this.paletteCreatorNameInput();
-    if (nameInput) {
-      nameInput.value = "Custom Block";
-    }
-    var typeInput = this.paletteCreatorTypeInput();
-    if (typeInput) {
-      typeInput.value = "q-component";
-    }
-    var autoNameInput = this.paletteCreatorAutoNameInput();
-    if (autoNameInput) {
-      autoNameInput.checked = this.readAutoNamePreference();
-    }
-    var canonicalInput = this.paletteCreatorCanonicalInput();
-    if (canonicalInput) {
-      canonicalInput.value = "";
-    }
-    this.onPaletteNameInput(nameInput && typeof nameInput.value === "string" ? nameInput.value : "");
-    var editor = this.paletteCreatorEditor();
-    if (editor && typeof editor.setQhtmlSource === "function") {
-      editor.setQhtmlSource(this.defaultPaletteCreatorSource());
-    }
-    modal.show();
-    this.setPaletteCreatorStatus("", "");
-    if (nameInput && typeof nameInput.focus === "function") {
-      nameInput.focus();
-      if (typeof nameInput.select === "function") {
-        nameInput.select();
-      }
-    }
-  }
-
-  function closePaletteCreator() {
-    var modal = this.paletteCreatorModal();
-    if (modal && typeof modal.hide === "function") {
-      modal.hide();
-    }
-    this.setPaletteCreatorStatus("", "");
-  }
-
-  function savePaletteCreator() {
-    var nameInput = this.paletteCreatorNameInput();
-    var label = String(nameInput && typeof nameInput.value === "string" ? nameInput.value : "").trim();
-    if (!label) {
-      this.setPaletteCreatorStatus("Name is required.", "error");
-      return false;
-    }
-    var typeInput = this.paletteCreatorTypeInput();
-    var type = String(typeInput && typeof typeInput.value === "string" ? typeInput.value : "q-component").trim() || "q-component";
-    var canonicalInput = this.paletteCreatorCanonicalInput();
-    var canonicalName = String(canonicalInput && typeof canonicalInput.value === "string" ? canonicalInput.value : "").trim();
-    var autoNameInput = this.paletteCreatorAutoNameInput();
-    if (!canonicalName && autoNameInput && autoNameInput.checked) {
-      canonicalName = this.canonicalizeName(label);
-      if (canonicalInput) {
-        canonicalInput.value = canonicalName;
-      }
-    }
-    if (!canonicalName) {
-      this.setPaletteCreatorStatus("Canonical name is required.", "error");
-      return false;
-    }
-    var source = this.readPaletteCreatorSource();
-    if (!source) {
-      this.setPaletteCreatorStatus("QHTML source is required.", "error");
-      return false;
-    }
-    if (globalThis.QHtml && typeof globalThis.QHtml.parseQHtml === "function") {
-      try {
-        globalThis.QHtml.parseQHtml(source);
-      } catch (error) {
-        var reason = error && error.message ? String(error.message) : String(error);
-        this.setPaletteCreatorStatus("Invalid QHTML: " + reason, "error");
-        return false;
-      }
-    }
-    var id = this.uniquePaletteEntryId(this.paletteEntryIdFromLabel(canonicalName));
-    var slots = [];
-    var signals = [];
-    var properties = [];
-    this.addPaletteEntry({
-      id: id,
-      label: label,
-      source: source,
-      wrapWithBuilder: true,
-      type: type,
-      canonicalName: canonicalName,
-      slots: slots,
-      signals: signals,
-      properties: properties
-    });
-    this.setPaletteCreatorStatus("Added \"" + label + "\" to palette.", "success");
-    this.closePaletteCreator();
-    return true;
-  }
-
-  function targetCandidates() {
-    var host = this.canvasHost();
-    if (!host || !host.querySelectorAll) {
-      return [];
-    }
-    var nodes = host.querySelectorAll("#page-builder-dropzone, #page-builder-dropzone q-component-wrapper, #page-builder-dropzone [qhtml-component-instance='1']");
-    var out = [];
-    for (var i = 0; i < nodes.length; i += 1) {
-      var candidate = nodes[i];
-      if (!candidate || candidate.nodeType !== 1) {
-        continue;
-      }
-      if (candidate.id === "page-builder-runtime") {
-        continue;
-      }
-      if (typeof candidate.builderNode !== "function") {
-        continue;
-      }
-      out.push(candidate);
-    }
-    return out;
-  }
-
-  function clearActiveHighlightNodes() {
-    var s = this.state();
-    var highlighted = Array.isArray(s.hoverHighlightNodes) ? s.hoverHighlightNodes : [];
-    for (var i = 0; i < highlighted.length; i += 1) {
-      var node = highlighted[i];
-      if (!node || !node.classList) {
-        continue;
-      }
-      node.classList.remove("qbuilder-node-highlight");
-    }
-    s.hoverHighlightNodes = [];
-  }
-
-  function clearHighlights() {
-    var s = this.state();
-    this.clearActiveHighlightNodes();
-    s.hoverTarget = null;
-  }
-
-  function qhtmlHost() {
-    return document.querySelector("#page-builder-host");
-  }
-
-  function domElementForQDomNode(qdomNode) {
-    var host = this.qhtmlHost();
-    if (!host || typeof host.uuidFor !== "function" || typeof host.elementForUuid !== "function") {
-      return null;
-    }
-    var uuid = String(host.uuidFor(qdomNode) || "").trim();
-    if (!uuid) {
-      return null;
-    }
-    var mapped = host.elementForUuid(uuid);
-    return mapped && mapped.nodeType === 1 ? mapped : null;
-  }
-
-  function componentSlotDirectChildren(target) {
-    if (!target || typeof target.qdom !== "function") {
-      return [];
-    }
-    var qdomNode = target.qdom();
-    if (!qdomNode || typeof qdomNode.slots !== "function") {
-      return [];
-    }
-    var slots = qdomNode.slots();
-    var out = [];
-    for (var i = 0; i < slots.length; i += 1) {
-      var slotHandle = slots[i];
-      var children = slotHandle && typeof slotHandle.children === "function" ? slotHandle.children() : [];
-      for (var j = 0; j < children.length; j += 1) {
-        var childElement = this.domElementForQDomNode(children[j]);
-        if (!childElement || out.indexOf(childElement) >= 0) {
-          continue;
+      q-palette-toolbox-button {
+        name: "Button Row"
+        component: "pb-button-row"
+        qhtml: "div.pb-button-row { button { class: \"pb-demo-button\" text { Primary } } button { class: \"pb-demo-button ghost\" text { Secondary } } }"
+        div.pb-palette-preview.buttons {
+          h3 { text { Buttons } }
+          p { text { CTA pair } }
         }
-        out.push(childElement);
       }
     }
-    return out;
   }
+}
 
-  function deepestLeafDescendant(root) {
-    if (!root || root.nodeType !== 1) {
-      return null;
-    }
-    var best = null;
-    var bestDepth = -1;
-
-    function walk(node, depth) {
-      if (!node || node.nodeType !== 1) {
-        return;
-      }
-      var children = node.children;
-      if (!children || children.length === 0) {
-        if (depth > bestDepth) {
-          best = node;
-          bestDepth = depth;
-        }
-        return;
-      }
-      for (var i = 0; i < children.length; i += 1) {
-        walk(children[i], depth + 1);
-      }
-    }
-
-    walk(root, 0);
-    return best || root;
-  }
-
-  function isComponentElement(target) {
-    if (!target || target.nodeType !== 1 || !target.getAttribute) {
-      return false;
-    }
-    return (
-      String(target.getAttribute("qhtml-component-instance") || "") === "1" ||
-      String(target.getAttribute("q-component") || "").trim().length > 0
-    );
-  }
-
-  function highlightNodesForTarget(target) {
-    if (!target || target.nodeType !== 1) {
-      return [];
-    }
-    if (this.isComponentElement(target)) {
-      var slotChildren = this.componentSlotDirectChildren(target);
-      if (slotChildren.length > 0) {
-        return slotChildren;
-      }
-      var leaf = this.deepestLeafDescendant(target);
-      return leaf ? [leaf] : [];
-    }
-    return [target];
-  }
-
-  function sameNodeList(a, b) {
-    var left = Array.isArray(a) ? a : [];
-    var right = Array.isArray(b) ? b : [];
-    if (left.length !== right.length) {
-      return false;
-    }
-    for (var i = 0; i < left.length; i += 1) {
-      if (left[i] !== right[i]) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  function setHoverTarget(target) {
-    var s = this.state();
-    var nextTarget = target && target.nodeType === 1 ? target : null;
-    var nextNodes = this.highlightNodesForTarget(nextTarget);
-    if (s.hoverTarget === nextTarget && this.sameNodeList(s.hoverHighlightNodes, nextNodes)) {
-      return;
-    }
-    this.clearActiveHighlightNodes();
-    s.hoverTarget = nextTarget;
-    s.hoverHighlightNodes = nextNodes;
-    for (var i = 0; i < nextNodes.length; i += 1) {
-      var node = nextNodes[i];
-      if (!node || !node.classList) {
-        continue;
-      }
-      node.classList.add("qbuilder-node-highlight");
-    }
-  }
-
-  function leafElementAt(x, y) {
-    var canvas = this.canvasHost();
-    if (!canvas || !canvas.contains) {
-      return null;
-    }
-    var leaf = document.elementFromPoint(Number(x || 0), Number(y || 0));
-    if (!leaf || leaf.nodeType !== 1) {
-      return null;
-    }
-    if (!canvas.contains(leaf)) {
-      return null;
-    }
-    return leaf;
-  }
-
-  function insertionTargetFromElement(element) {
-    if (!element || !element.closest) {
-      return null;
-    }
-    var target = element.closest("#page-builder-dropzone [qhtml-component-instance='1'], #page-builder-dropzone q-component-wrapper, #page-builder-dropzone");
-    if (!target || typeof target.builderNode !== "function") {
-      return null;
-    }
-    return target;
-  }
-
-  function deepestTargetAt(x, y) {
-    var leaf = this.leafElementAt(x, y);
-    return this.insertionTargetFromElement(leaf);
-  }
-
-  function pointerFromEvent(event) {
-    var e = event || {};
-    return {
-      x: Number(e.clientX || 0),
-      y: Number(e.clientY || 0)
-    };
-  }
-
-  function trackPointer(event) {
-    var s = this.state();
-    var pos = this.pointerFromEvent(event);
-    s.pointerX = pos.x;
-    s.pointerY = pos.y;
-    var leaf = this.leafElementAt(pos.x, pos.y);
-    this.setHoverTarget(leaf);
-  }
-
-  function startDrag(widgetId, event) {
-    var s = this.state();
-    s.dragging = true;
-    s.dragWidgetId = String(widgetId || "");
-    s.dragSource = this.wrappedWidgetSource(s.dragWidgetId);
-    this.trackPointer(event);
-    var transfer = event && event.dataTransfer ? event.dataTransfer : null;
-    if (transfer) {
-      transfer.effectAllowed = "copy";
-      transfer.dropEffect = "copy";
-      transfer.setData("text/plain", s.dragWidgetId);
-    }
-  }
-
-  function stopDrag() {
-    var s = this.state();
-    s.dragging = false;
-    s.dragWidgetId = "";
-    s.dragSource = "";
-    this.setHoverTarget(this.leafElementAt(s.pointerX, s.pointerY));
-  }
-
-  function preferredSlotName(target) {
-    if (!target || typeof target.qdom !== "function") {
-      return "default";
-    }
-    var qdomNode = target.qdom();
-    if (!qdomNode || typeof qdomNode.slots !== "function") {
-      return "default";
-    }
-    var slots = qdomNode.slots();
-    var names = [];
-    for (var i = 0; i < slots.length; i += 1) {
-      var slotName = String(slots[i] && slots[i].name ? slots[i].name : "default").trim() || "default";
-      if (names.indexOf(slotName) < 0) {
-        names.push(slotName);
-      }
-    }
-    if (names.length === 0) {
-      return "default";
-    }
-    if (names.indexOf("body") >= 0) {
-      return "body";
-    }
-    if (names.indexOf("default") >= 0) {
-      return "default";
-    }
-    return names[0];
-  }
-
-  function dropAtCurrentPointer(event) {
-    var s = this.state();
-    if (!s.dragging) {
-      return false;
-    }
-    var pos = this.pointerFromEvent(event);
-    var target = this.deepestTargetAt(pos.x, pos.y) || this.insertionTargetFromElement(s.hoverTarget) || this.canvasDropzone();
-    if (!target || typeof target.builderNode !== "function") {
-      this.stopDrag();
-      return false;
-    }
-    var facade = target.builderNode();
-    var slotName = this.preferredSlotName(target);
-    if (facade && typeof facade.appendToSlot === "function") {
-      facade.appendToSlot(slotName, s.dragSource, { autoUpdate: true });
-    }
-    this.stopDrag();
-    return true;
-  }
-
-  function allowDrop(event) {
-    if (event && typeof event.preventDefault === "function") {
-      event.preventDefault();
-    }
-    this.trackPointer(event);
-  }
-
-  function handleDrop(event) {
-    if (event && typeof event.preventDefault === "function") {
-      event.preventDefault();
-    }
-    this.dropAtCurrentPointer(event);
-  }
-
-  function sourceText() {
-    var host = this.canvasHost();
-    if (!host || !globalThis.QHtml || typeof globalThis.QHtml.toQHtmlSource !== "function") {
-      return "";
-    }
-    return String(globalThis.QHtml.toQHtmlSource(host, { preserveOriginal: false }) || "");
-  }
-
-  function openSource() {
-    var modal = this.querySelector("#page-builder-source-modal");
-    var output = this.querySelector("#page-builder-source-output");
-    if (output) {
-      output.value = this.sourceText();
-    }
-    if (modal && modal.style) {
-      modal.style.display = "block";
-    }
-  }
-
-  function closeSource() {
-    var modal = this.querySelector("#page-builder-source-modal");
-    if (modal && modal.style) {
-      modal.style.display = "none";
-    }
-  }
-
-  onReady {
-    if (this.__pageBuilderRuntimeReady) {
-      return;
-    }
-    this.__pageBuilderRuntimeReady = true;
-    this.ensurePaletteEntries();
-    this.notifyPaletteChanged();
-    var runtime = this;
-    document.addEventListener("mousemove", function(event) {
-      runtime.trackPointer(event);
-    });
-    document.addEventListener("dragover", function(event) {
-      runtime.trackPointer(event);
-    });
-    document.addEventListener("dragend", function() {
-      runtime.stopDrag();
-    });
-    document.addEventListener("drop", function(event) {
-      if (!runtime.state().dragging) {
-        return;
-      }
-      var insideCanvas = event.target && event.target.closest && event.target.closest("#page-builder-canvas");
-      if (!insideCanvas) {
-        runtime.stopDrag();
-      }
-    });
-  }
-
-  div {
-    id: "page-builder-runtime-state"
-    style { display: none; }
-    div {
-      id: "page-builder-source-modal"
-      style {
-        display: none;
-        position: fixed;
-        inset: 0;
-        background: rgba(15, 23, 42, 0.42);
-        z-index: 2200;
-      }
+q-component page-builder-canvas {
+  section.pb-canvas-shell {
+    div.pb-canvas-meta {
       div {
-        style {
-          width: min(92vw, 980px);
-          height: min(84vh, 760px);
-          margin: 4vh auto;
-          background: #ffffff;
-          border-radius: 1rem;
-          border: 1px solid #cbd5e1;
-          box-shadow: 0 18px 50px rgba(15, 23, 42, 0.28);
-          display: flex;
-          flex-direction: column;
-        }
-        div.w3-padding.w3-border-bottom {
-          h3.w3-margin-0 { text { QHTML Source } }
-        }
-        div.w3-padding {
-          style { flex: 1 1 auto; min-height: 0; }
-          textarea.w3-input.w3-border.w3-round {
-            id: "page-builder-source-output"
-            style { width: 100%; height: 100%; min-height: 240px; font-family: "Consolas", "Monaco", monospace; }
-          }
-        }
-        div.w3-padding.w3-border-top {
-          button.w3-button.w3-round-large.w3-blue {
-            type: "button"
-            onclick { this.closest("page-builder-runtime").closeSource(); }
-            text { Close }
-          }
-        }
+        h2 { text { Layout Canvas } }
+        p { text { Drop zones are real q-layout / q-row / q-col elements. Red indicators show insert position. } }
       }
+      div.pb-status { id: "pb-builder-status" text { Ready } }
     }
-  }
 
-  q-modal {
-    q-page-builder-create-modal: "1"
-    title {
-      h3.w3-margin-0 { text { Create Palette Item } }
-    }
-    content {
-      div {
-        style { display: grid; gap: 0.6rem; }
-        q-tabs {
-          q-tab {
-            name { text { General } }
-            content {
-              div {
-                style { display: grid; gap: 0.6rem; padding-top: 0.25rem; }
-                label.w3-small.w3-text-blue-grey { text { Palette Name } }
-                input.w3-input.w3-border.w3-round {
-                  q-page-builder-create-name: "1"
-                  type: "text"
-                  placeholder: "Example: Hero Card"
-                  oninput { this.closest("page-builder-runtime").onPaletteNameInput(this.value); }
-                }
-                label.w3-small.w3-text-blue-grey { text { Type } }
-                select.w3-select.w3-border.w3-round {
-                  q-page-builder-create-type: "1"
-                  onchange { this.closest("page-builder-runtime").onPaletteTypeChange(this.value); }
-                  option { value: "q-component" text { q-component } }
-                  option { value: "q-template" text { q-template } }
-                  option { value: "q-macro" text { q-macro } }
-                }
-                label.w3-small.w3-text-blue-grey { text { Canonical Name } }
-                input.w3-input.w3-border.w3-round {
-                  q-page-builder-create-canonical: "1"
-                  type: "text"
-                  placeholder: "hero-card"
-                }
-                label.w3-small {
-                  input {
-                    q-page-builder-create-auto-name: "1"
-                    type: "checkbox"
-                    checked: "checked"
-                    onchange { this.closest("page-builder-runtime").onPaletteAutoNameToggle(this.checked); }
-                  }
-                  span.w3-margin-left { text { Auto Name } }
-                }
-              }
-            }
-          }
-          q-tab {
-            name { text { Source Code } }
-            content {
-              q-editor {
-                q-page-builder-create-editor: "1"
-                initial-qhtml: "div.w3-card.w3-round-large.w3-padding { h3 { text { Custom Block } } p { text { Replace this with your custom content. } } }"
-              }
+    div.pb-stage {
+      q-layout {
+        id: "pb-builder-layout"
+        width: "100%"
+        height: "720px"
+        gap: "14px"
+        q-row {
+          height: "fill"
+          q-col {
+            width: "fill"
+            div.pb-empty-drop {
+              h3 { text { Drop a block here } }
+              p { text { Start with a hero, card, callout, or button row. } }
             }
           }
         }
-        div.w3-small {
-          q-page-builder-create-status: "1"
-          style { min-height: 1.25rem; color: #64748b; }
-          text { }
-        }
       }
     }
-    footer {
-      div.w3-right-align {
-        button.w3-button.w3-small.w3-round-large.w3-indigo.w3-margin-right {
-          type: "button"
-          onclick { this.closest("page-builder-runtime").savePaletteCreator(); }
-          text { Add To Palette }
+  }
+}
+
+q-component page-builder-export-panel {
+  section.pb-export-panel {
+    div.pb-export-head {
+      h2 { text { Exported QHTML } }
+      p { text { The export includes q-component definitions for palette items used in the layout, followed by the q-layout tree. } }
+    }
+    textarea {
+      id: "pb-export-output"
+      readonly: "readonly"
+      spellcheck: "false"
+      placeholder: "Click Export QHTML after arranging the canvas."
+    }
+  }
+}
+
+q-component page-builder-palette-editor {
+  dialog.pb-palette-editor {
+    id: "pb-palette-editor"
+    div.pb-palette-editor-card {
+      header.pb-palette-editor-head {
+        div {
+          h2 { text { Edit Palette Component } }
+          p { id: "pb-palette-editor-subtitle" text { Update the QHTML source used by this palette item. } }
         }
-        button.w3-button.w3-small.w3-round-large.w3-grey {
+        button.pb-icon-button {
           type: "button"
-          onclick { this.closest("page-builder-runtime").closePaletteCreator(); }
+          aria-label: "Close editor"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.closePaletteEditor(); } }
+          html { &times; }
+        }
+      }
+      input {
+        id: "pb-palette-editor-component"
+        type: "hidden"
+      }
+      label.pb-editor-label {
+        for: "pb-palette-editor-source"
+        text { QHTML Source }
+      }
+      textarea {
+        id: "pb-palette-editor-source"
+        spellcheck: "false"
+      }
+      div.pb-palette-editor-error {
+        id: "pb-palette-editor-error"
+      }
+      footer.pb-palette-editor-actions {
+        button.pb-action.secondary {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.previewPaletteEdit(); } }
+          text { Preview }
+        }
+        button.pb-action.secondary {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.closePaletteEditor(); } }
           text { Cancel }
         }
+        button.pb-action.primary {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.savePaletteEdit(); } }
+          text { Save Component }
+        }
       }
-    }
-  }
-}
-
-q-component page-builder-toolbar-actions {
-  function runtime() {
-    return document.querySelector("#page-builder-runtime");
-  }
-
-  function openSource() {
-    var runtime = this.runtime();
-    if (runtime && typeof runtime.openSource === "function") {
-      runtime.openSource();
-    }
-  }
-
-  function clearHighlight() {
-    var runtime = this.runtime();
-    if (runtime && typeof runtime.clearHighlights === "function") {
-      runtime.clearHighlights();
-    }
-  }
-
-  div.page-builder-actions {
-    button.w3-button.w3-round-large.w3-blue { type: "button" onclick { this.closest("page-builder-toolbar-actions").openSource(); } text { Source } }
-    button.w3-button.w3-round-large.w3-dark-grey { type: "button" onclick { this.closest("page-builder-toolbar-actions").clearHighlight(); } text { Clear Highlight } }
-  }
-}
-
-q-component page-builder-sidebar {
-  function runtime() {
-    return document.querySelector("#page-builder-runtime");
-  }
-
-  function paletteEntries() {
-    var runtime = this.runtime();
-    if (!runtime || typeof runtime.paletteEntries !== "function") {
-      return [];
-    }
-    return runtime.paletteEntries();
-  }
-
-  function beginDragFromButton(button, event) {
-    var runtime = this.runtime();
-    if (!runtime || typeof runtime.startDrag !== "function") {
-      return;
-    }
-    var widgetId = button && button.getAttribute ? String(button.getAttribute("data-widget") || "") : "";
-    runtime.startDrag(widgetId, event || {});
-  }
-
-  function renderPaletteButtons() {
-    var container = this.querySelector("#page-builder-palette-items");
-    if (!container) {
-      return;
-    }
-    while (container.firstChild) {
-      container.removeChild(container.firstChild);
-    }
-    var entries = this.paletteEntries();
-    for (var i = 0; i < entries.length; i += 1) {
-      var entry = entries[i] || {};
-      var id = String(entry.id || "").trim();
-      var label = String(entry.label || id).trim() || id;
-      if (!id) {
-        continue;
-      }
-      var button = document.createElement("button");
-      button.className = "w3-button w3-round-large w3-left-align";
-      button.type = "button";
-      button.setAttribute("draggable", "true");
-      button.setAttribute("data-widget", id);
-      button.textContent = label;
-      button.addEventListener("dragstart", function(event) {
-        this.closest("page-builder-sidebar").beginDragFromButton(this, event);
-      });
-      container.appendChild(button);
-    }
-  }
-
-  function openCreateNew() {
-    var runtime = this.runtime();
-    if (!runtime || typeof runtime.openPaletteCreator !== "function") {
-      return;
-    }
-    runtime.openPaletteCreator();
-  }
-
-  onReady {
-    if (this.__pageBuilderSidebarReady) {
-      return;
-    }
-    this.__pageBuilderSidebarReady = true;
-    var sidebar = this;
-    this.renderPaletteButtons();
-    this.__pageBuilderPaletteRefresh = function() {
-      sidebar.renderPaletteButtons();
-    };
-    document.addEventListener("page-builder-palette-change", this.__pageBuilderPaletteRefresh);
-  }
-
-  div {
-    style {
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      background: linear-gradient(180deg, #0f172a 0%, #16233a 100%);
-      color: #e2e8f0;
-      border-right: 1px solid #213455;
-    }
-    div.w3-padding {
-      h3.w3-margin-top { text { Palette } }
-      p.w3-small.w3-text-blue-grey { text { Drag widgets into the canvas. Targeting and insertion are powered by framework slot APIs. } }
-    }
-    div.w3-padding {
-      id: "page-builder-palette-items"
-      style { display: grid; gap: 0.5rem; grid-template-columns: 1fr; overflow: auto; }
-    }
-    div.w3-padding.w3-border-top {
-      button.w3-button.w3-round-large.w3-indigo { type: "button" onclick { this.closest("page-builder-sidebar").openCreateNew(); } text { Create New } }
     }
   }
 }
 
 q-component page-builder-app {
-  div.page-builder-app {
-    style {
-      min-height: 100vh;
-      display: grid;
-      grid-template-columns: 320px minmax(0, 1fr);
-      background: linear-gradient(180deg, #dbe7f4 0%, #f6f9fc 35%, #eef4fb 100%);
-    }
-
-    aside {
-      page-builder-sidebar { }
-    }
-
-    main {
-      style {
-        min-width: 0;
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-      }
-      div.page-builder-toolbar {
-        style {
-          position: sticky;
-          top: 0;
-          z-index: 30;
-          padding: 0.85rem 1rem;
-          background: rgba(248, 250, 252, 0.92);
-          backdrop-filter: blur(10px);
-          border-bottom: 1px solid #d7e2f0;
-        }
-        div {
-          style { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-          div {
-            h1 { text { QHTML Page Builder Harness } }
-            p { text { Framework capability probe: drag-and-drop is powered by generic builderNode()/slot APIs. } }
-          }
-          page-builder-toolbar-actions { }
-        }
-      }
-
-      div.page-builder-canvas-shell {
-        style { flex: 1 1 auto; min-height: 0; padding: 1rem; }
-        div.page-builder-canvas-card {
-          style {
-            height: calc(100vh - 6.25rem);
-            overflow: auto;
-            border: 1px solid #d7e2f0;
-            border-radius: 1.1rem;
-            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-            box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
-          }
-          div {
-            id: "page-builder-canvas"
-            style {
-              min-height: 100%;
-              padding: 1rem;
-              outline: 1px dashed #c7d8ef;
-              outline-offset: -1px;
-            }
-            ondragover { document.querySelector("#page-builder-runtime").allowDrop(event); }
-            ondrop { document.querySelector("#page-builder-runtime").handleDrop(event); }
-
-            div.w3-container.w3-padding-large {
-              id: "page-builder-dropzone"
-              style {
-                min-height: 100%;
-                display: flex;
-                flex-direction: column;
-                gap: 1rem;
-                background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
-                border-radius: 0.8rem;
-              }
-              page-builder-starter-canvas { }
-            }
-          }
-        }
+  div.pb-app {
+    page-builder-toolbar { }
+    main.pb-workspace {
+      page-builder-palette { }
+      div.pb-main {
+        page-builder-canvas { }
+        page-builder-export-panel { }
       }
     }
+    page-builder-palette-editor { }
   }
-
-  page-builder-runtime { id: "page-builder-runtime" }
 }
