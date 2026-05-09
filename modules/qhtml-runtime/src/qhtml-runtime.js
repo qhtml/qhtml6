@@ -13,7 +13,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.7.1";
+  const RUNTIME_VERSION = "6.8.0";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -43,6 +43,7 @@
     "lifecycleScripts",
     "methods",
     "aliasDeclarations",
+    "varDeclarations",
     "scripts",
     "html",
   ]);
@@ -1070,6 +1071,13 @@
   function createQHtmlFragment(source) {
     if (source && typeof source === "object" && source.__qhtmlFragment === true) {
       return source;
+    }
+    if (source && (typeof source === "object" || typeof source === "function") && source.__qhtmlVarHandle === true) {
+      try {
+        source = source.value;
+      } catch (error) {
+        source = undefined;
+      }
     }
     if (source && (typeof source === "object" || typeof source === "function")) {
       return {
@@ -18634,6 +18642,7 @@
     QSignal: renderer && renderer.QSignal ? renderer.QSignal : null,
     QProperty: renderer && renderer.QProperty ? renderer.QProperty : null,
     QComponentInstance: renderer && renderer.QComponentInstance ? renderer.QComponentInstance : null,
+    QVar: renderer && renderer.QVar ? renderer.QVar : null,
     getQDomDataForUuid: getQDomDataForUuid,
     getQDomDataSnapshot: getQDomDataSnapshot,
     rootContext: {
@@ -18686,6 +18695,9 @@
   }
   if (runtimeApi.QComponentInstance) {
     global.QComponentInstance = runtimeApi.QComponentInstance;
+  }
+  if (runtimeApi.QVar) {
+    global.QVar = runtimeApi.QVar;
   }
   global.qhtml = createQHtmlFragment;
   global.qhtmlString = createQHtmlFragment;

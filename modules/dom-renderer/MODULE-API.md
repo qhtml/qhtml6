@@ -65,9 +65,16 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - pass-by-reference assignment into declared component properties (resolved lazily to callback functions)
   - `qhtml(...)` fragment-return rendering when callbacks return QHTML fragment tokens
   - callback names are also stored in the active lexical/runtime context frame so later expressions in the same scope resolve by name.
+- `q-var` declarations register scoped runtime variable handles:
+  - declaration form: `q-var name { expressionOrBody }`
+  - render-time evaluation tries JavaScript expression mode first and function-body mode second
+  - handles expose `.value`, `.get()`, `.set(value)`, and `.changed`
+  - `.changed` is a QSignal-compatible signal and emits `(value, previousValue, true)` when `.set(...)` changes the value or render-time evaluation produces a different value
+  - q-vars are stored in the active lexical/runtime context frame and exported on the owning host so descendants can reference them directly and sibling/parent paths can dot-walk through the owner component
 - `qhtml(...)` and `qhtmlString(...)` fragment tokens render inline from text nodes, direct-call
   property values, callback returns, and repeater scopes.
   - String fragments are parsed as QHTML and projected into the current DOM location.
+  - `qhtml(expression) { ... }` continuation nodes append the block body to a string/fragment expression and close missing braces before rendering.
   - Named instance, QDom facade, or DOM element references are resolved back to QDom, cloned with
     fresh UUIDs, and rendered inline without remounting the entire host.
   - If a live referenced instance cannot produce projected DOM from the cloned QDom in the current

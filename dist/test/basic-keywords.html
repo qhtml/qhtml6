@@ -1560,6 +1560,105 @@ onReady {
 }
 </q-html>
       </article>
+      <article class="test-card" id="card-110">
+        <div class="test-head">
+          <h2>110. q-var primitive and function values</h2>
+          <span id="badge-110" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> qvar-primitive-110 | qvar-function-110</div>
+<q-html id="host-t110" data-test-no="110">
+q-var primitive110 { "qvar-primitive-110" }
+q-var function110 { function() { return "qvar-function-110"; } }
+
+div#t110-primitive { text { ${primitive110} } }
+div#t110-function { text { ${function110()} } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc && typeof acc.resultReported === "function") {
+    acc.resultReported(110, this.innerHTML);
+  }
+}
+</q-html>
+      </article>
+      <article class="test-card" id="card-111">
+        <div class="test-head">
+          <h2>111. q-var changed signal and set()</h2>
+          <span id="badge-111" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> qvar-change-111 | 1 to 2:true</div>
+<q-html id="host-t111" data-test-no="111">
+q-var counter111 { 1 }
+
+div#t111-value { text { waiting } }
+div#t111-detail { text { waiting } }
+
+onReady {
+  var host = this;
+  counter111.changed.connect(function(value, previousValue, passing) {
+    var valueNode = host.querySelector("#t111-value");
+    var detailNode = host.querySelector("#t111-detail");
+    if (valueNode) {
+      valueNode.textContent = "qvar-change-111";
+    }
+    if (detailNode) {
+      detailNode.textContent = String(previousValue) + " to " + String(value) + ":" + String(passing);
+    }
+  });
+  counter111.set(2);
+  var acc = document.querySelector("#acc-main");
+  if (acc && typeof acc.resultReported === "function") {
+    acc.resultReported(111, this.innerHTML);
+  }
+}
+</q-html>
+      </article>
+      <article class="test-card" id="card-112">
+        <div class="test-head">
+          <h2>112. qhtml(q-var) continuation fragment</h2>
+          <span id="badge-112" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> qvar-fragment-112 | fragment-tail-112</div>
+<q-html id="host-t112" data-test-no="112">
+q-var fragmentHead112 { "div#t112-fragment,section.t112-frag-body {" }
+
+qhtml(fragmentHead112) {
+  h3 { text { qvar-fragment-112 } }
+  p { text { fragment-tail-112 } }
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc && typeof acc.resultReported === "function") {
+    acc.resultReported(112, this.innerHTML);
+  }
+}
+</q-html>
+      </article>
+      <article class="test-card" id="card-113">
+        <div class="test-head">
+          <h2>113. q-var descends into component context</h2>
+          <span id="badge-113" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> parent-qvar-113 | child-qvar-113</div>
+<q-html id="host-t113" data-test-no="113">
+q-var parentVar113 { "parent-qvar-113" }
+
+q-component qvar-child113 {
+  q-var childVar113 { parentVar113 + " | child-qvar-113" }
+  div#t113-child { text { ${childVar113} } }
+}
+
+qvar-child113 childInst113 { }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc && typeof acc.resultReported === "function") {
+    acc.resultReported(113, this.innerHTML);
+  }
+}
+</q-html>
+      </article>
     </section>
   </div>
 </body>

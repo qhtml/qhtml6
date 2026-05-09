@@ -121,6 +121,7 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - `QHtml.QSignal` / global `QSignal`
   - `QHtml.QProperty` / global `QProperty`
   - `QHtml.QComponentInstance` / global `QComponentInstance`
+  - `QHtml.QVar` / global `QVar`
   - sourced from `dom-renderer` runtime type constructors
 - `qhtml(source)`
   - Creates QHTML fragment tokens consumable by renderer callback/direct-call paths.
@@ -129,6 +130,7 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - `qhtmlString(sourceOrReference)`
   - Alias of `qhtml(...)` for explicit source-string intent in QHTML property/map/array data.
   - Accepts QHTML source strings, existing fragment tokens, and named instance/QDom/DOM references.
+  - Accepts `q-var` handles and reads their current `.value` before creating a fragment token.
   - Reference inputs are stored with UUID metadata where possible so the renderer can clone the
     referenced QDom fragment at render time.
   - Exposed as both `QHtml.qhtmlString(...)` and global `qhtmlString(...)`.

@@ -77,6 +77,15 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - callback declarations:
       - top-level `q-callback name(param1, ...) { ... }` emitted as QDom `kind: "callback"` nodes
       - component-local `q-callback name(param1, ...) { ... }` emitted in `component.callbackDeclarations`
+    - q-var declarations:
+      - top-level `q-var name { expressionOrBody }` emitted as QDom `kind: "q-var"` nodes
+      - component-local `q-var name { expressionOrBody }` emitted in `component.varDeclarations`
+      - declaration entries carry stable identity metadata (`entry.uuid` and `entry.meta.uuid`)
+      - bodies are preserved as JavaScript source text for render-time evaluation
+    - dynamic QHTML continuation fragments:
+      - `qhtml(expression) { ... }` emitted as QDom `kind: "qhtml-fragment"`
+      - the expression is evaluated at render time
+      - the block body is appended to string/fragment values so partial fragment heads such as `q-var head { "div {" }` can be completed declaratively
     - component property definition blocks (`q-property <name> { ... }`) emitted in `component.propertyDefinitions`
       - declaration entries now carry stable identity metadata (`entry.uuid` and `entry.meta.uuid`)
     - component alias declarations:

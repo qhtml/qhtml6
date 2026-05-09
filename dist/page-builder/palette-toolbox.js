@@ -310,8 +310,8 @@
       "q-builder-item{display:block;position:relative;margin:0;border-radius:18px;border:1px solid rgba(37,99,235,.28);background:white;box-shadow:0 14px 34px rgba(15,23,42,.1);overflow:hidden;cursor:grab}q-builder-item:active{cursor:grabbing}q-builder-item.pb-selected{outline:3px solid rgba(37,99,235,.32)}.q-builder-item-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;background:#eff6ff;border-bottom:1px solid #bfdbfe;color:#1d4ed8;font-size:11px;font-weight:950;letter-spacing:.04em;text-transform:uppercase}.q-builder-item-actions{display:flex;gap:5px}.q-builder-item-actions button{border:0;border-radius:999px;background:white;color:#1d4ed8;font-weight:950;font-size:11px;padding:3px 7px;cursor:pointer}.q-builder-item-actions button.danger{color:#be123c}.q-builder-item-preview{padding:14px}",
       ".pb-hero-block{padding:32px;border-radius:20px;background:linear-gradient(135deg,#0f172a,#1d4ed8);color:white}.pb-hero-block h1{margin:0;font-size:38px;letter-spacing:-.06em}.pb-hero-block p{max-width:560px;color:#dbeafe}.pb-demo-button{border:0;border-radius:999px;background:#22d3ee;color:#0f172a;font-weight:900;padding:10px 16px}.pb-demo-button.ghost{background:white;color:#1d4ed8;border:1px solid #bfdbfe}.pb-feature-card{padding:22px;border-radius:18px;background:#f8fafc;border:1px solid #dbe4f0}.pb-feature-card h3,.pb-two-column-copy h3{margin-top:0}.pb-two-column-copy{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.pb-two-column-copy>div{padding:18px;border-radius:16px;background:#f8fafc;border:1px solid #dbe4f0}.pb-callout{padding:18px;border-radius:18px;background:#fffbeb;border:1px solid #fde68a;color:#78350f}.pb-button-row{display:flex;gap:12px;flex-wrap:wrap}",
       ".q-drag-ghost{position:fixed;z-index:99999;pointer-events:none;width:128px;min-height:82px;display:grid;place-items:center;border-radius:18px;border:2px solid #2563eb;background:white;color:#1d4ed8;font-size:13px;font-weight:950;text-align:center;padding:12px;box-shadow:0 22px 60px rgba(0,0,0,.38);opacity:.96}.q-drop-indicator{position:fixed;z-index:99998;pointer-events:none;border:3px solid #2563eb;border-radius:14px;background:rgba(37,99,235,.1);box-shadow:0 0 0 2px rgba(255,255,255,.72)}.q-drop-indicator.row-line{height:7px;border:0;border-radius:999px;background:#2563eb;box-shadow:0 0 0 2px rgba(255,255,255,.85)}.q-drop-indicator.col-line{width:7px;border:0;border-radius:999px;background:#2563eb;box-shadow:0 0 0 2px rgba(255,255,255,.85)}",
-      ".pb-export-panel{min-height:0}.pb-export-panel textarea{display:block;width:100%;height:174px;border:0;border-top:1px solid rgba(148,163,184,.28);padding:16px;box-sizing:border-box;background:#0b1020;color:#dbeafe;font:12px/1.5 'Cascadia Code','Consolas',monospace;resize:none;outline:0}",
-      ".pb-palette-editor{border:0;padding:0;background:transparent;max-width:min(860px,calc(100vw - 34px));width:860px}.pb-palette-editor::backdrop{background:rgba(15,23,42,.55);backdrop-filter:blur(5px)}.pb-palette-editor-card{background:#f8fafc;border:1px solid rgba(148,163,184,.45);border-radius:24px;box-shadow:0 36px 120px rgba(15,23,42,.38);overflow:hidden}.pb-palette-editor-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:20px 22px;background:white;border-bottom:1px solid #dbe4f0}.pb-palette-editor-head h2{margin:0;font-size:20px;letter-spacing:-.04em}.pb-palette-editor-head p{margin:6px 0 0;color:#64748b;font-size:13px}.pb-icon-button{width:34px;height:34px;border:0;border-radius:999px;background:#eef2ff;color:#1e293b;font-size:23px;line-height:1;cursor:pointer}.pb-editor-label{display:block;padding:16px 22px 8px;color:#334155;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}.pb-palette-editor textarea{display:block;width:calc(100% - 44px);height:360px;margin:0 22px 14px;border:1px solid #cbd5e1;border-radius:16px;padding:14px;box-sizing:border-box;background:#0b1020;color:#dbeafe;font:13px/1.5 'Cascadia Code','Consolas',monospace;outline:0;resize:vertical}.pb-palette-editor textarea:focus{border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,.14)}.pb-palette-editor-error{min-height:20px;margin:0 22px 10px;color:#be123c;font-size:13px;font-weight:800}.pb-palette-editor-actions{display:flex;justify-content:flex-end;gap:10px;padding:16px 22px 20px;border-top:1px solid #dbe4f0;background:#fff}",
+      ".pb-export-panel{min-height:0}.pb-export-panel q-editor{display:block;border-top:1px solid rgba(148,163,184,.28)}.pb-export-panel q-editor .qe{border:0;border-radius:0}.pb-export-panel q-editor .qe-editor-wrap,.pb-export-panel q-editor .qe-highlight,.pb-export-panel q-editor .qe-input,.pb-export-panel q-editor .qe-code,.pb-export-panel q-editor .qe-preview,.pb-export-panel q-editor .qe-cm-host,.pb-export-panel q-editor .qe-cm-host .cm-editor{min-height:174px}",
+      ".pb-palette-editor{border:0;padding:0;background:transparent;max-width:min(980px,calc(100vw - 34px));width:980px}.pb-palette-editor::backdrop{background:rgba(15,23,42,.55);backdrop-filter:blur(5px)}.pb-palette-editor-card{background:#f8fafc;border:1px solid rgba(148,163,184,.45);border-radius:24px;box-shadow:0 36px 120px rgba(15,23,42,.38);overflow:hidden}.pb-palette-editor-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:20px 22px;background:white;border-bottom:1px solid #dbe4f0}.pb-palette-editor-head h2{margin:0;font-size:20px;letter-spacing:-.04em}.pb-palette-editor-head p{margin:6px 0 0;color:#64748b;font-size:13px}.pb-icon-button{width:34px;height:34px;border:0;border-radius:999px;background:#eef2ff;color:#1e293b;font-size:23px;line-height:1;cursor:pointer}.pb-editor-label{display:block;padding:16px 22px 8px;color:#334155;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}.pb-palette-editor q-editor{display:block;margin:0 22px 14px}.pb-palette-editor q-editor .qe{border-color:#cbd5e1;border-radius:16px}.pb-palette-editor q-editor .qe-editor-wrap,.pb-palette-editor q-editor .qe-highlight,.pb-palette-editor q-editor .qe-input,.pb-palette-editor q-editor .qe-code,.pb-palette-editor q-editor .qe-preview,.pb-palette-editor q-editor .qe-cm-host,.pb-palette-editor q-editor .qe-cm-host .cm-editor{min-height:340px}.pb-palette-editor-error{min-height:20px;margin:0 22px 10px;color:#be123c;font-size:13px;font-weight:800}.pb-palette-editor-actions{display:flex;justify-content:flex-end;gap:10px;padding:16px 22px 20px;border-top:1px solid #dbe4f0;background:#fff}",
       "@media (max-width:980px){.pb-workspace{grid-template-columns:1fr}.pb-main{grid-template-rows:auto auto}.pb-toolbar{height:auto;align-items:flex-start;gap:14px;flex-direction:column;padding:16px}.pb-actions{width:100%}.pb-workspace{padding:12px}.pb-two-column-copy{grid-template-columns:1fr}}"
     ].join("\n");
 
@@ -320,6 +320,48 @@
 
   function qhtmlAttrSource(el) {
     return safeAttr(el, "qhtml", "div { text { Empty component } }");
+  }
+
+  function escapeHtmlText(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function wrapQHtmlEditorSource(source) {
+    return "<q-html>\n" + String(source || "").replace(/\r\n/g, "\n").trim() + "\n</q-html>";
+  }
+
+  function unwrapQHtmlEditorSource(source) {
+    var text = String(source || "").replace(/\r\n/g, "\n").trim();
+    var match = text.match(/^\s*<\s*q-html[^>]*>([\s\S]*?)<\s*\/\s*q-html\s*>\s*$/i);
+    return match ? String(match[1] || "").trim() : text;
+  }
+
+  function setPaletteEditorSource(editor, source) {
+    var wrapped = wrapQHtmlEditorSource(source);
+    if (!editor) {
+      return;
+    }
+    if (typeof editor.setQhtmlSource === "function" && editor.querySelector && editor.querySelector(".qe")) {
+      editor.setQhtmlSource(wrapped);
+      return;
+    }
+    editor.innerHTML = escapeHtmlText(wrapped);
+    if (typeof editor.setQhtmlSource === "function") {
+      editor.setQhtmlSource(wrapped);
+    }
+  }
+
+  function readPaletteEditorSource(editor) {
+    if (!editor) {
+      return "";
+    }
+    if (typeof editor.getQhtmlSource === "function") {
+      return unwrapQHtmlEditorSource(editor.getQhtmlSource());
+    }
+    return unwrapQHtmlEditorSource(editor.textContent || editor.innerHTML || "");
   }
 
   function componentName(el) {
@@ -1126,7 +1168,7 @@
       var source = qhtmlAttrSource(button);
       this.currentButton = button;
       if (this.componentInput()) { this.componentInput().value = component; }
-      if (this.sourceInput()) { this.sourceInput().value = source; }
+      setPaletteEditorSource(this.sourceInput(), source);
       if (this.subtitle()) { this.subtitle().textContent = "Editing " + (button.getAttribute("name") || component) + " (" + component + ")"; }
       if (this.error()) { this.error().textContent = ""; }
       if (modal && typeof modal.showModal === "function") {
@@ -1135,10 +1177,13 @@
         modal.setAttribute("open", "open");
       }
       setTimeout(function () {
-        var input = PaletteEditor.sourceInput();
-        if (input) {
+        var editor = PaletteEditor.sourceInput();
+        var input = editor && editor.querySelector ? editor.querySelector(".qe-input,.cm-content") : null;
+        if (input && typeof input.focus === "function") {
           input.focus();
-          input.setSelectionRange(0, 0);
+          if (typeof input.setSelectionRange === "function") {
+            input.setSelectionRange(0, 0);
+          }
         }
       }, 0);
     },
@@ -1168,7 +1213,7 @@
     save: function () {
       var button = this.currentButton;
       var component = this.componentInput() ? this.componentInput().value : "";
-      var source = this.sourceInput() ? this.sourceInput().value : "";
+      var source = readPaletteEditorSource(this.sourceInput());
       if (!button && component) {
         button = arr(document.querySelectorAll(Q.button)).filter(function (candidate) {
           return componentName(candidate) === component;
@@ -1184,7 +1229,7 @@
       this.close();
     },
     preview: function () {
-      var source = this.sourceInput() ? this.sourceInput().value : "";
+      var source = readPaletteEditorSource(this.sourceInput());
       this.validate(source);
     }
   };
@@ -1291,9 +1336,10 @@
     var output = document.getElementById("pb-export-output");
     var source = exportQHtml();
     if (output) {
-      output.value = source;
-      output.focus();
-      output.select();
+      setPaletteEditorSource(output, source);
+      if (typeof output.focus === "function") {
+        output.focus();
+      }
     }
     setStatus("Exported QHTML");
     return source;

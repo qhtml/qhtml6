@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.7.1
+# QHTML.js v6.8.0
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,13 +12,12 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v6.7.1
+## Whats New in v6.8.0
 
-- Added the native `particle-emitter` custom element for canvas-backed particle effects from QHTML markup.
-- `particle-emitter` owns its own transparent canvas layer, seeded particle simulation, image/color sprite composition, a boolean `running` property, and `start()`, `stop()`, and `clear()` controls.
-- Particle behavior is configured with attributes for emission rate, lifetime, position, velocity, acceleration, size, opacity, active limits, source image, mask, seed, and z-index.
-- Added test #120 as a visual rising-energy particle emitter using `/dist/assets/particle.png`.
-- Added full docs at `doc/11-particle-emitter/`.
+- Added `q-var name { ... }` for scoped runtime variables that evaluate JavaScript expressions during render.
+- `q-var` values are available to inline expressions, property assignments, event handlers, component functions, descendant components, and dot-walked component references.
+- `q-var` handles expose `.value`, `.get()`, `.set(value)`, and a QSignal-compatible `.changed` signal.
+- Added `qhtml(varName) { ... }` continuation rendering so a variable can provide a partial QHTML fragment head and the block can provide the rest.
 
 ## 1. Quick Start
 
@@ -560,6 +559,63 @@ Name collisions / overwrite behavior:
 
 Recommendation:
 - Use unique timer names per host to avoid handle collisions.
+
+### `q-var` (scoped runtime variable)
+
+`q-var` declares a named runtime value in the current QHTML scope. The block is evaluated like a JavaScript expression first, so strings, numbers, objects, arrays, DOM references, function expressions, and component method calls are valid values. If expression parsing fails, QHTML falls back to function-body mode so explicit `return` statements can be used.
+
+```qhtml
+q-var greeting { "hello from q-var" }
+q-var makeLabel { function(name) { return greeting + " / " + name; } }
+
+div {
+  text { ${greeting} }
+}
+
+button {
+  text { ${makeLabel("button")} }
+  onclick {
+    greeting.set("updated");
+    console.log(greeting.value);
+  }
+}
+```
+
+Every q-var handle exposes:
+- `.value`: the current value.
+- `.get()`: returns the current value.
+- `.set(value)`: updates the value and emits `changed`.
+- `.changed`: QSignal-compatible signal that can be connected with `.connect(...)` or `q-connect`.
+
+```qhtml
+q-var count { 0 }
+
+onready {
+  count.changed.connect(function(value, previousValue) {
+    console.log("count changed from", previousValue, "to", value);
+  });
+}
+
+button {
+  text { increment }
+  onclick {
+    count.set(count.value + 1);
+  }
+}
+```
+
+`q-var` values are scoped like named component instances. Descendants can use the variable directly. Sibling/parent component paths can reach q-vars through the named component that owns them.
+
+`q-var` can also feed dynamic QHTML fragments. When a q-var contains a partial fragment head, `qhtml(varName) { ... }` appends the block body and closes missing braces:
+
+```qhtml
+q-var cardHead { "div.card,section.body {" }
+
+qhtml(cardHead) {
+  h3 { text { Runtime fragment } }
+  p { text { This body completes the fragment stored in cardHead. } }
+}
+```
 
 ### `q-canvas` (keyword-level canvas)
 

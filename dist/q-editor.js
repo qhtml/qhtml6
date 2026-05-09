@@ -2009,7 +2009,7 @@
     const parser = modules.qhtmlParser;
     const renderer = modules.domRenderer;
     const core = modules.qdomCore;
-    const rawSource = String(source || '');
+    const rawSource = normalizeImportedSource(String(source || ''));
     const baseUrl = options && typeof options.baseUrl === 'string' ? options.baseUrl : resolveImportBaseUrl();
     const resolvedSource = await resolveImports(rawSource, parser, baseUrl);
     const qdom = parser.parseQHtmlToQDom(resolvedSource, {
@@ -2874,6 +2874,7 @@
       if (!this.isConnected) return;
       const version = ++this._renderVersion;
       const source = String(this._source || '');
+      const runtimeSource = normalizeImportedSource(source);
       const shouldPopulateHtml = this._activeTab === 'html';
       const shouldPopulateQDom = this._activeTab === 'qdom';
       const shouldPopulatePreview = this._activeTab === 'preview';
@@ -2904,7 +2905,7 @@
       let renderError = null;
 
       try {
-        adapter = await createQDomAdapter(source, { baseUrl: resolveImportBaseUrl() });
+        adapter = await createQDomAdapter(runtimeSource, { baseUrl: resolveImportBaseUrl() });
         htmlRaw = adapter.toHTML(document);
         if (shouldPopulateQDom) {
           qdomDecodedText = JSON.stringify(adapter && adapter.qdom ? adapter.qdom : null);
@@ -2953,7 +2954,7 @@
           const runtime = getQHtmlRuntime();
           if (runtime && typeof runtime.mountQHtmlElement === 'function') {
             const previewQHtml = document.createElement('q-html');
-            previewQHtml.textContent = source;
+            previewQHtml.textContent = runtimeSource;
             this._previewNode.appendChild(previewQHtml);
             this._previewQHtmlNode = previewQHtml;
             try {

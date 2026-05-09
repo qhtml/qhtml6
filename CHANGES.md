@@ -1,5 +1,12 @@
 # QHTML.js Change Log
 
+## Whats New in v6.8.0
+
+- Added `q-var name { ... }` for scoped runtime variables evaluated as JavaScript expression bodies during render.
+- `q-var` values can be referenced by inline expressions, property assignments, event handlers, component methods, descendant components, and dot-walked owner references.
+- `q-var` handles expose `.value`, `.get()`, `.set(value)`, and a QSignal-compatible `.changed` signal.
+- Added `qhtml(varName) { ... }` continuation rendering for partial QHTML fragment heads stored in q-vars.
+
 ## Whats New in v6.7.1
 
 - Moved the native `particle-emitter` implementation into `src/particle-emitter.js` so release bundle rebuilds preserve the custom element.

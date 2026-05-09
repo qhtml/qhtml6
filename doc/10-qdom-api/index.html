@@ -27,17 +27,23 @@ wiki-shell {
       details {
         html {
           <q-editor>&lt;q-html&gt;
-&lt;q-html id="page"&gt;
-  ul { id: "items" }
-&lt;/q-html&gt;
+div {
+  button {
+    text { Append item }
+    onclick {
+      var host = this.closest("q-html");
+      var root = host.qdom();
+      var list = root.find("#items");
+      list.appendNode(list.createQElement("li", { textContent: "Added via qdom()" }));
+      host.update();
+    }
+  }
 
-&lt;script&gt;
-  const host = document.querySelector("#page");
-  const root = host.qdom();
-  const list = root.find("#items");
-  list.appendNode(list.createQElement("li", { textContent: "Added via qdom()" }));
-  host.update();
-&lt;/script&gt;
+  ul {
+    id: "items"
+    li { text { Existing item } }
+  }
+}
 &lt;/q-html&gt;</q-editor>
         }
       }
@@ -50,9 +56,22 @@ wiki-shell {
       details {
         html {
           <q-editor>&lt;q-html&gt;
-const host = document.querySelector("q-html");
-host.qdom().find("#items").replaceWithQHTML("ul { li { text { Replaced } } }");
-host.update();
+div {
+  button {
+    text { Replace list }
+    onclick {
+      var host = this.closest("q-html");
+      host.qdom().find("#items").replaceWithQHTML("ul#items { li { text { Replaced via replaceWithQHTML } } li { text { Fresh branch } } }");
+      host.update();
+    }
+  }
+
+  ul {
+    id: "items"
+    li { text { Original row A } }
+    li { text { Original row B } }
+  }
+}
 &lt;/q-html&gt;</q-editor>
         }
       }
@@ -65,10 +84,23 @@ host.update();
       details {
         html {
           <q-editor>&lt;q-html&gt;
-document.querySelector("q-html").qdom().find("#items").rewrite(function () {
-  return "div { class: 'box' text { Rewritten } }";
-});
-document.querySelector("q-html").update();
+div {
+  button {
+    text { Rewrite target }
+    onclick {
+      var host = this.closest("q-html");
+      host.qdom().find("#rewrite-target").rewrite(function () {
+        return "div#rewrite-target.rewritten-box { style { padding: 12px; border: 1px solid #93c5fd; background: #eff6ff; } text { Rewritten by qdom().rewrite(...) } }";
+      });
+      host.update();
+    }
+  }
+
+  div {
+    id: "rewrite-target"
+    text { Original rewrite target }
+  }
+}
 &lt;/q-html&gt;</q-editor>
         }
       }
@@ -81,14 +113,40 @@ document.querySelector("q-html").update();
       details {
         html {
           <q-editor>&lt;q-html&gt;
-const host = document.querySelector("q-html");
-const serialized = host.qdom().serialize();
+div {
+  button {
+    text { Append snapshot }
+    onclick {
+      var host = this.closest("q-html");
+      var serialized = host.qdom().find("#snapshot-source").serialize();
+      host.qdom().find("#snapshot-target").deserialize(serialized, false);
+      host.update();
+    }
+  }
 
-host.qdom().deserialize(serialized, false); // append
-host.update();
+  button {
+    text { Replace snapshot target }
+    onclick {
+      var host = this.closest("q-html");
+      var serialized = host.qdom().find("#snapshot-source").serialize();
+      host.qdom().find("#snapshot-target").deserialize(serialized, true);
+      host.update();
+    }
+  }
 
-host.qdom().deserialize(serialized, true);  // replace
-host.update();
+  div {
+    id: "snapshot-source"
+    style { padding: 10px; border: 1px solid #cbd5e1; margin-top: 10px; }
+    h4 { text { Snapshot source } }
+    p { text { This branch is serialized first, then appended or replaced. } }
+  }
+
+  div {
+    id: "snapshot-target"
+    style { padding: 10px; border: 1px dashed #94a3b8; margin-top: 10px; }
+    text { Snapshot target }
+  }
+}
 &lt;/q-html&gt;</q-editor>
         }
       }
@@ -101,12 +159,25 @@ host.update();
       details {
         html {
           <q-editor>&lt;q-html&gt;
-const comp = document.querySelector("my-component");
-const qnode = comp.qdom();
-const props = qnode.properties();
-const val = qnode.getProperty("title");
-qnode.property("title", "New title");
-comp.update();
+q-component my-card {
+  q-property title: "Initial title"
+  div.card-shell {
+    style { padding: 12px; border: 1px solid #cbd5e1; margin-top: 10px; }
+    h4 { id: "card-title" text { ${this.component.title} } }
+  }
+}
+
+my-card demoCard { }
+
+button {
+  text { Update component title via qdom() }
+  onclick {
+    var comp = this.closest("q-html").querySelector("my-card");
+    var qnode = comp.qdom();
+    qnode.property("title", "Updated through component qdom()");
+    comp.update();
+  }
+}
 &lt;/q-html&gt;</q-editor>
         }
       }
@@ -119,8 +190,36 @@ comp.update();
       details {
         html {
           <q-editor>&lt;q-html&gt;
-this.component.update();        // this component subtree
-this.component.root().update(); // whole &lt;q-html&gt;
+q-component scope-demo {
+  q-property count: 0
+
+  div {
+    style { padding: 12px; border: 1px solid #cbd5e1; margin-top: 10px; }
+    p { id: "scope-count" text { Component count: ${this.component.count} } }
+    button {
+      text { Increment with component update() }
+      onclick {
+        this.component.count = Number(this.component.count) + 1;
+        this.component.update();
+      }
+    }
+  }
+}
+
+scope-demo localScopeDemo { }
+
+button {
+  text { Update page summary with root().update() }
+  onclick {
+    localScopeDemo.count = Number(localScopeDemo.count) + 1;
+    localScopeDemo.root().update();
+  }
+}
+
+div {
+  id: "page-summary"
+  text { Page sees count: ${localScopeDemo.count} }
+}
 &lt;/q-html&gt;</q-editor>
         }
       }

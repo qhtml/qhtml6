@@ -195,6 +195,7 @@
       this.signalDeclarations = Array.isArray(opts.signalDeclarations) ? opts.signalDeclarations : [];
       this.callbackDeclarations = Array.isArray(opts.callbackDeclarations) ? opts.callbackDeclarations : [];
       this.aliasDeclarations = Array.isArray(opts.aliasDeclarations) ? opts.aliasDeclarations : [];
+      this.varDeclarations = Array.isArray(opts.varDeclarations) ? opts.varDeclarations : [];
       this.qTimerDefinitions = Array.isArray(opts.qTimerDefinitions) ? opts.qTimerDefinitions : [];
       this.wasmConfig =
         opts.wasmConfig && typeof opts.wasmConfig === "object" && !Array.isArray(opts.wasmConfig)

@@ -35,6 +35,7 @@
     "q-rewrite",
     "q-script",
     "q-bind",
+    "q-var",
     "q-property",
     "q-signal",
     "q-callback",
@@ -784,6 +785,34 @@
     return {
       __qhtmlFragment: true,
       source: String(source == null ? "" : source),
+    };
+  }
+
+  function parseQHtmlDynamicFragmentInvocation(parser, keywordAliases, keywordSnapshot, start) {
+    const expressionStart = parser.index;
+    if (peek(parser) !== "(") {
+      return null;
+    }
+    consume(parser);
+    const expression = readBalancedParenthesizedContent(parser);
+    skipWhitespace(parser);
+    if (peek(parser) !== "{") {
+      throw ParseError("Expected '{' after qhtml(...) invocation", parser.index);
+    }
+    consume(parser);
+    const bodyStart = parser.index;
+    const items = parseBlockItems(parser, keywordAliases);
+    const continuationSource = parser.source.slice(bodyStart, parser.index);
+    expect(parser, "}");
+    return {
+      type: "QHtmlDynamicFragmentInvocation",
+      expression: String(expression || "").trim(),
+      items: items,
+      continuationSource: String(continuationSource || ""),
+      keywords: keywordSnapshot,
+      start: start,
+      end: parser.index,
+      raw: parser.source.slice(start, parser.index),
     };
   }
 
@@ -2658,8 +2687,43 @@
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
         const nextChar = peek(parser);
+        if (isQHtmlFragmentCallName(nameLower) && nextChar === "(") {
+          const dynamicFragment = parseQHtmlDynamicFragmentInvocation(
+            parser,
+            scopedKeywordAliases,
+            keywordSnapshot,
+            itemStart
+          );
+          if (dynamicFragment) {
+            items.push(dynamicFragment);
+            continue;
+          }
+        }
         if (FOR_KEYWORDS.has(nameLower) && nextChar === "(") {
           items.push(parseForDefinitionItem(parser, scopedKeywordAliases, keywordSnapshot, itemStart));
+          continue;
+        }
+        if (nameLower === "q-var" && nextChar !== "{" && nextChar !== ",") {
+          const varName = parseIdentifier(parser);
+          const normalizedVarName = String(varName || "").trim();
+          if (!normalizedVarName) {
+            throw ParseError("Expected variable name after q-var", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-var name", parser.index);
+          }
+          consume(parser);
+          const varBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "QVarDeclaration",
+            name: normalizedVarName,
+            body: String(varBody || ""),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
           continue;
         }
         if (nameLower === "q-array" && nextChar !== "{" && nextChar !== ",") {
@@ -3735,6 +3799,19 @@
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
 
+        if (isQHtmlFragmentCallName(firstLower) && peek(parser) === "(") {
+          const dynamicFragment = parseQHtmlDynamicFragmentInvocation(
+            parser,
+            scopedKeywordAliases,
+            keywordSnapshot,
+            start
+          );
+          if (dynamicFragment) {
+            body.push(dynamicFragment);
+            continue;
+          }
+        }
+
         if (FOR_KEYWORDS.has(firstLower) && peek(parser) === "(") {
           body.push(parseForDefinitionItem(parser, scopedKeywordAliases, keywordSnapshot, start));
           continue;
@@ -3750,6 +3827,30 @@
             script: scriptBody,
             thenBodies: thenBodies,
             isLifecycle: true,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-var" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const varName = parseIdentifier(parser);
+          const normalizedVarName = String(varName || "").trim();
+          if (!normalizedVarName) {
+            throw ParseError("Expected variable name after q-var", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-var name", parser.index);
+          }
+          consume(parser);
+          const varBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QVarDeclaration",
+            name: normalizedVarName,
+            body: String(varBody || ""),
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -11408,6 +11509,7 @@
     const signalDeclarations = [];
     const callbackDeclarations = [];
     const aliasDeclarations = [];
+    const varDeclarations = [];
     let componentLoggerCategories = null;
     let wasmConfig = null;
     const lifecycleScripts = [];
@@ -11615,6 +11717,24 @@
       }
       if (item.type === "QColorThemeDefinition") {
         registerQColorThemeItem(colorContext, item);
+        continue;
+      }
+      if (item.type === "QVarDeclaration") {
+        if (supportsRuntimeDefinition) {
+          const varName = String(item.name || "").trim();
+          if (varName) {
+            const declarationMeta = createDeclarationMeta({
+              declarationKind: "q-var",
+              declarationName: varName,
+            });
+            varDeclarations.push({
+              name: varName,
+              body: String(item.body || ""),
+              uuid: declarationMeta.uuid,
+              meta: declarationMeta,
+            });
+          }
+        }
         continue;
       }
       if (item.type === "QPropertyBlock") {
@@ -11859,6 +11979,7 @@
       definitionType: definitionType,
       templateNodes: templateNodes,
       methods: methods,
+      varDeclarations: varDeclarations,
       propertyDefinitions: propertyDefinitions,
       signalDeclarations: signalDeclarations,
       callbackDeclarations: callbackDeclarations,
@@ -12367,6 +12488,57 @@
 
     if (item.type === "QStateMachineDefinition") {
       return buildQStateMachineNodeFromAst(item, source, context);
+    }
+
+    if (item.type === "QVarDeclaration") {
+      const varName = String(item.name || "").trim();
+      if (!varName) {
+        return null;
+      }
+      const declarationMeta = createDeclarationMeta({
+        declarationKind: "q-var",
+        declarationName: varName,
+      });
+      const varNode = {
+        kind: "q-var",
+        name: varName,
+        body: String(item.body || ""),
+        uuid: declarationMeta.uuid,
+        meta: Object.assign({}, declarationMeta, {
+          originalSource: item.raw,
+          sourceRange:
+            typeof item.start === "number" && typeof item.end === "number"
+              ? [item.start, item.end]
+              : null,
+        }),
+      };
+      applyKeywordAliasesToNode(varNode, item.keywords);
+      return varNode;
+    }
+
+    if (item.type === "QHtmlDynamicFragmentInvocation") {
+      const fragmentNode = {
+        kind: "qhtml-fragment",
+        expression: String(item.expression || "").trim(),
+        continuationSource: String(item.continuationSource || ""),
+        children: [],
+        meta: {
+          originalSource: item.raw,
+          sourceRange:
+            typeof item.start === "number" && typeof item.end === "number"
+              ? [item.start, item.end]
+              : null,
+        },
+      };
+      const nestedItems = Array.isArray(item.items) ? item.items : [];
+      for (let i = 0; i < nestedItems.length; i += 1) {
+        const nodes = convertAstItemToNodes(nestedItems[i], source, context);
+        for (let j = 0; j < nodes.length; j += 1) {
+          fragmentNode.children.push(nodes[j]);
+        }
+      }
+      applyKeywordAliasesToNode(fragmentNode, item.keywords);
+      return fragmentNode;
     }
 
     if (item.type === "QCanvasDefinition") {
@@ -12916,6 +13088,27 @@
     return lines.join("\n");
   }
 
+  function serializeQVarDeclarationBlock(varDecl, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    if (!varDecl || typeof varDecl !== "object") {
+      return "";
+    }
+    const name = String(varDecl.name || "").trim();
+    if (!name) {
+      return "";
+    }
+    const body = String(varDecl.body || "");
+    const lines = [indent + "q-var " + name + " {"];
+    if (body) {
+      const chunks = body.split("\n");
+      for (let i = 0; i < chunks.length; i += 1) {
+        lines.push(indent + "  " + chunks[i]);
+      }
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
   function serializeWasmConfigBlock(wasmConfig, indentLevel) {
     const config =
       wasmConfig && typeof wasmConfig === "object" && !Array.isArray(wasmConfig)
@@ -13287,6 +13480,28 @@
       return serializeCallbackDeclarationBlock(node, indentLevel);
     }
 
+    if (String(node.kind || "").trim().toLowerCase() === "q-var") {
+      return serializeQVarDeclarationBlock(node, indentLevel);
+    }
+
+    if (String(node.kind || "").trim().toLowerCase() === "qhtml-fragment") {
+      const expression = String(node.expression || "").trim();
+      const lines = [indent + "qhtml(" + expression + ") {"];
+      const children = Array.isArray(node.children) ? node.children : [];
+      if (children.length > 0) {
+        for (let i = 0; i < children.length; i += 1) {
+          lines.push(serializeNode(children[i], indentLevel + 1));
+        }
+      } else if (String(node.continuationSource || "").trim()) {
+        const chunks = String(node.continuationSource || "").split("\n");
+        for (let i = 0; i < chunks.length; i += 1) {
+          lines.push(indent + "  " + chunks[i]);
+        }
+      }
+      lines.push(indent + "}");
+      return lines.join("\n");
+    }
+
     if (node.kind === core.NODE_TYPES.component) {
       const explicitDefinitionType = String(node.definitionType || "").trim().toLowerCase();
       const definitionType =
@@ -13333,6 +13548,14 @@
         lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
       }
       if ((definitionType === "component" || definitionType === "worker") && Array.isArray(node.propertyDefinitions)) {
+        if (Array.isArray(node.varDeclarations)) {
+          for (let i = 0; i < node.varDeclarations.length; i += 1) {
+            const serializedVarDeclaration = serializeQVarDeclarationBlock(node.varDeclarations[i], indentLevel + 1);
+            if (serializedVarDeclaration) {
+              lines.push(serializedVarDeclaration);
+            }
+          }
+        }
         for (let i = 0; i < node.propertyDefinitions.length; i += 1) {
           const serializedPropertyDefinition = serializePropertyDefinitionBlock(node.propertyDefinitions[i], indentLevel + 1);
           if (serializedPropertyDefinition) {

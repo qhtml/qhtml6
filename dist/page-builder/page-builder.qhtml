@@ -140,11 +140,8 @@ q-component page-builder-export-panel {
       h2 { text { Exported QHTML } }
       p { text { The export includes q-component definitions for palette items used in the layout, followed by the generated layout tree. } }
     }
-    textarea {
+    q-editor {
       id: "pb-export-output"
-      readonly: "readonly"
-      spellcheck: "false"
-      placeholder: "Click Export QHTML after arranging the canvas."
     }
   }
 }
@@ -169,23 +166,16 @@ q-component page-builder-palette-editor {
         id: "pb-palette-editor-component"
         type: "hidden"
       }
-      label.pb-editor-label {
-        for: "pb-palette-editor-source"
+      div.pb-editor-label {
         text { QHTML Source }
       }
-      textarea {
+      q-editor {
         id: "pb-palette-editor-source"
-        spellcheck: "false"
       }
       div.pb-palette-editor-error {
         id: "pb-palette-editor-error"
       }
       footer.pb-palette-editor-actions {
-        button.pb-action.secondary {
-          type: "button"
-          onclick { if (window.QPageBuilder) { window.QPageBuilder.previewPaletteEdit(); } }
-          text { Preview }
-        }
         button.pb-action.secondary {
           type: "button"
           onclick { if (window.QPageBuilder) { window.QPageBuilder.closePaletteEditor(); } }

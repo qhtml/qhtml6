@@ -1,0 +1,748 @@
+<q-html>
+
+/* ========================================================= */
+/* SHARED STYLE OBJECTS                                      */
+/* ========================================================= */
+
+q-style qbReset {
+  box-sizing: border-box
+}
+
+q-style qbSurface {
+  background: #ffffff
+  color: #0f172a
+  border: 1px solid #e2e8f0
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08)
+}
+
+q-style qbSoftSurface {
+  background: #f8fafc
+  color: #0f172a
+  border: 1px solid #e2e8f0
+}
+
+q-style qbDarkSurface {
+  background: #0f172a
+  color: #ffffff
+  border: 1px solid rgba(255, 255, 255, 0.10)
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.22)
+}
+
+q-style qbTitle {
+  color: inherit
+  font-size: 22px
+  font-weight: 900
+  letter-spacing: -0.04em
+  line-height: 1.1
+  margin: 0
+}
+
+q-style qbSmallTitle {
+  color: inherit
+  font-size: 16px
+  font-weight: 900
+  letter-spacing: -0.03em
+  line-height: 1.2
+  margin: 0
+}
+
+q-style qbBody {
+  margin: 0
+  font-size: 14px
+  line-height: 1.6
+  color: #64748b
+}
+
+q-style qbMutedText {
+  color: #64748b
+  line-height: 1.6
+}
+
+q-style qbLightText {
+  color: #cbd5e1
+  line-height: 1.6
+}
+
+q-style qbStack {
+  display: grid
+  gap: 12px
+}
+
+q-style qbInline {
+  display: flex
+  align-items: center
+  gap: 10px
+  flex-wrap: wrap
+}
+
+
+/* ========================================================= */
+/* BUTTON STYLES                                             */
+/* ========================================================= */
+
+q-style qbButtonHost {
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  width: fit-content
+  min-height: 42px
+  padding: 0 17px
+  border-radius: 999px
+  background: #2563eb
+  color: #ffffff
+  border: 1px solid #2563eb
+  font-size: 14px
+  font-weight: 850
+  line-height: 1
+  text-decoration: none
+  cursor: pointer
+  user-select: none
+  white-space: nowrap
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.24)
+}
+
+q-style qbButtonSoft {
+  background: #eff6ff
+  color: #1d4ed8
+  border: 1px solid #bfdbfe
+  box-shadow: none
+}
+
+q-style qbButtonDark {
+  background: #0f172a
+  color: #ffffff
+  border: 1px solid #1e293b
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.24)
+}
+
+q-style qbButtonGhost {
+  background: transparent
+  color: #0f172a
+  border: 1px solid #e2e8f0
+  box-shadow: none
+}
+
+q-style qbButtonWide {
+  width: 100%
+}
+
+
+/* ========================================================= */
+/* CARD STYLES                                               */
+/* ========================================================= */
+
+q-style qbCardHost {
+  display: grid
+  gap: 14px
+  width: 100%
+  min-width: 0
+  border-radius: 22px
+  padding: 22px
+  overflow: hidden
+}
+
+q-style qbCardHeader {
+  display: grid
+  gap: 6px
+}
+
+q-style qbCardContent {
+  display: grid
+  gap: 12px
+}
+
+q-style qbCardFooter {
+  display: flex
+  align-items: center
+  gap: 10px
+  flex-wrap: wrap
+  margin-top: 4px
+}
+
+
+/* ========================================================= */
+/* NAVBAR STYLES                                             */
+/* ========================================================= */
+
+q-style qbNavbarHost {
+  display: flex
+  align-items: center
+  justify-content: space-between
+  gap: 18px
+  width: 100%
+  min-width: 0
+  border-radius: 20px
+  padding: 14px 18px
+}
+
+q-style qbNavbarBrand {
+  display: flex
+  align-items: center
+  gap: 10px
+  min-width: 0
+  font-size: 20px
+  font-weight: 950
+  letter-spacing: -0.045em
+  white-space: nowrap
+}
+
+q-style qbNavbarLinks {
+  display: flex
+  align-items: center
+  justify-content: center
+  gap: 18px
+  flex-wrap: wrap
+  min-width: 0
+}
+
+q-style qbNavbarLink {
+  color: #64748b
+  font-size: 14px
+  font-weight: 780
+  text-decoration: none
+  cursor: pointer
+}
+
+q-style qbNavbarActions {
+  display: flex
+  align-items: center
+  justify-content: flex-end
+  gap: 10px
+  flex-wrap: wrap
+}
+
+
+/* ========================================================= */
+/* SIDEBAR STYLES                                            */
+/* ========================================================= */
+
+q-style qbSidebarHost {
+  display: grid
+  align-content: start
+  gap: 16px
+  width: 100%
+  min-width: 0
+  min-height: 100%
+  border-radius: 22px
+  padding: 18px
+}
+
+q-style qbSidebarHeader {
+  display: grid
+  gap: 5px
+}
+
+q-style qbSidebarNav {
+  display: grid
+  gap: 8px
+}
+
+q-style qbSidebarItem {
+  display: block
+  padding: 11px 13px
+  border-radius: 13px
+  color: #64748b
+  font-size: 14px
+  font-weight: 800
+  text-decoration: none
+  cursor: pointer
+}
+
+q-style qbSidebarItemActive {
+  background: #dbeafe
+  color: #1d4ed8
+}
+
+q-style qbSidebarFooter {
+  display: grid
+  gap: 10px
+  margin-top: auto
+}
+
+
+/* ========================================================= */
+/* PRICEBOX STYLES                                           */
+/* ========================================================= */
+
+q-style qbPriceboxHost {
+  display: grid
+  gap: 18px
+  width: 100%
+  min-width: 0
+  border-radius: 24px
+  padding: 24px
+  overflow: hidden
+}
+
+q-style qbPriceboxFeatured {
+  border: 1px solid #2563eb
+  box-shadow: 0 20px 56px rgba(37, 99, 235, 0.18)
+}
+
+q-style qbPriceboxTop {
+  display: grid
+  gap: 8px
+}
+
+q-style qbPrice {
+  display: flex
+  align-items: end
+  gap: 6px
+  color: inherit
+  font-size: 46px
+  font-weight: 950
+  letter-spacing: -0.07em
+  line-height: 1
+  margin: 0
+}
+
+q-style qbPricePeriod {
+  color: #64748b
+  font-size: 14px
+  font-weight: 750
+  letter-spacing: 0
+  line-height: 1.35
+  padding-bottom: 5px
+}
+
+q-style qbFeatureList {
+  display: grid
+  gap: 10px
+  margin: 0
+  padding: 0
+}
+
+q-style qbFeatureItem {
+  display: grid
+  grid-template-columns: 18px 1fr
+  gap: 10px
+  align-items: start
+  color: #64748b
+  font-size: 14px
+  line-height: 1.5
+}
+
+q-style qbCheck {
+  width: 18px
+  height: 18px
+  border-radius: 999px
+  background: #dcfce7
+  color: #166534
+  display: grid
+  place-items: center
+  font-size: 12px
+  font-weight: 950
+}
+
+
+/* ========================================================= */
+/* GROUPBOX STYLES                                           */
+/* ========================================================= */
+
+q-style qbGroupboxHost {
+  position: relative
+  display: grid
+  gap: 14px
+  width: 100%
+  min-width: 0
+  border-radius: 20px
+  padding: 28px 20px 20px
+  margin-top: 12px
+  border: 1px solid #cbd5e1
+  background: #ffffff
+}
+
+q-style qbGroupboxLabel {
+  position: absolute
+  top: -13px
+  left: 18px
+  display: inline-flex
+  align-items: center
+  min-height: 26px
+  padding: 0 11px
+  border-radius: 999px
+  background: #ffffff
+  border: 1px solid #cbd5e1
+  color: #334155
+  font-size: 13px
+  font-weight: 900
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08)
+}
+
+q-style qbGroupboxContent {
+  display: grid
+  gap: 12px
+}
+
+
+/* ========================================================= */
+/* THEME MAP                                                 */
+/* ========================================================= */
+
+q-theme qbTheme {
+  q-button { qbReset qbButtonHost }
+  q-button.soft { qbButtonSoft }
+  q-button.dark { qbButtonDark }
+  q-button.ghost { qbButtonGhost }
+  q-button.wide { qbButtonWide }
+
+  q-card { qbReset qbSurface qbCardHost }
+  q-card.soft { qbSoftSurface }
+  q-card.dark { qbDarkSurface }
+  q-card-header { qbCardHeader }
+  q-card-content { qbCardContent }
+  q-card-footer { qbCardFooter }
+
+  q-navbar { qbReset qbSurface qbNavbarHost }
+  q-navbar.dark { qbDarkSurface }
+  q-navbar-brand { qbNavbarBrand }
+  q-navbar-links { qbNavbarLinks }
+  q-navbar-link { qbNavbarLink }
+  q-navbar-actions { qbNavbarActions }
+
+  q-sidebar { qbReset qbSurface qbSidebarHost }
+  q-sidebar.dark { qbDarkSurface }
+  q-sidebar-header { qbSidebarHeader }
+  q-sidebar-nav { qbSidebarNav }
+  q-sidebar-item { qbSidebarItem }
+  q-sidebar-item.active { qbSidebarItem qbSidebarItemActive }
+  q-sidebar-footer { qbSidebarFooter }
+
+  q-pricebox { qbReset qbSurface qbPriceboxHost }
+  q-pricebox.featured { qbPriceboxFeatured }
+  q-pricebox.dark { qbDarkSurface }
+  q-pricebox-top { qbPriceboxTop }
+  q-price { qbPrice }
+  q-price-period { qbPricePeriod }
+  q-feature-list { qbFeatureList }
+  q-feature-item { qbFeatureItem }
+  q-check { qbCheck }
+
+  q-groupbox { qbReset qbGroupboxHost }
+  q-groupbox-label { qbGroupboxLabel }
+  q-groupbox-content { qbGroupboxContent }
+
+  h1.qb-title { qbTitle }
+  h2.qb-title { qbTitle }
+  h3.qb-title { qbTitle }
+  h4.qb-title { qbSmallTitle }
+
+  p.qb-body { qbBody }
+  p.qb-muted { qbMutedText }
+  p.qb-light { qbLightText }
+
+  div.qb-stack { qbStack }
+  div.qb-inline { qbInline }
+}
+
+
+/* ========================================================= */
+/* COMPONENT: q-button                                       */
+/* Slots: content                                             */
+/* ========================================================= */
+
+q-component q-button {
+  q-var label { this.getAttribute("label") || "" }
+
+  button {
+    type: "button"
+
+    slot { content }
+
+    text { ${label} }
+  }
+}
+
+
+/* ========================================================= */
+/* COMPONENT: q-card                                         */
+/* Slots: header, content, footer                             */
+/* ========================================================= */
+
+q-component q-card {
+  q-var title { this.getAttribute("title") || "" }
+  q-var subtitle { this.getAttribute("subtitle") || "" }
+
+  q-card-header {
+    slot { header }
+
+    h3.qb-title {
+      text { ${title} }
+    }
+
+    p.qb-muted {
+      text { ${subtitle} }
+    }
+  }
+
+  q-card-content {
+    slot { content }
+  }
+
+  q-card-footer {
+    slot { footer }
+  }
+}
+
+
+/* ========================================================= */
+/* COMPONENT: q-navbar                                       */
+/* Slots: brand, links, actions                               */
+/* ========================================================= */
+
+q-component q-navbar {
+  q-var brand { this.getAttribute("brand") || "Brand" }
+
+  q-var links {
+    [
+      { label: "Overview" },
+      { label: "Features" },
+      { label: "Docs" },
+      { label: "Contact" }
+    ]
+  }
+
+  q-navbar-brand {
+    slot { brand }
+
+    text { ${brand} }
+  }
+
+  q-navbar-links {
+    slot { links }
+
+    for (item in links) {
+      q-navbar-link {
+        text { ${item.label} }
+      }
+    }
+  }
+
+  q-navbar-actions {
+    slot { actions }
+  }
+}
+
+
+/* ========================================================= */
+/* COMPONENT: q-sidebar                                      */
+/* Slots: header, nav, footer                                 */
+/* ========================================================= */
+
+q-component q-sidebar {
+  q-var title { this.getAttribute("title") || "Navigation" }
+  q-var subtitle { this.getAttribute("subtitle") || "" }
+
+  q-var items {
+    [
+      { label: "General Information", active: true },
+      { label: "Features" },
+      { label: "Documentation" },
+      { label: "Guides" },
+      { label: "Best Practices" },
+      { label: "Comparisons" }
+    ]
+  }
+
+  q-sidebar-header {
+    slot { header }
+
+    h3.qb-title {
+      text { ${title} }
+    }
+
+    p.qb-muted {
+      text { ${subtitle} }
+    }
+  }
+
+  q-sidebar-nav {
+    slot { nav }
+
+    for (item in items) {
+      q-sidebar-item {
+        q-var cls { item.active ? "active" : "" }
+
+        class: "${cls}"
+
+        text { ${item.label} }
+      }
+    }
+  }
+
+  q-sidebar-footer {
+    slot { footer }
+  }
+}
+
+
+/* ========================================================= */
+/* COMPONENT: q-pricebox                                     */
+/* Slots: top, price, features, actions                       */
+/* ========================================================= */
+
+q-component q-pricebox {
+  q-var plan { this.getAttribute("plan") || "Pro" }
+  q-var price { this.getAttribute("price") || "$49" }
+  q-var period { this.getAttribute("period") || "/ month" }
+  q-var description { this.getAttribute("description") || "For professional teams that need a clean, scalable plan." }
+  q-var cta { this.getAttribute("cta") || "Choose Plan" }
+
+  q-var features {
+    [
+      "Unlimited projects",
+      "Priority support",
+      "Advanced dashboard",
+      "Team access"
+    ]
+  }
+
+  q-pricebox-top {
+    slot { top }
+
+    h3.qb-title {
+      text { ${plan} }
+    }
+
+    p.qb-muted {
+      text { ${description} }
+    }
+  }
+
+  q-price {
+    slot { price }
+
+    text { ${price} }
+
+    q-price-period {
+      text { ${period} }
+    }
+  }
+
+  q-feature-list {
+    slot { features }
+
+    for (feature in features) {
+      q-feature-item {
+        q-check {
+          text { ✓ }
+        }
+
+        span {
+          text { ${feature} }
+        }
+      }
+    }
+  }
+
+  q-card-footer {
+    slot { actions }
+
+    q-button.wide {
+      label: "${cta}"
+    }
+  }
+}
+
+
+/* ========================================================= */
+/* COMPONENT: q-groupbox                                     */
+/* Slots: label, content                                      */
+/* ========================================================= */
+
+q-component q-groupbox {
+  q-var label { this.getAttribute("label") || "Group" }
+
+  q-groupbox-label {
+    slot { label }
+
+    text { ${label} }
+  }
+
+  q-groupbox-content {
+    slot { content }
+  }
+}
+
+
+/* ========================================================= */
+/* LIGHTWEIGHT SEMANTIC CHILD COMPONENTS                      */
+/* ========================================================= */
+
+q-component q-card-header {
+  slot { content }
+}
+
+q-component q-card-content {
+  slot { content }
+}
+
+q-component q-card-footer {
+  slot { content }
+}
+
+q-component q-navbar-brand {
+  slot { content }
+}
+
+q-component q-navbar-links {
+  slot { content }
+}
+
+q-component q-navbar-link {
+  slot { content }
+}
+
+q-component q-navbar-actions {
+  slot { content }
+}
+
+q-component q-sidebar-header {
+  slot { content }
+}
+
+q-component q-sidebar-nav {
+  slot { content }
+}
+
+q-component q-sidebar-item {
+  slot { content }
+}
+
+q-component q-sidebar-footer {
+  slot { content }
+}
+
+q-component q-pricebox-top {
+  slot { content }
+}
+
+q-component q-price {
+  slot { content }
+}
+
+q-component q-price-period {
+  slot { content }
+}
+
+q-component q-feature-list {
+  slot { content }
+}
+
+q-component q-feature-item {
+  slot { content }
+}
+
+q-component q-check {
+  slot { content }
+}
+
+q-component q-groupbox-label {
+  slot { content }
+}
+
+q-component q-groupbox-content {
+  slot { content }
+}
+
+</q-html>

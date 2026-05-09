@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-08T04:45:23Z */
+/* generated: 2026-05-08T23:19:26Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -199,6 +199,7 @@
       this.signalDeclarations = Array.isArray(opts.signalDeclarations) ? opts.signalDeclarations : [];
       this.callbackDeclarations = Array.isArray(opts.callbackDeclarations) ? opts.callbackDeclarations : [];
       this.aliasDeclarations = Array.isArray(opts.aliasDeclarations) ? opts.aliasDeclarations : [];
+      this.varDeclarations = Array.isArray(opts.varDeclarations) ? opts.varDeclarations : [];
       this.qTimerDefinitions = Array.isArray(opts.qTimerDefinitions) ? opts.qTimerDefinitions : [];
       this.wasmConfig =
         opts.wasmConfig && typeof opts.wasmConfig === "object" && !Array.isArray(opts.wasmConfig)
@@ -1422,6 +1423,7 @@
     "q-rewrite",
     "q-script",
     "q-bind",
+    "q-var",
     "q-property",
     "q-signal",
     "q-callback",
@@ -2171,6 +2173,34 @@
     return {
       __qhtmlFragment: true,
       source: String(source == null ? "" : source),
+    };
+  }
+
+  function parseQHtmlDynamicFragmentInvocation(parser, keywordAliases, keywordSnapshot, start) {
+    const expressionStart = parser.index;
+    if (peek(parser) !== "(") {
+      return null;
+    }
+    consume(parser);
+    const expression = readBalancedParenthesizedContent(parser);
+    skipWhitespace(parser);
+    if (peek(parser) !== "{") {
+      throw ParseError("Expected '{' after qhtml(...) invocation", parser.index);
+    }
+    consume(parser);
+    const bodyStart = parser.index;
+    const items = parseBlockItems(parser, keywordAliases);
+    const continuationSource = parser.source.slice(bodyStart, parser.index);
+    expect(parser, "}");
+    return {
+      type: "QHtmlDynamicFragmentInvocation",
+      expression: String(expression || "").trim(),
+      items: items,
+      continuationSource: String(continuationSource || ""),
+      keywords: keywordSnapshot,
+      start: start,
+      end: parser.index,
+      raw: parser.source.slice(start, parser.index),
     };
   }
 
@@ -4045,8 +4075,43 @@
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
         const nextChar = peek(parser);
+        if (isQHtmlFragmentCallName(nameLower) && nextChar === "(") {
+          const dynamicFragment = parseQHtmlDynamicFragmentInvocation(
+            parser,
+            scopedKeywordAliases,
+            keywordSnapshot,
+            itemStart
+          );
+          if (dynamicFragment) {
+            items.push(dynamicFragment);
+            continue;
+          }
+        }
         if (FOR_KEYWORDS.has(nameLower) && nextChar === "(") {
           items.push(parseForDefinitionItem(parser, scopedKeywordAliases, keywordSnapshot, itemStart));
+          continue;
+        }
+        if (nameLower === "q-var" && nextChar !== "{" && nextChar !== ",") {
+          const varName = parseIdentifier(parser);
+          const normalizedVarName = String(varName || "").trim();
+          if (!normalizedVarName) {
+            throw ParseError("Expected variable name after q-var", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-var name", parser.index);
+          }
+          consume(parser);
+          const varBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "QVarDeclaration",
+            name: normalizedVarName,
+            body: String(varBody || ""),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
           continue;
         }
         if (nameLower === "q-array" && nextChar !== "{" && nextChar !== ",") {
@@ -5122,6 +5187,19 @@
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
 
+        if (isQHtmlFragmentCallName(firstLower) && peek(parser) === "(") {
+          const dynamicFragment = parseQHtmlDynamicFragmentInvocation(
+            parser,
+            scopedKeywordAliases,
+            keywordSnapshot,
+            start
+          );
+          if (dynamicFragment) {
+            body.push(dynamicFragment);
+            continue;
+          }
+        }
+
         if (FOR_KEYWORDS.has(firstLower) && peek(parser) === "(") {
           body.push(parseForDefinitionItem(parser, scopedKeywordAliases, keywordSnapshot, start));
           continue;
@@ -5137,6 +5215,30 @@
             script: scriptBody,
             thenBodies: thenBodies,
             isLifecycle: true,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-var" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const varName = parseIdentifier(parser);
+          const normalizedVarName = String(varName || "").trim();
+          if (!normalizedVarName) {
+            throw ParseError("Expected variable name after q-var", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-var name", parser.index);
+          }
+          consume(parser);
+          const varBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QVarDeclaration",
+            name: normalizedVarName,
+            body: String(varBody || ""),
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -12795,6 +12897,7 @@
     const signalDeclarations = [];
     const callbackDeclarations = [];
     const aliasDeclarations = [];
+    const varDeclarations = [];
     let componentLoggerCategories = null;
     let wasmConfig = null;
     const lifecycleScripts = [];
@@ -13002,6 +13105,24 @@
       }
       if (item.type === "QColorThemeDefinition") {
         registerQColorThemeItem(colorContext, item);
+        continue;
+      }
+      if (item.type === "QVarDeclaration") {
+        if (supportsRuntimeDefinition) {
+          const varName = String(item.name || "").trim();
+          if (varName) {
+            const declarationMeta = createDeclarationMeta({
+              declarationKind: "q-var",
+              declarationName: varName,
+            });
+            varDeclarations.push({
+              name: varName,
+              body: String(item.body || ""),
+              uuid: declarationMeta.uuid,
+              meta: declarationMeta,
+            });
+          }
+        }
         continue;
       }
       if (item.type === "QPropertyBlock") {
@@ -13246,6 +13367,7 @@
       definitionType: definitionType,
       templateNodes: templateNodes,
       methods: methods,
+      varDeclarations: varDeclarations,
       propertyDefinitions: propertyDefinitions,
       signalDeclarations: signalDeclarations,
       callbackDeclarations: callbackDeclarations,
@@ -13754,6 +13876,57 @@
 
     if (item.type === "QStateMachineDefinition") {
       return buildQStateMachineNodeFromAst(item, source, context);
+    }
+
+    if (item.type === "QVarDeclaration") {
+      const varName = String(item.name || "").trim();
+      if (!varName) {
+        return null;
+      }
+      const declarationMeta = createDeclarationMeta({
+        declarationKind: "q-var",
+        declarationName: varName,
+      });
+      const varNode = {
+        kind: "q-var",
+        name: varName,
+        body: String(item.body || ""),
+        uuid: declarationMeta.uuid,
+        meta: Object.assign({}, declarationMeta, {
+          originalSource: item.raw,
+          sourceRange:
+            typeof item.start === "number" && typeof item.end === "number"
+              ? [item.start, item.end]
+              : null,
+        }),
+      };
+      applyKeywordAliasesToNode(varNode, item.keywords);
+      return varNode;
+    }
+
+    if (item.type === "QHtmlDynamicFragmentInvocation") {
+      const fragmentNode = {
+        kind: "qhtml-fragment",
+        expression: String(item.expression || "").trim(),
+        continuationSource: String(item.continuationSource || ""),
+        children: [],
+        meta: {
+          originalSource: item.raw,
+          sourceRange:
+            typeof item.start === "number" && typeof item.end === "number"
+              ? [item.start, item.end]
+              : null,
+        },
+      };
+      const nestedItems = Array.isArray(item.items) ? item.items : [];
+      for (let i = 0; i < nestedItems.length; i += 1) {
+        const nodes = convertAstItemToNodes(nestedItems[i], source, context);
+        for (let j = 0; j < nodes.length; j += 1) {
+          fragmentNode.children.push(nodes[j]);
+        }
+      }
+      applyKeywordAliasesToNode(fragmentNode, item.keywords);
+      return fragmentNode;
     }
 
     if (item.type === "QCanvasDefinition") {
@@ -14303,6 +14476,27 @@
     return lines.join("\n");
   }
 
+  function serializeQVarDeclarationBlock(varDecl, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    if (!varDecl || typeof varDecl !== "object") {
+      return "";
+    }
+    const name = String(varDecl.name || "").trim();
+    if (!name) {
+      return "";
+    }
+    const body = String(varDecl.body || "");
+    const lines = [indent + "q-var " + name + " {"];
+    if (body) {
+      const chunks = body.split("\n");
+      for (let i = 0; i < chunks.length; i += 1) {
+        lines.push(indent + "  " + chunks[i]);
+      }
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
   function serializeWasmConfigBlock(wasmConfig, indentLevel) {
     const config =
       wasmConfig && typeof wasmConfig === "object" && !Array.isArray(wasmConfig)
@@ -14674,6 +14868,28 @@
       return serializeCallbackDeclarationBlock(node, indentLevel);
     }
 
+    if (String(node.kind || "").trim().toLowerCase() === "q-var") {
+      return serializeQVarDeclarationBlock(node, indentLevel);
+    }
+
+    if (String(node.kind || "").trim().toLowerCase() === "qhtml-fragment") {
+      const expression = String(node.expression || "").trim();
+      const lines = [indent + "qhtml(" + expression + ") {"];
+      const children = Array.isArray(node.children) ? node.children : [];
+      if (children.length > 0) {
+        for (let i = 0; i < children.length; i += 1) {
+          lines.push(serializeNode(children[i], indentLevel + 1));
+        }
+      } else if (String(node.continuationSource || "").trim()) {
+        const chunks = String(node.continuationSource || "").split("\n");
+        for (let i = 0; i < chunks.length; i += 1) {
+          lines.push(indent + "  " + chunks[i]);
+        }
+      }
+      lines.push(indent + "}");
+      return lines.join("\n");
+    }
+
     if (node.kind === core.NODE_TYPES.component) {
       const explicitDefinitionType = String(node.definitionType || "").trim().toLowerCase();
       const definitionType =
@@ -14720,6 +14936,14 @@
         lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
       }
       if ((definitionType === "component" || definitionType === "worker") && Array.isArray(node.propertyDefinitions)) {
+        if (Array.isArray(node.varDeclarations)) {
+          for (let i = 0; i < node.varDeclarations.length; i += 1) {
+            const serializedVarDeclaration = serializeQVarDeclarationBlock(node.varDeclarations[i], indentLevel + 1);
+            if (serializedVarDeclaration) {
+              lines.push(serializedVarDeclaration);
+            }
+          }
+        }
         for (let i = 0; i < node.propertyDefinitions.length; i += 1) {
           const serializedPropertyDefinition = serializePropertyDefinitionBlock(node.propertyDefinitions[i], indentLevel + 1);
           if (serializedPropertyDefinition) {
@@ -15119,6 +15343,8 @@
   const Q_MODEL_VIEW_SCOPE_TAG = "q-model-view-scope";
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
   const Q_CALLBACK_NODE_KIND = "callback";
+  const Q_VAR_NODE_KIND = "q-var";
+  const QHTML_QVAR_HANDLE_FLAG = "__qhtmlVarHandle";
   const QHTML_FRAGMENT_MARKER = "__qhtmlFragment";
   const QHTML_NAMED_CALLBACKS_KEY = "__qhtmlNamedCallbacks";
   const QHTML_PAINTER_REGISTRY_KEY = "__qhtmlPainterRegistry";
@@ -15146,6 +15372,7 @@
   const Q_WORKER_IDLE_TERMINATE_MS = 30000;
   let qWorkerFallbackRuntimeCounter = 0;
   let wasmCallSequence = 0;
+  const qVarRuntimeStateByUuid = new Map();
 
   class QSignal {
     connect(handler) {
@@ -15243,6 +15470,57 @@
     }
   }
 
+  class QVar {
+    constructor(state) {
+      this.__qhtmlVarState = state && typeof state === "object" ? state : null;
+      this[QHTML_QVAR_HANDLE_FLAG] = true;
+    }
+    get name() {
+      return this.__qhtmlVarState ? String(this.__qhtmlVarState.name || "") : "";
+    }
+    get uuid() {
+      return this.__qhtmlVarState ? String(this.__qhtmlVarState.uuid || "") : "";
+    }
+    get value() {
+      return this.__qhtmlVarState ? this.__qhtmlVarState.value : undefined;
+    }
+    set value(next) {
+      if (this.__qhtmlVarState) {
+        const state = this.__qhtmlVarState;
+        const previous = state.value;
+        if (Object.is(previous, next)) {
+          return;
+        }
+        state.previousValue = previous;
+        state.value = next;
+        state.initialized = true;
+        if (state.changed && typeof state.changed.emit === "function") {
+          state.changed.emit(next, previous, true);
+        }
+      }
+    }
+    get changed() {
+      return this.__qhtmlVarState ? this.__qhtmlVarState.changed : null;
+    }
+    get() {
+      return this.value;
+    }
+    set(next) {
+      this.value = next;
+      return this.value;
+    }
+    toString() {
+      const value = this.value;
+      return String(value == null ? "" : value);
+    }
+    valueOf() {
+      return this.value;
+    }
+    [Symbol.toPrimitive]() {
+      return this.value;
+    }
+  }
+
   function createQSignalInstance(name, owner, emitImpl) {
     const signal = function qSignalCallable() {
       return signal.emit.apply(signal, arguments);
@@ -15266,6 +15544,137 @@
       signal[Q_SIGNAL_META_KEY] = meta;
     }
     return signal;
+  }
+
+  function isQVarHandle(value) {
+    return !!(value && (typeof value === "object" || typeof value === "function") && value[QHTML_QVAR_HANDLE_FLAG] === true);
+  }
+
+  function readQVarHandleValue(value) {
+    if (!isQVarHandle(value)) {
+      return value;
+    }
+    try {
+      return value.value;
+    } catch (error) {
+      return undefined;
+    }
+  }
+
+  function createQVarSignal(name, owner) {
+    const listeners = [];
+    const signal = createQSignalInstance(name, owner, function emitQVarSignal() {
+      const args = Array.prototype.slice.call(arguments);
+      const snapshot = listeners.slice();
+      for (let i = 0; i < snapshot.length; i += 1) {
+        try {
+          snapshot[i].apply(owner || null, args);
+        } catch (error) {
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml q-var signal listener failed:", error);
+          }
+        }
+      }
+      return args[0];
+    });
+    const meta = signal && signal[Q_SIGNAL_META_KEY] && typeof signal[Q_SIGNAL_META_KEY] === "object"
+      ? signal[Q_SIGNAL_META_KEY]
+      : null;
+    if (meta) {
+      meta.connectImpl = function connectQVarChanged(handler) {
+        if (typeof handler !== "function") {
+          return null;
+        }
+        listeners.push(handler);
+        return function disconnectQVarChanged() {
+          const index = listeners.indexOf(handler);
+          if (index >= 0) {
+            listeners.splice(index, 1);
+          }
+        };
+      };
+      meta.disconnectImpl = function disconnectQVarChanged(handler) {
+        const index = listeners.indexOf(handler);
+        if (index < 0) {
+          return false;
+        }
+        listeners.splice(index, 1);
+        return true;
+      };
+    }
+    return signal;
+  }
+
+  function createQVarHandle(state) {
+    const base = function qVarCallableProxy() {
+      const value = state ? state.value : undefined;
+      if (typeof value === "function") {
+        return value.apply(state && state.owner ? state.owner : null, arguments);
+      }
+      return undefined;
+    };
+    Object.setPrototypeOf(base, QVar.prototype);
+    base.__qhtmlVarState = state;
+    base[QHTML_QVAR_HANDLE_FLAG] = true;
+    return new Proxy(base, {
+      get: function getQVarProperty(target, prop) {
+        if (
+          prop === QHTML_QVAR_HANDLE_FLAG ||
+          prop === "__qhtmlVarState" ||
+          prop === "name" ||
+          prop === "uuid" ||
+          prop === "value" ||
+          prop === "get" ||
+          prop === "set" ||
+          prop === "toString" ||
+          prop === "valueOf" ||
+          prop === Symbol.toPrimitive
+        ) {
+          const ownValue = target[prop];
+          return typeof ownValue === "function" ? Function.prototype.bind.call(ownValue, target) : ownValue;
+        }
+        if (prop === "changed") {
+          return target[prop];
+        }
+        const value = state ? state.value : undefined;
+        if (value != null && (typeof value === "object" || typeof value === "function")) {
+          const child = value[prop];
+          return typeof child === "function" ? child.bind(value) : child;
+        }
+        return undefined;
+      },
+      set: function setQVarProperty(target, prop, next) {
+        if (prop === "value") {
+          target.value = next;
+          return true;
+        }
+        const value = state ? state.value : undefined;
+        if (value != null && (typeof value === "object" || typeof value === "function")) {
+          value[prop] = next;
+        }
+        return true;
+      },
+      has: function hasQVarProperty(target, prop) {
+        if (prop in target) {
+          return true;
+        }
+        const value = state ? state.value : undefined;
+        return !!(value != null && (typeof value === "object" || typeof value === "function") && prop in value);
+      },
+      ownKeys: function ownQVarKeys() {
+        const value = state ? state.value : undefined;
+        return value != null && (typeof value === "object" || typeof value === "function")
+          ? Reflect.ownKeys(value)
+          : [];
+      },
+      getOwnPropertyDescriptor: function getQVarDescriptor(_target, prop) {
+        const value = state ? state.value : undefined;
+        if (value != null && (typeof value === "object" || typeof value === "function")) {
+          return Object.getOwnPropertyDescriptor(value, prop);
+        }
+        return undefined;
+      },
+    });
   }
 
   function registerQPropertyInstance(owner, propertyName) {
@@ -17130,6 +17539,7 @@
       signalDeclarations: [],
       callbackDeclarations: [],
       aliasDeclarations: [],
+      varDeclarations: [],
       wasmConfig: null,
       lifecycleScripts: [],
       attributes: {},
@@ -17143,6 +17553,7 @@
     const signalIndex = new Map();
     const callbackIndex = new Map();
     const aliasIndex = new Map();
+    const varIndex = new Map();
     const lifecycleIndex = new Map();
     let mergedRepeaterConfig = null;
     let mergedCanvasSemantics = false;
@@ -17198,6 +17609,7 @@
       mergeNamedEntries(merged.signalDeclarations, node.signalDeclarations, signalIndex);
       mergeNamedEntries(merged.callbackDeclarations, node.callbackDeclarations, callbackIndex);
       mergeNamedEntries(merged.aliasDeclarations, node.aliasDeclarations, aliasIndex);
+      mergeNamedEntries(merged.varDeclarations, node.varDeclarations, varIndex);
 
       if (Array.isArray(node.lifecycleScripts) && node.lifecycleScripts.length > 0) {
         for (let li = 0; li < node.lifecycleScripts.length; li += 1) {
@@ -17795,6 +18207,9 @@
   function createQHtmlFragmentToken(source) {
     if (isQHtmlFragmentToken(source)) {
       return source;
+    }
+    if (isQVarHandle(source)) {
+      source = readQVarHandleValue(source);
     }
     if (source && (typeof source === "object" || typeof source === "function")) {
       return {
@@ -19775,6 +20190,7 @@
           }
         }
       }
+      nextValue = readQVarHandleValue(nextValue);
       try {
         element[key] = nextValue;
       } catch (error) {
@@ -24393,6 +24809,214 @@
     };
   }
 
+  function readQVarNodeUuid(node) {
+    if (!node || typeof node !== "object") {
+      return "";
+    }
+    if (typeof node.uuid === "string" && node.uuid.trim()) {
+      return node.uuid.trim();
+    }
+    if (node.meta && typeof node.meta === "object") {
+      if (typeof node.meta[QDOM_UUID_META_KEY] === "string" && node.meta[QDOM_UUID_META_KEY].trim()) {
+        return node.meta[QDOM_UUID_META_KEY].trim();
+      }
+      if (typeof node.meta.uuid === "string" && node.meta.uuid.trim()) {
+        return node.meta.uuid.trim();
+      }
+    }
+    if (typeof core.ensureNodeUuid === "function") {
+      try {
+        const ensured = core.ensureNodeUuid(node);
+        if (ensured && ensured.meta && typeof ensured.meta[QDOM_UUID_META_KEY] === "string") {
+          return ensured.meta[QDOM_UUID_META_KEY].trim();
+        }
+      } catch (error) {
+        // no-op
+      }
+    }
+    return "";
+  }
+
+  function evaluateQVarBody(node, ownerHost, context) {
+    const body = String(node && node.body || "").trim();
+    if (!body) {
+      return undefined;
+    }
+    const executionHost =
+      ownerHost && ownerHost.nodeType === 1
+        ? ownerHost
+        : context && Array.isArray(context.componentHostStack) && context.componentHostStack.length > 0
+          ? context.componentHostStack[context.componentHostStack.length - 1]
+          : null;
+    const thisArg = executionHost || null;
+    const interpolationScope = buildInterpolationScope(context, thisArg);
+    const scopeNames = Object.keys(interpolationScope).filter(function filterQVarScopeParam(name) {
+      return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(String(name || ""));
+    });
+    const scopeValues = scopeNames.map(function mapQVarScopeParam(name) {
+      return interpolationScope[name];
+    });
+    ensureScopedSelectorShortcut(thisArg || {}, null);
+    try {
+      const expressionExecutor = new Function(scopeNames.join(","), "return (" + body + ");");
+      return expressionExecutor.apply(thisArg, scopeValues);
+    } catch (expressionError) {
+      try {
+        const bodyExecutor = new Function(scopeNames.join(","), body);
+        return bodyExecutor.apply(thisArg, scopeValues);
+      } catch (bodyError) {
+        try {
+          const scopedExpressionExecutor = new Function(withScopedSelectorPrelude("return (" + body + ");"));
+          return scopedExpressionExecutor.call(thisArg);
+        } catch (scopedExpressionError) {
+          try {
+            const scopedBodyExecutor = new Function(withScopedSelectorPrelude(body));
+            return scopedBodyExecutor.call(thisArg);
+          } catch (scopedBodyError) {
+            if (global.console && typeof global.console.error === "function") {
+              global.console.error("qhtml q-var evaluation failed:", String(node && node.name || ""), scopedBodyError);
+            }
+            return undefined;
+          }
+        }
+      }
+    }
+  }
+
+  function ensureQVarState(node, ownerHost) {
+    const uuid = readQVarNodeUuid(node) || String(node && node.name || "");
+    let state = qVarRuntimeStateByUuid.get(uuid);
+    if (!state) {
+      state = {
+        uuid: uuid,
+        name: String(node && node.name || "").trim(),
+        owner: ownerHost && ownerHost.nodeType === 1 ? ownerHost : null,
+        value: undefined,
+        previousValue: undefined,
+        initialized: false,
+        changed: null,
+        handle: null,
+      };
+      state.changed = createQVarSignal("changed", ownerHost || null);
+      state.handle = createQVarHandle(state);
+      qVarRuntimeStateByUuid.set(uuid, state);
+    }
+    state.name = String(node && node.name || state.name || "").trim();
+    state.owner = ownerHost && ownerHost.nodeType === 1 ? ownerHost : state.owner || null;
+    return state;
+  }
+
+  function registerQVarHandleInContext(name, handle, ownerHost, context) {
+    const key = String(name || "").trim();
+    if (!key) {
+      return;
+    }
+    ensureContextFrames(context);
+    const aliasStack = ensureInstanceAliasScopeStack(context);
+    const activeFrame =
+      aliasStack.length > 0
+        ? aliasStack[aliasStack.length - 1]
+        : context[QCONTEXT_SCOPE_FRAME_KEY];
+    if (activeFrame && typeof activeFrame.set === "function") {
+      activeFrame.set(key, handle);
+    }
+    if (
+      context &&
+      context[QCONTEXT_RUNTIME_FRAME_KEY] &&
+      typeof context[QCONTEXT_RUNTIME_FRAME_KEY].set === "function"
+    ) {
+      context[QCONTEXT_RUNTIME_FRAME_KEY].set(key, handle);
+    }
+    if (ownerHost && ownerHost.nodeType === 1) {
+      exportNamedAliasToHost(ownerHost, key, handle);
+    } else if (context && context.rootHostElement) {
+      exportNamedAliasToHost(context.rootHostElement, key, handle);
+      if (context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
+        context.namedRuntimeValues[key] = handle;
+      }
+    }
+  }
+
+  function registerQVarDeclarationNode(node, parent, targetDocument, context, ownerHostOverride) {
+    if (!node || String(node.kind || "").trim().toLowerCase() !== Q_VAR_NODE_KIND) {
+      return false;
+    }
+    const name = String(node.name || "").trim();
+    if (!name) {
+      return true;
+    }
+    const ownerHost =
+      ownerHostOverride && ownerHostOverride.nodeType === 1
+        ? ownerHostOverride
+        : parent && parent.nodeType === 1
+          ? parent.closest && parent.closest("[qhtml-component-instance='1']") || parent
+          : null;
+    const state = ensureQVarState(node, ownerHost);
+    const previous = state.value;
+    const next = evaluateQVarBody(node, ownerHost, context);
+    const changed = !state.initialized || !Object.is(previous, next);
+    state.previousValue = previous;
+    state.value = next;
+    state.initialized = true;
+    registerQVarHandleInContext(name, state.handle, ownerHost, context);
+    if (changed && state.changed && typeof state.changed.emit === "function") {
+      state.changed.emit(next, previous, true);
+      const runtimeApi = global.QHtml && typeof global.QHtml === "object" ? global.QHtml : null;
+      if (ownerHost && ownerHost.nodeType === 1 && runtimeApi && typeof runtimeApi.emitQSignal === "function") {
+        try {
+          runtimeApi.emitQSignal(ownerHost, {
+            signalName: name + ".changed",
+            params: {
+              value: next,
+              previousValue: previous,
+              passing: true,
+            },
+            args: [next, previous, true],
+          });
+        } catch (emitError) {
+          // local signal emission already happened.
+        }
+      }
+    }
+    return true;
+  }
+
+  function renderDynamicQHtmlFragmentNode(node, parent, targetDocument, context) {
+    const expression = String(node && node.expression || "").trim();
+    if (!expression) {
+      return true;
+    }
+    const resolved = tryResolveDirectSymbolValue(expression, context, parent);
+    let value = resolved && resolved.matched && resolved.found ? resolved.value : undefined;
+    if (typeof value === "undefined") {
+      try {
+        const scope = buildInterpolationScope(context, parent);
+        const thisArg = parent && parent.nodeType === 1 ? parent : scope.component || null;
+        value = evaluateInlineReferenceExpression(expression, thisArg, resolveInlineExpressionScope(thisArg, scope), "qhtml(...) expression failed:");
+      } catch (error) {
+        value = undefined;
+      }
+    }
+    value = readQVarHandleValue(value);
+    const prefix = String(value == null ? "" : value);
+    const continuation = String(node.continuationSource || "").trim();
+    if (!prefix.trim()) {
+      const children = Array.isArray(node.children) ? node.children : [];
+      for (let i = 0; i < children.length; i += 1) {
+        renderNode(children[i], parent, targetDocument, context);
+      }
+      return true;
+    }
+    const openCount = (prefix.match(/\{/g) || []).length;
+    const closeCount = (prefix.match(/\}/g) || []).length;
+    const missingClosers = Math.max(0, openCount - closeCount);
+    const source =
+      prefix +
+      (continuation ? "\n" + continuation : "") +
+      (missingClosers > 0 ? "\n" + new Array(missingClosers + 1).join("}") : "");
+    return renderQHtmlFragmentToken(createQHtmlFragmentToken(source), parent, targetDocument, context);
+  }
+
   function registerCallbackDeclarationNode(node, parent, targetDocument, context) {
     if (!node || String(node.kind || "").trim().toLowerCase() !== Q_CALLBACK_NODE_KIND) {
       return false;
@@ -24895,6 +25519,16 @@
 
       if (String(node.kind || "").trim().toLowerCase() === Q_CALLBACK_NODE_KIND) {
         registerCallbackDeclarationNode(node, parent, targetDocument, context);
+        return;
+      }
+
+      if (String(node.kind || "").trim().toLowerCase() === Q_VAR_NODE_KIND) {
+        registerQVarDeclarationNode(node, parent, targetDocument, context);
+        return;
+      }
+
+      if (String(node.kind || "").trim().toLowerCase() === "qhtml-fragment") {
+        renderDynamicQHtmlFragmentNode(node, parent, targetDocument, context);
         return;
       }
 
@@ -25464,6 +26098,16 @@
       scopeFrame: componentScopeFrame,
       runtimeFrame: componentRuntimeFrame,
     });
+    const varDeclarations = Array.isArray(componentNode.varDeclarations) ? componentNode.varDeclarations : [];
+    for (let vi = 0; vi < varDeclarations.length; vi += 1) {
+      registerQVarDeclarationNode(
+        Object.assign({ kind: Q_VAR_NODE_KIND }, varDeclarations[vi]),
+        hostElement,
+        targetDocument,
+        componentContext,
+        hostElement
+      );
+    }
     try {
       renderComponentContentIntoHost(componentNode, instanceNode, hostElement, targetDocument, componentContext);
     } finally {
@@ -25953,6 +26597,7 @@
     QSignal: QSignal,
     QProperty: QProperty,
     QComponentInstance: QComponentInstance,
+    QVar: QVar,
     createQSignalInstance: createQSignalInstance,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);
@@ -25975,7 +26620,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.7.1";
+  const RUNTIME_VERSION = "6.8.0";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -26005,6 +26650,7 @@
     "lifecycleScripts",
     "methods",
     "aliasDeclarations",
+    "varDeclarations",
     "scripts",
     "html",
   ]);
@@ -27032,6 +27678,13 @@
   function createQHtmlFragment(source) {
     if (source && typeof source === "object" && source.__qhtmlFragment === true) {
       return source;
+    }
+    if (source && (typeof source === "object" || typeof source === "function") && source.__qhtmlVarHandle === true) {
+      try {
+        source = source.value;
+      } catch (error) {
+        source = undefined;
+      }
     }
     if (source && (typeof source === "object" || typeof source === "function")) {
       return {
@@ -44596,6 +45249,7 @@
     QSignal: renderer && renderer.QSignal ? renderer.QSignal : null,
     QProperty: renderer && renderer.QProperty ? renderer.QProperty : null,
     QComponentInstance: renderer && renderer.QComponentInstance ? renderer.QComponentInstance : null,
+    QVar: renderer && renderer.QVar ? renderer.QVar : null,
     getQDomDataForUuid: getQDomDataForUuid,
     getQDomDataSnapshot: getQDomDataSnapshot,
     rootContext: {
@@ -44649,6 +45303,9 @@
   if (runtimeApi.QComponentInstance) {
     global.QComponentInstance = runtimeApi.QComponentInstance;
   }
+  if (runtimeApi.QVar) {
+    global.QVar = runtimeApi.QVar;
+  }
   global.qhtml = createQHtmlFragment;
   global.qhtmlString = createQHtmlFragment;
 
@@ -44673,7 +45330,7 @@
   }
 
   const api = runtime;
-  api.version = "6.7.1";
+  api.version = "6.8.0";
   global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {
