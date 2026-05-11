@@ -1,5 +1,3 @@
-<q-html>
-
 /* ========================================================= */
 /* SHARED STYLE OBJECTS                                      */
 /* ========================================================= */
@@ -744,5 +742,3 @@ q-component q-groupbox-label {
 q-component q-groupbox-content {
   slot { content }
 }
-
-</q-html>

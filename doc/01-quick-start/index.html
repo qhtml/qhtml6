@@ -6,7 +6,7 @@
   <title>QHTML Wiki - Quick Start</title>
   <link rel="stylesheet" href="w3.css" />
   <link rel="stylesheet" href="wiki.css" />
-  <script src="qhtml6.js"></script>
+  <script src="qhtml.js"></script>
   <script src="q-editor.js"></script>
 </head>
 <body>
@@ -22,7 +22,7 @@ wiki-shell {
   main {
     wiki-example-card {
       title: "Project setup"
-      summary: "The repository ships the runtime and the optional component bundle. The smallest setup is just qhtml6.js."
+      summary: "The repository ships the runtime and the optional component bundle. The smallest setup is just qhtml.js."
       note: "The component bundle is optional. Use it when you want things like tabs, grid, modal, sidebar, or editor-ready widgets."
       details {
         html {
@@ -33,12 +33,12 @@ source ./deploy.sh /path/to/project</code></pre>
     }
 
     wiki-example-card {
-      title: "Include qhtml6.js"
+      title: "Include qhtml.js"
       summary: "Load the runtime once in the page head or before the closing body tag."
       note: "This is the only required file for a first render."
       details {
         html {
-          <pre><code>&lt;script src="qhtml6.js"&gt;&lt;/script&gt;</code></pre>
+          <pre><code>&lt;script src="qhtml.js"&gt;&lt;/script&gt;</code></pre>
         }
       }
     }
