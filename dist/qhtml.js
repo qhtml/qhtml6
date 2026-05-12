@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-10T23:14:27Z */
+/* generated: 2026-05-12T22:12:05Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -1635,25 +1635,8 @@
       allowImports: new Set(),
       bind: new Set(),
     };
-    const scalarHandlers = {
-      src: function assignSrc(value) {
-        config.src = value;
-      },
-      mode: function assignMode(value) {
-        config.mode = normalizeWasmMode(value);
-      },
-      awaitwasm: function assignAwaitWasm(value) {
-        config.awaitWasm = parseWasmBoolean(value);
-      },
-      timeoutms: function assignTimeoutMs(value) {
-        config.timeoutMs = parseWasmPositiveInteger(value);
-      },
-      maxpayloadbytes: function assignMaxPayloadBytes(value) {
-        config.maxPayloadBytes = parseWasmPositiveInteger(value);
-      },
-    };
 
-    function pushUniqueName(list, set, value) {
+    function pushUnique(list, set, value) {
       const entry = String(value || "").trim();
       const key = entry.toLowerCase();
       if (!entry || set.has(key)) {
@@ -1661,59 +1644,6 @@
       }
       set.add(key);
       list.push(entry);
-    }
-
-    function pushUniqueNames(list, set, values) {
-      const entries = Array.isArray(values) ? values : [];
-      for (let i = 0; i < entries.length; i += 1) {
-        pushUniqueName(list, set, entries[i]);
-      }
-    }
-
-    function wasmBindingDedupeKey(entry) {
-      return (
-        String(entry && entry.exportName || "").toLowerCase() +
-        "::" +
-        String(entry && entry.targetType || "").toLowerCase() +
-        "::" +
-        String(entry && entry.targetName || "").toLowerCase()
-      );
-    }
-
-    function pushUniqueBindings(bindings) {
-      const entries = Array.isArray(bindings) ? bindings : [];
-      for (let i = 0; i < entries.length; i += 1) {
-        const entry = entries[i];
-        if (!entry || typeof entry !== "object") {
-          continue;
-        }
-        const dedupeKey = wasmBindingDedupeKey(entry);
-        if (!dedupeKey || seen.bind.has(dedupeKey)) {
-          continue;
-        }
-        seen.bind.add(dedupeKey);
-        config.bind.push({
-          exportName: String(entry.exportName || ""),
-          targetType: String(entry.targetType || ""),
-          targetName: String(entry.targetName || ""),
-        });
-      }
-    }
-
-    function applyListEntry(keyLower, value) {
-      if (keyLower === "exports") {
-        pushUniqueNames(config.exports, seen.exports, parseQPropertyNames(value));
-        return true;
-      }
-      if (keyLower === "allowimports") {
-        pushUniqueNames(config.allowImports, seen.allowImports, parseQPropertyNames(value));
-        return true;
-      }
-      if (keyLower === "bind") {
-        pushUniqueBindings(parseQWasmBindingRules(value));
-        return true;
-      }
-      return false;
     }
 
     while (!eof(parser)) {
@@ -1727,7 +1657,41 @@
 
       if ((keyLower === "exports" || keyLower === "allowimports" || keyLower === "bind") && peek(parser) === "{") {
         consume(parser);
-        applyListEntry(keyLower, String(readBalancedBlockContent(parser) || ""));
+        const blockBody = String(readBalancedBlockContent(parser) || "");
+        if (keyLower === "exports") {
+          const names = parseQPropertyNames(blockBody);
+          for (let i = 0; i < names.length; i += 1) {
+            pushUnique(config.exports, seen.exports, names[i]);
+          }
+        } else if (keyLower === "allowimports") {
+          const names = parseQPropertyNames(blockBody);
+          for (let i = 0; i < names.length; i += 1) {
+            pushUnique(config.allowImports, seen.allowImports, names[i]);
+          }
+        } else {
+          const bindings = parseQWasmBindingRules(blockBody);
+          for (let i = 0; i < bindings.length; i += 1) {
+            const entry = bindings[i];
+            if (!entry || typeof entry !== "object") {
+              continue;
+            }
+            const dedupeKey =
+              String(entry.exportName || "").toLowerCase() +
+              "::" +
+              String(entry.targetType || "").toLowerCase() +
+              "::" +
+              String(entry.targetName || "").toLowerCase();
+            if (!dedupeKey || seen.bind.has(dedupeKey)) {
+              continue;
+            }
+            seen.bind.add(dedupeKey);
+            config.bind.push({
+              exportName: String(entry.exportName || ""),
+              targetType: String(entry.targetType || ""),
+              targetName: String(entry.targetName || ""),
+            });
+          }
+        }
         continue;
       }
 
@@ -1737,14 +1701,51 @@
       consume(parser);
       const rawValue = parseValue(parser, keywordAliases);
       const value = String(coercePropertyValue(rawValue) || "").trim();
-      const scalarHandler = scalarHandlers[keyLower];
 
-      if (scalarHandler) {
-        scalarHandler(value);
-      } else {
-        applyListEntry(keyLower, value);
+      if (keyLower === "src") {
+        config.src = value;
+      } else if (keyLower === "mode") {
+        config.mode = normalizeWasmMode(value);
+      } else if (keyLower === "awaitwasm") {
+        config.awaitWasm = parseWasmBoolean(value);
+      } else if (keyLower === "timeoutms") {
+        config.timeoutMs = parseWasmPositiveInteger(value);
+      } else if (keyLower === "maxpayloadbytes") {
+        config.maxPayloadBytes = parseWasmPositiveInteger(value);
+      } else if (keyLower === "exports") {
+        const names = parseQPropertyNames(value);
+        for (let i = 0; i < names.length; i += 1) {
+          pushUnique(config.exports, seen.exports, names[i]);
+        }
+      } else if (keyLower === "allowimports") {
+        const names = parseQPropertyNames(value);
+        for (let i = 0; i < names.length; i += 1) {
+          pushUnique(config.allowImports, seen.allowImports, names[i]);
+        }
+      } else if (keyLower === "bind") {
+        const bindings = parseQWasmBindingRules(value);
+        for (let i = 0; i < bindings.length; i += 1) {
+          const entry = bindings[i];
+          if (!entry || typeof entry !== "object") {
+            continue;
+          }
+          const dedupeKey =
+            String(entry.exportName || "").toLowerCase() +
+            "::" +
+            String(entry.targetType || "").toLowerCase() +
+            "::" +
+            String(entry.targetName || "").toLowerCase();
+          if (!dedupeKey || seen.bind.has(dedupeKey)) {
+            continue;
+          }
+          seen.bind.add(dedupeKey);
+          config.bind.push({
+            exportName: String(entry.exportName || ""),
+            targetType: String(entry.targetType || ""),
+            targetName: String(entry.targetName || ""),
+          });
+        }
       }
-
       skipWhitespaceAndSemicolons(parser);
       if (peek(parser) === ",") {
         consume(parser);
@@ -1825,37 +1826,43 @@
     return false;
   }
 
-  const SKIP_CHARSETS = {
-    inline: new Set([" ", "\t"]),
-    normal: new Set([" ", "\t", "\n", "\r"]),
-    statement: new Set([" ", "\t", "\n", "\r", ";"]),
-  };
-
-  function skipChars(parser, mode, allowComments) {
-    const allowed = SKIP_CHARSETS[mode] || SKIP_CHARSETS.normal;
+  function skipWhitespace(parser) {
     while (!eof(parser)) {
       const ch = peek(parser);
-      if (allowed.has(ch)) {
+      if (ch === " " || ch === "\t" || ch === "\n" || ch === "\r") {
         parser.index += 1;
         continue;
       }
-      if (allowComments && consumeComment(parser)) {
+      if (consumeComment(parser)) {
         continue;
       }
       break;
     }
   }
 
-  function skipWhitespace(parser) {
-    skipChars(parser, "normal", true);
-  }
-
   function skipWhitespaceAndSemicolons(parser) {
-    skipChars(parser, "statement", true);
+    while (!eof(parser)) {
+      const ch = peek(parser);
+      if (ch === " " || ch === "\t" || ch === "\n" || ch === "\r" || ch === ";") {
+        parser.index += 1;
+        continue;
+      }
+      if (consumeComment(parser)) {
+        continue;
+      }
+      break;
+    }
   }
 
   function skipInlineWhitespace(parser) {
-    skipChars(parser, "inline", false);
+    while (!eof(parser)) {
+      const ch = peek(parser);
+      if (ch === " " || ch === "\t") {
+        parser.index += 1;
+        continue;
+      }
+      break;
+    }
   }
 
   function expect(parser, expected) {
@@ -2247,21 +2254,6 @@
     };
   }
 
-  function skipValueSeparators(parser) {
-    skipWhitespace(parser);
-    while (peek(parser) === "," || peek(parser) === ";") {
-      consume(parser);
-      skipWhitespace(parser);
-    }
-  }
-
-  function consumeOptionalValueSeparator(parser) {
-    skipWhitespace(parser);
-    if (peek(parser) === "," || peek(parser) === ";") {
-      consume(parser);
-    }
-  }
-
   function parseTypedArrayBodyToValue(rawBody, keywordAliases) {
     const body = String(rawBody || "");
     const trimmedBody = body.trim();
@@ -2281,7 +2273,11 @@
     const parser = parserFor(body);
     const out = [];
     while (!eof(parser)) {
-      skipValueSeparators(parser);
+      skipWhitespace(parser);
+      while (peek(parser) === "," || peek(parser) === ";") {
+        consume(parser);
+        skipWhitespace(parser);
+      }
       if (eof(parser)) {
         break;
       }
@@ -2290,7 +2286,10 @@
       if (parser.index === valueStart) {
         parser.index += 1;
       }
-      consumeOptionalValueSeparator(parser);
+      skipWhitespace(parser);
+      if (peek(parser) === "," || peek(parser) === ";") {
+        consume(parser);
+      }
     }
     return out;
   }
@@ -2300,7 +2299,11 @@
     const out = {};
 
     while (!eof(parser)) {
-      skipValueSeparators(parser);
+      skipWhitespace(parser);
+      while (peek(parser) === "," || peek(parser) === ";") {
+        consume(parser);
+        skipWhitespace(parser);
+      }
       if (eof(parser)) {
         break;
       }
@@ -2341,7 +2344,10 @@
       consume(parser);
       out[normalizedKey] = parseTypedValueLiteral(parser, keywordAliases);
 
-      consumeOptionalValueSeparator(parser);
+      skipWhitespace(parser);
+      if (peek(parser) === "," || peek(parser) === ";") {
+        consume(parser);
+      }
     }
 
     return out;
@@ -2765,33 +2771,37 @@
     return names;
   }
 
-  const QLOGGER_CATEGORY_ALIASES = {
-    all: "all",
-    qall: "all",
-    property: "q-property",
-    qproperty: "q-property",
-    signal: "q-signal",
-    qsignal: "q-signal",
-    component: "q-component",
-    qcomponent: "q-component",
-    function: "function",
-    qfunction: "function",
-    slot: "slot",
-    qslot: "slot",
-    model: "model",
-    qmodel: "model",
-    instantiation: "instantiation",
-    instantiate: "instantiation",
-    qinstantiation: "instantiation",
-  };
-
   function normalizeQLoggerCategoryToken(rawToken) {
     const token = String(rawToken || "").trim().toLowerCase();
     if (!token) {
       return "";
     }
     const condensed = token.replace(/[^a-z0-9]/g, "");
-    return QLOGGER_CATEGORY_ALIASES[condensed] || token;
+    if (condensed === "all" || condensed === "qall") {
+      return "all";
+    }
+    if (condensed === "property" || condensed === "qproperty") {
+      return "q-property";
+    }
+    if (condensed === "signal" || condensed === "qsignal") {
+      return "q-signal";
+    }
+    if (condensed === "component" || condensed === "qcomponent") {
+      return "q-component";
+    }
+    if (condensed === "function" || condensed === "qfunction") {
+      return "function";
+    }
+    if (condensed === "slot" || condensed === "qslot") {
+      return "slot";
+    }
+    if (condensed === "model" || condensed === "qmodel") {
+      return "model";
+    }
+    if (condensed === "instantiation" || condensed === "instantiate" || condensed === "qinstantiation") {
+      return "instantiation";
+    }
+    return token;
   }
 
   function parseQLoggerCategoriesFromAstItems(items) {
@@ -2955,77 +2965,50 @@
   }
 
   function levenshtein(a, b) {
-    let left = String(a || "");
-    let right = String(b || "");
-    if (left === right) {
-      return 0;
+    const m = a.length;
+    const n = b.length;
+    const dp = Array.from({ length: m + 1 }, function makeRow() {
+      return Array(n + 1).fill(0);
+    });
+
+    for (let i = 0; i <= m; i += 1) {
+      dp[i][0] = i;
     }
-    if (left.length === 0) {
-      return right.length;
-    }
-    if (right.length === 0) {
-      return left.length;
-    }
-    if (left.length < right.length) {
-      const tmp = left;
-      left = right;
-      right = tmp;
+    for (let j = 0; j <= n; j += 1) {
+      dp[0][j] = j;
     }
 
-    let previous = new Array(right.length + 1);
-    let current = new Array(right.length + 1);
-    for (let j = 0; j <= right.length; j += 1) {
-      previous[j] = j;
-    }
-
-    for (let i = 1; i <= left.length; i += 1) {
-      current[0] = i;
-      for (let j = 1; j <= right.length; j += 1) {
-        const cost = left.charAt(i - 1) === right.charAt(j - 1) ? 0 : 1;
-        current[j] = Math.min(
-          previous[j] + 1,
-          current[j - 1] + 1,
-          previous[j - 1] + cost
+    for (let i = 1; i <= m; i += 1) {
+      for (let j = 1; j <= n; j += 1) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        dp[i][j] = Math.min(
+          dp[i - 1][j] + 1,
+          dp[i][j - 1] + 1,
+          dp[i - 1][j - 1] + cost
         );
       }
-      const tmp = previous;
-      previous = current;
-      current = tmp;
     }
-    return previous[right.length];
+    return dp[m][n];
   }
 
   function bigrams(s) {
-    const text = String(s || "");
     const g = [];
-    for (let i = 0; i < text.length - 1; i += 1) {
-      g.push(text.slice(i, i + 2));
-    }
-    return g;
-  }
-
-  function bigramSet(s) {
-    const text = String(s || "");
-    const g = new Set();
-    for (let i = 0; i < text.length - 1; i += 1) {
-      g.add(text.slice(i, i + 2));
+    for (let i = 0; i < s.length - 1; i += 1) {
+      g.push(s.slice(i, i + 2));
     }
     return g;
   }
 
   function bigramScore(a, b) {
-    const A = bigramSet(a);
-    const B = bigramSet(b);
-    if (A.size === 0 && B.size === 0) {
-      return 0;
-    }
+    const A = bigrams(a);
+    const B = bigrams(b);
     let match = 0;
-    A.forEach(function countMatch(gram) {
-      if (B.has(gram)) {
+    for (let i = 0; i < A.length; i += 1) {
+      if (B.includes(A[i])) {
         match += 1;
       }
-    });
-    return match / Math.max(A.size, B.size);
+    }
+    return match / Math.max(A.length, B.length);
   }
 
   function splitTokens(s) {
@@ -3060,8 +3043,8 @@
   function fuzzyResolve(query, choices, topK) {
     const limit = Number.isFinite(topK) ? Math.max(1, Math.floor(topK)) : 5;
     const vocab = buildTokenIndex(choices);
-    const tokScore = tokenScore(query, vocab);
     const ranked = choices.map(function mapCandidate(candidate) {
+      const tokScore = tokenScore(query, vocab);
       const bigScore = bigramScore(query, candidate);
       const lev = levenshtein(query, candidate);
       const score = tokScore * 5 + bigScore * 4 - lev * 0.5;
@@ -3136,18 +3119,6 @@
     return parser.source.slice(start, parser.index).trim();
   }
 
-  function readColonOrBlockValue(parser, keyword, keywordAliases) {
-    if (peek(parser) === ":") {
-      consume(parser);
-      return parseQColorValueToken(parser, keywordAliases);
-    }
-    if (peek(parser) === "{") {
-      consume(parser);
-      return String(readBalancedBlockContent(parser) || "").trim();
-    }
-    throw ParseError("Expected ':' or '{...}' inside " + keyword, parser.index);
-  }
-
   function parseQColorAssignments(rawBody, keywordAliases) {
     const parser = parserFor(String(rawBody || ""));
     const out = {};
@@ -3158,7 +3129,16 @@
       }
       const key = parseQColorIdentifier(parser, "q-color-theme");
       skipWhitespace(parser);
-      const value = readColonOrBlockValue(parser, "q-color-theme", keywordAliases);
+      let value = "";
+      if (peek(parser) === ":") {
+        consume(parser);
+        value = parseQColorValueToken(parser, keywordAliases);
+      } else if (peek(parser) === "{") {
+        consume(parser);
+        value = String(readBalancedBlockContent(parser) || "").trim();
+      } else {
+        throw ParseError("Expected ':' or '{...}' inside q-color-theme", parser.index);
+      }
       if (value) {
         out[key] = value;
       }
@@ -3252,80 +3232,6 @@
     const styleClassKeywords = collectAliasesTargeting(keywordAliases, "q-style-class");
     const stylePainterKeywords = collectAliasesTargeting(keywordAliases, "q-style-painter");
     const styleTransitionKeywords = collectAliasesTargeting(keywordAliases, "q-style-transition");
-
-    function skipEntrySeparator() {
-      skipWhitespaceAndSemicolons(parser);
-      if (peek(parser) === ",") {
-        consume(parser);
-      }
-    }
-
-    function addUniqueClass(className) {
-      const value = String(className || "").trim();
-      const normalized = value.toLowerCase();
-      if (!value || seenClasses.has(normalized)) {
-        return;
-      }
-      seenClasses.add(normalized);
-      classes.push(value);
-    }
-
-    function addUniqueTransition(transitionName) {
-      const value = String(transitionName || "").trim();
-      const normalized = normalizeColorLookupKey(value);
-      if (!value || !normalized || seenTransitions.has(normalized)) {
-        return;
-      }
-      seenTransitions.add(normalized);
-      transitions.push(value);
-    }
-
-    function readRequiredBlock(keyword) {
-      if (peek(parser) !== "{") {
-        throw ParseError("Expected '{...}' after " + keyword + " inside q-style", parser.index);
-      }
-      consume(parser);
-      return String(readBalancedBlockContent(parser) || "");
-    }
-
-    function handleStyleClass() {
-      const classBody = readRequiredBlock("q-style-class");
-      const parsedClasses = parseQPropertyNames(classBody);
-      if (parsedClasses.length === 0) {
-        if (typeof console !== "undefined" && console && typeof console.warn === "function") {
-          console.warn("qhtml q-style warning: q-style-class has no class names", {
-            styleBlock: String(rawBody || "").trim(),
-          });
-        }
-        return;
-      }
-      for (let i = 0; i < parsedClasses.length; i += 1) {
-        addUniqueClass(parsedClasses[i]);
-      }
-    }
-
-    function handleStylePainter() {
-      const painterBody = readRequiredBlock("q-style-painter");
-      const parsedPainters = parseQStylePainterMappings(painterBody, keywordAliases);
-      const painterSlots = Object.keys(parsedPainters);
-      for (let i = 0; i < painterSlots.length; i += 1) {
-        const slot = String(painterSlots[i] || "").trim();
-        const painterName = String(parsedPainters[slot] || "").trim();
-        if (!slot || !painterName) {
-          continue;
-        }
-        painters[slot] = painterName;
-      }
-    }
-
-    function handleStyleTransition() {
-      const transitionBody = readColonOrBlockValue(parser, "q-style-transition", keywordAliases);
-      const parsedTransitions = parseQStyleTransitionMappings(transitionBody);
-      for (let i = 0; i < parsedTransitions.length; i += 1) {
-        addUniqueTransition(parsedTransitions[i]);
-      }
-    }
-
     while (!eof(parser)) {
       skipWhitespaceAndSemicolons(parser);
       if (eof(parser)) {
@@ -3334,28 +3240,102 @@
       const propertyName = parseQColorIdentifier(parser, "q-style");
       const propertyLower = String(propertyName || "").trim().toLowerCase();
       skipWhitespace(parser);
-
       if (styleClassKeywords.has(propertyLower)) {
-        handleStyleClass();
-        skipEntrySeparator();
+        if (peek(parser) !== "{") {
+          throw ParseError("Expected '{...}' after q-style-class inside q-style", parser.index);
+        }
+        consume(parser);
+        const classBody = String(readBalancedBlockContent(parser) || "");
+        const parsedClasses = parseQPropertyNames(classBody);
+        if (parsedClasses.length === 0) {
+          if (typeof console !== "undefined" && console && typeof console.warn === "function") {
+            console.warn("qhtml q-style warning: q-style-class has no class names", {
+              styleBlock: String(rawBody || "").trim(),
+            });
+          }
+        } else {
+          for (let i = 0; i < parsedClasses.length; i += 1) {
+            const className = String(parsedClasses[i] || "").trim();
+            const normalizedClass = className.toLowerCase();
+            if (!className || seenClasses.has(normalizedClass)) {
+              continue;
+            }
+            seenClasses.add(normalizedClass);
+            classes.push(className);
+          }
+        }
+        skipWhitespaceAndSemicolons(parser);
+        if (peek(parser) === ",") {
+          consume(parser);
+        }
         continue;
       }
       if (stylePainterKeywords.has(propertyLower)) {
-        handleStylePainter();
-        skipEntrySeparator();
+        if (peek(parser) !== "{") {
+          throw ParseError("Expected '{...}' after q-style-painter inside q-style", parser.index);
+        }
+        consume(parser);
+        const painterBody = String(readBalancedBlockContent(parser) || "");
+        const parsedPainters = parseQStylePainterMappings(painterBody, keywordAliases);
+        const painterSlots = Object.keys(parsedPainters);
+        for (let i = 0; i < painterSlots.length; i += 1) {
+          const slot = String(painterSlots[i] || "").trim();
+          const painterName = String(parsedPainters[slot] || "").trim();
+          if (!slot || !painterName) {
+            continue;
+          }
+          painters[slot] = painterName;
+        }
+        skipWhitespaceAndSemicolons(parser);
+        if (peek(parser) === ",") {
+          consume(parser);
+        }
         continue;
       }
       if (styleTransitionKeywords.has(propertyLower)) {
-        handleStyleTransition();
-        skipEntrySeparator();
+        let transitionBody = "";
+        if (peek(parser) === ":") {
+          consume(parser);
+          transitionBody = parseQColorValueToken(parser, keywordAliases);
+        } else if (peek(parser) === "{") {
+          consume(parser);
+          transitionBody = String(readBalancedBlockContent(parser) || "");
+        } else {
+          throw ParseError("Expected ':' or '{...}' inside q-style-transition", parser.index);
+        }
+        const parsedTransitions = parseQStyleTransitionMappings(transitionBody);
+        for (let i = 0; i < parsedTransitions.length; i += 1) {
+          const transitionName = String(parsedTransitions[i] || "").trim();
+          const normalizedTransition = normalizeColorLookupKey(transitionName);
+          if (!transitionName || !normalizedTransition || seenTransitions.has(normalizedTransition)) {
+            continue;
+          }
+          seenTransitions.add(normalizedTransition);
+          transitions.push(transitionName);
+        }
+        skipWhitespaceAndSemicolons(parser);
+        if (peek(parser) === ",") {
+          consume(parser);
+        }
         continue;
       }
-
-      const value = readColonOrBlockValue(parser, "q-style", keywordAliases);
+      let value = "";
+      if (peek(parser) === ":") {
+        consume(parser);
+        value = parseQColorValueToken(parser, keywordAliases);
+      } else if (peek(parser) === "{") {
+        consume(parser);
+        value = String(readBalancedBlockContent(parser) || "").trim();
+      } else {
+        throw ParseError("Expected ':' or '{...}' inside q-style", parser.index);
+      }
       if (value) {
         out[propertyName] = value;
       }
-      skipEntrySeparator();
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+      }
     }
     return {
       declarations: out,

@@ -32,6 +32,8 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - typed named instance invocation syntax:
       - `my-component myInstance { ... }`
       - parsed as component invocation with instance alias metadata (`meta.__qhtmlInstanceAlias`)
+      - selector fragments on the instance token are split from the alias:
+        - `my-component myInstance#domId.classA { ... }` exposes named reference `myInstance` and applies `id="domId"` / class fragments to the rendered instance element
       - valid for known instantiable definitions in the current parse registry (`q-component`, `q-template`, `q-signal`, `q-worker`)
       - keyword-backed typed canvas invocation is also supported:
         - `q-canvas myCanvas { ... }`
@@ -61,6 +63,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - emitted as `doc.meta.sdmlComponents = [{ componentId, path }]`
     - scoped keyword alias parsing via `q-keyword name { replacement-head }`
     - per-node alias metadata as `node.keywords`
+    - named `q-theme` / `q-color` invocation bodies inherit the parent conversion context for runtime declarations; nested `q-timer` declarations are promoted into `doc.meta.qTimers` so their named handles are available to sibling event handlers and lifecycle scripts
     - signal declaration + invocation parsing:
       - `q-signal name { slot { slot1 } ... }`
       - `name { slot1 { ... } ... }`

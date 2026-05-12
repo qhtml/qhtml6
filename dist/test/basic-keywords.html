@@ -1659,6 +1659,118 @@ onReady {
 }
 </q-html>
       </article>
+      <article class="test-card" id="card-114">
+        <div class="test-head">
+          <h2>114. q-theme child q-timer handle resolves in sibling event handler</h2>
+          <span id="badge-114" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> theme-timer-click-114 | timer-timeout-114</div>
+<q-html id="host-t114" data-test-no="114">
+q-style t114Style {
+  border: 1px solid #b7d8f5
+}
+
+q-theme t114Theme {
+  #t114-click { t114Style }
+}
+
+t114Theme {
+  q-timer themeTimer114 {
+    interval: 10
+    repeat: false
+    running: false
+    ontimeout {
+      document.querySelector("#t114-timeout").textContent = "timer-timeout-114";
+    }
+  }
+
+  div#t114-click { text { waiting-click } }
+  div#t114-timeout { text { waiting-timeout } }
+  button#t114-btn {
+    onclick {
+      themeTimer114.start();
+      document.querySelector("#t114-click").textContent = "theme-timer-click-114";
+    }
+    text { start nested theme timer }
+  }
+}
+
+onReady {
+  var host = this;
+  var btn = host.querySelector("#t114-btn");
+  if (btn) {
+    btn.click();
+  }
+  setTimeout(function() {
+    var acc = document.querySelector("#acc-main");
+    if (acc && typeof acc.resultReported === "function") {
+      acc.resultReported(114, host.innerHTML);
+    }
+  }, 60);
+}
+</q-html>
+      </article>
+      <article class="test-card" id="card-115">
+        <div class="test-head">
+          <h2>115. q-theme transparent named-instance context with id shorthand</h2>
+          <span id="badge-115" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> theme-context-115 qwerty qwerty | id-ok-115</div>
+<q-html id="host-t115" data-test-no="115">
+q-style style115 {
+  color: #000000
+}
+
+q-theme theme115 {
+  #something115 { style115 }
+}
+
+q-component themeContextComp115 {
+  q-property blah: "asdf"
+  slot { someslot }
+}
+
+div {
+  theme115 {
+    themeContextComp115 somecomp115#something115 {
+      blah: "qwerty"
+      someslot { text { hello world } }
+    }
+  }
+
+  themeContextComp115 othercomp115 {
+    blah: somecomp115.blah
+    someslot {
+      button#t115-btn {
+        onclick {
+          document.querySelector("#t115-result").textContent = "theme-context-115 " + somecomp115.blah + " " + this.component.blah;
+        }
+        text { click here }
+      }
+    }
+  }
+}
+
+div#t115-result { text { waiting } }
+div#t115-id { text { waiting } }
+
+onReady {
+  var host = this;
+  var btn = host.querySelector("#t115-btn");
+  if (btn) {
+    btn.click();
+  }
+  var idNode = host.querySelector("#t115-id");
+  if (idNode) {
+    idNode.textContent = host.querySelector("#something115") ? "id-ok-115" : "id-missing-115";
+  }
+  var acc = document.querySelector("#acc-main");
+  if (acc && typeof acc.resultReported === "function") {
+    acc.resultReported(115, host.innerHTML);
+  }
+}
+</q-html>
+      </article>
     </section>
   </div>
 </body>
