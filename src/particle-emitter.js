@@ -45,6 +45,8 @@
     "color",
     "src",
     "mask",
+    "emitter-mask",
+    "emittermask",
     "seed",
     "zindex",
   ];
@@ -62,8 +64,10 @@
       this._particles = [];
       this._rng = new SeededRandom(0xc0ffee);
       this._sprite = new ParticleSprite();
+      this._emitterMask = new ParticleEmitterMask();
       this._createdTotal = 0;
       this._emitCarry = 0;
+      this._burstQueue = [];
       this._lastTime = 0;
       this._rafId = 0;
       this._activeLimit = 0;
@@ -90,6 +94,7 @@
         mask: this._config.mask,
         color: this._config.color,
       });
+      this._emitterMask.configure(this._config.emitterMask);
       this._startLoop();
     }
 
@@ -117,6 +122,7 @@
         mask: this._config.mask,
         color: this._config.color,
       });
+      this._emitterMask.configure(this._config.emitterMask);
 
       if (!oldRunning && this._config.running) {
         this._lastTime = performance.now();
@@ -143,9 +149,28 @@
 
     clear() {
       this._particles.length = 0;
+      this._burstQueue.length = 0;
       this._createdTotal = 0;
       this._emitCarry = 0;
       this._render();
+    }
+
+    burst(num, x, y) {
+      const count = Math.max(0, Math.floor(Number(num)));
+
+      if (!count) {
+        return 0;
+      }
+
+      const burst = {
+        remaining: count,
+        carry: 0,
+        x: readFiniteNumber(x, this._config ? this._config.x : 0),
+        y: readFiniteNumber(y, this._config ? this._config.y : 0),
+      };
+
+      this._burstQueue.push(burst);
+      return count;
     }
 
     _installCanvas() {
@@ -267,6 +292,8 @@
         this._emit(elapsedMs);
       }
 
+      this._processBursts(elapsedMs);
+
       for (const particle of this._particles) {
         particle.update(elapsedMs, tickScale);
       }
@@ -274,15 +301,33 @@
       this._particles = this._particles.filter((particle) => particle.alive);
     }
 
-    _emit(elapsedMs) {
+    _canCreateParticle() {
       const cfg = this._config;
 
       if (cfg.totalParticleLimit > 0 && this._createdTotal >= cfg.totalParticleLimit) {
-        this.setAttribute("running", "false");
-        return;
+        if (cfg.running) {
+          this.setAttribute("running", "false");
+        }
+        return false;
       }
 
-      if (this._particles.length >= this._activeLimit) {
+      return this._particles.length < this._activeLimit;
+    }
+
+    _createParticle(origin) {
+      if (!this._canCreateParticle()) {
+        return false;
+      }
+
+      this._particles.push(ParticleFactory.create(this._config, this._rng, origin));
+      this._createdTotal += 1;
+      return true;
+    }
+
+    _emit(elapsedMs) {
+      const cfg = this._config;
+
+      if (!this._canCreateParticle()) {
         return;
       }
 
@@ -293,15 +338,59 @@
           break;
         }
 
-        if (cfg.totalParticleLimit > 0 && this._createdTotal >= cfg.totalParticleLimit) {
-          this.setAttribute("running", "false");
+        if (!this._canCreateParticle()) {
           break;
         }
 
         this._emitCarry -= 1;
-        this._particles.push(ParticleFactory.create(cfg, this._rng));
-        this._createdTotal += 1;
+        this._createParticle(null);
       }
+    }
+
+    _processBursts(elapsedMs) {
+      if (!Array.isArray(this._burstQueue) || this._burstQueue.length <= 0) {
+        return;
+      }
+
+      const cfg = this._config;
+      const rate = Math.max(1, Number(cfg.emitRate) || 0);
+
+      for (let i = 0; i < this._burstQueue.length; i += 1) {
+        const burst = this._burstQueue[i];
+
+        if (!burst || burst.remaining <= 0) {
+          continue;
+        }
+
+        burst.carry += rate * (elapsedMs / 1000);
+
+        while (burst.remaining > 0 && burst.carry >= 1) {
+          if (!this._createParticle({ x: burst.x, y: burst.y })) {
+            break;
+          }
+
+          burst.carry -= 1;
+          burst.remaining -= 1;
+        }
+      }
+
+      this._burstQueue = this._burstQueue.filter((burst) => burst && burst.remaining > 0);
+    }
+
+    _burstImmediate(count, x, y) {
+      const total = Math.max(0, Math.floor(Number(count)));
+      let created = 0;
+      const origin = {
+        x: readFiniteNumber(x, this._config ? this._config.x : 0),
+        y: readFiniteNumber(y, this._config ? this._config.y : 0),
+      };
+
+      while (created < total && this._createParticle(origin)) {
+        created += 1;
+      }
+
+      this._render();
+      return created;
     }
 
     _render() {
@@ -312,7 +401,7 @@
       ctx.clearRect(0, 0, width, height);
 
       for (const particle of this._particles) {
-        ParticleRenderer.draw(ctx, particle, this._sprite);
+        ParticleRenderer.draw(ctx, particle, this._sprite, this._emitterMask, width, height);
       }
     }
   }
@@ -354,6 +443,7 @@
         color: text("color", ""),
         src: text("src", ""),
         mask: text("mask", ""),
+        emitterMask: text("emitterMask", ""),
         seed: Math.floor(number("seed", 0xc0ffee)),
         zIndex: Math.floor(number("zIndex", 1)),
       };
@@ -361,12 +451,15 @@
   }
 
   class ParticleFactory {
-    static create(cfg, rng) {
+    static create(cfg, rng, origin) {
       const lifetime = vary(cfg.lifetime, cfg.lifetimeVariation, rng);
+      const hasOrigin = origin && typeof origin === "object";
+      const originX = hasOrigin && Number.isFinite(Number(origin.x)) ? Number(origin.x) : cfg.x;
+      const originY = hasOrigin && Number.isFinite(Number(origin.y)) ? Number(origin.y) : cfg.y;
 
       return new Particle({
-        x: vary(cfg.x, cfg.xVariation, rng),
-        y: vary(cfg.y, cfg.yVariation, rng),
+        x: vary(originX, cfg.xVariation, rng),
+        y: vary(originY, cfg.yVariation, rng),
         vx: vary(cfg.xVelocity, cfg.xVelocityVariation, rng),
         vy: vary(cfg.yVelocity, cfg.yVelocityVariation, rng),
         ax: vary(cfg.xAcceleration, cfg.xAccelerationVariation, rng),
@@ -415,10 +508,14 @@
   }
 
   class ParticleRenderer {
-    static draw(ctx, particle, sprite) {
+    static draw(ctx, particle, sprite, emitterMask, emitterWidth, emitterHeight) {
       const size = particle.size;
 
       if (size <= 0) {
+        return;
+      }
+
+      if (emitterMask && !emitterMask.allows(particle.x, particle.y, emitterWidth, emitterHeight)) {
         return;
       }
 
@@ -437,6 +534,100 @@
       }
 
       ctx.restore();
+    }
+  }
+
+  class ParticleEmitterMask {
+    constructor() {
+      this.src = "";
+      this.image = null;
+      this.canvas = document.createElement("canvas");
+      this.ctx = this.canvas.getContext("2d", { alpha: true, willReadFrequently: true });
+      this.imageData = null;
+      this.ready = false;
+      this.failed = false;
+    }
+
+    configure(src) {
+      const nextSrc = src || "";
+
+      if (nextSrc === this.src) {
+        return;
+      }
+
+      this.src = nextSrc;
+      this.image = null;
+      this.imageData = null;
+      this.ready = false;
+      this.failed = false;
+
+      if (!this.src) {
+        return;
+      }
+
+      const requestedSrc = this.src;
+
+      loadImage(requestedSrc)
+        .then((image) => {
+          if (requestedSrc === this.src) {
+            this._compose(image);
+          }
+        })
+        .catch(() => {
+          if (requestedSrc === this.src) {
+            this.failed = true;
+          }
+        });
+    }
+
+    allows(x, y, width, height) {
+      if (!this.src) {
+        return true;
+      }
+
+      if (this.failed) {
+        return true;
+      }
+
+      if (!this.ready || !this.imageData || width <= 0 || height <= 0) {
+        return false;
+      }
+
+      if (x < 0 || y < 0 || x > width || y > height) {
+        return false;
+      }
+
+      const sampleX = Math.max(
+        0,
+        Math.min(this.canvas.width - 1, Math.floor((x / width) * this.canvas.width))
+      );
+      const sampleY = Math.max(
+        0,
+        Math.min(this.canvas.height - 1, Math.floor((y / height) * this.canvas.height))
+      );
+      const alphaIndex = ((sampleY * this.canvas.width) + sampleX) * 4 + 3;
+
+      return this.imageData.data[alphaIndex] > 0;
+    }
+
+    _compose(image) {
+      const width = Math.max(1, image.naturalWidth || image.width || 1);
+      const height = Math.max(1, image.naturalHeight || image.height || 1);
+
+      this.image = image;
+      this.canvas.width = width;
+      this.canvas.height = height;
+      this.ctx.clearRect(0, 0, width, height);
+      this.ctx.drawImage(image, 0, 0, width, height);
+
+      try {
+        this.imageData = this.ctx.getImageData(0, 0, width, height);
+        this.ready = true;
+      } catch (error) {
+        this.imageData = null;
+        this.ready = false;
+        this.failed = true;
+      }
     }
   }
 
@@ -574,6 +765,11 @@
     return Number.isFinite(value) ? value : fallback;
   }
 
+  function readFiniteNumber(value, fallback) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
   function readBool(el, name, fallback) {
     const raw = readAttr(el, name);
 
@@ -642,11 +838,22 @@
         if (Array.isArray(this._particles)) {
           this._particles.length = 0;
         }
+        if (Array.isArray(this._burstQueue)) {
+          this._burstQueue.length = 0;
+        }
         this._createdTotal = 0;
         this._emitCarry = 0;
         if (typeof this._render === "function") {
           this._render();
         }
+      };
+    }
+    if (typeof proto.burst !== "function") {
+      proto.burst = function burstParticleEmitter(num, x, y) {
+        if (typeof this._burstImmediate === "function") {
+          return this._burstImmediate(num, x, y);
+        }
+        return 0;
       };
     }
   }

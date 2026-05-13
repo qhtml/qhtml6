@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.8.0
+# QHTML.js v6.8.1
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,12 +12,13 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v6.8.0
+## Whats New in v6.8.1
 
 - Added `q-var name { ... }` for scoped runtime variables that evaluate JavaScript expressions during render.
 - `q-var` values are available to inline expressions, property assignments, event handlers, component functions, descendant components, and dot-walked component references.
 - `q-var` handles expose `.value`, `.get()`, `.set(value)`, and a QSignal-compatible `.changed` signal.
 - Added `qhtml(varName) { ... }` continuation rendering so a variable can provide a partial QHTML fragment head and the block can provide the rest.
+- Added `q-switch name { ... }` / `switch name { ... }` for named primitive lookup functions usable from JavaScript handlers, interpolation, and `qhtml(...)`.
 
 ## 1. Quick Start
 
@@ -617,6 +618,40 @@ qhtml(cardHead) {
 }
 ```
 
+### `q-switch` / `switch` (named lookup function)
+
+`q-switch` declares a named runtime function that maps primitive keys to JavaScript expression results. The shorthand `switch` parses the same way.
+
+```qhtml
+q-switch labelFor {
+  15: { "hello world" }
+  "test": { 32 }
+  false: { "false is preserved" }
+  *: { "fallback" }
+}
+
+div { text { ${labelFor(15)} } }
+button {
+  text { run switch }
+  onclick {
+    console.log(labelFor("test"));
+  }
+}
+```
+
+Switch functions are normal in-scope named values, so component code and event handlers can call them directly. Falsey case results such as `0`, `false`, and `""` are returned as real matches; the `*` case is used only when no key matches.
+
+`q-switch` can also feed dynamic QHTML:
+
+```qhtml
+q-switch bodyFor {
+  "card": { "div.card { text { hello world } }" }
+  *: { "" }
+}
+
+qhtml(bodyFor("card"))
+```
+
 ### `q-canvas` (keyword-level canvas)
 
 `q-canvas` declares a named canvas element and exports that handle by name:
@@ -646,7 +681,7 @@ Notes:
 
 ### `particle-emitter` / `q-particle-emitter` (canvas-backed particle effects)
 
-`particle-emitter` is a native custom element registered by `qhtml.js`. `q-particle-emitter` is an alias for the same emitter system. It is not a `q-component` and does not require `q-components.qhtml`. Place it inside any positioned container, configure it with attributes, and control it with the boolean `running` property or the `start()`, `stop()`, and `clear()` methods.
+`particle-emitter` is a native custom element registered by `qhtml.js`. `q-particle-emitter` is an alias for the same emitter system. It is not a `q-component` and does not require `q-components.qhtml`. Place it inside any positioned container, configure it with attributes, and control it with the boolean `running` property or the `start()`, `stop()`, `clear()`, and `burst(num, x, y)` methods.
 
 ```qhtml
 div#energy-field {
@@ -680,11 +715,13 @@ div#energy-field {
     running: "false"
     interval: "18"
     src: "/dist/assets/particle.png"
+    emitterMask: "/dist/assets/particle-mask-star.svg"
   }
 }
 
 button { text { Start } onclick { document.querySelector("#energy-emitter").running = true; } }
 button { text { Stop } onclick { document.querySelector("#energy-emitter").running = false; } }
+button { text { Burst } onclick { document.querySelector("#energy-emitter").burst(24, 210, 120); } }
 ```
 
 Useful attributes:
@@ -697,6 +734,12 @@ Useful attributes:
 - `maxActiveParticles`: maximum simultaneous particles.
 - `maxParticles` or `stopAfter`: optional total particle limit before auto-stopping.
 - `src`, `mask`, `color`: sprite source, optional per-particle alpha mask, and fallback/tint color. Changing `mask` at runtime reloads and recomposes the particle sprite.
+- `emitterMask` / `emitter-mask`: optional emitter-area alpha mask. Particles whose centers fall outside non-transparent mask pixels are skipped during rendering.
+
+Useful methods:
+- `start()` / `stop()`: toggles continuous emission.
+- `clear()`: removes current particles and pending bursts.
+- `burst(num, x, y)`: queues `num` particles emitted at the current `emitRate` from the supplied origin. The emitter's configured `x` / `y` attributes are not changed.
 
 See `doc/11-particle-emitter/` for the full attribute reference.
 

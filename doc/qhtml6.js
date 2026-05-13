@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-08T23:19:26Z */
+/* generated: 2026-05-13T06:05:34Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -200,6 +200,7 @@
       this.callbackDeclarations = Array.isArray(opts.callbackDeclarations) ? opts.callbackDeclarations : [];
       this.aliasDeclarations = Array.isArray(opts.aliasDeclarations) ? opts.aliasDeclarations : [];
       this.varDeclarations = Array.isArray(opts.varDeclarations) ? opts.varDeclarations : [];
+      this.switchDeclarations = Array.isArray(opts.switchDeclarations) ? opts.switchDeclarations : [];
       this.qTimerDefinitions = Array.isArray(opts.qTimerDefinitions) ? opts.qTimerDefinitions : [];
       this.wasmConfig =
         opts.wasmConfig && typeof opts.wasmConfig === "object" && !Array.isArray(opts.wasmConfig)
@@ -966,6 +967,8 @@
         signalDeclarations: reviveQDomTree(Array.isArray(value.signalDeclarations) ? value.signalDeclarations : []),
         callbackDeclarations: reviveQDomTree(Array.isArray(value.callbackDeclarations) ? value.callbackDeclarations : []),
         aliasDeclarations: reviveQDomTree(Array.isArray(value.aliasDeclarations) ? value.aliasDeclarations : []),
+        varDeclarations: reviveQDomTree(Array.isArray(value.varDeclarations) ? value.varDeclarations : []),
+        switchDeclarations: reviveQDomTree(Array.isArray(value.switchDeclarations) ? value.switchDeclarations : []),
         qTimerDefinitions: reviveQDomTree(Array.isArray(value.qTimerDefinitions) ? value.qTimerDefinitions : []),
         wasmConfig: reviveQDomTree(
           value.wasmConfig && typeof value.wasmConfig === "object" && !Array.isArray(value.wasmConfig)
@@ -1424,6 +1427,8 @@
     "q-script",
     "q-bind",
     "q-var",
+    "q-switch",
+    "switch",
     "q-property",
     "q-signal",
     "q-callback",
@@ -4114,6 +4119,31 @@
           });
           continue;
         }
+        if (isQSwitchKeyword(nameLower) && nextChar !== "{" && nextChar !== ",") {
+          const switchName = parseIdentifier(parser);
+          const normalizedSwitchName = String(switchName || "").trim();
+          if (!normalizedSwitchName) {
+            throw ParseError("Expected switch name after " + nameLower, parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after " + nameLower + " name", parser.index);
+          }
+          consume(parser);
+          const switchBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "QSwitchDeclaration",
+            keyword: nameLower,
+            name: normalizedSwitchName,
+            cases: parseQSwitchDefinitionBody(String(switchBody || "")),
+            body: String(switchBody || ""),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (nameLower === "q-array" && nextChar !== "{" && nextChar !== ",") {
           const arrayName = parseIdentifier(parser);
           skipWhitespace(parser);
@@ -5239,6 +5269,31 @@
             type: "QVarDeclaration",
             name: normalizedVarName,
             body: String(varBody || ""),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+        if (isQSwitchKeyword(firstLower) && peek(parser) !== "{" && peek(parser) !== ",") {
+          const switchName = parseIdentifier(parser);
+          const normalizedSwitchName = String(switchName || "").trim();
+          if (!normalizedSwitchName) {
+            throw ParseError("Expected switch name after " + firstLower, parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after " + firstLower + " name", parser.index);
+          }
+          consume(parser);
+          const switchBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QSwitchDeclaration",
+            keyword: firstLower,
+            name: normalizedSwitchName,
+            cases: parseQSwitchDefinitionBody(String(switchBody || "")),
+            body: String(switchBody || ""),
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -8665,6 +8720,93 @@
       .replace(/\r/g, "\n")
       .replace(/\n+/g, "\n")
       .trim();
+  }
+
+  function isQSwitchKeyword(name) {
+    const normalized = String(name || "").trim().toLowerCase();
+    return normalized === "q-switch" || normalized === "switch";
+  }
+
+  function readQSwitchCaseKeySource(parser) {
+    let out = "";
+    let quote = "";
+    let escaped = false;
+
+    while (!eof(parser)) {
+      const ch = peek(parser);
+
+      if (quote) {
+        out += consume(parser);
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+
+      if (ch === "\"" || ch === "'" || ch === "`") {
+        quote = ch;
+        out += consume(parser);
+        continue;
+      }
+
+      if (ch === ":") {
+        break;
+      }
+
+      out += consume(parser);
+    }
+
+    return out.trim();
+  }
+
+  function parseQSwitchDefinitionBody(rawBody) {
+    const parser = parserFor(rawBody);
+    const cases = [];
+
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+
+      const caseStart = parser.index;
+      let keySource = "";
+      if (peek(parser) === "*") {
+        keySource = consume(parser);
+      } else {
+        keySource = readQSwitchCaseKeySource(parser);
+      }
+
+      if (!String(keySource || "").trim()) {
+        throw ParseError("q-switch case requires a key", caseStart);
+      }
+
+      skipWhitespace(parser);
+      if (peek(parser) !== ":") {
+        throw ParseError("Expected ':' after q-switch case key", parser.index);
+      }
+      consume(parser);
+      skipWhitespace(parser);
+      if (peek(parser) !== "{") {
+        throw ParseError("Expected '{' after q-switch case ':'", parser.index);
+      }
+      consume(parser);
+      const caseBody = readBalancedBlockContent(parser);
+      cases.push({
+        keySource: String(keySource || "").trim(),
+        body: compactScriptBody(caseBody || ""),
+      });
+    }
+
+    return cases;
   }
 
   function unescapeSimpleQuotedBody(value) {
@@ -12898,6 +13040,7 @@
     const callbackDeclarations = [];
     const aliasDeclarations = [];
     const varDeclarations = [];
+    const switchDeclarations = [];
     let componentLoggerCategories = null;
     let wasmConfig = null;
     const lifecycleScripts = [];
@@ -13118,6 +13261,24 @@
             varDeclarations.push({
               name: varName,
               body: String(item.body || ""),
+              uuid: declarationMeta.uuid,
+              meta: declarationMeta,
+            });
+          }
+        }
+        continue;
+      }
+      if (item.type === "QSwitchDeclaration") {
+        if (supportsRuntimeDefinition) {
+          const switchName = String(item.name || "").trim();
+          if (switchName) {
+            const declarationMeta = createDeclarationMeta({
+              declarationKind: "q-switch",
+              declarationName: switchName,
+            });
+            switchDeclarations.push({
+              name: switchName,
+              cases: Array.isArray(item.cases) ? item.cases.slice() : [],
               uuid: declarationMeta.uuid,
               meta: declarationMeta,
             });
@@ -13373,6 +13534,7 @@
       callbackDeclarations: callbackDeclarations,
       aliasDeclarations: aliasDeclarations,
       qTimerDefinitions: qTimerDefinitions,
+      switchDeclarations: switchDeclarations,
       wasmConfig: wasmConfig,
       lifecycleScripts: lifecycleScripts,
       attributes: componentAttributes,
@@ -13902,6 +14064,32 @@
       };
       applyKeywordAliasesToNode(varNode, item.keywords);
       return varNode;
+    }
+
+    if (item.type === "QSwitchDeclaration") {
+      const switchName = String(item.name || "").trim();
+      if (!switchName) {
+        return null;
+      }
+      const declarationMeta = createDeclarationMeta({
+        declarationKind: "q-switch",
+        declarationName: switchName,
+      });
+      const switchNode = {
+        kind: "q-switch",
+        name: switchName,
+        cases: Array.isArray(item.cases) ? item.cases.slice() : [],
+        uuid: declarationMeta.uuid,
+        meta: Object.assign({}, declarationMeta, {
+          originalSource: item.raw,
+          sourceRange:
+            typeof item.start === "number" && typeof item.end === "number"
+              ? [item.start, item.end]
+              : null,
+        }),
+      };
+      applyKeywordAliasesToNode(switchNode, item.keywords);
+      return switchNode;
     }
 
     if (item.type === "QHtmlDynamicFragmentInvocation") {
@@ -14497,6 +14685,37 @@
     return lines.join("\n");
   }
 
+  function serializeQSwitchDeclarationBlock(switchDecl, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    if (!switchDecl || typeof switchDecl !== "object") {
+      return "";
+    }
+    const name = String(switchDecl.name || "").trim();
+    if (!name) {
+      return "";
+    }
+    const lines = [indent + "q-switch " + name + " {"];
+    const cases = Array.isArray(switchDecl.cases) ? switchDecl.cases : [];
+    for (let i = 0; i < cases.length; i += 1) {
+      const entry = cases[i] || {};
+      const keySource = String(entry.keySource || "").trim();
+      if (!keySource) {
+        continue;
+      }
+      const body = String(entry.body || "");
+      lines.push(indent + "  " + keySource + ": {");
+      if (body) {
+        const chunks = body.split("\n");
+        for (let j = 0; j < chunks.length; j += 1) {
+          lines.push(indent + "    " + chunks[j]);
+        }
+      }
+      lines.push(indent + "  }");
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
   function serializeWasmConfigBlock(wasmConfig, indentLevel) {
     const config =
       wasmConfig && typeof wasmConfig === "object" && !Array.isArray(wasmConfig)
@@ -14872,6 +15091,10 @@
       return serializeQVarDeclarationBlock(node, indentLevel);
     }
 
+    if (String(node.kind || "").trim().toLowerCase() === "q-switch") {
+      return serializeQSwitchDeclarationBlock(node, indentLevel);
+    }
+
     if (String(node.kind || "").trim().toLowerCase() === "qhtml-fragment") {
       const expression = String(node.expression || "").trim();
       const lines = [indent + "qhtml(" + expression + ") {"];
@@ -14941,6 +15164,14 @@
             const serializedVarDeclaration = serializeQVarDeclarationBlock(node.varDeclarations[i], indentLevel + 1);
             if (serializedVarDeclaration) {
               lines.push(serializedVarDeclaration);
+            }
+          }
+        }
+        if (Array.isArray(node.switchDeclarations)) {
+          for (let i = 0; i < node.switchDeclarations.length; i += 1) {
+            const serializedSwitchDeclaration = serializeQSwitchDeclarationBlock(node.switchDeclarations[i], indentLevel + 1);
+            if (serializedSwitchDeclaration) {
+              lines.push(serializedSwitchDeclaration);
             }
           }
         }
@@ -15344,6 +15575,7 @@
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
   const Q_CALLBACK_NODE_KIND = "callback";
   const Q_VAR_NODE_KIND = "q-var";
+  const Q_SWITCH_NODE_KIND = "q-switch";
   const QHTML_QVAR_HANDLE_FLAG = "__qhtmlVarHandle";
   const QHTML_FRAGMENT_MARKER = "__qhtmlFragment";
   const QHTML_NAMED_CALLBACKS_KEY = "__qhtmlNamedCallbacks";
@@ -17540,6 +17772,7 @@
       callbackDeclarations: [],
       aliasDeclarations: [],
       varDeclarations: [],
+      switchDeclarations: [],
       wasmConfig: null,
       lifecycleScripts: [],
       attributes: {},
@@ -17554,6 +17787,7 @@
     const callbackIndex = new Map();
     const aliasIndex = new Map();
     const varIndex = new Map();
+    const switchIndex = new Map();
     const lifecycleIndex = new Map();
     let mergedRepeaterConfig = null;
     let mergedCanvasSemantics = false;
@@ -17610,6 +17844,7 @@
       mergeNamedEntries(merged.callbackDeclarations, node.callbackDeclarations, callbackIndex);
       mergeNamedEntries(merged.aliasDeclarations, node.aliasDeclarations, aliasIndex);
       mergeNamedEntries(merged.varDeclarations, node.varDeclarations, varIndex);
+      mergeNamedEntries(merged.switchDeclarations, node.switchDeclarations, switchIndex);
 
       if (Array.isArray(node.lifecycleScripts) && node.lifecycleScripts.length > 0) {
         for (let li = 0; li < node.lifecycleScripts.length; li += 1) {
@@ -24981,6 +25216,189 @@
     return true;
   }
 
+  function normalizeQSwitchLookupKey(value) {
+    return String(value);
+  }
+
+  function fallbackQSwitchKeySourceValue(keySource) {
+    const raw = String(keySource || "").trim();
+    if (
+      (raw.length >= 2 && raw.charAt(0) === "\"" && raw.charAt(raw.length - 1) === "\"") ||
+      (raw.length >= 2 && raw.charAt(0) === "'" && raw.charAt(raw.length - 1) === "'") ||
+      (raw.length >= 2 && raw.charAt(0) === "`" && raw.charAt(raw.length - 1) === "`")
+    ) {
+      return raw.slice(1, -1);
+    }
+    return raw;
+  }
+
+  function resolveQSwitchInvocationHost(ownerHost) {
+    const runtimeApi = global.QHtml && typeof global.QHtml === "object" ? global.QHtml : null;
+    if (runtimeApi && typeof runtimeApi.getCurrentExecutionHost === "function") {
+      try {
+        const currentHost = runtimeApi.getCurrentExecutionHost();
+        if (currentHost && currentHost.nodeType === 1) {
+          return currentHost;
+        }
+      } catch (error) {
+        // fall back to declaration owner below
+      }
+    }
+    return ownerHost && ownerHost.nodeType === 1 ? ownerHost : null;
+  }
+
+  function buildQSwitchEvaluationScope(context, thisArg, extraScope) {
+    const scope = buildInterpolationScope(context, thisArg);
+    const extra = extraScope && typeof extraScope === "object" ? extraScope : null;
+    if (extra) {
+      const keys = Object.keys(extra);
+      for (let i = 0; i < keys.length; i += 1) {
+        scope[keys[i]] = extra[keys[i]];
+      }
+    }
+    return scope;
+  }
+
+  function evaluateQSwitchSource(source, ownerHost, context, extraScope, errorLabel) {
+    const body = String(source || "").trim();
+    if (!body) {
+      return undefined;
+    }
+    const thisArg = resolveQSwitchInvocationHost(ownerHost);
+    const scope = buildQSwitchEvaluationScope(context, thisArg, extraScope);
+    const scopeNames = Object.keys(scope).filter(function filterQSwitchScopeParam(name) {
+      return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(String(name || ""));
+    });
+    const scopeValues = scopeNames.map(function mapQSwitchScopeParam(name) {
+      return scope[name];
+    });
+    ensureScopedSelectorShortcut(thisArg || {}, null);
+    try {
+      const expressionExecutor = new Function(scopeNames.join(","), "return (" + body + ");");
+      return expressionExecutor.apply(thisArg, scopeValues);
+    } catch (expressionError) {
+      try {
+        const bodyExecutor = new Function(scopeNames.join(","), body);
+        return bodyExecutor.apply(thisArg, scopeValues);
+      } catch (bodyError) {
+        try {
+          const scopedExpressionExecutor = new Function(withScopedSelectorPrelude("return (" + body + ");"));
+          return scopedExpressionExecutor.call(thisArg);
+        } catch (scopedExpressionError) {
+          try {
+            const scopedBodyExecutor = new Function(withScopedSelectorPrelude(body));
+            return scopedBodyExecutor.call(thisArg);
+          } catch (scopedBodyError) {
+            if (global.console && typeof global.console.error === "function") {
+              global.console.error(errorLabel || "qhtml q-switch evaluation failed:", scopedBodyError);
+            }
+            return undefined;
+          }
+        }
+      }
+    }
+  }
+
+  function createQSwitchFunction(node, ownerHost, context) {
+    const cases = Array.isArray(node && node.cases) ? node.cases : [];
+    const caseMap = new Map();
+    let defaultCase = null;
+
+    for (let i = 0; i < cases.length; i += 1) {
+      const entry = cases[i] || {};
+      const keySource = String(entry.keySource || "").trim();
+      if (!keySource) {
+        continue;
+      }
+      if (keySource === "*") {
+        defaultCase = entry;
+        continue;
+      }
+      let keyValue;
+      try {
+        keyValue = evaluateQSwitchSource(keySource, ownerHost, context, null, "qhtml q-switch key evaluation failed:");
+      } catch (error) {
+        keyValue = fallbackQSwitchKeySourceValue(keySource);
+      }
+      if (typeof keyValue === "undefined") {
+        keyValue = fallbackQSwitchKeySourceValue(keySource);
+      }
+      caseMap.set(normalizeQSwitchLookupKey(keyValue), entry);
+    }
+
+    return function qSwitchRuntimeResolver(value) {
+      const lookupKey = normalizeQSwitchLookupKey(value);
+      const entry = caseMap.has(lookupKey) ? caseMap.get(lookupKey) : defaultCase;
+      if (!entry) {
+        return undefined;
+      }
+      return evaluateQSwitchSource(
+        entry.body,
+        ownerHost,
+        context,
+        {
+          value: value,
+          val: value,
+          switchValue: value,
+        },
+        "qhtml q-switch case evaluation failed:"
+      );
+    };
+  }
+
+  function registerQSwitchFunctionInContext(name, fn, ownerHost, context) {
+    const key = String(name || "").trim();
+    if (!key || typeof fn !== "function") {
+      return;
+    }
+    ensureContextFrames(context);
+    const aliasStack = ensureInstanceAliasScopeStack(context);
+    const activeFrame =
+      aliasStack.length > 0
+        ? aliasStack[aliasStack.length - 1]
+        : context[QCONTEXT_SCOPE_FRAME_KEY];
+    if (activeFrame && typeof activeFrame.set === "function") {
+      activeFrame.set(key, fn);
+    }
+    if (
+      context &&
+      context[QCONTEXT_RUNTIME_FRAME_KEY] &&
+      typeof context[QCONTEXT_RUNTIME_FRAME_KEY].set === "function"
+    ) {
+      context[QCONTEXT_RUNTIME_FRAME_KEY].set(key, fn);
+    }
+    if (context && context.inlineScope && typeof context.inlineScope === "object") {
+      context.inlineScope[key] = fn;
+    }
+    if (ownerHost && ownerHost.nodeType === 1) {
+      exportNamedAliasToHost(ownerHost, key, fn);
+    } else if (context && context.rootHostElement) {
+      exportNamedAliasToHost(context.rootHostElement, key, fn);
+      if (context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
+        context.namedRuntimeValues[key] = fn;
+      }
+    }
+  }
+
+  function registerQSwitchDeclarationNode(node, parent, targetDocument, context, ownerHostOverride) {
+    if (!node || String(node.kind || "").trim().toLowerCase() !== Q_SWITCH_NODE_KIND) {
+      return false;
+    }
+    const name = String(node.name || "").trim();
+    if (!name) {
+      return true;
+    }
+    const ownerHost =
+      ownerHostOverride && ownerHostOverride.nodeType === 1
+        ? ownerHostOverride
+        : parent && parent.nodeType === 1
+          ? parent.closest && parent.closest("[qhtml-component-instance='1']") || parent
+          : null;
+    const fn = createQSwitchFunction(node, ownerHost, context);
+    registerQSwitchFunctionInContext(name, fn, ownerHost, context);
+    return true;
+  }
+
   function renderDynamicQHtmlFragmentNode(node, parent, targetDocument, context) {
     const expression = String(node && node.expression || "").trim();
     if (!expression) {
@@ -25524,6 +25942,11 @@
 
       if (String(node.kind || "").trim().toLowerCase() === Q_VAR_NODE_KIND) {
         registerQVarDeclarationNode(node, parent, targetDocument, context);
+        return;
+      }
+
+      if (String(node.kind || "").trim().toLowerCase() === Q_SWITCH_NODE_KIND) {
+        registerQSwitchDeclarationNode(node, parent, targetDocument, context);
         return;
       }
 
@@ -26098,6 +26521,16 @@
       scopeFrame: componentScopeFrame,
       runtimeFrame: componentRuntimeFrame,
     });
+    const switchDeclarations = Array.isArray(componentNode.switchDeclarations) ? componentNode.switchDeclarations : [];
+    for (let si = 0; si < switchDeclarations.length; si += 1) {
+      registerQSwitchDeclarationNode(
+        Object.assign({ kind: Q_SWITCH_NODE_KIND }, switchDeclarations[si]),
+        hostElement,
+        targetDocument,
+        componentContext,
+        hostElement
+      );
+    }
     const varDeclarations = Array.isArray(componentNode.varDeclarations) ? componentNode.varDeclarations : [];
     for (let vi = 0; vi < varDeclarations.length; vi += 1) {
       registerQVarDeclarationNode(
@@ -26620,7 +27053,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.8.0";
+  const RUNTIME_VERSION = "6.8.1";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -45330,7 +45763,7 @@
   }
 
   const api = runtime;
-  api.version = "6.8.0";
+  api.version = "6.8.1";
   global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {
@@ -45406,6 +45839,8 @@
     "color",
     "src",
     "mask",
+    "emitter-mask",
+    "emittermask",
     "seed",
     "zindex",
   ];
@@ -45423,8 +45858,10 @@
       this._particles = [];
       this._rng = new SeededRandom(0xc0ffee);
       this._sprite = new ParticleSprite();
+      this._emitterMask = new ParticleEmitterMask();
       this._createdTotal = 0;
       this._emitCarry = 0;
+      this._burstQueue = [];
       this._lastTime = 0;
       this._rafId = 0;
       this._activeLimit = 0;
@@ -45451,6 +45888,7 @@
         mask: this._config.mask,
         color: this._config.color,
       });
+      this._emitterMask.configure(this._config.emitterMask);
       this._startLoop();
     }
 
@@ -45478,6 +45916,7 @@
         mask: this._config.mask,
         color: this._config.color,
       });
+      this._emitterMask.configure(this._config.emitterMask);
 
       if (!oldRunning && this._config.running) {
         this._lastTime = performance.now();
@@ -45504,9 +45943,28 @@
 
     clear() {
       this._particles.length = 0;
+      this._burstQueue.length = 0;
       this._createdTotal = 0;
       this._emitCarry = 0;
       this._render();
+    }
+
+    burst(num, x, y) {
+      const count = Math.max(0, Math.floor(Number(num)));
+
+      if (!count) {
+        return 0;
+      }
+
+      const burst = {
+        remaining: count,
+        carry: 0,
+        x: readFiniteNumber(x, this._config ? this._config.x : 0),
+        y: readFiniteNumber(y, this._config ? this._config.y : 0),
+      };
+
+      this._burstQueue.push(burst);
+      return count;
     }
 
     _installCanvas() {
@@ -45628,6 +46086,8 @@
         this._emit(elapsedMs);
       }
 
+      this._processBursts(elapsedMs);
+
       for (const particle of this._particles) {
         particle.update(elapsedMs, tickScale);
       }
@@ -45635,15 +46095,33 @@
       this._particles = this._particles.filter((particle) => particle.alive);
     }
 
-    _emit(elapsedMs) {
+    _canCreateParticle() {
       const cfg = this._config;
 
       if (cfg.totalParticleLimit > 0 && this._createdTotal >= cfg.totalParticleLimit) {
-        this.setAttribute("running", "false");
-        return;
+        if (cfg.running) {
+          this.setAttribute("running", "false");
+        }
+        return false;
       }
 
-      if (this._particles.length >= this._activeLimit) {
+      return this._particles.length < this._activeLimit;
+    }
+
+    _createParticle(origin) {
+      if (!this._canCreateParticle()) {
+        return false;
+      }
+
+      this._particles.push(ParticleFactory.create(this._config, this._rng, origin));
+      this._createdTotal += 1;
+      return true;
+    }
+
+    _emit(elapsedMs) {
+      const cfg = this._config;
+
+      if (!this._canCreateParticle()) {
         return;
       }
 
@@ -45654,15 +46132,59 @@
           break;
         }
 
-        if (cfg.totalParticleLimit > 0 && this._createdTotal >= cfg.totalParticleLimit) {
-          this.setAttribute("running", "false");
+        if (!this._canCreateParticle()) {
           break;
         }
 
         this._emitCarry -= 1;
-        this._particles.push(ParticleFactory.create(cfg, this._rng));
-        this._createdTotal += 1;
+        this._createParticle(null);
       }
+    }
+
+    _processBursts(elapsedMs) {
+      if (!Array.isArray(this._burstQueue) || this._burstQueue.length <= 0) {
+        return;
+      }
+
+      const cfg = this._config;
+      const rate = Math.max(1, Number(cfg.emitRate) || 0);
+
+      for (let i = 0; i < this._burstQueue.length; i += 1) {
+        const burst = this._burstQueue[i];
+
+        if (!burst || burst.remaining <= 0) {
+          continue;
+        }
+
+        burst.carry += rate * (elapsedMs / 1000);
+
+        while (burst.remaining > 0 && burst.carry >= 1) {
+          if (!this._createParticle({ x: burst.x, y: burst.y })) {
+            break;
+          }
+
+          burst.carry -= 1;
+          burst.remaining -= 1;
+        }
+      }
+
+      this._burstQueue = this._burstQueue.filter((burst) => burst && burst.remaining > 0);
+    }
+
+    _burstImmediate(count, x, y) {
+      const total = Math.max(0, Math.floor(Number(count)));
+      let created = 0;
+      const origin = {
+        x: readFiniteNumber(x, this._config ? this._config.x : 0),
+        y: readFiniteNumber(y, this._config ? this._config.y : 0),
+      };
+
+      while (created < total && this._createParticle(origin)) {
+        created += 1;
+      }
+
+      this._render();
+      return created;
     }
 
     _render() {
@@ -45673,7 +46195,7 @@
       ctx.clearRect(0, 0, width, height);
 
       for (const particle of this._particles) {
-        ParticleRenderer.draw(ctx, particle, this._sprite);
+        ParticleRenderer.draw(ctx, particle, this._sprite, this._emitterMask, width, height);
       }
     }
   }
@@ -45715,6 +46237,7 @@
         color: text("color", ""),
         src: text("src", ""),
         mask: text("mask", ""),
+        emitterMask: text("emitterMask", ""),
         seed: Math.floor(number("seed", 0xc0ffee)),
         zIndex: Math.floor(number("zIndex", 1)),
       };
@@ -45722,12 +46245,15 @@
   }
 
   class ParticleFactory {
-    static create(cfg, rng) {
+    static create(cfg, rng, origin) {
       const lifetime = vary(cfg.lifetime, cfg.lifetimeVariation, rng);
+      const hasOrigin = origin && typeof origin === "object";
+      const originX = hasOrigin && Number.isFinite(Number(origin.x)) ? Number(origin.x) : cfg.x;
+      const originY = hasOrigin && Number.isFinite(Number(origin.y)) ? Number(origin.y) : cfg.y;
 
       return new Particle({
-        x: vary(cfg.x, cfg.xVariation, rng),
-        y: vary(cfg.y, cfg.yVariation, rng),
+        x: vary(originX, cfg.xVariation, rng),
+        y: vary(originY, cfg.yVariation, rng),
         vx: vary(cfg.xVelocity, cfg.xVelocityVariation, rng),
         vy: vary(cfg.yVelocity, cfg.yVelocityVariation, rng),
         ax: vary(cfg.xAcceleration, cfg.xAccelerationVariation, rng),
@@ -45776,10 +46302,14 @@
   }
 
   class ParticleRenderer {
-    static draw(ctx, particle, sprite) {
+    static draw(ctx, particle, sprite, emitterMask, emitterWidth, emitterHeight) {
       const size = particle.size;
 
       if (size <= 0) {
+        return;
+      }
+
+      if (emitterMask && !emitterMask.allows(particle.x, particle.y, emitterWidth, emitterHeight)) {
         return;
       }
 
@@ -45798,6 +46328,100 @@
       }
 
       ctx.restore();
+    }
+  }
+
+  class ParticleEmitterMask {
+    constructor() {
+      this.src = "";
+      this.image = null;
+      this.canvas = document.createElement("canvas");
+      this.ctx = this.canvas.getContext("2d", { alpha: true, willReadFrequently: true });
+      this.imageData = null;
+      this.ready = false;
+      this.failed = false;
+    }
+
+    configure(src) {
+      const nextSrc = src || "";
+
+      if (nextSrc === this.src) {
+        return;
+      }
+
+      this.src = nextSrc;
+      this.image = null;
+      this.imageData = null;
+      this.ready = false;
+      this.failed = false;
+
+      if (!this.src) {
+        return;
+      }
+
+      const requestedSrc = this.src;
+
+      loadImage(requestedSrc)
+        .then((image) => {
+          if (requestedSrc === this.src) {
+            this._compose(image);
+          }
+        })
+        .catch(() => {
+          if (requestedSrc === this.src) {
+            this.failed = true;
+          }
+        });
+    }
+
+    allows(x, y, width, height) {
+      if (!this.src) {
+        return true;
+      }
+
+      if (this.failed) {
+        return true;
+      }
+
+      if (!this.ready || !this.imageData || width <= 0 || height <= 0) {
+        return false;
+      }
+
+      if (x < 0 || y < 0 || x > width || y > height) {
+        return false;
+      }
+
+      const sampleX = Math.max(
+        0,
+        Math.min(this.canvas.width - 1, Math.floor((x / width) * this.canvas.width))
+      );
+      const sampleY = Math.max(
+        0,
+        Math.min(this.canvas.height - 1, Math.floor((y / height) * this.canvas.height))
+      );
+      const alphaIndex = ((sampleY * this.canvas.width) + sampleX) * 4 + 3;
+
+      return this.imageData.data[alphaIndex] > 0;
+    }
+
+    _compose(image) {
+      const width = Math.max(1, image.naturalWidth || image.width || 1);
+      const height = Math.max(1, image.naturalHeight || image.height || 1);
+
+      this.image = image;
+      this.canvas.width = width;
+      this.canvas.height = height;
+      this.ctx.clearRect(0, 0, width, height);
+      this.ctx.drawImage(image, 0, 0, width, height);
+
+      try {
+        this.imageData = this.ctx.getImageData(0, 0, width, height);
+        this.ready = true;
+      } catch (error) {
+        this.imageData = null;
+        this.ready = false;
+        this.failed = true;
+      }
     }
   }
 
@@ -45935,6 +46559,11 @@
     return Number.isFinite(value) ? value : fallback;
   }
 
+  function readFiniteNumber(value, fallback) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
   function readBool(el, name, fallback) {
     const raw = readAttr(el, name);
 
@@ -46003,11 +46632,22 @@
         if (Array.isArray(this._particles)) {
           this._particles.length = 0;
         }
+        if (Array.isArray(this._burstQueue)) {
+          this._burstQueue.length = 0;
+        }
         this._createdTotal = 0;
         this._emitCarry = 0;
         if (typeof this._render === "function") {
           this._render();
         }
+      };
+    }
+    if (typeof proto.burst !== "function") {
+      proto.burst = function burstParticleEmitter(num, x, y) {
+        if (typeof this._burstImmediate === "function") {
+          return this._burstImmediate(num, x, y);
+        }
+        return 0;
       };
     }
   }

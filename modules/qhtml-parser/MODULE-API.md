@@ -85,6 +85,12 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - component-local `q-var name { expressionOrBody }` emitted in `component.varDeclarations`
       - declaration entries carry stable identity metadata (`entry.uuid` and `entry.meta.uuid`)
       - bodies are preserved as JavaScript source text for render-time evaluation
+    - q-switch declarations:
+      - top-level `q-switch name { key: { expression } *: { defaultExpression } }` emitted as QDom `kind: "q-switch"` nodes
+      - shorthand `switch name { ... }` parses the same as `q-switch`
+      - component-local declarations are emitted in `component.switchDeclarations`
+      - case keys are primitive JavaScript key expressions or `*` for default; case bodies are preserved as JavaScript source text for render-time evaluation
+      - the renderer exposes each declaration as an in-scope function callable from JavaScript handlers, bindings, interpolation, and `qhtml(...)` expressions
     - dynamic QHTML continuation fragments:
       - `qhtml(expression) { ... }` emitted as QDom `kind: "qhtml-fragment"`
       - the expression is evaluated at render time

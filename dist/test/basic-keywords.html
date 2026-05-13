@@ -354,7 +354,7 @@ q-timer accRefreshTimer {
           <h2>Basic Syntax and Keywords</h2>
           <span class="badge pending">section</span>
         </div>
-        <div class="test-expected"><strong>Includes:</strong> tests 1, 2, 3, 5, 6, 7, 8, 9, 13, 16, 17, 19, 20, 21, 22, 23, 24, 27, 28, 31, 32, 33, 34, 35, 36, 37, 38, 40, 44, 45, 46, 79, 80, 81, 82, 83, 93, 94, 95, 96, 97, 98, 104, 105, 106, 107, 108, 109</div>
+        <div class="test-expected"><strong>Includes:</strong> tests 1, 2, 3, 5, 6, 7, 8, 9, 13, 16, 17, 19, 20, 21, 22, 23, 24, 27, 28, 31, 32, 33, 34, 35, 36, 37, 38, 40, 44, 45, 46, 79, 80, 81, 82, 83, 93, 94, 95, 96, 97, 98, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116</div>
         <div style="padding:10px; font-size:13px; color:#425b78;">Core syntax, text/html/script blocks, macros, q-keyword, q-model, qdom helpers, for loops, q-callback, and scoped reference basics. <a href="test.html">Back to test index</a>.</div>
       </article>
       <article class="test-card" id="card-1">
@@ -1767,6 +1767,54 @@ onReady {
   var acc = document.querySelector("#acc-main");
   if (acc && typeof acc.resultReported === "function") {
     acc.resultReported(115, host.innerHTML);
+  }
+}
+</q-html>
+      </article>
+      <article class="test-card" id="card-116">
+        <div class="test-head">
+          <h2>116. q-switch primitive lookup and dynamic qhtml</h2>
+          <span id="badge-116" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> hello world | 32 | default-116 | 0 | qswitch-fragment-116 | component=32 | hello world click</div>
+<q-html id="host-t116" data-test-no="116">
+q-switch lookup116 {
+  15: { "hello world" }
+  "test": { 32 }
+  "zero": { 0 }
+  *: { "default-116" }
+}
+
+q-switch qhtmlswitch116 {
+  "item1": { "span#t116-frag { text { qswitch-fragment-116 } }" }
+  *: { "" }
+}
+
+q-component switchComp116 {
+  q-property key: "test"
+  div#t116-component { text { component=${lookup116(this.component.key)} } }
+}
+
+div#t116-values { text { ${lookup116(15)} | ${lookup116("test")} | ${lookup116("missing")} | ${lookup116("zero")} } }
+qhtml(qhtmlswitch116("item1"))
+switchComp116 comp116 { }
+div#t116-click { text { waiting } }
+button#t116-btn {
+  onclick {
+    document.querySelector("#t116-click").textContent = lookup116(15) + " click";
+  }
+  text { run q-switch }
+}
+
+onReady {
+  var host = this;
+  var btn = host.querySelector("#t116-btn");
+  if (btn) {
+    btn.click();
+  }
+  var acc = document.querySelector("#acc-main");
+  if (acc && typeof acc.resultReported === "function") {
+    acc.resultReported(116, host.innerHTML);
   }
 }
 </q-html>

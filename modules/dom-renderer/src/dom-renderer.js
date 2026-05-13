@@ -26,6 +26,7 @@
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
   const Q_CALLBACK_NODE_KIND = "callback";
   const Q_VAR_NODE_KIND = "q-var";
+  const Q_SWITCH_NODE_KIND = "q-switch";
   const QHTML_QVAR_HANDLE_FLAG = "__qhtmlVarHandle";
   const QHTML_FRAGMENT_MARKER = "__qhtmlFragment";
   const QHTML_NAMED_CALLBACKS_KEY = "__qhtmlNamedCallbacks";
@@ -2222,6 +2223,7 @@
       callbackDeclarations: [],
       aliasDeclarations: [],
       varDeclarations: [],
+      switchDeclarations: [],
       wasmConfig: null,
       lifecycleScripts: [],
       attributes: {},
@@ -2236,6 +2238,7 @@
     const callbackIndex = new Map();
     const aliasIndex = new Map();
     const varIndex = new Map();
+    const switchIndex = new Map();
     const lifecycleIndex = new Map();
     let mergedRepeaterConfig = null;
     let mergedCanvasSemantics = false;
@@ -2292,6 +2295,7 @@
       mergeNamedEntries(merged.callbackDeclarations, node.callbackDeclarations, callbackIndex);
       mergeNamedEntries(merged.aliasDeclarations, node.aliasDeclarations, aliasIndex);
       mergeNamedEntries(merged.varDeclarations, node.varDeclarations, varIndex);
+      mergeNamedEntries(merged.switchDeclarations, node.switchDeclarations, switchIndex);
 
       if (Array.isArray(node.lifecycleScripts) && node.lifecycleScripts.length > 0) {
         for (let li = 0; li < node.lifecycleScripts.length; li += 1) {
@@ -9663,6 +9667,189 @@
     return true;
   }
 
+  function normalizeQSwitchLookupKey(value) {
+    return String(value);
+  }
+
+  function fallbackQSwitchKeySourceValue(keySource) {
+    const raw = String(keySource || "").trim();
+    if (
+      (raw.length >= 2 && raw.charAt(0) === "\"" && raw.charAt(raw.length - 1) === "\"") ||
+      (raw.length >= 2 && raw.charAt(0) === "'" && raw.charAt(raw.length - 1) === "'") ||
+      (raw.length >= 2 && raw.charAt(0) === "`" && raw.charAt(raw.length - 1) === "`")
+    ) {
+      return raw.slice(1, -1);
+    }
+    return raw;
+  }
+
+  function resolveQSwitchInvocationHost(ownerHost) {
+    const runtimeApi = global.QHtml && typeof global.QHtml === "object" ? global.QHtml : null;
+    if (runtimeApi && typeof runtimeApi.getCurrentExecutionHost === "function") {
+      try {
+        const currentHost = runtimeApi.getCurrentExecutionHost();
+        if (currentHost && currentHost.nodeType === 1) {
+          return currentHost;
+        }
+      } catch (error) {
+        // fall back to declaration owner below
+      }
+    }
+    return ownerHost && ownerHost.nodeType === 1 ? ownerHost : null;
+  }
+
+  function buildQSwitchEvaluationScope(context, thisArg, extraScope) {
+    const scope = buildInterpolationScope(context, thisArg);
+    const extra = extraScope && typeof extraScope === "object" ? extraScope : null;
+    if (extra) {
+      const keys = Object.keys(extra);
+      for (let i = 0; i < keys.length; i += 1) {
+        scope[keys[i]] = extra[keys[i]];
+      }
+    }
+    return scope;
+  }
+
+  function evaluateQSwitchSource(source, ownerHost, context, extraScope, errorLabel) {
+    const body = String(source || "").trim();
+    if (!body) {
+      return undefined;
+    }
+    const thisArg = resolveQSwitchInvocationHost(ownerHost);
+    const scope = buildQSwitchEvaluationScope(context, thisArg, extraScope);
+    const scopeNames = Object.keys(scope).filter(function filterQSwitchScopeParam(name) {
+      return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(String(name || ""));
+    });
+    const scopeValues = scopeNames.map(function mapQSwitchScopeParam(name) {
+      return scope[name];
+    });
+    ensureScopedSelectorShortcut(thisArg || {}, null);
+    try {
+      const expressionExecutor = new Function(scopeNames.join(","), "return (" + body + ");");
+      return expressionExecutor.apply(thisArg, scopeValues);
+    } catch (expressionError) {
+      try {
+        const bodyExecutor = new Function(scopeNames.join(","), body);
+        return bodyExecutor.apply(thisArg, scopeValues);
+      } catch (bodyError) {
+        try {
+          const scopedExpressionExecutor = new Function(withScopedSelectorPrelude("return (" + body + ");"));
+          return scopedExpressionExecutor.call(thisArg);
+        } catch (scopedExpressionError) {
+          try {
+            const scopedBodyExecutor = new Function(withScopedSelectorPrelude(body));
+            return scopedBodyExecutor.call(thisArg);
+          } catch (scopedBodyError) {
+            if (global.console && typeof global.console.error === "function") {
+              global.console.error(errorLabel || "qhtml q-switch evaluation failed:", scopedBodyError);
+            }
+            return undefined;
+          }
+        }
+      }
+    }
+  }
+
+  function createQSwitchFunction(node, ownerHost, context) {
+    const cases = Array.isArray(node && node.cases) ? node.cases : [];
+    const caseMap = new Map();
+    let defaultCase = null;
+
+    for (let i = 0; i < cases.length; i += 1) {
+      const entry = cases[i] || {};
+      const keySource = String(entry.keySource || "").trim();
+      if (!keySource) {
+        continue;
+      }
+      if (keySource === "*") {
+        defaultCase = entry;
+        continue;
+      }
+      let keyValue;
+      try {
+        keyValue = evaluateQSwitchSource(keySource, ownerHost, context, null, "qhtml q-switch key evaluation failed:");
+      } catch (error) {
+        keyValue = fallbackQSwitchKeySourceValue(keySource);
+      }
+      if (typeof keyValue === "undefined") {
+        keyValue = fallbackQSwitchKeySourceValue(keySource);
+      }
+      caseMap.set(normalizeQSwitchLookupKey(keyValue), entry);
+    }
+
+    return function qSwitchRuntimeResolver(value) {
+      const lookupKey = normalizeQSwitchLookupKey(value);
+      const entry = caseMap.has(lookupKey) ? caseMap.get(lookupKey) : defaultCase;
+      if (!entry) {
+        return undefined;
+      }
+      return evaluateQSwitchSource(
+        entry.body,
+        ownerHost,
+        context,
+        {
+          value: value,
+          val: value,
+          switchValue: value,
+        },
+        "qhtml q-switch case evaluation failed:"
+      );
+    };
+  }
+
+  function registerQSwitchFunctionInContext(name, fn, ownerHost, context) {
+    const key = String(name || "").trim();
+    if (!key || typeof fn !== "function") {
+      return;
+    }
+    ensureContextFrames(context);
+    const aliasStack = ensureInstanceAliasScopeStack(context);
+    const activeFrame =
+      aliasStack.length > 0
+        ? aliasStack[aliasStack.length - 1]
+        : context[QCONTEXT_SCOPE_FRAME_KEY];
+    if (activeFrame && typeof activeFrame.set === "function") {
+      activeFrame.set(key, fn);
+    }
+    if (
+      context &&
+      context[QCONTEXT_RUNTIME_FRAME_KEY] &&
+      typeof context[QCONTEXT_RUNTIME_FRAME_KEY].set === "function"
+    ) {
+      context[QCONTEXT_RUNTIME_FRAME_KEY].set(key, fn);
+    }
+    if (context && context.inlineScope && typeof context.inlineScope === "object") {
+      context.inlineScope[key] = fn;
+    }
+    if (ownerHost && ownerHost.nodeType === 1) {
+      exportNamedAliasToHost(ownerHost, key, fn);
+    } else if (context && context.rootHostElement) {
+      exportNamedAliasToHost(context.rootHostElement, key, fn);
+      if (context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
+        context.namedRuntimeValues[key] = fn;
+      }
+    }
+  }
+
+  function registerQSwitchDeclarationNode(node, parent, targetDocument, context, ownerHostOverride) {
+    if (!node || String(node.kind || "").trim().toLowerCase() !== Q_SWITCH_NODE_KIND) {
+      return false;
+    }
+    const name = String(node.name || "").trim();
+    if (!name) {
+      return true;
+    }
+    const ownerHost =
+      ownerHostOverride && ownerHostOverride.nodeType === 1
+        ? ownerHostOverride
+        : parent && parent.nodeType === 1
+          ? parent.closest && parent.closest("[qhtml-component-instance='1']") || parent
+          : null;
+    const fn = createQSwitchFunction(node, ownerHost, context);
+    registerQSwitchFunctionInContext(name, fn, ownerHost, context);
+    return true;
+  }
+
   function renderDynamicQHtmlFragmentNode(node, parent, targetDocument, context) {
     const expression = String(node && node.expression || "").trim();
     if (!expression) {
@@ -10206,6 +10393,11 @@
 
       if (String(node.kind || "").trim().toLowerCase() === Q_VAR_NODE_KIND) {
         registerQVarDeclarationNode(node, parent, targetDocument, context);
+        return;
+      }
+
+      if (String(node.kind || "").trim().toLowerCase() === Q_SWITCH_NODE_KIND) {
+        registerQSwitchDeclarationNode(node, parent, targetDocument, context);
         return;
       }
 
@@ -10780,6 +10972,16 @@
       scopeFrame: componentScopeFrame,
       runtimeFrame: componentRuntimeFrame,
     });
+    const switchDeclarations = Array.isArray(componentNode.switchDeclarations) ? componentNode.switchDeclarations : [];
+    for (let si = 0; si < switchDeclarations.length; si += 1) {
+      registerQSwitchDeclarationNode(
+        Object.assign({ kind: Q_SWITCH_NODE_KIND }, switchDeclarations[si]),
+        hostElement,
+        targetDocument,
+        componentContext,
+        hostElement
+      );
+    }
     const varDeclarations = Array.isArray(componentNode.varDeclarations) ? componentNode.varDeclarations : [];
     for (let vi = 0; vi < varDeclarations.length; vi += 1) {
       registerQVarDeclarationNode(

@@ -134,6 +134,11 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - Reference inputs are stored with UUID metadata where possible so the renderer can clone the
     referenced QDom fragment at render time.
   - Exposed as both `QHtml.qhtmlString(...)` and global `qhtmlString(...)`.
+- `q-switch` / `switch`
+  - Parser and renderer cooperate to expose named switch declarations as runtime functions.
+  - `q-switch name { key: { expression } *: { defaultExpression } }` registers `name(value)` in the current QHTML context.
+  - Switch functions are available to inline JavaScript handlers, lifecycle hooks, component methods, bindings/interpolation, and dynamic `qhtml(name(value))` fragments.
+  - Matching uses primitive key string equivalence and preserves falsey case return values; `*` is used only when no explicit key matches.
 - `qmapNode(qdomNode, options?)`
   - Normalizes a QDom node/document into a tree-shaped map object for model/tree rendering.
   - `options.filters` (array/string) narrows output to matching keywords/tags when `includeFullTree` is `false`.

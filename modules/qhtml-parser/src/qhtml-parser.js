@@ -36,6 +36,8 @@
     "q-script",
     "q-bind",
     "q-var",
+    "q-switch",
+    "switch",
     "q-property",
     "q-signal",
     "q-callback",
@@ -2726,6 +2728,31 @@
           });
           continue;
         }
+        if (isQSwitchKeyword(nameLower) && nextChar !== "{" && nextChar !== ",") {
+          const switchName = parseIdentifier(parser);
+          const normalizedSwitchName = String(switchName || "").trim();
+          if (!normalizedSwitchName) {
+            throw ParseError("Expected switch name after " + nameLower, parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after " + nameLower + " name", parser.index);
+          }
+          consume(parser);
+          const switchBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "QSwitchDeclaration",
+            keyword: nameLower,
+            name: normalizedSwitchName,
+            cases: parseQSwitchDefinitionBody(String(switchBody || "")),
+            body: String(switchBody || ""),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (nameLower === "q-array" && nextChar !== "{" && nextChar !== ",") {
           const arrayName = parseIdentifier(parser);
           skipWhitespace(parser);
@@ -3851,6 +3878,31 @@
             type: "QVarDeclaration",
             name: normalizedVarName,
             body: String(varBody || ""),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+        if (isQSwitchKeyword(firstLower) && peek(parser) !== "{" && peek(parser) !== ",") {
+          const switchName = parseIdentifier(parser);
+          const normalizedSwitchName = String(switchName || "").trim();
+          if (!normalizedSwitchName) {
+            throw ParseError("Expected switch name after " + firstLower, parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after " + firstLower + " name", parser.index);
+          }
+          consume(parser);
+          const switchBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QSwitchDeclaration",
+            keyword: firstLower,
+            name: normalizedSwitchName,
+            cases: parseQSwitchDefinitionBody(String(switchBody || "")),
+            body: String(switchBody || ""),
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -7277,6 +7329,93 @@
       .replace(/\r/g, "\n")
       .replace(/\n+/g, "\n")
       .trim();
+  }
+
+  function isQSwitchKeyword(name) {
+    const normalized = String(name || "").trim().toLowerCase();
+    return normalized === "q-switch" || normalized === "switch";
+  }
+
+  function readQSwitchCaseKeySource(parser) {
+    let out = "";
+    let quote = "";
+    let escaped = false;
+
+    while (!eof(parser)) {
+      const ch = peek(parser);
+
+      if (quote) {
+        out += consume(parser);
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+
+      if (ch === "\"" || ch === "'" || ch === "`") {
+        quote = ch;
+        out += consume(parser);
+        continue;
+      }
+
+      if (ch === ":") {
+        break;
+      }
+
+      out += consume(parser);
+    }
+
+    return out.trim();
+  }
+
+  function parseQSwitchDefinitionBody(rawBody) {
+    const parser = parserFor(rawBody);
+    const cases = [];
+
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+
+      const caseStart = parser.index;
+      let keySource = "";
+      if (peek(parser) === "*") {
+        keySource = consume(parser);
+      } else {
+        keySource = readQSwitchCaseKeySource(parser);
+      }
+
+      if (!String(keySource || "").trim()) {
+        throw ParseError("q-switch case requires a key", caseStart);
+      }
+
+      skipWhitespace(parser);
+      if (peek(parser) !== ":") {
+        throw ParseError("Expected ':' after q-switch case key", parser.index);
+      }
+      consume(parser);
+      skipWhitespace(parser);
+      if (peek(parser) !== "{") {
+        throw ParseError("Expected '{' after q-switch case ':'", parser.index);
+      }
+      consume(parser);
+      const caseBody = readBalancedBlockContent(parser);
+      cases.push({
+        keySource: String(keySource || "").trim(),
+        body: compactScriptBody(caseBody || ""),
+      });
+    }
+
+    return cases;
   }
 
   function unescapeSimpleQuotedBody(value) {
@@ -11510,6 +11649,7 @@
     const callbackDeclarations = [];
     const aliasDeclarations = [];
     const varDeclarations = [];
+    const switchDeclarations = [];
     let componentLoggerCategories = null;
     let wasmConfig = null;
     const lifecycleScripts = [];
@@ -11730,6 +11870,24 @@
             varDeclarations.push({
               name: varName,
               body: String(item.body || ""),
+              uuid: declarationMeta.uuid,
+              meta: declarationMeta,
+            });
+          }
+        }
+        continue;
+      }
+      if (item.type === "QSwitchDeclaration") {
+        if (supportsRuntimeDefinition) {
+          const switchName = String(item.name || "").trim();
+          if (switchName) {
+            const declarationMeta = createDeclarationMeta({
+              declarationKind: "q-switch",
+              declarationName: switchName,
+            });
+            switchDeclarations.push({
+              name: switchName,
+              cases: Array.isArray(item.cases) ? item.cases.slice() : [],
               uuid: declarationMeta.uuid,
               meta: declarationMeta,
             });
@@ -11985,6 +12143,7 @@
       callbackDeclarations: callbackDeclarations,
       aliasDeclarations: aliasDeclarations,
       qTimerDefinitions: qTimerDefinitions,
+      switchDeclarations: switchDeclarations,
       wasmConfig: wasmConfig,
       lifecycleScripts: lifecycleScripts,
       attributes: componentAttributes,
@@ -12514,6 +12673,32 @@
       };
       applyKeywordAliasesToNode(varNode, item.keywords);
       return varNode;
+    }
+
+    if (item.type === "QSwitchDeclaration") {
+      const switchName = String(item.name || "").trim();
+      if (!switchName) {
+        return null;
+      }
+      const declarationMeta = createDeclarationMeta({
+        declarationKind: "q-switch",
+        declarationName: switchName,
+      });
+      const switchNode = {
+        kind: "q-switch",
+        name: switchName,
+        cases: Array.isArray(item.cases) ? item.cases.slice() : [],
+        uuid: declarationMeta.uuid,
+        meta: Object.assign({}, declarationMeta, {
+          originalSource: item.raw,
+          sourceRange:
+            typeof item.start === "number" && typeof item.end === "number"
+              ? [item.start, item.end]
+              : null,
+        }),
+      };
+      applyKeywordAliasesToNode(switchNode, item.keywords);
+      return switchNode;
     }
 
     if (item.type === "QHtmlDynamicFragmentInvocation") {
@@ -13109,6 +13294,37 @@
     return lines.join("\n");
   }
 
+  function serializeQSwitchDeclarationBlock(switchDecl, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    if (!switchDecl || typeof switchDecl !== "object") {
+      return "";
+    }
+    const name = String(switchDecl.name || "").trim();
+    if (!name) {
+      return "";
+    }
+    const lines = [indent + "q-switch " + name + " {"];
+    const cases = Array.isArray(switchDecl.cases) ? switchDecl.cases : [];
+    for (let i = 0; i < cases.length; i += 1) {
+      const entry = cases[i] || {};
+      const keySource = String(entry.keySource || "").trim();
+      if (!keySource) {
+        continue;
+      }
+      const body = String(entry.body || "");
+      lines.push(indent + "  " + keySource + ": {");
+      if (body) {
+        const chunks = body.split("\n");
+        for (let j = 0; j < chunks.length; j += 1) {
+          lines.push(indent + "    " + chunks[j]);
+        }
+      }
+      lines.push(indent + "  }");
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
   function serializeWasmConfigBlock(wasmConfig, indentLevel) {
     const config =
       wasmConfig && typeof wasmConfig === "object" && !Array.isArray(wasmConfig)
@@ -13484,6 +13700,10 @@
       return serializeQVarDeclarationBlock(node, indentLevel);
     }
 
+    if (String(node.kind || "").trim().toLowerCase() === "q-switch") {
+      return serializeQSwitchDeclarationBlock(node, indentLevel);
+    }
+
     if (String(node.kind || "").trim().toLowerCase() === "qhtml-fragment") {
       const expression = String(node.expression || "").trim();
       const lines = [indent + "qhtml(" + expression + ") {"];
@@ -13553,6 +13773,14 @@
             const serializedVarDeclaration = serializeQVarDeclarationBlock(node.varDeclarations[i], indentLevel + 1);
             if (serializedVarDeclaration) {
               lines.push(serializedVarDeclaration);
+            }
+          }
+        }
+        if (Array.isArray(node.switchDeclarations)) {
+          for (let i = 0; i < node.switchDeclarations.length; i += 1) {
+            const serializedSwitchDeclaration = serializeQSwitchDeclarationBlock(node.switchDeclarations[i], indentLevel + 1);
+            if (serializedSwitchDeclaration) {
+              lines.push(serializedSwitchDeclaration);
             }
           }
         }

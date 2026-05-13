@@ -106,7 +106,7 @@ button {
     wiki-example-card {
       title: "3. Lifecycle and controls"
       summary: "The emitter starts an internal requestAnimationFrame loop when connected. The loop keeps rendering, but it only creates new particles while running is true."
-      note: "Setting running to false or calling stop() stops emission but existing particles continue to age out. clear() immediately removes all current particles and resets total-created counters."
+      note: "Setting running to false or calling stop() stops continuous emission but existing particles continue to age out. burst(num, x, y) queues one-shot particles from a supplied origin at the current emitRate without changing the emitter's configured x/y. clear() immediately removes all current particles, pending bursts, and resets total-created counters."
       details {
         html { <q-editor>&lt;q-html&gt;
 particle-emitter#fx {
@@ -116,6 +116,7 @@ particle-emitter#fx {
 
 button { text { Start } onclick { document.querySelector("#fx").running = true; } }
 button { text { Stop } onclick { document.querySelector("#fx").running = false; } }
+button { text { Burst } onclick { document.querySelector("#fx").burst(20, 180, 90); } }
 button { text { Clear } onclick { document.querySelector("#fx").clear(); } }
 &lt;/q-html&gt;</q-editor> }
       }
@@ -227,7 +228,7 @@ div#size-demo {
     wiki-example-card {
       title: "7. Sprite attributes"
       summary: "Particles draw either a composed sprite canvas or a fallback colored circle."
-      note: "The mask is applied to each particle sprite's alpha, not to the whole emitter canvas. If src and mask are both provided, the mask alpha clips the source alpha. If only mask is provided, the mask becomes the particle shape. Changing mask at runtime reloads and recomposes the sprite. Images are loaded with crossOrigin=\"anonymous\"."
+      note: "The mask attribute is applied to each particle sprite's alpha, not to the whole emitter canvas. The emitterMask attribute is different: it is an emitter-area alpha mask, and particles whose centers fall on transparent mask pixels are skipped during rendering. Images are loaded with crossOrigin=\"anonymous\"."
       details {
         html { <q-editor>&lt;q-html&gt;
 div#sprite-demo {
@@ -237,6 +238,7 @@ div#sprite-demo {
     src: "particle.png"
     mask: "particle.png"
     color: "#fb7185"
+    emitterMask: "particle-mask-star.svg"
     x: "180"
     y: "176"
     xVariation: "150"
@@ -258,7 +260,41 @@ div#sprite-demo {
     }
 
     wiki-example-card {
-      title: "8. Rendering details"
+      title: "8. Emitter-area mask"
+      summary: "Use emitterMask when the particle field itself should be clipped to a larger shape."
+      note: "Use mask for the shape of each individual particle sprite. Use emitterMask or emitter-mask for the area where particles are allowed to render. The emitter samples the mask alpha using each particle center in parent-container coordinates."
+      details {
+        html { <q-editor>&lt;q-html&gt;
+div#emitter-mask-demo {
+  style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #06131f; }
+
+  particle-emitter#masked-area-emitter {
+    src: "particle.png"
+    emitterMask: "particle-mask-star.svg"
+    color: "#38bdf8"
+    x: "180"
+    y: "172"
+    xVariation: "170"
+    yVariation: "28"
+    yVelocity: "-1.1"
+    yVelocityVariation: "0.2"
+    startSize: "24"
+    endSize: "8"
+    startOpacity: "0.85"
+    endOpacity: "0.04"
+    emitRate: "80"
+    lifetime: "2200"
+    maxActiveParticles: "72"
+    running: "true"
+    interval: "10"
+  }
+}
+&lt;/q-html&gt;</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "9. Rendering details"
       summary: "The emitter appends a canvas inside itself and sizes that canvas from the parent element."
       note: "The canvas backing store is scaled by devicePixelRatio, while drawing coordinates stay in CSS pixels. This keeps the effect crisp on high-DPI screens."
       details {

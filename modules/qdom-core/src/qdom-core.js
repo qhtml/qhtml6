@@ -196,6 +196,7 @@
       this.callbackDeclarations = Array.isArray(opts.callbackDeclarations) ? opts.callbackDeclarations : [];
       this.aliasDeclarations = Array.isArray(opts.aliasDeclarations) ? opts.aliasDeclarations : [];
       this.varDeclarations = Array.isArray(opts.varDeclarations) ? opts.varDeclarations : [];
+      this.switchDeclarations = Array.isArray(opts.switchDeclarations) ? opts.switchDeclarations : [];
       this.qTimerDefinitions = Array.isArray(opts.qTimerDefinitions) ? opts.qTimerDefinitions : [];
       this.wasmConfig =
         opts.wasmConfig && typeof opts.wasmConfig === "object" && !Array.isArray(opts.wasmConfig)
@@ -962,6 +963,8 @@
         signalDeclarations: reviveQDomTree(Array.isArray(value.signalDeclarations) ? value.signalDeclarations : []),
         callbackDeclarations: reviveQDomTree(Array.isArray(value.callbackDeclarations) ? value.callbackDeclarations : []),
         aliasDeclarations: reviveQDomTree(Array.isArray(value.aliasDeclarations) ? value.aliasDeclarations : []),
+        varDeclarations: reviveQDomTree(Array.isArray(value.varDeclarations) ? value.varDeclarations : []),
+        switchDeclarations: reviveQDomTree(Array.isArray(value.switchDeclarations) ? value.switchDeclarations : []),
         qTimerDefinitions: reviveQDomTree(Array.isArray(value.qTimerDefinitions) ? value.qTimerDefinitions : []),
         wasmConfig: reviveQDomTree(
           value.wasmConfig && typeof value.wasmConfig === "object" && !Array.isArray(value.wasmConfig)

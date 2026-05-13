@@ -19,9 +19,10 @@ Root integration module wires lower-level modules for browser consumers, exposes
     - `deserializeQDom(payload)`
     - `renderInto(qdomDocument, hostElement)`
     - runtime passthroughs including `updateQHtmlElement(qHtmlElement)`
+  - Bundled parser/runtime support includes `q-switch` / `switch` declarations as named primitive lookup functions available to QHTML expression scopes.
 - `src/particle-emitter.js`
   - Registers native custom elements `<particle-emitter>` and `<q-particle-emitter>`.
-  - Owns canvas-backed particle simulation, sprite loading/composition, alpha-preserving color tinting, a reflected boolean `running` property, and `start()`, `stop()`, and `clear()` controls.
+  - Owns canvas-backed particle simulation, sprite loading/composition, alpha-preserving color tinting, emitter-area mask sampling through `emitterMask` / `emitter-mask`, a reflected boolean `running` property, and `start()`, `stop()`, `clear()`, and `burst(num, x, y)` controls.
 - `dist/q-editor.js`
   - Registers custom element `<q-editor>`.
   - Public element methods:
@@ -47,7 +48,7 @@ Root integration module wires lower-level modules for browser consumers, exposes
     - `q-popup-menu` / `q-context-menu` (scoped context menu UI with item/submenu/text/separator primitives).
     - `q-spritesheet` (declarative spritesheet player component with `frameStart`, `frameEnd`, `frameWidth`, `frameHeight`, `width`, `height`, `interpolate`, `running`, and `currentFrame` runtime controls).
     - `q-factory` (hidden template component whose `create(options?)` method clones its default-slot QHTML into a target QDOM/builder target, refreshes only that target scope, and returns the created DOM/component instance).
-    - `particle-emitter` / `q-particle-emitter` (native custom element aliases registered by the framework; own a canvas layer, particle simulation, seeded variation, reflected boolean `running` property, `start()`, `stop()`, and `clear()` methods, with configuration through particle attributes such as `emitRate`, `lifetime`, position, velocity, acceleration, size, opacity, active/total limits, `color`, `src`, `mask`, and `seed`).
+    - `particle-emitter` / `q-particle-emitter` (native custom element aliases registered by the framework; own a canvas layer, particle simulation, seeded variation, reflected boolean `running` property, `start()`, `stop()`, `clear()`, and `burst(num, x, y)` methods, with configuration through particle attributes such as `emitRate`, `lifetime`, position, velocity, acceleration, size, opacity, active/total limits, `color`, `src`, `mask`, `emitterMask` / `emitter-mask`, and `seed`).
 
 ## Side Effects and Dependencies
 - Requires module globals on `globalThis.QHtmlModules` from bundled scripts.
