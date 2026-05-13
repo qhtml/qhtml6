@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Test 115 Theme Context Editor Trace</title>
+  <script src="/dist/qhtml.js"></script>
+  <script src="/dist/q-editor.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #101318;
+      color: #eef2f7;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.4rem, 2vw, 2rem);
+    }
+
+    p {
+      margin: 0 0 18px;
+      color: #b8c2d3;
+      line-height: 1.45;
+    }
+
+    q-editor {
+      display: block;
+      min-height: 70vh;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Test 115 q-theme Context Debug</h1>
+    <p>This page isolates the Test 115 QHTML in a q-editor so the parsed QDOM and preview can be inspected directly.</p>
+
+    <q-editor>
+q-style style115 {
+  color: #000000
+}
+
+q-theme theme115 {
+  #something115 { style115 }
+}
+
+q-component themeContextComp115 {
+  q-property blah: "asdf"
+  slot { someslot }
+}
+
+div {
+  theme115 {
+    themeContextComp115 somecomp115#something115 {
+      blah: "qwerty"
+      someslot { text { hello world } }
+    }
+  }
+
+  themeContextComp115 othercomp115 {
+    blah: somecomp115.blah
+    someslot {
+      button#t115-btn {
+        onclick {
+          document.querySelector("#t115-result").textContent = "theme-context-115 " + somecomp115.blah + " " + this.component.blah;
+        }
+        text { click here }
+      }
+    }
+  }
+}
+
+div#t115-result { text { waiting } }
+div#t115-id { text { id-missing-115 } }
+
+onReady {
+  var btn = document.querySelector("#t115-btn");
+  if (btn) {
+    btn.click();
+  }
+  var found = document.querySelector("#something115");
+  document.querySelector("#t115-id").textContent = found ? "id-ok-115" : "id-missing-115";
+}
+    </q-editor>
+  </main>
+</body>
+</html>

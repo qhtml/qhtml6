@@ -93,6 +93,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - the renderer exposes each declaration as an in-scope function callable from JavaScript handlers, bindings, interpolation, and `qhtml(...)` expressions
     - dynamic QHTML continuation fragments:
       - `qhtml(expression) { ... }` emitted as QDom `kind: "qhtml-fragment"`
+      - `qhtml(expression)` without a continuation block is also valid and renders the evaluated fragment directly
       - the expression is evaluated at render time
       - the block body is appended to string/fragment values so partial fragment heads such as `q-var head { "div {" }` can be completed declaratively
     - component property definition blocks (`q-property <name> { ... }`) emitted in `component.propertyDefinitions`

@@ -4811,6 +4811,7 @@
   };
   const globalUuidPointerRegistry = new Map();
   const globalUuidLookupRegistry = new Map();
+  const globalQDomObjectRegistry = new Map();
   const globalQDomDataRegistry = new Map();
   const globalSignalSubscriberRegistry = new Map();
   const globalSignalReferenceRegistry = new Map();
@@ -4908,6 +4909,11 @@
     }
     try {
       global.QHTML_UUID_LOOKUP_MAP = globalUuidLookupRegistry;
+    } catch (error) {
+      // no-op
+    }
+    try {
+      global.QHTML_QDOM = globalQDomObjectRegistry;
     } catch (error) {
       // no-op
     }
@@ -5470,6 +5476,7 @@
       if (!record) {
         return false;
       }
+      globalQDomObjectRegistry.set(record.uuid, source);
       recordsByUuid.set(record.uuid, record);
       next.add(record.uuid);
       return false;
@@ -5622,6 +5629,7 @@
           return;
         }
         globalQDomDataRegistry.delete(normalizedStale);
+        globalQDomObjectRegistry.delete(normalizedStale);
       });
     }
 

@@ -12,6 +12,7 @@
   const COMPONENT_PROP_STATE_KEY = "__qhtmlDeclaredPropertyState";
   const QLOGGER_META_KEY = "__qhtmlLoggerCategories";
   const QDOM_UUID_META_KEY = typeof core.QDOM_UUID_KEY === "string" ? core.QDOM_UUID_KEY : "uuid";
+  const QDOM_CONTEXT_KEY = typeof core.QDOM_CONTEXT_KEY === "string" ? core.QDOM_CONTEXT_KEY : "context";
   const QINSTANCE_ALIAS_META_KEY = "__qhtmlInstanceAlias";
   const QCONTEXT_SCOPE_FRAME_KEY = "__qhtmlScopeFrame";
   const QCONTEXT_RUNTIME_FRAME_KEY = "__qhtmlContextFrame";
@@ -8578,6 +8579,14 @@
         if (!resolvedTarget) {
           return undefined;
         }
+        if (
+          resolvedTarget.props &&
+          typeof resolvedTarget.props === "object" &&
+          !Array.isArray(resolvedTarget.props) &&
+          Object.prototype.hasOwnProperty.call(resolvedTarget.props, prop)
+        ) {
+          return resolvedTarget.props[prop];
+        }
         const value = resolvedTarget[prop];
         if (typeof value === "function") {
           return wrapNamedSymbolCallable(value, resolvedTarget);
@@ -8600,12 +8609,99 @@
         }
         const resolvedTarget = readHandleResolutionTarget(target);
         if (resolvedTarget && typeof resolvedTarget === "object") {
+          if (
+            resolvedTarget.props &&
+            typeof resolvedTarget.props === "object" &&
+            !Array.isArray(resolvedTarget.props) &&
+            (Object.prototype.hasOwnProperty.call(resolvedTarget.props, prop) || !Object.prototype.hasOwnProperty.call(resolvedTarget, prop))
+          ) {
+            resolvedTarget.props[prop] = value;
+            return true;
+          }
           resolvedTarget[prop] = value;
         }
         return true;
       },
     });
     return handle;
+  }
+
+  function ensureGlobalQDomObjectMap() {
+    if (global.QHTML_QDOM && typeof global.QHTML_QDOM.get === "function" && typeof global.QHTML_QDOM.set === "function") {
+      return global.QHTML_QDOM;
+    }
+    const map = new Map();
+    try {
+      global.QHTML_QDOM = map;
+    } catch (error) {
+      // no-op
+    }
+    return map;
+  }
+
+  function registerRenderedQDomObject(node) {
+    if (!node || typeof node !== "object") {
+      return "";
+    }
+    const uuid = resolveAliasUuid(node);
+    if (!uuid) {
+      return "";
+    }
+    const qdomMap = ensureGlobalQDomObjectMap();
+    if (qdomMap && typeof qdomMap.set === "function") {
+      qdomMap.set(uuid, node);
+    }
+    return uuid;
+  }
+
+  function readQDomContextMap(node) {
+    if (!node || typeof node !== "object") {
+      return null;
+    }
+    const context = node[QDOM_CONTEXT_KEY];
+    return context && typeof context === "object" && !Array.isArray(context) ? context : null;
+  }
+
+  function registerQDomContextAliases(context, node) {
+    if (!context || !node || typeof node !== "object") {
+      return;
+    }
+    const contextMap = readQDomContextMap(node);
+    if (!contextMap) {
+      return;
+    }
+    const currentNodeUuid = registerRenderedQDomObject(node);
+    ensureContextFrames(context);
+    const scopeFrame = context[QCONTEXT_SCOPE_FRAME_KEY];
+    const runtimeFrame = context[QCONTEXT_RUNTIME_FRAME_KEY];
+    const names = Object.keys(contextMap);
+    for (let i = 0; i < names.length; i += 1) {
+      const name = String(names[i] || "").trim();
+      const uuid = String(contextMap[names[i]] || "").trim();
+      if (!name || !uuid) {
+        continue;
+      }
+      if (currentNodeUuid && uuid === currentNodeUuid) {
+        continue;
+      }
+      if (scopeFrame && typeof scopeFrame.has === "function" && scopeFrame.has(name)) {
+        continue;
+      }
+      const qdomMap = ensureGlobalQDomObjectMap();
+      const qdomTarget = qdomMap && typeof qdomMap.get === "function" ? qdomMap.get(uuid) : null;
+      const aliasHandle = createNamedSymbolHandle({
+        uuid: uuid,
+        kind: "qdom-context",
+        target: qdomTarget && typeof qdomTarget === "object" ? qdomTarget : null,
+        label: name,
+      });
+      if (scopeFrame && typeof scopeFrame.set === "function") {
+        scopeFrame.set(name, aliasHandle);
+      }
+      if (runtimeFrame && typeof runtimeFrame.set === "function") {
+        runtimeFrame.set(name, aliasHandle);
+      }
+    }
   }
 
   function exportNamedAliasToHost(hostElement, aliasName, value) {
@@ -8776,29 +8872,6 @@
     const hostStack =
       context && Array.isArray(context.componentHostStack) ? context.componentHostStack : null;
     const ownerHost = hostStack && hostStack.length > 0 ? hostStack[hostStack.length - 1] : null;
-    const existingLocal = typeof frame.getLocal === "function" ? frame.getLocal(alias) : undefined;
-    if (typeof frame.hasLocal === "function" && frame.hasLocal(alias)) {
-      if (isOwnerTypeSymbolHandle(existingLocal)) {
-        warnScopedAliasConflict(
-          alias,
-          "child instance alias conflicts with enclosing component type alias; binding is blanked"
-        );
-        frame.set(alias, "");
-        context[QCONTEXT_RUNTIME_FRAME_KEY].set(alias, "");
-        if (ownerHost) {
-          exportNamedAliasToHost(ownerHost, alias, "");
-        } else {
-          if (context && context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
-            context.namedRuntimeValues[alias] = "";
-          }
-          if (context && context.rootHostElement) {
-            exportNamedAliasToHost(context.rootHostElement, alias, "");
-          }
-        }
-        return;
-      }
-      throw new Error("Duplicate named instance alias in same scope: '" + alias + "'.");
-    }
     frame.set(alias, aliasHandle);
     context[QCONTEXT_SCOPE_FRAME_KEY] = frame;
     context[QCONTEXT_RUNTIME_FRAME_KEY].set(alias, aliasHandle);
@@ -10370,6 +10443,8 @@
     if (!node || typeof node !== "object") {
       return;
     }
+    registerRenderedQDomObject(node);
+    registerQDomContextAliases(context, node);
     const slotRef = node[RENDER_SLOT_REF] || null;
     if (slotRef) {
       context.slotStack.push(slotRef);

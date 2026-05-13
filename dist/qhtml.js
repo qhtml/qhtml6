@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-13T06:05:34Z */
+/* generated: 2026-05-13T08:34:42Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -25,6 +25,7 @@
   const QDOM_TEMPLATE_OWNER_ATTR = "data-qdom-for";
   const UPDATE_NONCE_KEY = "update-nonce";
   const QDOM_UUID_KEY = "uuid";
+  const QDOM_CONTEXT_KEY = "context";
   let qdomHostIdCounter = 0;
   let qdomUuidCounter = 0;
 
@@ -83,6 +84,164 @@
       return "";
     }
     return normalizeQDomUuid(node.meta[QDOM_UUID_KEY]);
+  }
+
+  function cloneQDomContext(context) {
+    const out = {};
+    if (!context || typeof context !== "object" || Array.isArray(context)) {
+      return out;
+    }
+    const names = Object.keys(context);
+    for (let i = 0; i < names.length; i += 1) {
+      const name = String(names[i] || "").trim();
+      const uuid = normalizeQDomUuid(context[names[i]]);
+      if (name && uuid) {
+        out[name] = uuid;
+      }
+    }
+    return out;
+  }
+
+  function addQDomContextEntry(context, name, uuid) {
+    const key = String(name || "").trim();
+    const value = normalizeQDomUuid(uuid);
+    if (!key || !value || !context || typeof context !== "object") {
+      return false;
+    }
+    context[key] = value;
+    return true;
+  }
+
+  function readQDomContextNames(node) {
+    const out = [];
+    if (!node || typeof node !== "object") {
+      return out;
+    }
+    const kind = String(node.kind || "").trim().toLowerCase();
+    const meta = node.meta && typeof node.meta === "object" ? node.meta : {};
+    const instanceAlias = String(meta.__qhtmlInstanceAlias || "").trim();
+    if (instanceAlias) {
+      out.push(instanceAlias);
+    }
+    if (kind === NODE_TYPES.component) {
+      const componentId = String(node.componentId || "").trim();
+      if (componentId) {
+        out.push(componentId);
+      }
+    }
+    if (kind === "q-var" || kind === "q-switch" || kind === "callback") {
+      const name = String(node.name || node.callbackName || "").trim();
+      if (name) {
+        out.push(name);
+      }
+    }
+    return out;
+  }
+
+  function readQDomChildCollections(node) {
+    const out = [];
+    if (!node || typeof node !== "object") {
+      return out;
+    }
+    if (node.kind === NODE_TYPES.document && Array.isArray(node.nodes)) {
+      out.push(node.nodes);
+    }
+    if (node.kind === NODE_TYPES.element && Array.isArray(node.children)) {
+      out.push(node.children);
+    }
+    if (node.kind === NODE_TYPES.component && Array.isArray(node.templateNodes)) {
+      out.push(node.templateNodes);
+    }
+    if (node.kind === NODE_TYPES.repeater) {
+      if (node.model && node.model.kind === NODE_TYPES.model) {
+        out.push([node.model]);
+      }
+      if (Array.isArray(node.templateNodes)) {
+        out.push(node.templateNodes);
+      }
+    }
+    if (node.kind === NODE_TYPES.model && Array.isArray(node.entries)) {
+      for (let i = 0; i < node.entries.length; i += 1) {
+        const entry = node.entries[i];
+        if (entry && typeof entry === "object" && Array.isArray(entry.nodes)) {
+          out.push(entry.nodes);
+        }
+      }
+    }
+    if (
+      (node.kind === NODE_TYPES.componentInstance || node.kind === NODE_TYPES.templateInstance) &&
+      readSlotNodes(node).length > 0
+    ) {
+      out.push(readSlotNodes(node));
+    }
+    if (
+      (node.kind === NODE_TYPES.componentInstance || node.kind === NODE_TYPES.templateInstance) &&
+      Array.isArray(node.children)
+    ) {
+      out.push(node.children);
+    }
+    if (node.kind === NODE_TYPES.slot && Array.isArray(node.children)) {
+      out.push(node.children);
+    }
+    return out;
+  }
+
+  function collectDirectQDomContextEntries(node, intoContext) {
+    const context = intoContext && typeof intoContext === "object" ? intoContext : {};
+    const childCollections = readQDomChildCollections(node);
+    for (let ci = 0; ci < childCollections.length; ci += 1) {
+      const children = childCollections[ci];
+      for (let i = 0; i < children.length; i += 1) {
+        const child = children[i];
+        if (!child || typeof child !== "object") {
+          continue;
+        }
+        const uuid = ensureNodeUuid(child);
+        const names = readQDomContextNames(child);
+        for (let ni = 0; ni < names.length; ni += 1) {
+          addQDomContextEntry(context, names[ni], uuid);
+        }
+      }
+    }
+    return context;
+  }
+
+  function assignQDomContexts(rootNode, inheritedContext) {
+    if (!rootNode || typeof rootNode !== "object") {
+      return rootNode;
+    }
+    const seen = typeof WeakSet === "function" ? new WeakSet() : null;
+
+    function assignNodeContext(node, parentContext) {
+      if (!node || typeof node !== "object") {
+        return;
+      }
+      if (seen) {
+        if (seen.has(node)) {
+          return;
+        }
+        seen.add(node);
+      }
+      const uuid = ensureNodeUuid(node);
+      const nodeContext = cloneQDomContext(parentContext);
+      const ownNames = readQDomContextNames(node);
+      for (let i = 0; i < ownNames.length; i += 1) {
+        addQDomContextEntry(nodeContext, ownNames[i], uuid);
+      }
+      node[QDOM_CONTEXT_KEY] = nodeContext;
+
+      const childContext = collectDirectQDomContextEntries(node, cloneQDomContext(nodeContext));
+      const childCollections = readQDomChildCollections(node);
+      for (let ci = 0; ci < childCollections.length; ci += 1) {
+        const children = childCollections[ci];
+        for (let i = 0; i < children.length; i += 1) {
+          assignNodeContext(children[i], childContext);
+        }
+      }
+    }
+
+    assignNodeContext(rootNode, inheritedContext || {});
+    return rootNode;
   }
 
   class QDomNode {
@@ -1371,9 +1530,12 @@
     observeQDom: observeQDom,
     UPDATE_NONCE_KEY: UPDATE_NONCE_KEY,
     QDOM_UUID_KEY: QDOM_UUID_KEY,
+    QDOM_CONTEXT_KEY: QDOM_CONTEXT_KEY,
     createQDomUuid: createQDomUuid,
     ensureNodeUuid: ensureNodeUuid,
     getNodeUuid: getNodeUuid,
+    cloneQDomContext: cloneQDomContext,
+    assignQDomContexts: assignQDomContexts,
     createUpdateNonceToken: createUpdateNonceToken,
     setUpdateNonce: setUpdateNonce,
     ensureUpdateNonce: ensureUpdateNonce,
@@ -2189,14 +2351,15 @@
     consume(parser);
     const expression = readBalancedParenthesizedContent(parser);
     skipWhitespace(parser);
-    if (peek(parser) !== "{") {
-      throw ParseError("Expected '{' after qhtml(...) invocation", parser.index);
+    let items = [];
+    let continuationSource = "";
+    if (peek(parser) === "{") {
+      consume(parser);
+      const bodyStart = parser.index;
+      items = parseBlockItems(parser, keywordAliases);
+      continuationSource = parser.source.slice(bodyStart, parser.index);
+      expect(parser, "}");
     }
-    consume(parser);
-    const bodyStart = parser.index;
-    const items = parseBlockItems(parser, keywordAliases);
-    const continuationSource = parser.source.slice(bodyStart, parser.index);
-    expect(parser, "}");
     return {
       type: "QHtmlDynamicFragmentInvocation",
       expression: String(expression || "").trim(),
@@ -2607,6 +2770,33 @@
       throw ParseError("Expected selector", start);
     }
     return parseSelectorTokenTail(parser, token);
+  }
+
+  function parseInstanceAliasSelectorToken(parser) {
+    const start = parser.index;
+    if (!isIdentifierStartChar(peek(parser))) {
+      return null;
+    }
+    while (!eof(parser) && /[A-Za-z0-9_-]/.test(peek(parser))) {
+      parser.index += 1;
+    }
+    const aliasBase = String(parser.source.slice(start, parser.index) || "").trim();
+    if (!aliasBase) {
+      parser.index = start;
+      return null;
+    }
+    const fullToken = parseSelectorTokenTail(parser, aliasBase);
+    return {
+      alias: aliasBase,
+      selectorSuffix: String(fullToken || "").slice(aliasBase.length),
+      raw: fullToken,
+    };
+  }
+
+  function mergeInstanceSelectorSuffix(selector, suffix) {
+    const base = String(selector || "").trim();
+    const extra = String(suffix || "").trim();
+    return base && extra ? base + extra : base;
   }
 
   function readBalancedBlockContent(parser) {
@@ -4736,7 +4926,7 @@
         }
         if (isIdentifierStartChar(nextChar)) {
           const instanceAliasStart = parser.index;
-          const instanceAlias = parseIdentifier(parser);
+          const instanceAliasToken = parseInstanceAliasSelectorToken(parser);
           skipWhitespace(parser);
           if (peek(parser) === "{") {
             consume(parser);
@@ -4744,8 +4934,8 @@
             expect(parser, "}");
             items.push({
               type: "Element",
-              selectors: [name],
-              instanceAlias: String(instanceAlias || "").trim(),
+              selectors: [mergeInstanceSelectorSuffix(name, instanceAliasToken && instanceAliasToken.selectorSuffix)],
+              instanceAlias: String(instanceAliasToken && instanceAliasToken.alias || "").trim(),
               prefixDirectives: [],
               items: childItems,
               keywords: keywordSnapshot,
@@ -5998,7 +6188,7 @@
 
         if (isIdentifierStartChar(peek(parser))) {
           const instanceAliasStart = parser.index;
-          const instanceAlias = parseIdentifier(parser);
+          const instanceAliasToken = parseInstanceAliasSelectorToken(parser);
           skipWhitespace(parser);
           if (peek(parser) === "{") {
             const prefixDirectives = parseLeadingSelectorDirectiveBlocks(parser);
@@ -6011,8 +6201,8 @@
             expect(parser, "}");
             body.push({
               type: "Element",
-              selectors: [firstSelector],
-              instanceAlias: String(instanceAlias || "").trim(),
+              selectors: [mergeInstanceSelectorSuffix(firstSelector, instanceAliasToken && instanceAliasToken.selectorSuffix)],
+              instanceAlias: String(instanceAliasToken && instanceAliasToken.alias || "").trim(),
               prefixDirectives: prefixDirectives,
               items: items,
               keywords: keywordSnapshot,
@@ -6918,6 +7108,10 @@
       parentContext && parentContext.repeaterScope && typeof parentContext.repeaterScope === "object"
         ? parentContext.repeaterScope
         : null;
+    const parentQTimers =
+      parentContext && Array.isArray(parentContext.qTimers)
+        ? parentContext.qTimers
+        : null;
     const qArrays = new Map();
     const qObjects = new Map();
     const qModels = new Map();
@@ -6943,6 +7137,7 @@
       qObjects: qObjects,
       qModels: qModels,
       repeaterScope: parentRepeaterScope ? Object.assign({}, parentRepeaterScope) : {},
+      qTimers: parentQTimers,
     };
   }
 
@@ -11457,6 +11652,22 @@
     return config;
   }
 
+  function createQTimerRuntimeDefinition(item) {
+    const timerId = String(item && item.timerId || "").trim();
+    if (!timerId) {
+      return null;
+    }
+    const config = item.config && typeof item.config === "object" ? item.config : {};
+    const interval = Number(config.interval);
+    return {
+      timerId: timerId,
+      interval: Number.isFinite(interval) && interval >= 0 ? Math.floor(interval) : 0,
+      repeat: config.repeat !== false,
+      running: config.running !== false,
+      onTimeout: String(config.onTimeout || ""),
+    };
+  }
+
   function parseQCanvasDefinitionBody(bodyText, keywordAliases) {
     const body = String(bodyText || "");
     const parser = parserFor(body);
@@ -12600,6 +12811,10 @@
       context && context.repeaterScope && typeof context.repeaterScope === "object"
         ? context.repeaterScope
         : {};
+    const qTimerContext =
+      context && Array.isArray(context.qTimers)
+        ? context.qTimers
+        : null;
     const childScopedStyles =
       context && Array.isArray(context.qStyleChildScope)
         ? context.qStyleChildScope
@@ -12655,6 +12870,7 @@
           qObjects: qObjectContext,
           qModels: qModelContext,
           repeaterScope: repeaterScope,
+          qTimers: qTimerContext,
         });
         for (let oi = 0; oi < objectNodes.length; oi += 1) {
           appendChildNode(objectNodes[oi]);
@@ -12672,6 +12888,7 @@
           qObjects: qObjectContext,
           qModels: qModelContext,
           repeaterScope: repeaterScope,
+          qTimers: qTimerContext,
         });
         for (let ri = 0; ri < repeatedNodes.length; ri += 1) {
           appendChildNode(repeatedNodes[ri]);
@@ -12687,6 +12904,7 @@
           qObjects: qObjectContext,
           qModels: qModelContext,
           repeaterScope: repeaterScope,
+          qTimers: qTimerContext,
         });
         appendActiveQTheme(invocationContext.qStyles, namedTheme);
         const scopeNode = core.createElementNode({
@@ -12719,6 +12937,7 @@
           qObjects: qObjectContext,
           qModels: qModelContext,
           repeaterScope: repeaterScope,
+          qTimers: qTimerContext,
         });
         appendActiveQColorSetup(invocationContext.qColors, namedColorSetup);
         const scopeNode = core.createElementNode({
@@ -12772,6 +12991,15 @@
       }
       if (item.type === "QWasmBlock") {
         throw new Error("q-wasm is only valid inside q-component definitions.");
+      }
+      if (item.type === "QTimerDefinition") {
+        if (qTimerContext) {
+          const timerDefinition = createQTimerRuntimeDefinition(item);
+          if (timerDefinition) {
+            qTimerContext.push(timerDefinition);
+          }
+        }
+        continue;
       }
       if (item.type === "QPropertyBlock") {
         const names = Array.isArray(item.properties) ? item.properties : [];
@@ -12937,6 +13165,7 @@
               qObjects: qObjectContext,
               qModels: qModelContext,
               repeaterScope: repeaterScope,
+              qTimers: qTimerContext,
             })
             );
             for (let ni = 0; ni < nestedNodes.length; ni += 1) {
@@ -12963,6 +13192,7 @@
             qObjects: qObjectContext,
             qModels: qModelContext,
             repeaterScope: repeaterScope,
+            qTimers: qTimerContext,
           })
         );
         for (let ci = 0; ci < childNodes.length; ci += 1) {
@@ -14284,6 +14514,7 @@
     const sdmlEndpoints = [];
     const sdmlComponents = [];
     const qTimers = [];
+    conversionContext.qTimers = qTimers;
     const lifecycleScripts = [];
     for (let i = 0; i < ast.body.length; i += 1) {
       const item = ast.body[i];
@@ -14313,19 +14544,10 @@
         continue;
       }
       if (item.type === "QTimerDefinition") {
-        const timerId = String(item.timerId || "").trim();
-        if (!timerId) {
-          continue;
+        const timerDefinition = createQTimerRuntimeDefinition(item);
+        if (timerDefinition) {
+          qTimers.push(timerDefinition);
         }
-        const config = item.config && typeof item.config === "object" ? item.config : {};
-        const interval = Number(config.interval);
-        qTimers.push({
-          timerId: timerId,
-          interval: Number.isFinite(interval) && interval >= 0 ? Math.floor(interval) : 0,
-          repeat: config.repeat !== false,
-          running: config.running !== false,
-          onTimeout: String(config.onTimeout || ""),
-        });
         continue;
       }
       if (item.type === "QConnectDefinition") {
@@ -14505,6 +14727,10 @@
     }
     if (Array.isArray(opts.scriptRules)) {
       doc.scripts = opts.scriptRules.slice();
+    }
+
+    if (core && typeof core.assignQDomContexts === "function") {
+      core.assignQDomContexts(doc);
     }
 
     return doc;
@@ -15561,6 +15787,7 @@
   const COMPONENT_PROP_STATE_KEY = "__qhtmlDeclaredPropertyState";
   const QLOGGER_META_KEY = "__qhtmlLoggerCategories";
   const QDOM_UUID_META_KEY = typeof core.QDOM_UUID_KEY === "string" ? core.QDOM_UUID_KEY : "uuid";
+  const QDOM_CONTEXT_KEY = typeof core.QDOM_CONTEXT_KEY === "string" ? core.QDOM_CONTEXT_KEY : "context";
   const QINSTANCE_ALIAS_META_KEY = "__qhtmlInstanceAlias";
   const QCONTEXT_SCOPE_FRAME_KEY = "__qhtmlScopeFrame";
   const QCONTEXT_RUNTIME_FRAME_KEY = "__qhtmlContextFrame";
@@ -24127,6 +24354,14 @@
         if (!resolvedTarget) {
           return undefined;
         }
+        if (
+          resolvedTarget.props &&
+          typeof resolvedTarget.props === "object" &&
+          !Array.isArray(resolvedTarget.props) &&
+          Object.prototype.hasOwnProperty.call(resolvedTarget.props, prop)
+        ) {
+          return resolvedTarget.props[prop];
+        }
         const value = resolvedTarget[prop];
         if (typeof value === "function") {
           return wrapNamedSymbolCallable(value, resolvedTarget);
@@ -24149,12 +24384,99 @@
         }
         const resolvedTarget = readHandleResolutionTarget(target);
         if (resolvedTarget && typeof resolvedTarget === "object") {
+          if (
+            resolvedTarget.props &&
+            typeof resolvedTarget.props === "object" &&
+            !Array.isArray(resolvedTarget.props) &&
+            (Object.prototype.hasOwnProperty.call(resolvedTarget.props, prop) || !Object.prototype.hasOwnProperty.call(resolvedTarget, prop))
+          ) {
+            resolvedTarget.props[prop] = value;
+            return true;
+          }
           resolvedTarget[prop] = value;
         }
         return true;
       },
     });
     return handle;
+  }
+
+  function ensureGlobalQDomObjectMap() {
+    if (global.QHTML_QDOM && typeof global.QHTML_QDOM.get === "function" && typeof global.QHTML_QDOM.set === "function") {
+      return global.QHTML_QDOM;
+    }
+    const map = new Map();
+    try {
+      global.QHTML_QDOM = map;
+    } catch (error) {
+      // no-op
+    }
+    return map;
+  }
+
+  function registerRenderedQDomObject(node) {
+    if (!node || typeof node !== "object") {
+      return "";
+    }
+    const uuid = resolveAliasUuid(node);
+    if (!uuid) {
+      return "";
+    }
+    const qdomMap = ensureGlobalQDomObjectMap();
+    if (qdomMap && typeof qdomMap.set === "function") {
+      qdomMap.set(uuid, node);
+    }
+    return uuid;
+  }
+
+  function readQDomContextMap(node) {
+    if (!node || typeof node !== "object") {
+      return null;
+    }
+    const context = node[QDOM_CONTEXT_KEY];
+    return context && typeof context === "object" && !Array.isArray(context) ? context : null;
+  }
+
+  function registerQDomContextAliases(context, node) {
+    if (!context || !node || typeof node !== "object") {
+      return;
+    }
+    const contextMap = readQDomContextMap(node);
+    if (!contextMap) {
+      return;
+    }
+    const currentNodeUuid = registerRenderedQDomObject(node);
+    ensureContextFrames(context);
+    const scopeFrame = context[QCONTEXT_SCOPE_FRAME_KEY];
+    const runtimeFrame = context[QCONTEXT_RUNTIME_FRAME_KEY];
+    const names = Object.keys(contextMap);
+    for (let i = 0; i < names.length; i += 1) {
+      const name = String(names[i] || "").trim();
+      const uuid = String(contextMap[names[i]] || "").trim();
+      if (!name || !uuid) {
+        continue;
+      }
+      if (currentNodeUuid && uuid === currentNodeUuid) {
+        continue;
+      }
+      if (scopeFrame && typeof scopeFrame.has === "function" && scopeFrame.has(name)) {
+        continue;
+      }
+      const qdomMap = ensureGlobalQDomObjectMap();
+      const qdomTarget = qdomMap && typeof qdomMap.get === "function" ? qdomMap.get(uuid) : null;
+      const aliasHandle = createNamedSymbolHandle({
+        uuid: uuid,
+        kind: "qdom-context",
+        target: qdomTarget && typeof qdomTarget === "object" ? qdomTarget : null,
+        label: name,
+      });
+      if (scopeFrame && typeof scopeFrame.set === "function") {
+        scopeFrame.set(name, aliasHandle);
+      }
+      if (runtimeFrame && typeof runtimeFrame.set === "function") {
+        runtimeFrame.set(name, aliasHandle);
+      }
+    }
   }
 
   function exportNamedAliasToHost(hostElement, aliasName, value) {
@@ -24325,29 +24647,6 @@
     const hostStack =
       context && Array.isArray(context.componentHostStack) ? context.componentHostStack : null;
     const ownerHost = hostStack && hostStack.length > 0 ? hostStack[hostStack.length - 1] : null;
-    const existingLocal = typeof frame.getLocal === "function" ? frame.getLocal(alias) : undefined;
-    if (typeof frame.hasLocal === "function" && frame.hasLocal(alias)) {
-      if (isOwnerTypeSymbolHandle(existingLocal)) {
-        warnScopedAliasConflict(
-          alias,
-          "child instance alias conflicts with enclosing component type alias; binding is blanked"
-        );
-        frame.set(alias, "");
-        context[QCONTEXT_RUNTIME_FRAME_KEY].set(alias, "");
-        if (ownerHost) {
-          exportNamedAliasToHost(ownerHost, alias, "");
-        } else {
-          if (context && context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
-            context.namedRuntimeValues[alias] = "";
-          }
-          if (context && context.rootHostElement) {
-            exportNamedAliasToHost(context.rootHostElement, alias, "");
-          }
-        }
-        return;
-      }
-      throw new Error("Duplicate named instance alias in same scope: '" + alias + "'.");
-    }
     frame.set(alias, aliasHandle);
     context[QCONTEXT_SCOPE_FRAME_KEY] = frame;
     context[QCONTEXT_RUNTIME_FRAME_KEY].set(alias, aliasHandle);
@@ -25919,6 +26218,8 @@
     if (!node || typeof node !== "object") {
       return;
     }
+    registerRenderedQDomObject(node);
+    registerQDomContextAliases(context, node);
     const slotRef = node[RENDER_SLOT_REF] || null;
     if (slotRef) {
       context.slotStack.push(slotRef);
@@ -31851,6 +32152,7 @@
   };
   const globalUuidPointerRegistry = new Map();
   const globalUuidLookupRegistry = new Map();
+  const globalQDomObjectRegistry = new Map();
   const globalQDomDataRegistry = new Map();
   const globalSignalSubscriberRegistry = new Map();
   const globalSignalReferenceRegistry = new Map();
@@ -31948,6 +32250,11 @@
     }
     try {
       global.QHTML_UUID_LOOKUP_MAP = globalUuidLookupRegistry;
+    } catch (error) {
+      // no-op
+    }
+    try {
+      global.QHTML_QDOM = globalQDomObjectRegistry;
     } catch (error) {
       // no-op
     }
@@ -32510,6 +32817,7 @@
       if (!record) {
         return false;
       }
+      globalQDomObjectRegistry.set(record.uuid, source);
       recordsByUuid.set(record.uuid, record);
       next.add(record.uuid);
       return false;
@@ -32662,6 +32970,7 @@
           return;
         }
         globalQDomDataRegistry.delete(normalizedStale);
+        globalQDomObjectRegistry.delete(normalizedStale);
       });
     }
 

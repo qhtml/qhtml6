@@ -798,14 +798,15 @@
     consume(parser);
     const expression = readBalancedParenthesizedContent(parser);
     skipWhitespace(parser);
-    if (peek(parser) !== "{") {
-      throw ParseError("Expected '{' after qhtml(...) invocation", parser.index);
+    let items = [];
+    let continuationSource = "";
+    if (peek(parser) === "{") {
+      consume(parser);
+      const bodyStart = parser.index;
+      items = parseBlockItems(parser, keywordAliases);
+      continuationSource = parser.source.slice(bodyStart, parser.index);
+      expect(parser, "}");
     }
-    consume(parser);
-    const bodyStart = parser.index;
-    const items = parseBlockItems(parser, keywordAliases);
-    const continuationSource = parser.source.slice(bodyStart, parser.index);
-    expect(parser, "}");
     return {
       type: "QHtmlDynamicFragmentInvocation",
       expression: String(expression || "").trim(),
@@ -1216,6 +1217,33 @@
       throw ParseError("Expected selector", start);
     }
     return parseSelectorTokenTail(parser, token);
+  }
+
+  function parseInstanceAliasSelectorToken(parser) {
+    const start = parser.index;
+    if (!isIdentifierStartChar(peek(parser))) {
+      return null;
+    }
+    while (!eof(parser) && /[A-Za-z0-9_-]/.test(peek(parser))) {
+      parser.index += 1;
+    }
+    const aliasBase = String(parser.source.slice(start, parser.index) || "").trim();
+    if (!aliasBase) {
+      parser.index = start;
+      return null;
+    }
+    const fullToken = parseSelectorTokenTail(parser, aliasBase);
+    return {
+      alias: aliasBase,
+      selectorSuffix: String(fullToken || "").slice(aliasBase.length),
+      raw: fullToken,
+    };
+  }
+
+  function mergeInstanceSelectorSuffix(selector, suffix) {
+    const base = String(selector || "").trim();
+    const extra = String(suffix || "").trim();
+    return base && extra ? base + extra : base;
   }
 
   function readBalancedBlockContent(parser) {
@@ -3345,7 +3373,7 @@
         }
         if (isIdentifierStartChar(nextChar)) {
           const instanceAliasStart = parser.index;
-          const instanceAlias = parseIdentifier(parser);
+          const instanceAliasToken = parseInstanceAliasSelectorToken(parser);
           skipWhitespace(parser);
           if (peek(parser) === "{") {
             consume(parser);
@@ -3353,8 +3381,8 @@
             expect(parser, "}");
             items.push({
               type: "Element",
-              selectors: [name],
-              instanceAlias: String(instanceAlias || "").trim(),
+              selectors: [mergeInstanceSelectorSuffix(name, instanceAliasToken && instanceAliasToken.selectorSuffix)],
+              instanceAlias: String(instanceAliasToken && instanceAliasToken.alias || "").trim(),
               prefixDirectives: [],
               items: childItems,
               keywords: keywordSnapshot,
@@ -4607,7 +4635,7 @@
 
         if (isIdentifierStartChar(peek(parser))) {
           const instanceAliasStart = parser.index;
-          const instanceAlias = parseIdentifier(parser);
+          const instanceAliasToken = parseInstanceAliasSelectorToken(parser);
           skipWhitespace(parser);
           if (peek(parser) === "{") {
             const prefixDirectives = parseLeadingSelectorDirectiveBlocks(parser);
@@ -4620,8 +4648,8 @@
             expect(parser, "}");
             body.push({
               type: "Element",
-              selectors: [firstSelector],
-              instanceAlias: String(instanceAlias || "").trim(),
+              selectors: [mergeInstanceSelectorSuffix(firstSelector, instanceAliasToken && instanceAliasToken.selectorSuffix)],
+              instanceAlias: String(instanceAliasToken && instanceAliasToken.alias || "").trim(),
               prefixDirectives: prefixDirectives,
               items: items,
               keywords: keywordSnapshot,
@@ -5527,6 +5555,10 @@
       parentContext && parentContext.repeaterScope && typeof parentContext.repeaterScope === "object"
         ? parentContext.repeaterScope
         : null;
+    const parentQTimers =
+      parentContext && Array.isArray(parentContext.qTimers)
+        ? parentContext.qTimers
+        : null;
     const qArrays = new Map();
     const qObjects = new Map();
     const qModels = new Map();
@@ -5552,6 +5584,7 @@
       qObjects: qObjects,
       qModels: qModels,
       repeaterScope: parentRepeaterScope ? Object.assign({}, parentRepeaterScope) : {},
+      qTimers: parentQTimers,
     };
   }
 
@@ -10066,6 +10099,22 @@
     return config;
   }
 
+  function createQTimerRuntimeDefinition(item) {
+    const timerId = String(item && item.timerId || "").trim();
+    if (!timerId) {
+      return null;
+    }
+    const config = item.config && typeof item.config === "object" ? item.config : {};
+    const interval = Number(config.interval);
+    return {
+      timerId: timerId,
+      interval: Number.isFinite(interval) && interval >= 0 ? Math.floor(interval) : 0,
+      repeat: config.repeat !== false,
+      running: config.running !== false,
+      onTimeout: String(config.onTimeout || ""),
+    };
+  }
+
   function parseQCanvasDefinitionBody(bodyText, keywordAliases) {
     const body = String(bodyText || "");
     const parser = parserFor(body);
@@ -11209,6 +11258,10 @@
       context && context.repeaterScope && typeof context.repeaterScope === "object"
         ? context.repeaterScope
         : {};
+    const qTimerContext =
+      context && Array.isArray(context.qTimers)
+        ? context.qTimers
+        : null;
     const childScopedStyles =
       context && Array.isArray(context.qStyleChildScope)
         ? context.qStyleChildScope
@@ -11264,6 +11317,7 @@
           qObjects: qObjectContext,
           qModels: qModelContext,
           repeaterScope: repeaterScope,
+          qTimers: qTimerContext,
         });
         for (let oi = 0; oi < objectNodes.length; oi += 1) {
           appendChildNode(objectNodes[oi]);
@@ -11281,6 +11335,7 @@
           qObjects: qObjectContext,
           qModels: qModelContext,
           repeaterScope: repeaterScope,
+          qTimers: qTimerContext,
         });
         for (let ri = 0; ri < repeatedNodes.length; ri += 1) {
           appendChildNode(repeatedNodes[ri]);
@@ -11296,6 +11351,7 @@
           qObjects: qObjectContext,
           qModels: qModelContext,
           repeaterScope: repeaterScope,
+          qTimers: qTimerContext,
         });
         appendActiveQTheme(invocationContext.qStyles, namedTheme);
         const scopeNode = core.createElementNode({
@@ -11328,6 +11384,7 @@
           qObjects: qObjectContext,
           qModels: qModelContext,
           repeaterScope: repeaterScope,
+          qTimers: qTimerContext,
         });
         appendActiveQColorSetup(invocationContext.qColors, namedColorSetup);
         const scopeNode = core.createElementNode({
@@ -11381,6 +11438,15 @@
       }
       if (item.type === "QWasmBlock") {
         throw new Error("q-wasm is only valid inside q-component definitions.");
+      }
+      if (item.type === "QTimerDefinition") {
+        if (qTimerContext) {
+          const timerDefinition = createQTimerRuntimeDefinition(item);
+          if (timerDefinition) {
+            qTimerContext.push(timerDefinition);
+          }
+        }
+        continue;
       }
       if (item.type === "QPropertyBlock") {
         const names = Array.isArray(item.properties) ? item.properties : [];
@@ -11546,6 +11612,7 @@
               qObjects: qObjectContext,
               qModels: qModelContext,
               repeaterScope: repeaterScope,
+              qTimers: qTimerContext,
             })
             );
             for (let ni = 0; ni < nestedNodes.length; ni += 1) {
@@ -11572,6 +11639,7 @@
             qObjects: qObjectContext,
             qModels: qModelContext,
             repeaterScope: repeaterScope,
+            qTimers: qTimerContext,
           })
         );
         for (let ci = 0; ci < childNodes.length; ci += 1) {
@@ -12893,6 +12961,7 @@
     const sdmlEndpoints = [];
     const sdmlComponents = [];
     const qTimers = [];
+    conversionContext.qTimers = qTimers;
     const lifecycleScripts = [];
     for (let i = 0; i < ast.body.length; i += 1) {
       const item = ast.body[i];
@@ -12922,19 +12991,10 @@
         continue;
       }
       if (item.type === "QTimerDefinition") {
-        const timerId = String(item.timerId || "").trim();
-        if (!timerId) {
-          continue;
+        const timerDefinition = createQTimerRuntimeDefinition(item);
+        if (timerDefinition) {
+          qTimers.push(timerDefinition);
         }
-        const config = item.config && typeof item.config === "object" ? item.config : {};
-        const interval = Number(config.interval);
-        qTimers.push({
-          timerId: timerId,
-          interval: Number.isFinite(interval) && interval >= 0 ? Math.floor(interval) : 0,
-          repeat: config.repeat !== false,
-          running: config.running !== false,
-          onTimeout: String(config.onTimeout || ""),
-        });
         continue;
       }
       if (item.type === "QConnectDefinition") {
@@ -13114,6 +13174,10 @@
     }
     if (Array.isArray(opts.scriptRules)) {
       doc.scripts = opts.scriptRules.slice();
+    }
+
+    if (core && typeof core.assignQDomContexts === "function") {
+      core.assignQDomContexts(doc);
     }
 
     return doc;
