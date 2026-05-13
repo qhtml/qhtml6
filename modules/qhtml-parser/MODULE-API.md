@@ -81,6 +81,10 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - top-level `q-var name { expressionOrBody }` emitted as QDom `kind: "q-var"` nodes
       - component-local `q-var name { expressionOrBody }` emitted in `component.varDeclarations`
       - bodies are preserved as JavaScript source text for one-time scoped runtime initialization
+    - q-switch declarations:
+      - top-level `q-switch name { key: { expression } *: defaultExpression }` emitted as QDom `kind: "q-switch"` nodes
+      - component-local `q-switch` declarations emitted in `component.switchDeclarations`
+      - case bodies are preserved as JavaScript source text for runtime on-demand evaluation
     - q-timer declarations:
       - top-level `q-timer name { ... }` emitted in `document.meta.qTimers`
       - component-local `q-timer name { ... }` emitted in `component.qTimerDefinitions`

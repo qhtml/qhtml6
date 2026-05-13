@@ -72,6 +72,11 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - reads return the stored value and assignments replace the stored value
   - dynamic behavior should be expressed by storing a function and invoking it, for example `q-var current { function() { return source.value; } }`
   - q-vars are visible to following siblings and descendants, and are exported on the owning component or `<q-html>` host for dot-walk access
+- `q-switch` declarations register scoped callable functions in the existing QContext frames:
+  - declaration form: `q-switch name { key: { expression } *: defaultExpression }`
+  - `name(value)` resolves by primitive key and evaluates only the selected case body on demand
+  - no property binding or listener behavior is installed; dynamic behavior must come from the caller or from expressions/functions returned by cases
+  - returned QHTML source strings can be passed into `qhtml(name(value))`
 - `q-timer` declarations can be registered at document scope or inside anonymous DOM/theme/style containers:
   - anonymous containers inherit the current QContext instead of creating a new named scope
   - root timers are registered before document nodes render so handlers and expressions can resolve them by name

@@ -80,6 +80,160 @@ box { text { outside } }  // unchanged outside the scope
         }
       }
     }
+
+    wiki-example-card {
+      title: "q-var arrays and objects"
+      summary: "q-var stores a scoped JavaScript value. Arrays and objects are useful for small runtime configuration values."
+      note: "Use q-property when you need component property binding. Use q-var for an in-scope value or helper."
+      details {
+        html {
+          <q-editor>&lt;q-html&gt;
+q-var names { ["ada", "grace", "katherine"] }
+q-var settings { ({ label: "engineers", count: names.length }) }
+
+div {
+  h3 { text { ${settings.label} } }
+  p { text { first=${names[0]} total=${settings.count} } }
+}
+&lt;/q-html&gt;</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "q-var functions"
+      summary: "A q-var can store a function and that function can be called from interpolation, event handlers, and component methods."
+      note: "The function is a normal JavaScript function value stored in the current QContext."
+      details {
+        html {
+          <q-editor>&lt;q-html&gt;
+q-var formatName { function(name) { return "Hello " + name.toUpperCase(); } }
+
+div#function-result {
+  text { ${formatName("qhtml")} }
+}
+
+button {
+  text { log formatted name }
+  onclick { console.log(formatName("runtime")); }
+}
+&lt;/q-html&gt;</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "q-var assignment"
+      summary: "Update a q-var through the handle with .set(value) or by assigning .value."
+      note: "Assignment replaces the stored value. It does not create a q-property binding."
+      details {
+        html {
+          <q-editor>&lt;q-html&gt;
+q-var clickCount { 0 }
+
+button {
+  text { increment q-var }
+  onclick {
+    clickCount.set(clickCount.value + 1);
+    this.textContent = "count=" + clickCount.value;
+  }
+}
+
+button {
+  text { replace value }
+  onclick {
+    clickCount.value = { replaced: true, previous: clickCount.value };
+    console.log(clickCount.value);
+  }
+}
+&lt;/q-html&gt;</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "q-var as dynamic QHTML"
+      summary: "A q-var can store a QHTML fragment string and qhtml(varName) can render it declaratively."
+      note: "This is useful for passing a small render fragment through component scopes."
+      details {
+        html {
+          <q-editor>&lt;q-html&gt;
+q-var cardHead { "div.dynamic-card,section.dynamic-body {" }
+
+qhtml(cardHead) {
+  h3 { text { Fragment from q-var } }
+  p { text { The block body completes the stored fragment. } }
+}
+&lt;/q-html&gt;</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "q-var context scope"
+      summary: "A q-var declared in a host or anonymous container is visible to siblings and descendants. A q-var inside a named component is owned by that component."
+      note: "Outside callers can dot-walk through the named component reference to reach the q-var."
+      details {
+        html {
+          <q-editor>&lt;q-html&gt;
+q-var hostMessage { "host scope" }
+
+q-component scoped-card {
+  q-var localMessage { "local scope" }
+  div { text { ${hostMessage} / ${localMessage} } }
+}
+
+scoped-card cardOne { }
+
+button {
+  text { read scoped value }
+  onclick { alert(cardOne.localMessage); }
+}
+&lt;/q-html&gt;</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "q-switch lookup functions"
+      summary: "q-switch creates a scoped function that returns a case value for a primitive input."
+      note: "It is syntactic sugar for a small lookup function. It does not listen for property changes."
+      details {
+        html {
+          <q-editor>&lt;q-html&gt;
+q-switch labelFor {
+  15: { "hello world" }
+  "test": { 32 }
+  "zero": { 0 }
+  *: { "fallback" }
+}
+
+div {
+  text { ${labelFor(15)} | ${labelFor("test")} | ${labelFor("zero")} | ${labelFor("missing")} }
+}
+&lt;/q-html&gt;</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "q-switch with qhtml()"
+      summary: "A q-switch case can return QHTML source, then qhtml(...) can render the selected fragment."
+      note: "Use this for simple lookup-driven fragments. Use q-state-machine when state changes should re-render automatically."
+      details {
+        html {
+          <q-editor>&lt;q-html&gt;
+q-switch panelFor {
+  "info": { "div.info-panel { text { Information panel } }" }
+  "warn": { "div.warn-panel { text { Warning panel } }" }
+  *: { "div.default-panel { text { Default panel } }" }
+}
+
+qhtml(panelFor("info"))
+&lt;/q-html&gt;</q-editor>
+        }
+      }
+    }
   }
 }
     </q-html>

@@ -22,6 +22,7 @@
   const QCONTEXT_OWNER_TYPE_NAME_KEY = "__qhtmlContextOwnerTypeName";
   const QCONTEXT_OWNER_PARENT_HANDLE_KEY = "__qhtmlContextOwnerParentHandle";
   const Q_VAR_NODE_KIND = "q-var";
+  const Q_SWITCH_NODE_KIND = "q-switch";
   const Q_TIMER_NODE_KIND = "q-timer";
   const QHTML_QVAR_HANDLE_FLAG = "__qhtmlVarHandle";
   const Q_MODEL_VIEW_INSTANCE_ATTR = "q-model-view-instance";
@@ -2182,6 +2183,8 @@
       signalDeclarations: [],
       callbackDeclarations: [],
       aliasDeclarations: [],
+      varDeclarations: [],
+      switchDeclarations: [],
       wasmConfig: null,
       lifecycleScripts: [],
       attributes: {},
@@ -2195,6 +2198,8 @@
     const signalIndex = new Map();
     const callbackIndex = new Map();
     const aliasIndex = new Map();
+    const varIndex = new Map();
+    const switchIndex = new Map();
     const lifecycleIndex = new Map();
     let mergedRepeaterConfig = null;
     let mergedCanvasSemantics = false;
@@ -2250,6 +2255,8 @@
       mergeNamedEntries(merged.signalDeclarations, node.signalDeclarations, signalIndex);
       mergeNamedEntries(merged.callbackDeclarations, node.callbackDeclarations, callbackIndex);
       mergeNamedEntries(merged.aliasDeclarations, node.aliasDeclarations, aliasIndex);
+      mergeNamedEntries(merged.varDeclarations, node.varDeclarations, varIndex);
+      mergeNamedEntries(merged.switchDeclarations, node.switchDeclarations, switchIndex);
 
       if (Array.isArray(node.lifecycleScripts) && node.lifecycleScripts.length > 0) {
         for (let li = 0; li < node.lifecycleScripts.length; li += 1) {
@@ -9286,6 +9293,7 @@
     }
     scope.component = resolveComponentForInterpolation(context, fallbackNode);
     scope.componentQdom = resolveComponentQdomForInterpolation(context);
+    scope.qhtml = typeof global.qhtml === "function" ? global.qhtml : createQHtmlFragmentToken;
     return scope;
   }
 
@@ -9765,6 +9773,103 @@
     return null;
   }
 
+  function registerNamedRuntimeValueInContext(name, value, ownerHost, context) {
+    const key = String(name || "").trim();
+    if (!key) {
+      return;
+    }
+    ensureContextFrames(context);
+    const aliasStack = ensureInstanceAliasScopeStack(context);
+    const activeFrame =
+      aliasStack.length > 0
+        ? aliasStack[aliasStack.length - 1]
+        : context[QCONTEXT_SCOPE_FRAME_KEY];
+    if (activeFrame && typeof activeFrame.set === "function") {
+      activeFrame.set(key, value);
+    }
+    if (context[QCONTEXT_RUNTIME_FRAME_KEY] && typeof context[QCONTEXT_RUNTIME_FRAME_KEY].set === "function") {
+      context[QCONTEXT_RUNTIME_FRAME_KEY].set(key, value);
+    }
+    if (ownerHost && ownerHost.nodeType === 1) {
+      exportNamedAliasToHost(ownerHost, key, value);
+    } else if (context && context.rootHostElement) {
+      exportNamedAliasToHost(context.rootHostElement, key, value);
+      if (context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
+        context.namedRuntimeValues[key] = value;
+      }
+    }
+  }
+
+  function evaluateQSwitchCaseBody(body, ownerHost, context, inputValue) {
+    const source = String(body || "").trim();
+    if (!source) {
+      return undefined;
+    }
+    const thisArg = ownerHost && ownerHost.nodeType === 1 ? ownerHost : null;
+    const interpolationScope = buildInterpolationScope(context, thisArg);
+    interpolationScope.item = inputValue;
+    interpolationScope.value = inputValue;
+    const scopeNames = Object.keys(interpolationScope).filter(function filterQSwitchScopeParam(name) {
+      return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(String(name || ""));
+    });
+    const scopeValues = scopeNames.map(function mapQSwitchScopeParam(name) {
+      return interpolationScope[name];
+    });
+    try {
+      const expressionExecutor = new Function(scopeNames.join(","), "return (" + source + ");");
+      return expressionExecutor.apply(thisArg, scopeValues);
+    } catch (expressionError) {
+      try {
+        const bodyExecutor = new Function(scopeNames.join(","), source);
+        return bodyExecutor.apply(thisArg, scopeValues);
+      } catch (bodyError) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml q-switch evaluation failed:", bodyError);
+        }
+        return undefined;
+      }
+    }
+  }
+
+  function createQSwitchFunction(node, ownerHost, context) {
+    const cases = Array.isArray(node && node.cases) ? node.cases.slice() : [];
+    const byKey = Object.create(null);
+    for (let i = 0; i < cases.length; i += 1) {
+      const entry = cases[i] && typeof cases[i] === "object" ? cases[i] : {};
+      const key = String(entry.key || "");
+      if (!key && key !== "") {
+        continue;
+      }
+      byKey[key] = entry;
+    }
+    return function qSwitchRuntimeLookup(inputValue) {
+      const key = String(inputValue);
+      const selected = Object.prototype.hasOwnProperty.call(byKey, key)
+        ? byKey[key]
+        : Object.prototype.hasOwnProperty.call(byKey, "*")
+          ? byKey["*"]
+          : null;
+      if (!selected) {
+        return undefined;
+      }
+      return evaluateQSwitchCaseBody(selected.body, ownerHost, context, inputValue);
+    };
+  }
+
+  function registerQSwitchDeclarationNode(node, parent, targetDocument, context, ownerHostOverride) {
+    if (!node || String(node.kind || "").trim().toLowerCase() !== Q_SWITCH_NODE_KIND) {
+      return false;
+    }
+    const name = String(node.name || "").trim();
+    if (!name) {
+      return true;
+    }
+    const ownerHost = resolveContextOwnerHost(parent, context, ownerHostOverride);
+    const switchFn = createQSwitchFunction(node, ownerHost, context);
+    registerNamedRuntimeValueInContext(name, switchFn, ownerHost, context);
+    return true;
+  }
+
   function registerQTimerDeclarationNode(node, parent, targetDocument, context, ownerHostOverride) {
     if (!node || String(node.kind || "").trim().toLowerCase() !== Q_TIMER_NODE_KIND) {
       return false;
@@ -10082,6 +10187,11 @@
 
       if (String(node.kind || "").trim().toLowerCase() === Q_VAR_NODE_KIND) {
         registerQVarDeclarationNode(node, parent, targetDocument, context);
+        return;
+      }
+
+      if (String(node.kind || "").trim().toLowerCase() === Q_SWITCH_NODE_KIND) {
+        registerQSwitchDeclarationNode(node, parent, targetDocument, context);
         return;
       }
 
@@ -10666,6 +10776,16 @@
         hostElement
       );
     }
+    const switchDeclarations = Array.isArray(componentNode.switchDeclarations) ? componentNode.switchDeclarations : [];
+    for (let si = 0; si < switchDeclarations.length; si += 1) {
+      registerQSwitchDeclarationNode(
+        Object.assign({ kind: Q_SWITCH_NODE_KIND }, switchDeclarations[si]),
+        hostElement,
+        targetDocument,
+        componentContext,
+        hostElement
+      );
+    }
     try {
       renderComponentContentIntoHost(componentNode, instanceNode, hostElement, targetDocument, componentContext);
     } finally {
@@ -11154,6 +11274,16 @@
     for (let vi = 0; vi < varDeclarations.length; vi += 1) {
       registerQVarDeclarationNode(
         Object.assign({ kind: Q_VAR_NODE_KIND }, varDeclarations[vi]),
+        hostElement,
+        doc,
+        context,
+        hostElement
+      );
+    }
+    const switchDeclarations = Array.isArray(effectiveComponentNode.switchDeclarations) ? effectiveComponentNode.switchDeclarations : [];
+    for (let si = 0; si < switchDeclarations.length; si += 1) {
+      registerQSwitchDeclarationNode(
+        Object.assign({ kind: Q_SWITCH_NODE_KIND }, switchDeclarations[si]),
         hostElement,
         doc,
         context,

@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.8.1
+# QHTML.js v6.9.0
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,13 +12,12 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v6.8.1
+## Whats New in v6.9.0
 
-- Added `q-var name { ... }` for scoped runtime variables that evaluate JavaScript expressions during render.
-- `q-var` values are available to inline expressions, property assignments, event handlers, component functions, descendant components, and dot-walked component references.
-- `q-var` handles expose `.value`, `.get()`, `.set(value)`, and a QSignal-compatible `.changed` signal.
-- Added `qhtml(varName) { ... }` continuation rendering so a variable can provide a partial QHTML fragment head and the block can provide the rest.
-- Added `q-switch name { ... }` / `switch name { ... }` for named primitive lookup functions usable from JavaScript handlers, interpolation, and `qhtml(...)`.
+- Bumped the release line to `6.9.0` and moved release bundling to the root `build-release.sh` entry point.
+- Added `q-switch name { ... }` / `switch name { ... }` for scoped primitive lookup functions usable from handlers, interpolation, component code, and `qhtml(...)`.
+- Refined `q-var name { ... }` documentation around stored primitive/object/array/function values, assignment through the q-var handle, scoped references, and dynamic QHTML fragments.
+- Refreshed the documentation runtime copies so doc pages can load their local QHTML bundle without parent-directory paths.
 
 ## 1. Quick Start
 
@@ -563,49 +562,63 @@ Recommendation:
 
 ### `q-var` (scoped runtime variable)
 
-`q-var` declares a named runtime value in the current QHTML scope. The block is evaluated like a JavaScript expression first, so strings, numbers, objects, arrays, DOM references, function expressions, and component method calls are valid values. If expression parsing fails, QHTML falls back to function-body mode so explicit `return` statements can be used.
+`q-var` declares a named runtime value in the current QHTML scope. The block is evaluated as JavaScript and is intended for stored strings, numbers, objects, arrays, and functions. Use `q-property` when you need component property binding; use `q-var` when you need an in-scope runtime value or helper.
 
 ```qhtml
-q-var greeting { "hello from q-var" }
-q-var makeLabel { function(name) { return greeting + " / " + name; } }
+q-var names { ["ada", "grace", "katherine"] }
+q-var settings { ({ tone: "calm", count: names.length }) }
+q-var makeLabel { function(name) { return settings.tone + ": " + name; } }
 
-div {
-  text { ${greeting} }
-}
-
-button {
-  text { ${makeLabel("button")} }
-  onclick {
-    greeting.set("updated");
-    console.log(greeting.value);
-  }
+ul {
+  li { text { ${makeLabel(names[0])} } }
+  li { text { total=${settings.count} } }
 }
 ```
 
 Every q-var handle exposes:
 - `.value`: the current value.
 - `.get()`: returns the current value.
-- `.set(value)`: updates the value and emits `changed`.
-- `.changed`: QSignal-compatible signal that can be connected with `.connect(...)` or `q-connect`.
+- `.set(value)`: updates the stored value.
 
 ```qhtml
 q-var count { 0 }
 
-onready {
-  count.changed.connect(function(value, previousValue) {
-    console.log("count changed from", previousValue, "to", value);
-  });
+button {
+  text { increment }
+  onclick { count.set(count.value + 1); }
 }
 
 button {
-  text { increment }
-  onclick {
-    count.set(count.value + 1);
-  }
+  text { replace with object }
+  onclick { count.value = { clicked: true, total: count.value }; }
 }
 ```
 
-`q-var` values are scoped like named component instances. Descendants can use the variable directly. Sibling/parent component paths can reach q-vars through the named component that owns them.
+Functions stored in q-var can be called directly:
+
+```qhtml
+q-var formatPrice { function(value) { return "$" + Number(value).toFixed(2); } }
+
+p { text { ${formatPrice(14.5)} } }
+```
+
+`q-var` follows QContext rules. A q-var declared in a host or anonymous container is visible to siblings and descendants. A q-var declared inside a named component is owned by that component and can be reached by descendants directly or by outside callers through the component reference.
+
+```qhtml
+q-var hostMessage { "available to this host" }
+
+q-component note-card {
+  q-var localMessage { "inside " + this.component.id }
+  p { text { ${hostMessage} / ${localMessage} } }
+}
+
+note-card firstCard#first { }
+
+button {
+  text { read component q-var }
+  onclick { console.log(firstCard.localMessage); }
+}
+```
 
 `q-var` can also feed dynamic QHTML fragments. When a q-var contains a partial fragment head, `qhtml(varName) { ... }` appends the block body and closes missing braces:
 

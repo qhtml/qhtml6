@@ -1,5 +1,13 @@
 # QHTML.js Change Log
 
+## Whats New in v6.9.0
+
+- Bumped the public release version to `6.9.0`.
+- Added `q-switch name { ... }` / `switch name { ... }` as scoped primitive lookup functions for handlers, interpolation, component code, and `qhtml(...)`.
+- Documented the major `q-var` use cases: arrays, objects, functions, assignment through the q-var handle, scoped references, and declarative QHTML fragments.
+- Copied the release bundle script to root `build-release.sh` and refreshed generated release/doc runtime bundles from source.
+- Removed the obsolete broken parser backup and added the particle emitter star mask asset to tracked files.
+
 ## Whats New in v6.8.0
 
 - Added `q-var name { ... }` for scoped runtime variables evaluated as JavaScript expression bodies during render.

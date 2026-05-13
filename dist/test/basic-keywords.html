@@ -1746,8 +1746,44 @@ onReady {
         </div>
         <div class="test-expected"><strong>Expected:</strong> hello world | 32 | default-116 | 0 | qswitch-fragment-116 | component=32 | hello world click</div>
 <q-html id="host-t116" data-test-no="116">
-div#t116-disabled {
-  text { q-switch test temporarily disabled; original test text preserved for re-enable. }
+q-switch lookup116 {
+  15: { "hello world" }
+  "test": { 32 }
+  "zero": { 0 }
+  *: { "default-116" }
+}
+
+q-switch qhtmlswitch116 {
+  "item1": { "span#t116-frag { text { qswitch-fragment-116 } }" }
+  *: { "" }
+}
+
+q-component switchComp116 {
+  q-property key: "test"
+  div#t116-component { text { component=${lookup116(this.component.key)} } }
+}
+
+div#t116-values { text { ${lookup116(15)} | ${lookup116("test")} | ${lookup116("missing")} | ${lookup116("zero")} } }
+qhtml(qhtmlswitch116("item1"))
+switchComp116 comp116 { }
+div#t116-click { text { waiting } }
+button#t116-btn {
+  onclick {
+    document.querySelector("#t116-click").textContent = lookup116(15) + " click";
+  }
+  text { run q-switch }
+}
+
+onReady {
+  var host = this;
+  var btn = host.querySelector("#t116-btn");
+  if (btn) {
+    btn.click();
+  }
+  var acc = document.querySelector("#acc-main");
+  if (acc && typeof acc.resultReported === "function") {
+    acc.resultReported(116, host.innerHTML);
+  }
 }
 </q-html>
       </article>

@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-13T06:05:34Z */
+/* generated: 2026-05-13T22:01:09Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -1428,7 +1428,6 @@
     "q-bind",
     "q-var",
     "q-switch",
-    "switch",
     "q-property",
     "q-signal",
     "q-callback",
@@ -1889,6 +1888,19 @@
     return parser.source.slice(start, parser.index);
   }
 
+  function parseReferenceIdentifier(parser) {
+    skipWhitespace(parser);
+    const start = parser.index;
+    if (!isIdentifierStartChar(peek(parser))) {
+      throw ParseError("Expected identifier", parser.index);
+    }
+    parser.index += 1;
+    while (!eof(parser) && /[A-Za-z0-9_]/.test(peek(parser))) {
+      parser.index += 1;
+    }
+    return parser.source.slice(start, parser.index);
+  }
+
   function isIdentifierStartChar(ch) {
     return /[A-Za-z_]/.test(String(ch || ""));
   }
@@ -2169,96 +2181,6 @@
     };
   }
 
-  function isQHtmlFragmentCallName(name) {
-    const normalized = String(name || "").trim().toLowerCase();
-    return normalized === "qhtml" || normalized === "qhtmlstring";
-  }
-
-  function createQHtmlFragmentValue(source) {
-    return {
-      __qhtmlFragment: true,
-      source: String(source == null ? "" : source),
-    };
-  }
-
-  function parseQHtmlDynamicFragmentInvocation(parser, keywordAliases, keywordSnapshot, start) {
-    const expressionStart = parser.index;
-    if (peek(parser) !== "(") {
-      return null;
-    }
-    consume(parser);
-    const expression = readBalancedParenthesizedContent(parser);
-    skipWhitespace(parser);
-    if (peek(parser) !== "{") {
-      throw ParseError("Expected '{' after qhtml(...) invocation", parser.index);
-    }
-    consume(parser);
-    const bodyStart = parser.index;
-    const items = parseBlockItems(parser, keywordAliases);
-    const continuationSource = parser.source.slice(bodyStart, parser.index);
-    expect(parser, "}");
-    return {
-      type: "QHtmlDynamicFragmentInvocation",
-      expression: String(expression || "").trim(),
-      items: items,
-      continuationSource: String(continuationSource || ""),
-      keywords: keywordSnapshot,
-      start: start,
-      end: parser.index,
-      raw: parser.source.slice(start, parser.index),
-    };
-  }
-
-  function tryReadStaticQHtmlFragmentCall(parser) {
-    const snapshot = parser.index;
-    if (!isIdentifierStartChar(peek(parser))) {
-      return {
-        matched: false,
-        value: null,
-        raw: "",
-      };
-    }
-    const name = parseIdentifier(parser);
-    if (!isQHtmlFragmentCallName(name)) {
-      parser.index = snapshot;
-      return {
-        matched: false,
-        value: null,
-        raw: "",
-      };
-    }
-    skipWhitespace(parser);
-    if (peek(parser) !== "(") {
-      parser.index = snapshot;
-      return {
-        matched: false,
-        value: null,
-        raw: "",
-      };
-    }
-    consume(parser);
-    const body = readBalancedParenthesizedContent(parser);
-    const raw = parser.source.slice(snapshot, parser.index);
-    const argParser = parserFor(String(body || "").trim());
-    skipWhitespace(argParser);
-    if (peek(argParser) === '"' || peek(argParser) === "'") {
-      const source = parseQuotedString(argParser);
-      skipWhitespace(argParser);
-      if (eof(argParser)) {
-        return {
-          matched: true,
-          value: createQHtmlFragmentValue(source),
-          raw: raw,
-        };
-      }
-    }
-    return {
-      matched: true,
-      value: String(raw || "").trim(),
-      raw: raw,
-    };
-  }
-
   function parseTypedArrayBodyToValue(rawBody, keywordAliases) {
     const body = String(rawBody || "");
     const trimmedBody = body.trim();
@@ -2409,11 +2331,6 @@
       return "";
     }
 
-    const qhtmlFragmentCall = tryReadStaticQHtmlFragmentCall(parser);
-    if (qhtmlFragmentCall.matched) {
-      return qhtmlFragmentCall.value;
-    }
-
     const first = peek(parser);
     if (first === '"' || first === "'") {
       return parseQuotedString(parser);
@@ -2526,10 +2443,6 @@
 
   function parseValue(parser, keywordAliases) {
     skipWhitespace(parser);
-    const qhtmlFragmentCall = tryReadStaticQHtmlFragmentCall(parser);
-    if (qhtmlFragmentCall.matched) {
-      return qhtmlFragmentCall.value;
-    }
     const ch = peek(parser);
     if (ch === '"' || ch === "'") {
       return parseQuotedString(parser);
@@ -4080,68 +3993,8 @@
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
         const nextChar = peek(parser);
-        if (isQHtmlFragmentCallName(nameLower) && nextChar === "(") {
-          const dynamicFragment = parseQHtmlDynamicFragmentInvocation(
-            parser,
-            scopedKeywordAliases,
-            keywordSnapshot,
-            itemStart
-          );
-          if (dynamicFragment) {
-            items.push(dynamicFragment);
-            continue;
-          }
-        }
         if (FOR_KEYWORDS.has(nameLower) && nextChar === "(") {
           items.push(parseForDefinitionItem(parser, scopedKeywordAliases, keywordSnapshot, itemStart));
-          continue;
-        }
-        if (nameLower === "q-var" && nextChar !== "{" && nextChar !== ",") {
-          const varName = parseIdentifier(parser);
-          const normalizedVarName = String(varName || "").trim();
-          if (!normalizedVarName) {
-            throw ParseError("Expected variable name after q-var", parser.index);
-          }
-          skipWhitespace(parser);
-          if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after q-var name", parser.index);
-          }
-          consume(parser);
-          const varBody = readBalancedBlockContent(parser);
-          items.push({
-            type: "QVarDeclaration",
-            name: normalizedVarName,
-            body: String(varBody || ""),
-            keywords: keywordSnapshot,
-            start: itemStart,
-            end: parser.index,
-            raw: parser.source.slice(itemStart, parser.index),
-          });
-          continue;
-        }
-        if (isQSwitchKeyword(nameLower) && nextChar !== "{" && nextChar !== ",") {
-          const switchName = parseIdentifier(parser);
-          const normalizedSwitchName = String(switchName || "").trim();
-          if (!normalizedSwitchName) {
-            throw ParseError("Expected switch name after " + nameLower, parser.index);
-          }
-          skipWhitespace(parser);
-          if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after " + nameLower + " name", parser.index);
-          }
-          consume(parser);
-          const switchBody = readBalancedBlockContent(parser);
-          items.push({
-            type: "QSwitchDeclaration",
-            keyword: nameLower,
-            name: normalizedSwitchName,
-            cases: parseQSwitchDefinitionBody(String(switchBody || "")),
-            body: String(switchBody || ""),
-            keywords: keywordSnapshot,
-            start: itemStart,
-            end: parser.index,
-            raw: parser.source.slice(itemStart, parser.index),
-          });
           continue;
         }
         if (nameLower === "q-array" && nextChar !== "{" && nextChar !== ",") {
@@ -4304,6 +4157,53 @@
             signature: signature,
             parameters: parameterNames,
             body: compactScriptBody(callbackBody || ""),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-var" && nextChar !== "{" && nextChar !== ",") {
+          const varName = parseReferenceIdentifier(parser);
+          const normalizedVarName = String(varName || "").trim();
+          if (!normalizedVarName) {
+            throw ParseError("Expected variable name after q-var", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-var name", parser.index);
+          }
+          consume(parser);
+          const varBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "QVarDeclaration",
+            name: normalizedVarName,
+            body: String(varBody || ""),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-switch" && nextChar !== "{" && nextChar !== ",") {
+          const switchName = parseReferenceIdentifier(parser);
+          const normalizedSwitchName = String(switchName || "").trim();
+          if (!normalizedSwitchName) {
+            throw ParseError("Expected switch name after q-switch", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-switch name", parser.index);
+          }
+          consume(parser);
+          const switchBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "QSwitchDeclaration",
+            name: normalizedSwitchName,
+            body: String(switchBody || ""),
+            cases: parseQSwitchDeclarationBody(String(switchBody || "")),
             keywords: keywordSnapshot,
             start: itemStart,
             end: parser.index,
@@ -4736,7 +4636,11 @@
         }
         if (isIdentifierStartChar(nextChar)) {
           const instanceAliasStart = parser.index;
-          const instanceAlias = parseIdentifier(parser);
+          const instanceAlias = parseReferenceIdentifier(parser);
+          const selectorWithAliasShorthand =
+            peek(parser) === "." || peek(parser) === "#"
+              ? parseSelectorTokenTail(parser, name)
+              : name;
           skipWhitespace(parser);
           if (peek(parser) === "{") {
             consume(parser);
@@ -4744,7 +4648,7 @@
             expect(parser, "}");
             items.push({
               type: "Element",
-              selectors: [name],
+              selectors: [selectorWithAliasShorthand],
               instanceAlias: String(instanceAlias || "").trim(),
               prefixDirectives: [],
               items: childItems,
@@ -4912,6 +4816,20 @@
             items.push({
               type: "QScriptInline",
               script: scriptBody,
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
+          if (nameLower === "qhtml" && nextChar === "(") {
+            consume(parser);
+            const expressionBody = readBalancedParenthesizedContent(parser);
+            items.push({
+              type: "RawTextLine",
+              text: "qhtml(" + expressionBody + ")",
               keywords: keywordSnapshot,
               start: itemStart,
               end: parser.index,
@@ -5217,19 +5135,6 @@
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
 
-        if (isQHtmlFragmentCallName(firstLower) && peek(parser) === "(") {
-          const dynamicFragment = parseQHtmlDynamicFragmentInvocation(
-            parser,
-            scopedKeywordAliases,
-            keywordSnapshot,
-            start
-          );
-          if (dynamicFragment) {
-            body.push(dynamicFragment);
-            continue;
-          }
-        }
-
         if (FOR_KEYWORDS.has(firstLower) && peek(parser) === "(") {
           body.push(parseForDefinitionItem(parser, scopedKeywordAliases, keywordSnapshot, start));
           continue;
@@ -5245,55 +5150,6 @@
             script: scriptBody,
             thenBodies: thenBodies,
             isLifecycle: true,
-            keywords: keywordSnapshot,
-            start: start,
-            end: parser.index,
-            raw: parser.source.slice(start, parser.index),
-          });
-          continue;
-        }
-
-        if (firstLower === "q-var" && peek(parser) !== "{" && peek(parser) !== ",") {
-          const varName = parseIdentifier(parser);
-          const normalizedVarName = String(varName || "").trim();
-          if (!normalizedVarName) {
-            throw ParseError("Expected variable name after q-var", parser.index);
-          }
-          skipWhitespace(parser);
-          if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after q-var name", parser.index);
-          }
-          consume(parser);
-          const varBody = readBalancedBlockContent(parser);
-          body.push({
-            type: "QVarDeclaration",
-            name: normalizedVarName,
-            body: String(varBody || ""),
-            keywords: keywordSnapshot,
-            start: start,
-            end: parser.index,
-            raw: parser.source.slice(start, parser.index),
-          });
-          continue;
-        }
-        if (isQSwitchKeyword(firstLower) && peek(parser) !== "{" && peek(parser) !== ",") {
-          const switchName = parseIdentifier(parser);
-          const normalizedSwitchName = String(switchName || "").trim();
-          if (!normalizedSwitchName) {
-            throw ParseError("Expected switch name after " + firstLower, parser.index);
-          }
-          skipWhitespace(parser);
-          if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after " + firstLower + " name", parser.index);
-          }
-          consume(parser);
-          const switchBody = readBalancedBlockContent(parser);
-          body.push({
-            type: "QSwitchDeclaration",
-            keyword: firstLower,
-            name: normalizedSwitchName,
-            cases: parseQSwitchDefinitionBody(String(switchBody || "")),
-            body: String(switchBody || ""),
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -5597,6 +5453,55 @@
             signature: signature,
             parameters: parameterNames,
             body: compactScriptBody(callbackBody || ""),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-var" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const varName = parseReferenceIdentifier(parser);
+          const normalizedVarName = String(varName || "").trim();
+          if (!normalizedVarName) {
+            throw ParseError("Expected variable name after q-var", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-var name", parser.index);
+          }
+          consume(parser);
+          const varBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QVarDeclaration",
+            name: normalizedVarName,
+            body: String(varBody || ""),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-switch" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const switchName = parseReferenceIdentifier(parser);
+          const normalizedSwitchName = String(switchName || "").trim();
+          if (!normalizedSwitchName) {
+            throw ParseError("Expected switch name after q-switch", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-switch name", parser.index);
+          }
+          consume(parser);
+          const switchBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QSwitchDeclaration",
+            name: normalizedSwitchName,
+            body: String(switchBody || ""),
+            cases: parseQSwitchDeclarationBody(String(switchBody || "")),
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -5996,9 +5901,27 @@
           throw ParseError("Anonymous q-transition is not allowed", parser.index);
         }
 
+        if (firstLower === "qhtml" && peek(parser) === "(") {
+          consume(parser);
+          const expressionBody = readBalancedParenthesizedContent(parser);
+          body.push({
+            type: "RawTextLine",
+            text: "qhtml(" + expressionBody + ")",
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
         if (isIdentifierStartChar(peek(parser))) {
           const instanceAliasStart = parser.index;
-          const instanceAlias = parseIdentifier(parser);
+          const instanceAlias = parseReferenceIdentifier(parser);
+          const selectorWithAliasShorthand =
+            peek(parser) === "." || peek(parser) === "#"
+              ? parseSelectorTokenTail(parser, firstSelector)
+              : firstSelector;
           skipWhitespace(parser);
           if (peek(parser) === "{") {
             const prefixDirectives = parseLeadingSelectorDirectiveBlocks(parser);
@@ -6011,7 +5934,7 @@
             expect(parser, "}");
             body.push({
               type: "Element",
-              selectors: [firstSelector],
+              selectors: [selectorWithAliasShorthand],
               instanceAlias: String(instanceAlias || "").trim(),
               prefixDirectives: prefixDirectives,
               items: items,
@@ -8722,93 +8645,6 @@
       .trim();
   }
 
-  function isQSwitchKeyword(name) {
-    const normalized = String(name || "").trim().toLowerCase();
-    return normalized === "q-switch" || normalized === "switch";
-  }
-
-  function readQSwitchCaseKeySource(parser) {
-    let out = "";
-    let quote = "";
-    let escaped = false;
-
-    while (!eof(parser)) {
-      const ch = peek(parser);
-
-      if (quote) {
-        out += consume(parser);
-        if (escaped) {
-          escaped = false;
-          continue;
-        }
-        if (ch === "\\") {
-          escaped = true;
-          continue;
-        }
-        if (ch === quote) {
-          quote = "";
-        }
-        continue;
-      }
-
-      if (ch === "\"" || ch === "'" || ch === "`") {
-        quote = ch;
-        out += consume(parser);
-        continue;
-      }
-
-      if (ch === ":") {
-        break;
-      }
-
-      out += consume(parser);
-    }
-
-    return out.trim();
-  }
-
-  function parseQSwitchDefinitionBody(rawBody) {
-    const parser = parserFor(rawBody);
-    const cases = [];
-
-    while (!eof(parser)) {
-      skipWhitespaceAndSemicolons(parser);
-      if (eof(parser)) {
-        break;
-      }
-
-      const caseStart = parser.index;
-      let keySource = "";
-      if (peek(parser) === "*") {
-        keySource = consume(parser);
-      } else {
-        keySource = readQSwitchCaseKeySource(parser);
-      }
-
-      if (!String(keySource || "").trim()) {
-        throw ParseError("q-switch case requires a key", caseStart);
-      }
-
-      skipWhitespace(parser);
-      if (peek(parser) !== ":") {
-        throw ParseError("Expected ':' after q-switch case key", parser.index);
-      }
-      consume(parser);
-      skipWhitespace(parser);
-      if (peek(parser) !== "{") {
-        throw ParseError("Expected '{' after q-switch case ':'", parser.index);
-      }
-      consume(parser);
-      const caseBody = readBalancedBlockContent(parser);
-      cases.push({
-        keySource: String(keySource || "").trim(),
-        body: compactScriptBody(caseBody || ""),
-      });
-    }
-
-    return cases;
-  }
-
   function unescapeSimpleQuotedBody(value) {
     return String(value)
       .replace(/\\n/g, "\n")
@@ -11457,6 +11293,120 @@
     return config;
   }
 
+  function skipQSwitchSeparators(parser) {
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+        continue;
+      }
+      break;
+    }
+  }
+
+  function parseQSwitchCaseKey(parser) {
+    skipWhitespace(parser);
+    if (peek(parser) === "*") {
+      consume(parser);
+      return { key: "*", raw: "*" };
+    }
+    if (peek(parser) === "\"" || peek(parser) === "'") {
+      const start = parser.index;
+      const value = parseQuotedString(parser);
+      return {
+        key: String(value == null ? "" : value),
+        raw: parser.source.slice(start, parser.index),
+      };
+    }
+    const start = parser.index;
+    while (!eof(parser) && peek(parser) !== ":") {
+      parser.index += 1;
+    }
+    const raw = parser.source.slice(start, parser.index).trim();
+    if (!raw) {
+      throw ParseError("Expected q-switch case key", start);
+    }
+    return {
+      key: raw,
+      raw: raw,
+    };
+  }
+
+  function readQSwitchInlineValue(parser) {
+    const start = parser.index;
+    let quote = "";
+    let escaped = false;
+    let depth = 0;
+    while (!eof(parser)) {
+      const ch = peek(parser);
+      if (quote) {
+        parser.index += 1;
+        if (escaped) {
+          escaped = false;
+        } else if (ch === "\\") {
+          escaped = true;
+        } else if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+      if (ch === "\"" || ch === "'" || ch === "`") {
+        quote = ch;
+        parser.index += 1;
+        continue;
+      }
+      if (ch === "(" || ch === "[" || ch === "{") {
+        depth += 1;
+        parser.index += 1;
+        continue;
+      }
+      if (ch === ")" || ch === "]" || ch === "}") {
+        if (depth > 0) {
+          depth -= 1;
+          parser.index += 1;
+          continue;
+        }
+        break;
+      }
+      if (depth === 0 && (ch === "\n" || ch === "\r" || ch === ";")) {
+        break;
+      }
+      parser.index += 1;
+    }
+    return parser.source.slice(start, parser.index).trim();
+  }
+
+  function parseQSwitchDeclarationBody(bodyText) {
+    const parser = parserFor(String(bodyText || ""));
+    const cases = [];
+    while (!eof(parser)) {
+      skipQSwitchSeparators(parser);
+      if (eof(parser)) {
+        break;
+      }
+      const caseKey = parseQSwitchCaseKey(parser);
+      skipWhitespace(parser);
+      if (peek(parser) !== ":") {
+        throw ParseError("Expected ':' after q-switch case key", parser.index);
+      }
+      consume(parser);
+      skipWhitespace(parser);
+      let valueBody = "";
+      if (peek(parser) === "{") {
+        consume(parser);
+        valueBody = readBalancedBlockContent(parser);
+      } else {
+        valueBody = readQSwitchInlineValue(parser);
+      }
+      cases.push({
+        key: String(caseKey.key || ""),
+        rawKey: String(caseKey.raw || ""),
+        body: String(valueBody || "").trim(),
+      });
+    }
+    return cases;
+  }
+
   function parseQCanvasDefinitionBody(bodyText, keywordAliases) {
     const body = String(bodyText || "");
     const parser = parserFor(body);
@@ -13250,42 +13200,6 @@
         registerQColorThemeItem(colorContext, item);
         continue;
       }
-      if (item.type === "QVarDeclaration") {
-        if (supportsRuntimeDefinition) {
-          const varName = String(item.name || "").trim();
-          if (varName) {
-            const declarationMeta = createDeclarationMeta({
-              declarationKind: "q-var",
-              declarationName: varName,
-            });
-            varDeclarations.push({
-              name: varName,
-              body: String(item.body || ""),
-              uuid: declarationMeta.uuid,
-              meta: declarationMeta,
-            });
-          }
-        }
-        continue;
-      }
-      if (item.type === "QSwitchDeclaration") {
-        if (supportsRuntimeDefinition) {
-          const switchName = String(item.name || "").trim();
-          if (switchName) {
-            const declarationMeta = createDeclarationMeta({
-              declarationKind: "q-switch",
-              declarationName: switchName,
-            });
-            switchDeclarations.push({
-              name: switchName,
-              cases: Array.isArray(item.cases) ? item.cases.slice() : [],
-              uuid: declarationMeta.uuid,
-              meta: declarationMeta,
-            });
-          }
-        }
-        continue;
-      }
       if (item.type === "QPropertyBlock") {
         const names = Array.isArray(item.properties) ? item.properties : [];
         for (let j = 0; j < names.length; j += 1) {
@@ -13431,6 +13345,43 @@
         }
         continue;
       }
+      if (item.type === "QVarDeclaration") {
+        if (supportsRuntimeDefinition) {
+          const varName = String(item.name || "").trim();
+          if (varName) {
+            const declarationMeta = createDeclarationMeta({
+              declarationKind: "q-var",
+              declarationName: varName,
+            });
+            varDeclarations.push({
+              name: varName,
+              body: String(item.body || ""),
+              uuid: declarationMeta.uuid,
+              meta: declarationMeta,
+            });
+          }
+        }
+        continue;
+      }
+      if (item.type === "QSwitchDeclaration") {
+        if (supportsRuntimeDefinition) {
+          const switchName = String(item.name || "").trim();
+          if (switchName) {
+            const declarationMeta = createDeclarationMeta({
+              declarationKind: "q-switch",
+              declarationName: switchName,
+            });
+            switchDeclarations.push({
+              name: switchName,
+              body: String(item.body || ""),
+              cases: Array.isArray(item.cases) ? item.cases.slice() : parseQSwitchDeclarationBody(String(item.body || "")),
+              uuid: declarationMeta.uuid,
+              meta: declarationMeta,
+            });
+          }
+        }
+        continue;
+      }
       if (item.type === "QWasmBlock") {
         if (definitionType !== "component") {
           throw new Error("q-wasm is only valid inside q-component definitions.");
@@ -13528,13 +13479,13 @@
       definitionType: definitionType,
       templateNodes: templateNodes,
       methods: methods,
-      varDeclarations: varDeclarations,
       propertyDefinitions: propertyDefinitions,
       signalDeclarations: signalDeclarations,
       callbackDeclarations: callbackDeclarations,
       aliasDeclarations: aliasDeclarations,
-      qTimerDefinitions: qTimerDefinitions,
+      varDeclarations: varDeclarations,
       switchDeclarations: switchDeclarations,
+      qTimerDefinitions: qTimerDefinitions,
       wasmConfig: wasmConfig,
       lifecycleScripts: lifecycleScripts,
       attributes: componentAttributes,
@@ -14040,83 +13991,6 @@
       return buildQStateMachineNodeFromAst(item, source, context);
     }
 
-    if (item.type === "QVarDeclaration") {
-      const varName = String(item.name || "").trim();
-      if (!varName) {
-        return null;
-      }
-      const declarationMeta = createDeclarationMeta({
-        declarationKind: "q-var",
-        declarationName: varName,
-      });
-      const varNode = {
-        kind: "q-var",
-        name: varName,
-        body: String(item.body || ""),
-        uuid: declarationMeta.uuid,
-        meta: Object.assign({}, declarationMeta, {
-          originalSource: item.raw,
-          sourceRange:
-            typeof item.start === "number" && typeof item.end === "number"
-              ? [item.start, item.end]
-              : null,
-        }),
-      };
-      applyKeywordAliasesToNode(varNode, item.keywords);
-      return varNode;
-    }
-
-    if (item.type === "QSwitchDeclaration") {
-      const switchName = String(item.name || "").trim();
-      if (!switchName) {
-        return null;
-      }
-      const declarationMeta = createDeclarationMeta({
-        declarationKind: "q-switch",
-        declarationName: switchName,
-      });
-      const switchNode = {
-        kind: "q-switch",
-        name: switchName,
-        cases: Array.isArray(item.cases) ? item.cases.slice() : [],
-        uuid: declarationMeta.uuid,
-        meta: Object.assign({}, declarationMeta, {
-          originalSource: item.raw,
-          sourceRange:
-            typeof item.start === "number" && typeof item.end === "number"
-              ? [item.start, item.end]
-              : null,
-        }),
-      };
-      applyKeywordAliasesToNode(switchNode, item.keywords);
-      return switchNode;
-    }
-
-    if (item.type === "QHtmlDynamicFragmentInvocation") {
-      const fragmentNode = {
-        kind: "qhtml-fragment",
-        expression: String(item.expression || "").trim(),
-        continuationSource: String(item.continuationSource || ""),
-        children: [],
-        meta: {
-          originalSource: item.raw,
-          sourceRange:
-            typeof item.start === "number" && typeof item.end === "number"
-              ? [item.start, item.end]
-              : null,
-        },
-      };
-      const nestedItems = Array.isArray(item.items) ? item.items : [];
-      for (let i = 0; i < nestedItems.length; i += 1) {
-        const nodes = convertAstItemToNodes(nestedItems[i], source, context);
-        for (let j = 0; j < nodes.length; j += 1) {
-          fragmentNode.children.push(nodes[j]);
-        }
-      }
-      applyKeywordAliasesToNode(fragmentNode, item.keywords);
-      return fragmentNode;
-    }
-
     if (item.type === "QCanvasDefinition") {
       const canvasNode = buildQCanvasKeywordNode(item);
       applyKeywordAliasesToNode(canvasNode, item.keywords);
@@ -14142,6 +14016,73 @@
       };
       applyKeywordAliasesToNode(callbackNode, item.keywords);
       return callbackNode;
+    }
+
+    if (item.type === "QVarDeclaration") {
+      const varName = String(item.name || "").trim();
+      if (!varName) {
+        return null;
+      }
+      const declarationMeta = createDeclarationMeta({
+        declarationKind: "q-var",
+        declarationName: varName,
+      });
+      const varNode = {
+        kind: "q-var",
+        name: varName,
+        body: String(item.body || ""),
+        uuid: declarationMeta.uuid,
+        meta: declarationMeta,
+      };
+      applyKeywordAliasesToNode(varNode, item.keywords);
+      return varNode;
+    }
+
+    if (item.type === "QSwitchDeclaration") {
+      const switchName = String(item.name || "").trim();
+      if (!switchName) {
+        return null;
+      }
+      const declarationMeta = createDeclarationMeta({
+        declarationKind: "q-switch",
+        declarationName: switchName,
+      });
+      const switchNode = {
+        kind: "q-switch",
+        name: switchName,
+        body: String(item.body || ""),
+        cases: Array.isArray(item.cases) ? item.cases.slice() : parseQSwitchDeclarationBody(String(item.body || "")),
+        uuid: declarationMeta.uuid,
+        meta: declarationMeta,
+      };
+      applyKeywordAliasesToNode(switchNode, item.keywords);
+      return switchNode;
+    }
+
+    if (item.type === "QTimerDefinition") {
+      const timerId = String(item.timerId || "").trim();
+      if (!timerId) {
+        return null;
+      }
+      const config = item.config && typeof item.config === "object" ? item.config : {};
+      const interval = Number(config.interval);
+      const timerNode = {
+        kind: "q-timer",
+        timerId: timerId,
+        interval: Number.isFinite(interval) && interval >= 0 ? Math.floor(interval) : 0,
+        repeat: config.repeat !== false,
+        running: config.running !== false,
+        onTimeout: String(config.onTimeout || ""),
+        meta: {
+          originalSource: item.raw,
+          sourceRange:
+            typeof item.start === "number" && typeof item.end === "number"
+              ? [item.start, item.end]
+              : null,
+        },
+      };
+      applyKeywordAliasesToNode(timerNode, item.keywords);
+      return timerNode;
     }
 
     if (item.type === "HtmlBlock") {
@@ -14695,15 +14636,15 @@
       return "";
     }
     const lines = [indent + "q-switch " + name + " {"];
-    const cases = Array.isArray(switchDecl.cases) ? switchDecl.cases : [];
+    const cases = Array.isArray(switchDecl.cases) ? switchDecl.cases : parseQSwitchDeclarationBody(String(switchDecl.body || ""));
     for (let i = 0; i < cases.length; i += 1) {
-      const entry = cases[i] || {};
-      const keySource = String(entry.keySource || "").trim();
-      if (!keySource) {
+      const entry = cases[i] && typeof cases[i] === "object" ? cases[i] : {};
+      const key = String(entry.rawKey || entry.key || "").trim();
+      if (!key) {
         continue;
       }
       const body = String(entry.body || "");
-      lines.push(indent + "  " + keySource + ": {");
+      lines.push(indent + "  " + key + ": {");
       if (body) {
         const chunks = body.split("\n");
         for (let j = 0; j < chunks.length; j += 1) {
@@ -15095,24 +15036,6 @@
       return serializeQSwitchDeclarationBlock(node, indentLevel);
     }
 
-    if (String(node.kind || "").trim().toLowerCase() === "qhtml-fragment") {
-      const expression = String(node.expression || "").trim();
-      const lines = [indent + "qhtml(" + expression + ") {"];
-      const children = Array.isArray(node.children) ? node.children : [];
-      if (children.length > 0) {
-        for (let i = 0; i < children.length; i += 1) {
-          lines.push(serializeNode(children[i], indentLevel + 1));
-        }
-      } else if (String(node.continuationSource || "").trim()) {
-        const chunks = String(node.continuationSource || "").split("\n");
-        for (let i = 0; i < chunks.length; i += 1) {
-          lines.push(indent + "  " + chunks[i]);
-        }
-      }
-      lines.push(indent + "}");
-      return lines.join("\n");
-    }
-
     if (node.kind === core.NODE_TYPES.component) {
       const explicitDefinitionType = String(node.definitionType || "").trim().toLowerCase();
       const definitionType =
@@ -15159,22 +15082,6 @@
         lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
       }
       if ((definitionType === "component" || definitionType === "worker") && Array.isArray(node.propertyDefinitions)) {
-        if (Array.isArray(node.varDeclarations)) {
-          for (let i = 0; i < node.varDeclarations.length; i += 1) {
-            const serializedVarDeclaration = serializeQVarDeclarationBlock(node.varDeclarations[i], indentLevel + 1);
-            if (serializedVarDeclaration) {
-              lines.push(serializedVarDeclaration);
-            }
-          }
-        }
-        if (Array.isArray(node.switchDeclarations)) {
-          for (let i = 0; i < node.switchDeclarations.length; i += 1) {
-            const serializedSwitchDeclaration = serializeQSwitchDeclarationBlock(node.switchDeclarations[i], indentLevel + 1);
-            if (serializedSwitchDeclaration) {
-              lines.push(serializedSwitchDeclaration);
-            }
-          }
-        }
         for (let i = 0; i < node.propertyDefinitions.length; i += 1) {
           const serializedPropertyDefinition = serializePropertyDefinitionBlock(node.propertyDefinitions[i], indentLevel + 1);
           if (serializedPropertyDefinition) {
@@ -15204,6 +15111,22 @@
             const serializedCallbackDeclaration = serializeCallbackDeclarationBlock(node.callbackDeclarations[i], indentLevel + 1);
             if (serializedCallbackDeclaration) {
               lines.push(serializedCallbackDeclaration);
+            }
+          }
+        }
+        if (Array.isArray(node.varDeclarations)) {
+          for (let i = 0; i < node.varDeclarations.length; i += 1) {
+            const serializedVarDeclaration = serializeQVarDeclarationBlock(node.varDeclarations[i], indentLevel + 1);
+            if (serializedVarDeclaration) {
+              lines.push(serializedVarDeclaration);
+            }
+          }
+        }
+        if (Array.isArray(node.switchDeclarations)) {
+          for (let i = 0; i < node.switchDeclarations.length; i += 1) {
+            const serializedSwitchDeclaration = serializeQSwitchDeclarationBlock(node.switchDeclarations[i], indentLevel + 1);
+            if (serializedSwitchDeclaration) {
+              lines.push(serializedSwitchDeclaration);
             }
           }
         }
@@ -15570,13 +15493,14 @@
   const QCONTEXT_SYMBOL_HEAD_ONLY_KEY = "__qhtmlContextSymbolHeadOnly";
   const QCONTEXT_OWNER_TYPE_NAME_KEY = "__qhtmlContextOwnerTypeName";
   const QCONTEXT_OWNER_PARENT_HANDLE_KEY = "__qhtmlContextOwnerParentHandle";
+  const Q_VAR_NODE_KIND = "q-var";
+  const Q_SWITCH_NODE_KIND = "q-switch";
+  const Q_TIMER_NODE_KIND = "q-timer";
+  const QHTML_QVAR_HANDLE_FLAG = "__qhtmlVarHandle";
   const Q_MODEL_VIEW_INSTANCE_ATTR = "q-model-view-instance";
   const Q_MODEL_VIEW_SCOPE_TAG = "q-model-view-scope";
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
   const Q_CALLBACK_NODE_KIND = "callback";
-  const Q_VAR_NODE_KIND = "q-var";
-  const Q_SWITCH_NODE_KIND = "q-switch";
-  const QHTML_QVAR_HANDLE_FLAG = "__qhtmlVarHandle";
   const QHTML_FRAGMENT_MARKER = "__qhtmlFragment";
   const QHTML_NAMED_CALLBACKS_KEY = "__qhtmlNamedCallbacks";
   const QHTML_PAINTER_REGISTRY_KEY = "__qhtmlPainterRegistry";
@@ -15714,21 +15638,22 @@
       return this.__qhtmlVarState ? String(this.__qhtmlVarState.uuid || "") : "";
     }
     get value() {
-      return this.__qhtmlVarState ? this.__qhtmlVarState.value : undefined;
+      if (!this.__qhtmlVarState) {
+        return undefined;
+      }
+      return this.__qhtmlVarState.value;
     }
     set value(next) {
-      if (this.__qhtmlVarState) {
-        const state = this.__qhtmlVarState;
-        const previous = state.value;
-        if (Object.is(previous, next)) {
-          return;
-        }
-        state.previousValue = previous;
-        state.value = next;
-        state.initialized = true;
-        if (state.changed && typeof state.changed.emit === "function") {
-          state.changed.emit(next, previous, true);
-        }
+      if (!this.__qhtmlVarState) {
+        return;
+      }
+      const state = this.__qhtmlVarState;
+      const previous = this.value;
+      state.previousValue = previous;
+      state.value = next;
+      state.initialized = true;
+      if (!Object.is(previous, next) && state.changed && typeof state.changed.emit === "function") {
+        state.changed.emit(next, previous, true);
       }
     }
     get changed() {
@@ -15751,31 +15676,6 @@
     [Symbol.toPrimitive]() {
       return this.value;
     }
-  }
-
-  function createQSignalInstance(name, owner, emitImpl) {
-    const signal = function qSignalCallable() {
-      return signal.emit.apply(signal, arguments);
-    };
-    Object.setPrototypeOf(signal, QSignal.prototype);
-    const meta = {
-      name: String(name || "").trim(),
-      owner: owner && owner.nodeType === 1 ? owner : null,
-      emitImpl: typeof emitImpl === "function" ? emitImpl : null,
-      connectImpl: null,
-      disconnectImpl: null,
-    };
-    try {
-      Object.defineProperty(signal, Q_SIGNAL_META_KEY, {
-        configurable: true,
-        enumerable: false,
-        writable: true,
-        value: meta,
-      });
-    } catch (error) {
-      signal[Q_SIGNAL_META_KEY] = meta;
-    }
-    return signal;
   }
 
   function isQVarHandle(value) {
@@ -15839,11 +15739,11 @@
 
   function createQVarHandle(state) {
     const base = function qVarCallableProxy() {
-      const value = state ? state.value : undefined;
+      const value = state && state.handle ? state.handle.value : undefined;
       if (typeof value === "function") {
         return value.apply(state && state.owner ? state.owner : null, arguments);
       }
-      return undefined;
+      return value;
     };
     Object.setPrototypeOf(base, QVar.prototype);
     base.__qhtmlVarState = state;
@@ -15858,6 +15758,7 @@
           prop === "value" ||
           prop === "get" ||
           prop === "set" ||
+          prop === "changed" ||
           prop === "toString" ||
           prop === "valueOf" ||
           prop === Symbol.toPrimitive
@@ -15865,10 +15766,7 @@
           const ownValue = target[prop];
           return typeof ownValue === "function" ? Function.prototype.bind.call(ownValue, target) : ownValue;
         }
-        if (prop === "changed") {
-          return target[prop];
-        }
-        const value = state ? state.value : undefined;
+        const value = target.value;
         if (value != null && (typeof value === "object" || typeof value === "function")) {
           const child = value[prop];
           return typeof child === "function" ? child.bind(value) : child;
@@ -15880,33 +15778,38 @@
           target.value = next;
           return true;
         }
-        const value = state ? state.value : undefined;
+        const value = target.value;
         if (value != null && (typeof value === "object" || typeof value === "function")) {
           value[prop] = next;
         }
         return true;
       },
-      has: function hasQVarProperty(target, prop) {
-        if (prop in target) {
-          return true;
-        }
-        const value = state ? state.value : undefined;
-        return !!(value != null && (typeof value === "object" || typeof value === "function") && prop in value);
-      },
-      ownKeys: function ownQVarKeys() {
-        const value = state ? state.value : undefined;
-        return value != null && (typeof value === "object" || typeof value === "function")
-          ? Reflect.ownKeys(value)
-          : [];
-      },
-      getOwnPropertyDescriptor: function getQVarDescriptor(_target, prop) {
-        const value = state ? state.value : undefined;
-        if (value != null && (typeof value === "object" || typeof value === "function")) {
-          return Object.getOwnPropertyDescriptor(value, prop);
-        }
-        return undefined;
-      },
     });
+  }
+
+  function createQSignalInstance(name, owner, emitImpl) {
+    const signal = function qSignalCallable() {
+      return signal.emit.apply(signal, arguments);
+    };
+    Object.setPrototypeOf(signal, QSignal.prototype);
+    const meta = {
+      name: String(name || "").trim(),
+      owner: owner && owner.nodeType === 1 ? owner : null,
+      emitImpl: typeof emitImpl === "function" ? emitImpl : null,
+      connectImpl: null,
+      disconnectImpl: null,
+    };
+    try {
+      Object.defineProperty(signal, Q_SIGNAL_META_KEY, {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: meta,
+      });
+    } catch (error) {
+      signal[Q_SIGNAL_META_KEY] = meta;
+    }
+    return signal;
   }
 
   function registerQPropertyInstance(owner, propertyName) {
@@ -15988,37 +15891,18 @@
     return null;
   }
 
-  function cloneNodeDeep(node, seen) {
+  function cloneNodeDeep(node) {
     if (!node || typeof node !== "object") {
       return node;
     }
-    const seenMap =
-      seen && typeof seen.get === "function" && typeof seen.set === "function"
-        ? seen
-        : typeof WeakMap === "function"
-          ? new WeakMap()
-          : null;
-    if (seenMap && seenMap.has(node)) {
-      return seenMap.get(node);
-    }
     if (Array.isArray(node)) {
-      const outArray = [];
-      if (seenMap) {
-        seenMap.set(node, outArray);
-      }
-      for (let i = 0; i < node.length; i += 1) {
-        outArray.push(cloneNodeDeep(node[i], seenMap));
-      }
-      return outArray;
+      return node.map(cloneNodeDeep);
     }
     const out = {};
-    if (seenMap) {
-      seenMap.set(node, out);
-    }
     const keys = Object.keys(node);
     for (let i = 0; i < keys.length; i += 1) {
       const key = keys[i];
-      out[key] = cloneNodeDeep(node[key], seenMap);
+      out[key] = cloneNodeDeep(node[key]);
     }
     const sourceNode =
       node && typeof node === "object" && node.__qhtmlSourceNode && typeof node.__qhtmlSourceNode === "object"
@@ -18440,20 +18324,6 @@
   }
 
   function createQHtmlFragmentToken(source) {
-    if (isQHtmlFragmentToken(source)) {
-      return source;
-    }
-    if (isQVarHandle(source)) {
-      source = readQVarHandleValue(source);
-    }
-    if (source && (typeof source === "object" || typeof source === "function")) {
-      return {
-        __qhtmlFragment: true,
-        source: "",
-        reference: source,
-        referenceUuid: readResolverNodeUuid(source),
-      };
-    }
     return {
       __qhtmlFragment: true,
       source: String(source == null ? "" : source),
@@ -18465,7 +18335,7 @@
       value &&
       typeof value === "object" &&
       value[QHTML_FRAGMENT_MARKER] === true &&
-      (typeof value.source === "string" || typeof value.reference !== "undefined")
+      typeof value.source === "string"
     );
   }
 
@@ -18603,9 +18473,7 @@
       "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
       " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
       "const qhtml = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtml === \"function\")" +
-      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n" +
-      "const qhtmlString = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtmlString === \"function\")" +
-      " ? globalThis.qhtmlString : qhtml;\n";
+      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n";
     const scopedBlock =
       "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
       "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
@@ -18616,6 +18484,7 @@
       "let __qhtmlScriptScope = null;\n" +
       "if (__qhtmlRootNamedValues || __qhtmlNearestComponentScope || __qhtmlNamedValues || __qhtmlLocalScriptScope) {\n" +
       "  __qhtmlScriptScope = Object.assign(Object.create(null), __qhtmlRootNamedValues || null, __qhtmlNearestComponentScope || null, __qhtmlNamedValues || null, __qhtmlLocalScriptScope || null);\n" +
+      "  __qhtmlScriptScope = new Proxy(__qhtmlScriptScope, { get: function(target, prop) { var current = target[prop]; if (current && current.__qhtmlVarHandle === true && typeof current.get === 'function') { return current.get(); } return current; }, set: function(target, prop, value) { var current = target[prop]; if (current && current.__qhtmlVarHandle === true && typeof current.set === 'function') { current.set(value); return true; } target[prop] = value; return true; } });\n" +
       "}\n" +
       "if (__qhtmlScriptScope) { with(__qhtmlScriptScope) {\n" +
       source +
@@ -19154,6 +19023,9 @@
   }
 
   function unwrapModelMethodBridgeValue(value, expressionSource) {
+    if (isQVarHandle(value)) {
+      return readQVarHandleValue(value);
+    }
     if (!value || typeof value !== "function") {
       return value;
     }
@@ -20010,6 +19882,9 @@
       return true;
     }
     const opts = options && typeof options === "object" ? options : {};
+    if (opts.scope && typeof opts.scope === "object") {
+      mergeScriptScopeIntoElement(element, opts.scope);
+    }
     const doc = opts.doc || element.ownerDocument || global.document || null;
     const scopeRoot =
       opts.scopeRoot && opts.scopeRoot.nodeType === 1
@@ -20287,6 +20162,23 @@
     return true;
   }
 
+  function mergeScriptScopeIntoElement(element, scope) {
+    if (!element || element.nodeType !== 1 || !scope || typeof scope !== "object") {
+      return;
+    }
+    if (!element.__qhtmlScriptScope || typeof element.__qhtmlScriptScope !== "object") {
+      element.__qhtmlScriptScope = Object.create(null);
+    }
+    const names = Object.keys(scope);
+    for (let i = 0; i < names.length; i += 1) {
+      const name = String(names[i] || "").trim();
+      if (!name || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name)) {
+        continue;
+      }
+      element.__qhtmlScriptScope[name] = scope[name];
+    }
+  }
+
   function setElementAttributes(element, attrs, options) {
     if (!attrs || typeof attrs !== "object") {
       return;
@@ -20315,6 +20207,7 @@
       if (
         bindEventAttributeListener(element, key, String(normalized), {
           doc: element.ownerDocument || global.document || null,
+          scope: interpolationScope,
           scopeRoot:
             interpolationScope && interpolationScope.root && interpolationScope.root.nodeType === 1
               ? interpolationScope.root
@@ -22181,6 +22074,125 @@
     };
   }
 
+  function bindSingleComponentTimer(timerDefinition, componentNode, hostElement, targetDocument, runtimeApi, scopeFrame, runtimeFrame) {
+    if (!timerDefinition || !hostElement || hostElement.nodeType !== 1) {
+      return null;
+    }
+    const timerStore = ensureComponentTimerStore(hostElement);
+    const timerName = String(timerDefinition.timerId || "").trim();
+    if (!timerName) {
+      return null;
+    }
+    if (timerStore[timerName] && typeof timerStore[timerName].stop === "function") {
+      timerStore[timerName].stop();
+    } else if (Object.prototype.hasOwnProperty.call(hostElement, timerName)) {
+      throw new Error("q-timer id conflicts with existing component member: '" + timerName + "'.");
+    }
+    const runtime = {
+      name: timerName,
+      interval: Number(timerDefinition.interval || 0),
+      repeat: timerDefinition.repeat !== false,
+      running: timerDefinition.running !== false,
+      timerId: null,
+      timeoutSignal: null,
+      handle: null,
+      executeTimeout: null,
+      stop: null,
+      start: null,
+      restart: null,
+    };
+    runtime.timeoutSignal = createComponentTimerTimeoutSignal(hostElement, runtimeApi, timerName);
+    runtime.executeTimeout = createComponentTimerExecutor(timerDefinition, hostElement, targetDocument);
+    const scheduleTick = function scheduleComponentTimerTick() {
+      if (runtime.running !== true) {
+        return;
+      }
+      const delay = Math.max(0, Math.floor(Number(runtime.interval || 0)));
+      if (typeof global.setTimeout === "function") {
+        runtime.timerId = global.setTimeout(onTick, delay);
+      } else {
+        runtime.timerId = null;
+      }
+    };
+    const onTick = function onComponentTimerTick() {
+      if (runtime.running !== true) {
+        return;
+      }
+      if (hostElement.isConnected === false) {
+        runtime.stop();
+        return;
+      }
+      const eventPayload = {
+        type: "timeout",
+        timerId: runtime.name,
+        timerHandle: runtime.timerId,
+        component: String(componentNode && componentNode.componentId || hostElement.tagName || "").trim().toLowerCase(),
+        componentUuid: String(readHostQDomUuid(hostElement) || "").trim(),
+      };
+      const invokeTimeout = function invokeComponentTimerTimeout() {
+        runtime.executeTimeout(runtime, eventPayload);
+        if (runtime.timeoutSignal && typeof runtime.timeoutSignal.emit === "function") {
+          runtime.timeoutSignal.emit(eventPayload);
+        }
+        if (runtime.repeat === true && runtime.running === true) {
+          scheduleTick();
+        } else {
+          runtime.stop();
+        }
+      };
+      if (runtimeApi && typeof runtimeApi.enqueueRuntimeEvent === "function") {
+        runtimeApi.enqueueRuntimeEvent(
+          "component-timer-timeout",
+          invokeTimeout,
+          {
+            target: hostElement,
+            payload: {
+              timerId: runtime.name,
+            },
+          }
+        );
+        return;
+      }
+      invokeTimeout();
+    };
+    runtime.stop = function stopComponentTimer() {
+      if (runtime.timerId != null && typeof global.clearTimeout === "function") {
+        try {
+          global.clearTimeout(runtime.timerId);
+        } catch (error) {
+          // no-op
+        }
+      }
+      runtime.timerId = null;
+      runtime.running = false;
+      return true;
+    };
+    runtime.start = function startComponentTimer() {
+      runtime.stop();
+      runtime.running = true;
+      scheduleTick();
+      return runtime.timerId;
+    };
+    runtime.restart = function restartComponentTimer() {
+      return runtime.start();
+    };
+    runtime.handle = createComponentTimerHandle(runtime);
+    timerStore[timerName] = runtime;
+    if (scopeFrame && typeof scopeFrame.set === "function") {
+      scopeFrame.set(timerName, runtime.handle);
+    }
+    if (runtimeFrame && typeof runtimeFrame.set === "function") {
+      runtimeFrame.set(timerName, runtime.handle);
+    }
+    exportNamedAliasToHost(hostElement, timerName, runtime.handle);
+    if (runtime.running === true) {
+      runtime.start();
+    } else {
+      runtime.stop();
+    }
+    return runtime.handle;
+  }
+
   function bindComponentTimers(componentNode, hostElement, targetDocument, runtimeApi, scopeFrame, runtimeFrame) {
     if (!componentNode || !hostElement || hostElement.nodeType !== 1) {
       return;
@@ -22190,118 +22202,8 @@
     if (definitions.length === 0) {
       return;
     }
-    const timerStore = ensureComponentTimerStore(hostElement);
     for (let i = 0; i < definitions.length; i += 1) {
-      const timerDefinition = definitions[i];
-      const timerName = String(timerDefinition.timerId || "").trim();
-      if (!timerName) {
-        continue;
-      }
-      if (Object.prototype.hasOwnProperty.call(hostElement, timerName)) {
-        throw new Error("q-timer id conflicts with existing component member: '" + timerName + "'.");
-      }
-      const runtime = {
-        name: timerName,
-        interval: Number(timerDefinition.interval || 0),
-        repeat: timerDefinition.repeat !== false,
-        running: timerDefinition.running !== false,
-        timerId: null,
-        timeoutSignal: null,
-        handle: null,
-        executeTimeout: null,
-        stop: null,
-        start: null,
-        restart: null,
-      };
-      runtime.timeoutSignal = createComponentTimerTimeoutSignal(hostElement, runtimeApi, timerName);
-      runtime.executeTimeout = createComponentTimerExecutor(timerDefinition, hostElement, targetDocument);
-      const scheduleTick = function scheduleComponentTimerTick() {
-        if (runtime.running !== true) {
-          return;
-        }
-        const delay = Math.max(0, Math.floor(Number(runtime.interval || 0)));
-        if (typeof global.setTimeout === "function") {
-          runtime.timerId = global.setTimeout(onTick, delay);
-        } else {
-          runtime.timerId = null;
-        }
-      };
-      const onTick = function onComponentTimerTick() {
-        if (runtime.running !== true) {
-          return;
-        }
-        if (hostElement.isConnected === false) {
-          runtime.stop();
-          return;
-        }
-        const eventPayload = {
-          type: "timeout",
-          timerId: runtime.name,
-          timerHandle: runtime.timerId,
-          component: String(componentNode.componentId || hostElement.tagName || "").trim().toLowerCase(),
-          componentUuid: String(readHostQDomUuid(hostElement) || "").trim(),
-        };
-        const invokeTimeout = function invokeComponentTimerTimeout() {
-          runtime.executeTimeout(runtime, eventPayload);
-          if (runtime.timeoutSignal && typeof runtime.timeoutSignal.emit === "function") {
-            runtime.timeoutSignal.emit(eventPayload);
-          }
-          if (runtime.repeat === true && runtime.running === true) {
-            scheduleTick();
-          } else {
-            runtime.stop();
-          }
-        };
-        if (runtimeApi && typeof runtimeApi.enqueueRuntimeEvent === "function") {
-          runtimeApi.enqueueRuntimeEvent(
-            "component-timer-timeout",
-            invokeTimeout,
-            {
-              target: hostElement,
-              payload: {
-                timerId: runtime.name,
-              },
-            }
-          );
-          return;
-        }
-        invokeTimeout();
-      };
-      runtime.stop = function stopComponentTimer() {
-        if (runtime.timerId != null && typeof global.clearTimeout === "function") {
-          try {
-            global.clearTimeout(runtime.timerId);
-          } catch (error) {
-            // no-op
-          }
-        }
-        runtime.timerId = null;
-        runtime.running = false;
-        return true;
-      };
-      runtime.start = function startComponentTimer() {
-        runtime.stop();
-        runtime.running = true;
-        scheduleTick();
-        return runtime.timerId;
-      };
-      runtime.restart = function restartComponentTimer() {
-        return runtime.start();
-      };
-      runtime.handle = createComponentTimerHandle(runtime);
-      timerStore[timerName] = runtime;
-      if (scopeFrame && typeof scopeFrame.set === "function") {
-        scopeFrame.set(timerName, runtime.handle);
-      }
-      if (runtimeFrame && typeof runtimeFrame.set === "function") {
-        runtimeFrame.set(timerName, runtime.handle);
-      }
-      exportNamedAliasToHost(hostElement, timerName, runtime.handle);
-      if (runtime.running === true) {
-        runtime.start();
-      } else {
-        runtime.stop();
-      }
+      bindSingleComponentTimer(definitions[i], componentNode, hostElement, targetDocument, runtimeApi, scopeFrame, runtimeFrame);
     }
   }
 
@@ -24861,14 +24763,9 @@
         scope[key] = context.inlineScope[key];
       }
     }
-    if (!Object.prototype.hasOwnProperty.call(scope, "qhtml")) {
-      scope.qhtml = createQHtmlFragmentToken;
-    }
-    if (!Object.prototype.hasOwnProperty.call(scope, "qhtmlString")) {
-      scope.qhtmlString = createQHtmlFragmentToken;
-    }
     scope.component = resolveComponentForInterpolation(context, fallbackNode);
     scope.componentQdom = resolveComponentQdomForInterpolation(context);
+    scope.qhtml = typeof global.qhtml === "function" ? global.qhtml : createQHtmlFragmentToken;
     return scope;
   }
 
@@ -25044,397 +24941,6 @@
     };
   }
 
-  function readQVarNodeUuid(node) {
-    if (!node || typeof node !== "object") {
-      return "";
-    }
-    if (typeof node.uuid === "string" && node.uuid.trim()) {
-      return node.uuid.trim();
-    }
-    if (node.meta && typeof node.meta === "object") {
-      if (typeof node.meta[QDOM_UUID_META_KEY] === "string" && node.meta[QDOM_UUID_META_KEY].trim()) {
-        return node.meta[QDOM_UUID_META_KEY].trim();
-      }
-      if (typeof node.meta.uuid === "string" && node.meta.uuid.trim()) {
-        return node.meta.uuid.trim();
-      }
-    }
-    if (typeof core.ensureNodeUuid === "function") {
-      try {
-        const ensured = core.ensureNodeUuid(node);
-        if (ensured && ensured.meta && typeof ensured.meta[QDOM_UUID_META_KEY] === "string") {
-          return ensured.meta[QDOM_UUID_META_KEY].trim();
-        }
-      } catch (error) {
-        // no-op
-      }
-    }
-    return "";
-  }
-
-  function evaluateQVarBody(node, ownerHost, context) {
-    const body = String(node && node.body || "").trim();
-    if (!body) {
-      return undefined;
-    }
-    const executionHost =
-      ownerHost && ownerHost.nodeType === 1
-        ? ownerHost
-        : context && Array.isArray(context.componentHostStack) && context.componentHostStack.length > 0
-          ? context.componentHostStack[context.componentHostStack.length - 1]
-          : null;
-    const thisArg = executionHost || null;
-    const interpolationScope = buildInterpolationScope(context, thisArg);
-    const scopeNames = Object.keys(interpolationScope).filter(function filterQVarScopeParam(name) {
-      return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(String(name || ""));
-    });
-    const scopeValues = scopeNames.map(function mapQVarScopeParam(name) {
-      return interpolationScope[name];
-    });
-    ensureScopedSelectorShortcut(thisArg || {}, null);
-    try {
-      const expressionExecutor = new Function(scopeNames.join(","), "return (" + body + ");");
-      return expressionExecutor.apply(thisArg, scopeValues);
-    } catch (expressionError) {
-      try {
-        const bodyExecutor = new Function(scopeNames.join(","), body);
-        return bodyExecutor.apply(thisArg, scopeValues);
-      } catch (bodyError) {
-        try {
-          const scopedExpressionExecutor = new Function(withScopedSelectorPrelude("return (" + body + ");"));
-          return scopedExpressionExecutor.call(thisArg);
-        } catch (scopedExpressionError) {
-          try {
-            const scopedBodyExecutor = new Function(withScopedSelectorPrelude(body));
-            return scopedBodyExecutor.call(thisArg);
-          } catch (scopedBodyError) {
-            if (global.console && typeof global.console.error === "function") {
-              global.console.error("qhtml q-var evaluation failed:", String(node && node.name || ""), scopedBodyError);
-            }
-            return undefined;
-          }
-        }
-      }
-    }
-  }
-
-  function ensureQVarState(node, ownerHost) {
-    const uuid = readQVarNodeUuid(node) || String(node && node.name || "");
-    let state = qVarRuntimeStateByUuid.get(uuid);
-    if (!state) {
-      state = {
-        uuid: uuid,
-        name: String(node && node.name || "").trim(),
-        owner: ownerHost && ownerHost.nodeType === 1 ? ownerHost : null,
-        value: undefined,
-        previousValue: undefined,
-        initialized: false,
-        changed: null,
-        handle: null,
-      };
-      state.changed = createQVarSignal("changed", ownerHost || null);
-      state.handle = createQVarHandle(state);
-      qVarRuntimeStateByUuid.set(uuid, state);
-    }
-    state.name = String(node && node.name || state.name || "").trim();
-    state.owner = ownerHost && ownerHost.nodeType === 1 ? ownerHost : state.owner || null;
-    return state;
-  }
-
-  function registerQVarHandleInContext(name, handle, ownerHost, context) {
-    const key = String(name || "").trim();
-    if (!key) {
-      return;
-    }
-    ensureContextFrames(context);
-    const aliasStack = ensureInstanceAliasScopeStack(context);
-    const activeFrame =
-      aliasStack.length > 0
-        ? aliasStack[aliasStack.length - 1]
-        : context[QCONTEXT_SCOPE_FRAME_KEY];
-    if (activeFrame && typeof activeFrame.set === "function") {
-      activeFrame.set(key, handle);
-    }
-    if (
-      context &&
-      context[QCONTEXT_RUNTIME_FRAME_KEY] &&
-      typeof context[QCONTEXT_RUNTIME_FRAME_KEY].set === "function"
-    ) {
-      context[QCONTEXT_RUNTIME_FRAME_KEY].set(key, handle);
-    }
-    if (ownerHost && ownerHost.nodeType === 1) {
-      exportNamedAliasToHost(ownerHost, key, handle);
-    } else if (context && context.rootHostElement) {
-      exportNamedAliasToHost(context.rootHostElement, key, handle);
-      if (context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
-        context.namedRuntimeValues[key] = handle;
-      }
-    }
-  }
-
-  function registerQVarDeclarationNode(node, parent, targetDocument, context, ownerHostOverride) {
-    if (!node || String(node.kind || "").trim().toLowerCase() !== Q_VAR_NODE_KIND) {
-      return false;
-    }
-    const name = String(node.name || "").trim();
-    if (!name) {
-      return true;
-    }
-    const ownerHost =
-      ownerHostOverride && ownerHostOverride.nodeType === 1
-        ? ownerHostOverride
-        : parent && parent.nodeType === 1
-          ? parent.closest && parent.closest("[qhtml-component-instance='1']") || parent
-          : null;
-    const state = ensureQVarState(node, ownerHost);
-    const previous = state.value;
-    const next = evaluateQVarBody(node, ownerHost, context);
-    const changed = !state.initialized || !Object.is(previous, next);
-    state.previousValue = previous;
-    state.value = next;
-    state.initialized = true;
-    registerQVarHandleInContext(name, state.handle, ownerHost, context);
-    if (changed && state.changed && typeof state.changed.emit === "function") {
-      state.changed.emit(next, previous, true);
-      const runtimeApi = global.QHtml && typeof global.QHtml === "object" ? global.QHtml : null;
-      if (ownerHost && ownerHost.nodeType === 1 && runtimeApi && typeof runtimeApi.emitQSignal === "function") {
-        try {
-          runtimeApi.emitQSignal(ownerHost, {
-            signalName: name + ".changed",
-            params: {
-              value: next,
-              previousValue: previous,
-              passing: true,
-            },
-            args: [next, previous, true],
-          });
-        } catch (emitError) {
-          // local signal emission already happened.
-        }
-      }
-    }
-    return true;
-  }
-
-  function normalizeQSwitchLookupKey(value) {
-    return String(value);
-  }
-
-  function fallbackQSwitchKeySourceValue(keySource) {
-    const raw = String(keySource || "").trim();
-    if (
-      (raw.length >= 2 && raw.charAt(0) === "\"" && raw.charAt(raw.length - 1) === "\"") ||
-      (raw.length >= 2 && raw.charAt(0) === "'" && raw.charAt(raw.length - 1) === "'") ||
-      (raw.length >= 2 && raw.charAt(0) === "`" && raw.charAt(raw.length - 1) === "`")
-    ) {
-      return raw.slice(1, -1);
-    }
-    return raw;
-  }
-
-  function resolveQSwitchInvocationHost(ownerHost) {
-    const runtimeApi = global.QHtml && typeof global.QHtml === "object" ? global.QHtml : null;
-    if (runtimeApi && typeof runtimeApi.getCurrentExecutionHost === "function") {
-      try {
-        const currentHost = runtimeApi.getCurrentExecutionHost();
-        if (currentHost && currentHost.nodeType === 1) {
-          return currentHost;
-        }
-      } catch (error) {
-        // fall back to declaration owner below
-      }
-    }
-    return ownerHost && ownerHost.nodeType === 1 ? ownerHost : null;
-  }
-
-  function buildQSwitchEvaluationScope(context, thisArg, extraScope) {
-    const scope = buildInterpolationScope(context, thisArg);
-    const extra = extraScope && typeof extraScope === "object" ? extraScope : null;
-    if (extra) {
-      const keys = Object.keys(extra);
-      for (let i = 0; i < keys.length; i += 1) {
-        scope[keys[i]] = extra[keys[i]];
-      }
-    }
-    return scope;
-  }
-
-  function evaluateQSwitchSource(source, ownerHost, context, extraScope, errorLabel) {
-    const body = String(source || "").trim();
-    if (!body) {
-      return undefined;
-    }
-    const thisArg = resolveQSwitchInvocationHost(ownerHost);
-    const scope = buildQSwitchEvaluationScope(context, thisArg, extraScope);
-    const scopeNames = Object.keys(scope).filter(function filterQSwitchScopeParam(name) {
-      return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(String(name || ""));
-    });
-    const scopeValues = scopeNames.map(function mapQSwitchScopeParam(name) {
-      return scope[name];
-    });
-    ensureScopedSelectorShortcut(thisArg || {}, null);
-    try {
-      const expressionExecutor = new Function(scopeNames.join(","), "return (" + body + ");");
-      return expressionExecutor.apply(thisArg, scopeValues);
-    } catch (expressionError) {
-      try {
-        const bodyExecutor = new Function(scopeNames.join(","), body);
-        return bodyExecutor.apply(thisArg, scopeValues);
-      } catch (bodyError) {
-        try {
-          const scopedExpressionExecutor = new Function(withScopedSelectorPrelude("return (" + body + ");"));
-          return scopedExpressionExecutor.call(thisArg);
-        } catch (scopedExpressionError) {
-          try {
-            const scopedBodyExecutor = new Function(withScopedSelectorPrelude(body));
-            return scopedBodyExecutor.call(thisArg);
-          } catch (scopedBodyError) {
-            if (global.console && typeof global.console.error === "function") {
-              global.console.error(errorLabel || "qhtml q-switch evaluation failed:", scopedBodyError);
-            }
-            return undefined;
-          }
-        }
-      }
-    }
-  }
-
-  function createQSwitchFunction(node, ownerHost, context) {
-    const cases = Array.isArray(node && node.cases) ? node.cases : [];
-    const caseMap = new Map();
-    let defaultCase = null;
-
-    for (let i = 0; i < cases.length; i += 1) {
-      const entry = cases[i] || {};
-      const keySource = String(entry.keySource || "").trim();
-      if (!keySource) {
-        continue;
-      }
-      if (keySource === "*") {
-        defaultCase = entry;
-        continue;
-      }
-      let keyValue;
-      try {
-        keyValue = evaluateQSwitchSource(keySource, ownerHost, context, null, "qhtml q-switch key evaluation failed:");
-      } catch (error) {
-        keyValue = fallbackQSwitchKeySourceValue(keySource);
-      }
-      if (typeof keyValue === "undefined") {
-        keyValue = fallbackQSwitchKeySourceValue(keySource);
-      }
-      caseMap.set(normalizeQSwitchLookupKey(keyValue), entry);
-    }
-
-    return function qSwitchRuntimeResolver(value) {
-      const lookupKey = normalizeQSwitchLookupKey(value);
-      const entry = caseMap.has(lookupKey) ? caseMap.get(lookupKey) : defaultCase;
-      if (!entry) {
-        return undefined;
-      }
-      return evaluateQSwitchSource(
-        entry.body,
-        ownerHost,
-        context,
-        {
-          value: value,
-          val: value,
-          switchValue: value,
-        },
-        "qhtml q-switch case evaluation failed:"
-      );
-    };
-  }
-
-  function registerQSwitchFunctionInContext(name, fn, ownerHost, context) {
-    const key = String(name || "").trim();
-    if (!key || typeof fn !== "function") {
-      return;
-    }
-    ensureContextFrames(context);
-    const aliasStack = ensureInstanceAliasScopeStack(context);
-    const activeFrame =
-      aliasStack.length > 0
-        ? aliasStack[aliasStack.length - 1]
-        : context[QCONTEXT_SCOPE_FRAME_KEY];
-    if (activeFrame && typeof activeFrame.set === "function") {
-      activeFrame.set(key, fn);
-    }
-    if (
-      context &&
-      context[QCONTEXT_RUNTIME_FRAME_KEY] &&
-      typeof context[QCONTEXT_RUNTIME_FRAME_KEY].set === "function"
-    ) {
-      context[QCONTEXT_RUNTIME_FRAME_KEY].set(key, fn);
-    }
-    if (context && context.inlineScope && typeof context.inlineScope === "object") {
-      context.inlineScope[key] = fn;
-    }
-    if (ownerHost && ownerHost.nodeType === 1) {
-      exportNamedAliasToHost(ownerHost, key, fn);
-    } else if (context && context.rootHostElement) {
-      exportNamedAliasToHost(context.rootHostElement, key, fn);
-      if (context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
-        context.namedRuntimeValues[key] = fn;
-      }
-    }
-  }
-
-  function registerQSwitchDeclarationNode(node, parent, targetDocument, context, ownerHostOverride) {
-    if (!node || String(node.kind || "").trim().toLowerCase() !== Q_SWITCH_NODE_KIND) {
-      return false;
-    }
-    const name = String(node.name || "").trim();
-    if (!name) {
-      return true;
-    }
-    const ownerHost =
-      ownerHostOverride && ownerHostOverride.nodeType === 1
-        ? ownerHostOverride
-        : parent && parent.nodeType === 1
-          ? parent.closest && parent.closest("[qhtml-component-instance='1']") || parent
-          : null;
-    const fn = createQSwitchFunction(node, ownerHost, context);
-    registerQSwitchFunctionInContext(name, fn, ownerHost, context);
-    return true;
-  }
-
-  function renderDynamicQHtmlFragmentNode(node, parent, targetDocument, context) {
-    const expression = String(node && node.expression || "").trim();
-    if (!expression) {
-      return true;
-    }
-    const resolved = tryResolveDirectSymbolValue(expression, context, parent);
-    let value = resolved && resolved.matched && resolved.found ? resolved.value : undefined;
-    if (typeof value === "undefined") {
-      try {
-        const scope = buildInterpolationScope(context, parent);
-        const thisArg = parent && parent.nodeType === 1 ? parent : scope.component || null;
-        value = evaluateInlineReferenceExpression(expression, thisArg, resolveInlineExpressionScope(thisArg, scope), "qhtml(...) expression failed:");
-      } catch (error) {
-        value = undefined;
-      }
-    }
-    value = readQVarHandleValue(value);
-    const prefix = String(value == null ? "" : value);
-    const continuation = String(node.continuationSource || "").trim();
-    if (!prefix.trim()) {
-      const children = Array.isArray(node.children) ? node.children : [];
-      for (let i = 0; i < children.length; i += 1) {
-        renderNode(children[i], parent, targetDocument, context);
-      }
-      return true;
-    }
-    const openCount = (prefix.match(/\{/g) || []).length;
-    const closeCount = (prefix.match(/\}/g) || []).length;
-    const missingClosers = Math.max(0, openCount - closeCount);
-    const source =
-      prefix +
-      (continuation ? "\n" + continuation : "") +
-      (missingClosers > 0 ? "\n" + new Array(missingClosers + 1).join("}") : "");
-    return renderQHtmlFragmentToken(createQHtmlFragmentToken(source), parent, targetDocument, context);
-  }
-
   function registerCallbackDeclarationNode(node, parent, targetDocument, context) {
     if (!node || String(node.kind || "").trim().toLowerCase() !== Q_CALLBACK_NODE_KIND) {
       return false;
@@ -25540,38 +25046,331 @@
     return true;
   }
 
+  function readQVarNodeUuid(node) {
+    if (!node || typeof node !== "object") {
+      return "";
+    }
+    if (typeof node.uuid === "string" && node.uuid.trim()) {
+      return node.uuid.trim();
+    }
+    if (node.meta && typeof node.meta === "object") {
+      if (typeof node.meta[QDOM_UUID_META_KEY] === "string" && node.meta[QDOM_UUID_META_KEY].trim()) {
+        return node.meta[QDOM_UUID_META_KEY].trim();
+      }
+      if (typeof node.meta.uuid === "string" && node.meta.uuid.trim()) {
+        return node.meta.uuid.trim();
+      }
+    }
+    if (typeof core.ensureNodeUuid === "function") {
+      try {
+        const ensured = core.ensureNodeUuid(node);
+        if (ensured && ensured.meta && typeof ensured.meta[QDOM_UUID_META_KEY] === "string") {
+          return ensured.meta[QDOM_UUID_META_KEY].trim();
+        }
+      } catch (error) {
+        // no-op
+      }
+    }
+    return "";
+  }
+
+  function evaluateQVarBody(node, ownerHost, context) {
+    const body = String(node && node.body || "").trim();
+    if (!body) {
+      return undefined;
+    }
+    const thisArg = ownerHost && ownerHost.nodeType === 1 ? ownerHost : null;
+    const interpolationScope = buildInterpolationScope(context, thisArg);
+    const scopeNames = Object.keys(interpolationScope).filter(function filterQVarScopeParam(name) {
+      return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(String(name || ""));
+    });
+    const scopeValues = scopeNames.map(function mapQVarScopeParam(name) {
+      return interpolationScope[name];
+    });
+    try {
+      const expressionExecutor = new Function(scopeNames.join(","), "return (" + body + ");");
+      return expressionExecutor.apply(thisArg, scopeValues);
+    } catch (expressionError) {
+      try {
+        const bodyExecutor = new Function(scopeNames.join(","), body);
+        return bodyExecutor.apply(thisArg, scopeValues);
+      } catch (bodyError) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml q-var evaluation failed:", String(node && node.name || ""), bodyError);
+        }
+        return undefined;
+      }
+    }
+  }
+
+  function ensureQVarState(node, ownerHost, context) {
+    const uuid = readQVarNodeUuid(node) || String(node && node.name || "");
+    let state = qVarRuntimeStateByUuid.get(uuid);
+    if (!state) {
+      state = {
+        uuid: uuid,
+        name: String(node && node.name || "").trim(),
+        owner: ownerHost && ownerHost.nodeType === 1 ? ownerHost : null,
+        value: undefined,
+        previousValue: undefined,
+        initialized: false,
+        changed: null,
+        handle: null,
+      };
+      state.changed = createQVarSignal("changed", ownerHost || null);
+      state.handle = createQVarHandle(state);
+      qVarRuntimeStateByUuid.set(uuid, state);
+    }
+    state.name = String(node && node.name || state.name || "").trim();
+    state.owner = ownerHost && ownerHost.nodeType === 1 ? ownerHost : state.owner || null;
+    if (!state.initialized) {
+      state.value = evaluateQVarBody(node, state.owner, context);
+      state.initialized = true;
+    }
+    return state;
+  }
+
+  function registerQVarHandleInContext(name, handle, ownerHost, context) {
+    const key = String(name || "").trim();
+    if (!key) {
+      return;
+    }
+    ensureContextFrames(context);
+    const aliasStack = ensureInstanceAliasScopeStack(context);
+    const activeFrame =
+      aliasStack.length > 0
+        ? aliasStack[aliasStack.length - 1]
+        : context[QCONTEXT_SCOPE_FRAME_KEY];
+    if (activeFrame && typeof activeFrame.set === "function") {
+      activeFrame.set(key, handle);
+    }
+    if (context[QCONTEXT_RUNTIME_FRAME_KEY] && typeof context[QCONTEXT_RUNTIME_FRAME_KEY].set === "function") {
+      context[QCONTEXT_RUNTIME_FRAME_KEY].set(key, handle);
+    }
+    if (ownerHost && ownerHost.nodeType === 1) {
+      exportNamedAliasToHost(ownerHost, key, handle);
+      try {
+        Object.defineProperty(ownerHost, key, {
+          configurable: true,
+          enumerable: true,
+          get: function getOwnedQVarValue() {
+            return handle.value;
+          },
+          set: function setOwnedQVarValue(next) {
+            handle.value = next;
+          },
+        });
+      } catch (error) {
+        // If the host already has a fixed property, the scoped handle still works.
+      }
+    } else if (context && context.rootHostElement) {
+      exportNamedAliasToHost(context.rootHostElement, key, handle);
+      try {
+        Object.defineProperty(context.rootHostElement, key, {
+          configurable: true,
+          enumerable: true,
+          get: function getRootQVarValue() {
+            return handle.value;
+          },
+          set: function setRootQVarValue(next) {
+            handle.value = next;
+          },
+        });
+      } catch (error) {
+        // If the host already has a fixed property, the scoped handle still works.
+      }
+      if (context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
+        context.namedRuntimeValues[key] = handle;
+      }
+    }
+  }
+
+  function registerQVarDeclarationNode(node, parent, targetDocument, context, ownerHostOverride) {
+    if (!node || String(node.kind || "").trim().toLowerCase() !== Q_VAR_NODE_KIND) {
+      return false;
+    }
+    const name = String(node.name || "").trim();
+    if (!name) {
+      return true;
+    }
+    const stackOwner =
+      context && Array.isArray(context.componentHostStack) && context.componentHostStack.length > 0
+        ? context.componentHostStack[context.componentHostStack.length - 1]
+        : null;
+    const parentOwner =
+      parent && parent.nodeType === 1 && typeof parent.closest === "function"
+        ? parent.closest("[qhtml-component-instance='1']")
+        : null;
+    const ownerHost =
+      ownerHostOverride && ownerHostOverride.nodeType === 1
+        ? ownerHostOverride
+        : parentOwner || stackOwner || (context && context.rootHostElement && context.rootHostElement.nodeType === 1 ? context.rootHostElement : null);
+    const state = ensureQVarState(node, ownerHost, context);
+    registerQVarHandleInContext(name, state.handle, ownerHost, context);
+    return true;
+  }
+
+  function normalizeQTimerNodeDefinition(node) {
+    const timerId = String(node && (node.timerId || node.name || node.id) || "").trim();
+    if (!timerId) {
+      return null;
+    }
+    const interval = Number(node && node.interval);
+    return {
+      timerId: timerId,
+      interval: Number.isFinite(interval) && interval >= 0 ? Math.floor(interval) : 0,
+      repeat: !node || node.repeat !== false,
+      running: !node || node.running !== false,
+      onTimeout: String(node && node.onTimeout || ""),
+    };
+  }
+
+  function resolveContextOwnerHost(parent, context, ownerHostOverride) {
+    if (ownerHostOverride && ownerHostOverride.nodeType === 1) {
+      return ownerHostOverride;
+    }
+    const stackOwner =
+      context && Array.isArray(context.componentHostStack) && context.componentHostStack.length > 0
+        ? context.componentHostStack[context.componentHostStack.length - 1]
+        : null;
+    if (stackOwner && stackOwner.nodeType === 1) {
+      return stackOwner;
+    }
+    if (context && context.rootHostElement && context.rootHostElement.nodeType === 1) {
+      return context.rootHostElement;
+    }
+    if (parent && parent.nodeType === 1) {
+      return parent;
+    }
+    return null;
+  }
+
+  function registerNamedRuntimeValueInContext(name, value, ownerHost, context) {
+    const key = String(name || "").trim();
+    if (!key) {
+      return;
+    }
+    ensureContextFrames(context);
+    const aliasStack = ensureInstanceAliasScopeStack(context);
+    const activeFrame =
+      aliasStack.length > 0
+        ? aliasStack[aliasStack.length - 1]
+        : context[QCONTEXT_SCOPE_FRAME_KEY];
+    if (activeFrame && typeof activeFrame.set === "function") {
+      activeFrame.set(key, value);
+    }
+    if (context[QCONTEXT_RUNTIME_FRAME_KEY] && typeof context[QCONTEXT_RUNTIME_FRAME_KEY].set === "function") {
+      context[QCONTEXT_RUNTIME_FRAME_KEY].set(key, value);
+    }
+    if (ownerHost && ownerHost.nodeType === 1) {
+      exportNamedAliasToHost(ownerHost, key, value);
+    } else if (context && context.rootHostElement) {
+      exportNamedAliasToHost(context.rootHostElement, key, value);
+      if (context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
+        context.namedRuntimeValues[key] = value;
+      }
+    }
+  }
+
+  function evaluateQSwitchCaseBody(body, ownerHost, context, inputValue) {
+    const source = String(body || "").trim();
+    if (!source) {
+      return undefined;
+    }
+    const thisArg = ownerHost && ownerHost.nodeType === 1 ? ownerHost : null;
+    const interpolationScope = buildInterpolationScope(context, thisArg);
+    interpolationScope.item = inputValue;
+    interpolationScope.value = inputValue;
+    const scopeNames = Object.keys(interpolationScope).filter(function filterQSwitchScopeParam(name) {
+      return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(String(name || ""));
+    });
+    const scopeValues = scopeNames.map(function mapQSwitchScopeParam(name) {
+      return interpolationScope[name];
+    });
+    try {
+      const expressionExecutor = new Function(scopeNames.join(","), "return (" + source + ");");
+      return expressionExecutor.apply(thisArg, scopeValues);
+    } catch (expressionError) {
+      try {
+        const bodyExecutor = new Function(scopeNames.join(","), source);
+        return bodyExecutor.apply(thisArg, scopeValues);
+      } catch (bodyError) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml q-switch evaluation failed:", bodyError);
+        }
+        return undefined;
+      }
+    }
+  }
+
+  function createQSwitchFunction(node, ownerHost, context) {
+    const cases = Array.isArray(node && node.cases) ? node.cases.slice() : [];
+    const byKey = Object.create(null);
+    for (let i = 0; i < cases.length; i += 1) {
+      const entry = cases[i] && typeof cases[i] === "object" ? cases[i] : {};
+      const key = String(entry.key || "");
+      if (!key && key !== "") {
+        continue;
+      }
+      byKey[key] = entry;
+    }
+    return function qSwitchRuntimeLookup(inputValue) {
+      const key = String(inputValue);
+      const selected = Object.prototype.hasOwnProperty.call(byKey, key)
+        ? byKey[key]
+        : Object.prototype.hasOwnProperty.call(byKey, "*")
+          ? byKey["*"]
+          : null;
+      if (!selected) {
+        return undefined;
+      }
+      return evaluateQSwitchCaseBody(selected.body, ownerHost, context, inputValue);
+    };
+  }
+
+  function registerQSwitchDeclarationNode(node, parent, targetDocument, context, ownerHostOverride) {
+    if (!node || String(node.kind || "").trim().toLowerCase() !== Q_SWITCH_NODE_KIND) {
+      return false;
+    }
+    const name = String(node.name || "").trim();
+    if (!name) {
+      return true;
+    }
+    const ownerHost = resolveContextOwnerHost(parent, context, ownerHostOverride);
+    const switchFn = createQSwitchFunction(node, ownerHost, context);
+    registerNamedRuntimeValueInContext(name, switchFn, ownerHost, context);
+    return true;
+  }
+
+  function registerQTimerDeclarationNode(node, parent, targetDocument, context, ownerHostOverride) {
+    if (!node || String(node.kind || "").trim().toLowerCase() !== Q_TIMER_NODE_KIND) {
+      return false;
+    }
+    const timerDefinition = normalizeQTimerNodeDefinition(node);
+    if (!timerDefinition) {
+      return true;
+    }
+    ensureContextFrames(context);
+    const ownerHost = resolveContextOwnerHost(parent, context, ownerHostOverride);
+    if (!ownerHost) {
+      return true;
+    }
+    const runtimeApi = global.QHtml && typeof global.QHtml === "object" ? global.QHtml : null;
+    bindSingleComponentTimer(
+      timerDefinition,
+      { componentId: String(ownerHost.tagName || "q-html").trim().toLowerCase() },
+      ownerHost,
+      targetDocument || ownerHost.ownerDocument || global.document || null,
+      runtimeApi,
+      context[QCONTEXT_SCOPE_FRAME_KEY],
+      context[QCONTEXT_RUNTIME_FRAME_KEY]
+    );
+    return true;
+  }
+
   function renderQHtmlFragmentToken(value, parent, targetDocument, context) {
     if (!isQHtmlFragmentToken(value)) {
       return false;
-    }
-    if (typeof value.reference !== "undefined") {
-      const referenceTarget = resolveQHtmlFragmentReferenceTarget(value.reference);
-      const referenceNode = resolveQHtmlFragmentReferenceNode(referenceTarget);
-      if (referenceNode) {
-        const beforeCount = readFragmentParentChildCount(parent);
-        renderQHtmlFragmentQDomNode(referenceNode, parent, targetDocument, context);
-        if (readFragmentParentChildCount(parent) !== beforeCount) {
-          return true;
-        }
-      }
-      if (appendQHtmlFragmentDomFallback(referenceTarget, parent, targetDocument)) {
-        return true;
-      }
-      if (value.referenceUuid && runtime && typeof runtime.resolveUuidPointer === "function") {
-        const pointer = runtime.resolveUuidPointer(value.referenceUuid);
-        const pointerTarget = resolveQHtmlFragmentReferenceTarget(pointer);
-        const pointerNode = resolveQHtmlFragmentReferenceNode(pointerTarget);
-        if (pointerNode) {
-          const beforeCount = readFragmentParentChildCount(parent);
-          renderQHtmlFragmentQDomNode(pointerNode, parent, targetDocument, context);
-          if (readFragmentParentChildCount(parent) !== beforeCount) {
-            return true;
-          }
-        }
-        if (appendQHtmlFragmentDomFallback(pointerTarget, parent, targetDocument)) {
-          return true;
-        }
-      }
     }
     const source = String(value.source || "");
     if (!source.trim()) {
@@ -25597,88 +25396,6 @@
       parent.appendChild(targetDocument.createTextNode(source));
     }
     return true;
-  }
-
-  function resolveQHtmlFragmentReferenceTarget(reference) {
-    if (!reference || (typeof reference !== "object" && typeof reference !== "function")) {
-      return null;
-    }
-    if (isContextSymbolHandle(reference)) {
-      return readHandleResolutionTarget(reference) || reference;
-    }
-    return reference;
-  }
-
-  function resolveQHtmlFragmentReferenceNode(reference) {
-    if (!reference || (typeof reference !== "object" && typeof reference !== "function")) {
-      return null;
-    }
-    const target = reference;
-    if (target && target.nodeType === 1 && typeof target.qdom === "function") {
-      try {
-        const qdomNode = target.qdom();
-        return sourceNodeOf(qdomNode) || qdomNode || null;
-      } catch (readQdomError) {
-        return null;
-      }
-    }
-    if (target && typeof target.qdom === "function") {
-      try {
-        const qdomNode = target.qdom();
-        return sourceNodeOf(qdomNode) || qdomNode || null;
-      } catch (readQdomError) {
-        return null;
-      }
-    }
-    return sourceNodeOf(target) || null;
-  }
-
-  function readFragmentParentChildCount(parent) {
-    if (!parent || !parent.childNodes || typeof parent.childNodes.length !== "number") {
-      return -1;
-    }
-    return parent.childNodes.length;
-  }
-
-  function appendQHtmlFragmentDomFallback(referenceTarget, parent, targetDocument) {
-    if (!referenceTarget || !parent || !targetDocument || referenceTarget.nodeType !== 1) {
-      return false;
-    }
-    try {
-      const clone =
-        typeof targetDocument.importNode === "function"
-          ? targetDocument.importNode(referenceTarget, true)
-          : typeof referenceTarget.cloneNode === "function"
-            ? referenceTarget.cloneNode(true)
-            : null;
-      if (!clone) {
-        return false;
-      }
-      parent.appendChild(clone);
-      return true;
-    } catch (cloneError) {
-      return false;
-    }
-  }
-
-  function renderQHtmlFragmentQDomNode(referenceNode, parent, targetDocument, context) {
-    if (!referenceNode || typeof referenceNode !== "object") {
-      return;
-    }
-    const sourceNode = sourceNodeOf(referenceNode) || referenceNode;
-    const nodes =
-      Array.isArray(sourceNode.nodes)
-        ? sourceNode.nodes
-        : [sourceNode];
-    for (let i = 0; i < nodes.length; i += 1) {
-      const nodeClone = cloneNodeDeep(nodes[i]);
-      if (nodeClone && nodeClone.meta && typeof nodeClone.meta === "object") {
-        delete nodeClone.meta[QINSTANCE_ALIAS_META_KEY];
-      }
-      refreshQDomNodeUuidsDeep(nodeClone);
-      stripQDomSourceRefsDeep(nodeClone);
-      renderNode(nodeClone, parent, targetDocument, context);
-    }
   }
 
   function createPathResolutionContext(existingContext) {
@@ -25950,8 +25667,8 @@
         return;
       }
 
-      if (String(node.kind || "").trim().toLowerCase() === "qhtml-fragment") {
-        renderDynamicQHtmlFragmentNode(node, parent, targetDocument, context);
+      if (String(node.kind || "").trim().toLowerCase() === Q_TIMER_NODE_KIND) {
+        registerQTimerDeclarationNode(node, parent, targetDocument, context);
         return;
       }
 
@@ -26521,20 +26238,20 @@
       scopeFrame: componentScopeFrame,
       runtimeFrame: componentRuntimeFrame,
     });
-    const switchDeclarations = Array.isArray(componentNode.switchDeclarations) ? componentNode.switchDeclarations : [];
-    for (let si = 0; si < switchDeclarations.length; si += 1) {
-      registerQSwitchDeclarationNode(
-        Object.assign({ kind: Q_SWITCH_NODE_KIND }, switchDeclarations[si]),
+    const varDeclarations = Array.isArray(componentNode.varDeclarations) ? componentNode.varDeclarations : [];
+    for (let vi = 0; vi < varDeclarations.length; vi += 1) {
+      registerQVarDeclarationNode(
+        Object.assign({ kind: Q_VAR_NODE_KIND }, varDeclarations[vi]),
         hostElement,
         targetDocument,
         componentContext,
         hostElement
       );
     }
-    const varDeclarations = Array.isArray(componentNode.varDeclarations) ? componentNode.varDeclarations : [];
-    for (let vi = 0; vi < varDeclarations.length; vi += 1) {
-      registerQVarDeclarationNode(
-        Object.assign({ kind: Q_VAR_NODE_KIND }, varDeclarations[vi]),
+    const switchDeclarations = Array.isArray(componentNode.switchDeclarations) ? componentNode.switchDeclarations : [];
+    for (let si = 0; si < switchDeclarations.length; si += 1) {
+      registerQSwitchDeclarationNode(
+        Object.assign({ kind: Q_SWITCH_NODE_KIND }, switchDeclarations[si]),
         hostElement,
         targetDocument,
         componentContext,
@@ -26810,6 +26527,24 @@
       context.instanceAliasScopeStack[0] = context[QCONTEXT_SCOPE_FRAME_KEY];
     }
 
+    const rootTimers =
+      documentNode &&
+      documentNode.meta &&
+      Array.isArray(documentNode.meta.qTimers)
+        ? documentNode.meta.qTimers
+        : [];
+    if (rootTimers.length > 0 && context.rootHostElement && context.rootHostElement.nodeType === 1) {
+      for (let ti = 0; ti < rootTimers.length; ti += 1) {
+        registerQTimerDeclarationNode(
+          Object.assign({ kind: Q_TIMER_NODE_KIND }, rootTimers[ti]),
+          context.rootHostElement,
+          doc,
+          context,
+          context.rootHostElement
+        );
+      }
+    }
+
     const nodes = Array.isArray(documentNode && documentNode.nodes) ? documentNode.nodes : [];
     for (let i = 0; i < nodes.length; i += 1) {
       const node = nodes[i];
@@ -27007,6 +26742,26 @@
     context.componentStack.push(key);
     context.componentHostStack.push(hostElement);
     context.componentQdomStack.push(instanceNode);
+    const varDeclarations = Array.isArray(effectiveComponentNode.varDeclarations) ? effectiveComponentNode.varDeclarations : [];
+    for (let vi = 0; vi < varDeclarations.length; vi += 1) {
+      registerQVarDeclarationNode(
+        Object.assign({ kind: Q_VAR_NODE_KIND }, varDeclarations[vi]),
+        hostElement,
+        doc,
+        context,
+        hostElement
+      );
+    }
+    const switchDeclarations = Array.isArray(effectiveComponentNode.switchDeclarations) ? effectiveComponentNode.switchDeclarations : [];
+    for (let si = 0; si < switchDeclarations.length; si += 1) {
+      registerQSwitchDeclarationNode(
+        Object.assign({ kind: Q_SWITCH_NODE_KIND }, switchDeclarations[si]),
+        hostElement,
+        doc,
+        context,
+        hostElement
+      );
+    }
     try {
       renderComponentContentIntoHost(effectiveComponentNode, instanceNode, hostElement, doc, context);
     } finally {
@@ -27053,7 +26808,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.8.1";
+  const RUNTIME_VERSION = "6.9.0";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -27083,7 +26838,6 @@
     "lifecycleScripts",
     "methods",
     "aliasDeclarations",
-    "varDeclarations",
     "scripts",
     "html",
   ]);
@@ -28109,24 +27863,6 @@
   }
 
   function createQHtmlFragment(source) {
-    if (source && typeof source === "object" && source.__qhtmlFragment === true) {
-      return source;
-    }
-    if (source && (typeof source === "object" || typeof source === "function") && source.__qhtmlVarHandle === true) {
-      try {
-        source = source.value;
-      } catch (error) {
-        source = undefined;
-      }
-    }
-    if (source && (typeof source === "object" || typeof source === "function")) {
-      return {
-        __qhtmlFragment: true,
-        source: "",
-        reference: source,
-        referenceUuid: readResolverNodeUuid(source),
-      };
-    }
     return {
       __qhtmlFragment: true,
       source: String(source == null ? "" : source),
@@ -30538,9 +30274,7 @@
       "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
       " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
       "const qhtml = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtml === \"function\")" +
-      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n" +
-      "const qhtmlString = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtmlString === \"function\")" +
-      " ? globalThis.qhtmlString : qhtml;\n";
+      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n";
     const scopedBlock =
       "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
       "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
@@ -45703,7 +45437,6 @@
     unregisterWorkerRuntime: unregisterWorkerRuntime,
     getWorkerRuntime: getWorkerRuntime,
     qhtml: createQHtmlFragment,
-    qhtmlString: createQHtmlFragment,
     qmapNode: createQMapNodeTree,
     hydrateComponentElement: hydrateComponentElement,
     setDomMutationObserversEnabled: setDomMutationSyncEnabled,
@@ -45740,7 +45473,6 @@
     global.QVar = runtimeApi.QVar;
   }
   global.qhtml = createQHtmlFragment;
-  global.qhtmlString = createQHtmlFragment;
 
   if (global.document && global.document.readyState === "loading") {
     global.document.addEventListener("DOMContentLoaded", function onReady() {
@@ -45763,7 +45495,7 @@
   }
 
   const api = runtime;
-  api.version = "6.8.1";
+  api.version = "6.9.0";
   global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {
