@@ -13,7 +13,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.8.1";
+  const RUNTIME_VERSION = "6.7.1";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -43,7 +43,6 @@
     "lifecycleScripts",
     "methods",
     "aliasDeclarations",
-    "varDeclarations",
     "scripts",
     "html",
   ]);
@@ -1069,24 +1068,6 @@
   }
 
   function createQHtmlFragment(source) {
-    if (source && typeof source === "object" && source.__qhtmlFragment === true) {
-      return source;
-    }
-    if (source && (typeof source === "object" || typeof source === "function") && source.__qhtmlVarHandle === true) {
-      try {
-        source = source.value;
-      } catch (error) {
-        source = undefined;
-      }
-    }
-    if (source && (typeof source === "object" || typeof source === "function")) {
-      return {
-        __qhtmlFragment: true,
-        source: "",
-        reference: source,
-        referenceUuid: readResolverNodeUuid(source),
-      };
-    }
     return {
       __qhtmlFragment: true,
       source: String(source == null ? "" : source),
@@ -3498,9 +3479,7 @@
       "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
       " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
       "const qhtml = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtml === \"function\")" +
-      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n" +
-      "const qhtmlString = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtmlString === \"function\")" +
-      " ? globalThis.qhtmlString : qhtml;\n";
+      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n";
     const scopedBlock =
       "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
       "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
@@ -4811,7 +4790,6 @@
   };
   const globalUuidPointerRegistry = new Map();
   const globalUuidLookupRegistry = new Map();
-  const globalQDomObjectRegistry = new Map();
   const globalQDomDataRegistry = new Map();
   const globalSignalSubscriberRegistry = new Map();
   const globalSignalReferenceRegistry = new Map();
@@ -4909,11 +4887,6 @@
     }
     try {
       global.QHTML_UUID_LOOKUP_MAP = globalUuidLookupRegistry;
-    } catch (error) {
-      // no-op
-    }
-    try {
-      global.QHTML_QDOM = globalQDomObjectRegistry;
     } catch (error) {
       // no-op
     }
@@ -5476,7 +5449,6 @@
       if (!record) {
         return false;
       }
-      globalQDomObjectRegistry.set(record.uuid, source);
       recordsByUuid.set(record.uuid, record);
       next.add(record.uuid);
       return false;
@@ -5629,7 +5601,6 @@
           return;
         }
         globalQDomDataRegistry.delete(normalizedStale);
-        globalQDomObjectRegistry.delete(normalizedStale);
       });
     }
 
@@ -18650,7 +18621,6 @@
     QSignal: renderer && renderer.QSignal ? renderer.QSignal : null,
     QProperty: renderer && renderer.QProperty ? renderer.QProperty : null,
     QComponentInstance: renderer && renderer.QComponentInstance ? renderer.QComponentInstance : null,
-    QVar: renderer && renderer.QVar ? renderer.QVar : null,
     getQDomDataForUuid: getQDomDataForUuid,
     getQDomDataSnapshot: getQDomDataSnapshot,
     rootContext: {
@@ -18671,7 +18641,6 @@
     unregisterWorkerRuntime: unregisterWorkerRuntime,
     getWorkerRuntime: getWorkerRuntime,
     qhtml: createQHtmlFragment,
-    qhtmlString: createQHtmlFragment,
     qmapNode: createQMapNodeTree,
     hydrateComponentElement: hydrateComponentElement,
     setDomMutationObserversEnabled: setDomMutationSyncEnabled,
@@ -18704,11 +18673,7 @@
   if (runtimeApi.QComponentInstance) {
     global.QComponentInstance = runtimeApi.QComponentInstance;
   }
-  if (runtimeApi.QVar) {
-    global.QVar = runtimeApi.QVar;
-  }
   global.qhtml = createQHtmlFragment;
-  global.qhtmlString = createQHtmlFragment;
 
   if (global.document && global.document.readyState === "loading") {
     global.document.addEventListener("DOMContentLoaded", function onReady() {

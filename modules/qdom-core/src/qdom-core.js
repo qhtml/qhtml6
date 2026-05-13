@@ -21,7 +21,6 @@
   const QDOM_TEMPLATE_OWNER_ATTR = "data-qdom-for";
   const UPDATE_NONCE_KEY = "update-nonce";
   const QDOM_UUID_KEY = "uuid";
-  const QDOM_CONTEXT_KEY = "context";
   let qdomHostIdCounter = 0;
   let qdomUuidCounter = 0;
 
@@ -80,164 +79,6 @@
       return "";
     }
     return normalizeQDomUuid(node.meta[QDOM_UUID_KEY]);
-  }
-
-  function cloneQDomContext(context) {
-    const out = {};
-    if (!context || typeof context !== "object" || Array.isArray(context)) {
-      return out;
-    }
-    const names = Object.keys(context);
-    for (let i = 0; i < names.length; i += 1) {
-      const name = String(names[i] || "").trim();
-      const uuid = normalizeQDomUuid(context[names[i]]);
-      if (name && uuid) {
-        out[name] = uuid;
-      }
-    }
-    return out;
-  }
-
-  function addQDomContextEntry(context, name, uuid) {
-    const key = String(name || "").trim();
-    const value = normalizeQDomUuid(uuid);
-    if (!key || !value || !context || typeof context !== "object") {
-      return false;
-    }
-    context[key] = value;
-    return true;
-  }
-
-  function readQDomContextNames(node) {
-    const out = [];
-    if (!node || typeof node !== "object") {
-      return out;
-    }
-    const kind = String(node.kind || "").trim().toLowerCase();
-    const meta = node.meta && typeof node.meta === "object" ? node.meta : {};
-    const instanceAlias = String(meta.__qhtmlInstanceAlias || "").trim();
-    if (instanceAlias) {
-      out.push(instanceAlias);
-    }
-    if (kind === NODE_TYPES.component) {
-      const componentId = String(node.componentId || "").trim();
-      if (componentId) {
-        out.push(componentId);
-      }
-    }
-    if (kind === "q-var" || kind === "q-switch" || kind === "callback") {
-      const name = String(node.name || node.callbackName || "").trim();
-      if (name) {
-        out.push(name);
-      }
-    }
-    return out;
-  }
-
-  function readQDomChildCollections(node) {
-    const out = [];
-    if (!node || typeof node !== "object") {
-      return out;
-    }
-    if (node.kind === NODE_TYPES.document && Array.isArray(node.nodes)) {
-      out.push(node.nodes);
-    }
-    if (node.kind === NODE_TYPES.element && Array.isArray(node.children)) {
-      out.push(node.children);
-    }
-    if (node.kind === NODE_TYPES.component && Array.isArray(node.templateNodes)) {
-      out.push(node.templateNodes);
-    }
-    if (node.kind === NODE_TYPES.repeater) {
-      if (node.model && node.model.kind === NODE_TYPES.model) {
-        out.push([node.model]);
-      }
-      if (Array.isArray(node.templateNodes)) {
-        out.push(node.templateNodes);
-      }
-    }
-    if (node.kind === NODE_TYPES.model && Array.isArray(node.entries)) {
-      for (let i = 0; i < node.entries.length; i += 1) {
-        const entry = node.entries[i];
-        if (entry && typeof entry === "object" && Array.isArray(entry.nodes)) {
-          out.push(entry.nodes);
-        }
-      }
-    }
-    if (
-      (node.kind === NODE_TYPES.componentInstance || node.kind === NODE_TYPES.templateInstance) &&
-      readSlotNodes(node).length > 0
-    ) {
-      out.push(readSlotNodes(node));
-    }
-    if (
-      (node.kind === NODE_TYPES.componentInstance || node.kind === NODE_TYPES.templateInstance) &&
-      Array.isArray(node.children)
-    ) {
-      out.push(node.children);
-    }
-    if (node.kind === NODE_TYPES.slot && Array.isArray(node.children)) {
-      out.push(node.children);
-    }
-    return out;
-  }
-
-  function collectDirectQDomContextEntries(node, intoContext) {
-    const context = intoContext && typeof intoContext === "object" ? intoContext : {};
-    const childCollections = readQDomChildCollections(node);
-    for (let ci = 0; ci < childCollections.length; ci += 1) {
-      const children = childCollections[ci];
-      for (let i = 0; i < children.length; i += 1) {
-        const child = children[i];
-        if (!child || typeof child !== "object") {
-          continue;
-        }
-        const uuid = ensureNodeUuid(child);
-        const names = readQDomContextNames(child);
-        for (let ni = 0; ni < names.length; ni += 1) {
-          addQDomContextEntry(context, names[ni], uuid);
-        }
-      }
-    }
-    return context;
-  }
-
-  function assignQDomContexts(rootNode, inheritedContext) {
-    if (!rootNode || typeof rootNode !== "object") {
-      return rootNode;
-    }
-    const seen = typeof WeakSet === "function" ? new WeakSet() : null;
-
-    function assignNodeContext(node, parentContext) {
-      if (!node || typeof node !== "object") {
-        return;
-      }
-      if (seen) {
-        if (seen.has(node)) {
-          return;
-        }
-        seen.add(node);
-      }
-      const uuid = ensureNodeUuid(node);
-      const nodeContext = cloneQDomContext(parentContext);
-      const ownNames = readQDomContextNames(node);
-      for (let i = 0; i < ownNames.length; i += 1) {
-        addQDomContextEntry(nodeContext, ownNames[i], uuid);
-      }
-      node[QDOM_CONTEXT_KEY] = nodeContext;
-
-      const childContext = collectDirectQDomContextEntries(node, cloneQDomContext(nodeContext));
-      const childCollections = readQDomChildCollections(node);
-      for (let ci = 0; ci < childCollections.length; ci += 1) {
-        const children = childCollections[ci];
-        for (let i = 0; i < children.length; i += 1) {
-          assignNodeContext(children[i], childContext);
-        }
-      }
-    }
-
-    assignNodeContext(rootNode, inheritedContext || {});
-    return rootNode;
   }
 
   class QDomNode {
@@ -354,8 +195,6 @@
       this.signalDeclarations = Array.isArray(opts.signalDeclarations) ? opts.signalDeclarations : [];
       this.callbackDeclarations = Array.isArray(opts.callbackDeclarations) ? opts.callbackDeclarations : [];
       this.aliasDeclarations = Array.isArray(opts.aliasDeclarations) ? opts.aliasDeclarations : [];
-      this.varDeclarations = Array.isArray(opts.varDeclarations) ? opts.varDeclarations : [];
-      this.switchDeclarations = Array.isArray(opts.switchDeclarations) ? opts.switchDeclarations : [];
       this.qTimerDefinitions = Array.isArray(opts.qTimerDefinitions) ? opts.qTimerDefinitions : [];
       this.wasmConfig =
         opts.wasmConfig && typeof opts.wasmConfig === "object" && !Array.isArray(opts.wasmConfig)
@@ -1122,8 +961,6 @@
         signalDeclarations: reviveQDomTree(Array.isArray(value.signalDeclarations) ? value.signalDeclarations : []),
         callbackDeclarations: reviveQDomTree(Array.isArray(value.callbackDeclarations) ? value.callbackDeclarations : []),
         aliasDeclarations: reviveQDomTree(Array.isArray(value.aliasDeclarations) ? value.aliasDeclarations : []),
-        varDeclarations: reviveQDomTree(Array.isArray(value.varDeclarations) ? value.varDeclarations : []),
-        switchDeclarations: reviveQDomTree(Array.isArray(value.switchDeclarations) ? value.switchDeclarations : []),
         qTimerDefinitions: reviveQDomTree(Array.isArray(value.qTimerDefinitions) ? value.qTimerDefinitions : []),
         wasmConfig: reviveQDomTree(
           value.wasmConfig && typeof value.wasmConfig === "object" && !Array.isArray(value.wasmConfig)
@@ -1526,12 +1363,9 @@
     observeQDom: observeQDom,
     UPDATE_NONCE_KEY: UPDATE_NONCE_KEY,
     QDOM_UUID_KEY: QDOM_UUID_KEY,
-    QDOM_CONTEXT_KEY: QDOM_CONTEXT_KEY,
     createQDomUuid: createQDomUuid,
     ensureNodeUuid: ensureNodeUuid,
     getNodeUuid: getNodeUuid,
-    cloneQDomContext: cloneQDomContext,
-    assignQDomContexts: assignQDomContexts,
     createUpdateNonceToken: createUpdateNonceToken,
     setUpdateNonce: setUpdateNonce,
     ensureUpdateNonce: ensureUpdateNonce,
