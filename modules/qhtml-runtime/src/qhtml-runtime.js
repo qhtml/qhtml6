@@ -18621,6 +18621,7 @@
     QSignal: renderer && renderer.QSignal ? renderer.QSignal : null,
     QProperty: renderer && renderer.QProperty ? renderer.QProperty : null,
     QComponentInstance: renderer && renderer.QComponentInstance ? renderer.QComponentInstance : null,
+    QVar: renderer && renderer.QVar ? renderer.QVar : null,
     getQDomDataForUuid: getQDomDataForUuid,
     getQDomDataSnapshot: getQDomDataSnapshot,
     rootContext: {
@@ -18672,6 +18673,9 @@
   }
   if (runtimeApi.QComponentInstance) {
     global.QComponentInstance = runtimeApi.QComponentInstance;
+  }
+  if (runtimeApi.QVar) {
+    global.QVar = runtimeApi.QVar;
   }
   global.qhtml = createQHtmlFragment;
 

@@ -35,6 +35,7 @@
     "q-rewrite",
     "q-script",
     "q-bind",
+    "q-var",
     "q-property",
     "q-signal",
     "q-callback",
@@ -491,6 +492,19 @@
     }
     if (parser.index === start) {
       throw ParseError("Expected identifier", parser.index);
+    }
+    return parser.source.slice(start, parser.index);
+  }
+
+  function parseReferenceIdentifier(parser) {
+    skipWhitespace(parser);
+    const start = parser.index;
+    if (!isIdentifierStartChar(peek(parser))) {
+      throw ParseError("Expected identifier", parser.index);
+    }
+    parser.index += 1;
+    while (!eof(parser) && /[A-Za-z0-9_]/.test(peek(parser))) {
+      parser.index += 1;
     }
     return parser.source.slice(start, parser.index);
   }
@@ -2758,6 +2772,29 @@
           });
           continue;
         }
+        if (nameLower === "q-var" && nextChar !== "{" && nextChar !== ",") {
+          const varName = parseIdentifier(parser);
+          const normalizedVarName = String(varName || "").trim();
+          if (!normalizedVarName) {
+            throw ParseError("Expected variable name after q-var", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-var name", parser.index);
+          }
+          consume(parser);
+          const varBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "QVarDeclaration",
+            name: normalizedVarName,
+            body: String(varBody || ""),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (nameLower === "q-connect" && nextChar === "{") {
           consume(parser);
           const connectBody = readBalancedBlockContent(parser);
@@ -3183,7 +3220,11 @@
         }
         if (isIdentifierStartChar(nextChar)) {
           const instanceAliasStart = parser.index;
-          const instanceAlias = parseIdentifier(parser);
+          const instanceAlias = parseReferenceIdentifier(parser);
+          const selectorWithAliasShorthand =
+            peek(parser) === "." || peek(parser) === "#"
+              ? parseSelectorTokenTail(parser, name)
+              : name;
           skipWhitespace(parser);
           if (peek(parser) === "{") {
             consume(parser);
@@ -3191,7 +3232,7 @@
             expect(parser, "}");
             items.push({
               type: "Element",
-              selectors: [name],
+              selectors: [selectorWithAliasShorthand],
               instanceAlias: String(instanceAlias || "").trim(),
               prefixDirectives: [],
               items: childItems,
@@ -3990,6 +4031,30 @@
           continue;
         }
 
+        if (firstLower === "q-var" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const varName = parseIdentifier(parser);
+          const normalizedVarName = String(varName || "").trim();
+          if (!normalizedVarName) {
+            throw ParseError("Expected variable name after q-var", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-var name", parser.index);
+          }
+          consume(parser);
+          const varBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QVarDeclaration",
+            name: normalizedVarName,
+            body: String(varBody || ""),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
         if (firstLower === "q-connect" && peek(parser) === "{") {
           consume(parser);
           const connectBody = readBalancedBlockContent(parser);
@@ -4383,7 +4448,11 @@
 
         if (isIdentifierStartChar(peek(parser))) {
           const instanceAliasStart = parser.index;
-          const instanceAlias = parseIdentifier(parser);
+          const instanceAlias = parseReferenceIdentifier(parser);
+          const selectorWithAliasShorthand =
+            peek(parser) === "." || peek(parser) === "#"
+              ? parseSelectorTokenTail(parser, firstSelector)
+              : firstSelector;
           skipWhitespace(parser);
           if (peek(parser) === "{") {
             const prefixDirectives = parseLeadingSelectorDirectiveBlocks(parser);
@@ -4396,7 +4465,7 @@
             expect(parser, "}");
             body.push({
               type: "Element",
-              selectors: [firstSelector],
+              selectors: [selectorWithAliasShorthand],
               instanceAlias: String(instanceAlias || "").trim(),
               prefixDirectives: prefixDirectives,
               items: items,
@@ -11337,6 +11406,7 @@
     const signalDeclarations = [];
     const callbackDeclarations = [];
     const aliasDeclarations = [];
+    const varDeclarations = [];
     let componentLoggerCategories = null;
     let wasmConfig = null;
     const lifecycleScripts = [];
@@ -11691,6 +11761,24 @@
         }
         continue;
       }
+      if (item.type === "QVarDeclaration") {
+        if (supportsRuntimeDefinition) {
+          const varName = String(item.name || "").trim();
+          if (varName) {
+            const declarationMeta = createDeclarationMeta({
+              declarationKind: "q-var",
+              declarationName: varName,
+            });
+            varDeclarations.push({
+              name: varName,
+              body: String(item.body || ""),
+              uuid: declarationMeta.uuid,
+              meta: declarationMeta,
+            });
+          }
+        }
+        continue;
+      }
       if (item.type === "QWasmBlock") {
         if (definitionType !== "component") {
           throw new Error("q-wasm is only valid inside q-component definitions.");
@@ -11792,6 +11880,7 @@
       signalDeclarations: signalDeclarations,
       callbackDeclarations: callbackDeclarations,
       aliasDeclarations: aliasDeclarations,
+      varDeclarations: varDeclarations,
       qTimerDefinitions: qTimerDefinitions,
       wasmConfig: wasmConfig,
       lifecycleScripts: lifecycleScripts,
@@ -12325,6 +12414,52 @@
       return callbackNode;
     }
 
+    if (item.type === "QVarDeclaration") {
+      const varName = String(item.name || "").trim();
+      if (!varName) {
+        return null;
+      }
+      const declarationMeta = createDeclarationMeta({
+        declarationKind: "q-var",
+        declarationName: varName,
+      });
+      const varNode = {
+        kind: "q-var",
+        name: varName,
+        body: String(item.body || ""),
+        uuid: declarationMeta.uuid,
+        meta: declarationMeta,
+      };
+      applyKeywordAliasesToNode(varNode, item.keywords);
+      return varNode;
+    }
+
+    if (item.type === "QTimerDefinition") {
+      const timerId = String(item.timerId || "").trim();
+      if (!timerId) {
+        return null;
+      }
+      const config = item.config && typeof item.config === "object" ? item.config : {};
+      const interval = Number(config.interval);
+      const timerNode = {
+        kind: "q-timer",
+        timerId: timerId,
+        interval: Number.isFinite(interval) && interval >= 0 ? Math.floor(interval) : 0,
+        repeat: config.repeat !== false,
+        running: config.running !== false,
+        onTimeout: String(config.onTimeout || ""),
+        meta: {
+          originalSource: item.raw,
+          sourceRange:
+            typeof item.start === "number" && typeof item.end === "number"
+              ? [item.start, item.end]
+              : null,
+        },
+      };
+      applyKeywordAliasesToNode(timerNode, item.keywords);
+      return timerNode;
+    }
+
     if (item.type === "HtmlBlock") {
       const htmlNode = core.createRawHtmlNode({
         html: item.html,
@@ -12845,6 +12980,27 @@
     return lines.join("\n");
   }
 
+  function serializeQVarDeclarationBlock(varDecl, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    if (!varDecl || typeof varDecl !== "object") {
+      return "";
+    }
+    const name = String(varDecl.name || "").trim();
+    if (!name) {
+      return "";
+    }
+    const body = String(varDecl.body || "");
+    const lines = [indent + "q-var " + name + " {"];
+    if (body) {
+      const chunks = body.split("\n");
+      for (let i = 0; i < chunks.length; i += 1) {
+        lines.push(indent + "  " + chunks[i]);
+      }
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
   function serializeWasmConfigBlock(wasmConfig, indentLevel) {
     const config =
       wasmConfig && typeof wasmConfig === "object" && !Array.isArray(wasmConfig)
@@ -13216,6 +13372,10 @@
       return serializeCallbackDeclarationBlock(node, indentLevel);
     }
 
+    if (String(node.kind || "").trim().toLowerCase() === "q-var") {
+      return serializeQVarDeclarationBlock(node, indentLevel);
+    }
+
     if (node.kind === core.NODE_TYPES.component) {
       const explicitDefinitionType = String(node.definitionType || "").trim().toLowerCase();
       const definitionType =
@@ -13291,6 +13451,14 @@
             const serializedCallbackDeclaration = serializeCallbackDeclarationBlock(node.callbackDeclarations[i], indentLevel + 1);
             if (serializedCallbackDeclaration) {
               lines.push(serializedCallbackDeclaration);
+            }
+          }
+        }
+        if (Array.isArray(node.varDeclarations)) {
+          for (let i = 0; i < node.varDeclarations.length; i += 1) {
+            const serializedVarDeclaration = serializeQVarDeclarationBlock(node.varDeclarations[i], indentLevel + 1);
+            if (serializedVarDeclaration) {
+              lines.push(serializedVarDeclaration);
             }
           }
         }

@@ -77,6 +77,14 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - callback declarations:
       - top-level `q-callback name(param1, ...) { ... }` emitted as QDom `kind: "callback"` nodes
       - component-local `q-callback name(param1, ...) { ... }` emitted in `component.callbackDeclarations`
+    - q-var declarations:
+      - top-level `q-var name { expressionOrBody }` emitted as QDom `kind: "q-var"` nodes
+      - component-local `q-var name { expressionOrBody }` emitted in `component.varDeclarations`
+      - bodies are preserved as JavaScript source text for one-time scoped runtime initialization
+    - q-timer declarations:
+      - top-level `q-timer name { ... }` emitted in `document.meta.qTimers`
+      - component-local `q-timer name { ... }` emitted in `component.qTimerDefinitions`
+      - timers inside normal anonymous content are emitted as QDom `kind: "q-timer"` nodes so the renderer can register them in the inherited QContext
     - component property definition blocks (`q-property <name> { ... }`) emitted in `component.propertyDefinitions`
       - declaration entries now carry stable identity metadata (`entry.uuid` and `entry.meta.uuid`)
     - component alias declarations:

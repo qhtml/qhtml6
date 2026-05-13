@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-13T09:52:53Z */
+/* generated: 2026-05-13T21:14:41Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -199,6 +199,7 @@
       this.signalDeclarations = Array.isArray(opts.signalDeclarations) ? opts.signalDeclarations : [];
       this.callbackDeclarations = Array.isArray(opts.callbackDeclarations) ? opts.callbackDeclarations : [];
       this.aliasDeclarations = Array.isArray(opts.aliasDeclarations) ? opts.aliasDeclarations : [];
+      this.varDeclarations = Array.isArray(opts.varDeclarations) ? opts.varDeclarations : [];
       this.qTimerDefinitions = Array.isArray(opts.qTimerDefinitions) ? opts.qTimerDefinitions : [];
       this.wasmConfig =
         opts.wasmConfig && typeof opts.wasmConfig === "object" && !Array.isArray(opts.wasmConfig)
@@ -965,6 +966,7 @@
         signalDeclarations: reviveQDomTree(Array.isArray(value.signalDeclarations) ? value.signalDeclarations : []),
         callbackDeclarations: reviveQDomTree(Array.isArray(value.callbackDeclarations) ? value.callbackDeclarations : []),
         aliasDeclarations: reviveQDomTree(Array.isArray(value.aliasDeclarations) ? value.aliasDeclarations : []),
+        varDeclarations: reviveQDomTree(Array.isArray(value.varDeclarations) ? value.varDeclarations : []),
         qTimerDefinitions: reviveQDomTree(Array.isArray(value.qTimerDefinitions) ? value.qTimerDefinitions : []),
         wasmConfig: reviveQDomTree(
           value.wasmConfig && typeof value.wasmConfig === "object" && !Array.isArray(value.wasmConfig)
@@ -1422,6 +1424,7 @@
     "q-rewrite",
     "q-script",
     "q-bind",
+    "q-var",
     "q-property",
     "q-signal",
     "q-callback",
@@ -1878,6 +1881,19 @@
     }
     if (parser.index === start) {
       throw ParseError("Expected identifier", parser.index);
+    }
+    return parser.source.slice(start, parser.index);
+  }
+
+  function parseReferenceIdentifier(parser) {
+    skipWhitespace(parser);
+    const start = parser.index;
+    if (!isIdentifierStartChar(peek(parser))) {
+      throw ParseError("Expected identifier", parser.index);
+    }
+    parser.index += 1;
+    while (!eof(parser) && /[A-Za-z0-9_]/.test(peek(parser))) {
+      parser.index += 1;
     }
     return parser.source.slice(start, parser.index);
   }
@@ -4145,6 +4161,29 @@
           });
           continue;
         }
+        if (nameLower === "q-var" && nextChar !== "{" && nextChar !== ",") {
+          const varName = parseIdentifier(parser);
+          const normalizedVarName = String(varName || "").trim();
+          if (!normalizedVarName) {
+            throw ParseError("Expected variable name after q-var", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-var name", parser.index);
+          }
+          consume(parser);
+          const varBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "QVarDeclaration",
+            name: normalizedVarName,
+            body: String(varBody || ""),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (nameLower === "q-connect" && nextChar === "{") {
           consume(parser);
           const connectBody = readBalancedBlockContent(parser);
@@ -4570,7 +4609,11 @@
         }
         if (isIdentifierStartChar(nextChar)) {
           const instanceAliasStart = parser.index;
-          const instanceAlias = parseIdentifier(parser);
+          const instanceAlias = parseReferenceIdentifier(parser);
+          const selectorWithAliasShorthand =
+            peek(parser) === "." || peek(parser) === "#"
+              ? parseSelectorTokenTail(parser, name)
+              : name;
           skipWhitespace(parser);
           if (peek(parser) === "{") {
             consume(parser);
@@ -4578,7 +4621,7 @@
             expect(parser, "}");
             items.push({
               type: "Element",
-              selectors: [name],
+              selectors: [selectorWithAliasShorthand],
               instanceAlias: String(instanceAlias || "").trim(),
               prefixDirectives: [],
               items: childItems,
@@ -5377,6 +5420,30 @@
           continue;
         }
 
+        if (firstLower === "q-var" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const varName = parseIdentifier(parser);
+          const normalizedVarName = String(varName || "").trim();
+          if (!normalizedVarName) {
+            throw ParseError("Expected variable name after q-var", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-var name", parser.index);
+          }
+          consume(parser);
+          const varBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QVarDeclaration",
+            name: normalizedVarName,
+            body: String(varBody || ""),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
         if (firstLower === "q-connect" && peek(parser) === "{") {
           consume(parser);
           const connectBody = readBalancedBlockContent(parser);
@@ -5770,7 +5837,11 @@
 
         if (isIdentifierStartChar(peek(parser))) {
           const instanceAliasStart = parser.index;
-          const instanceAlias = parseIdentifier(parser);
+          const instanceAlias = parseReferenceIdentifier(parser);
+          const selectorWithAliasShorthand =
+            peek(parser) === "." || peek(parser) === "#"
+              ? parseSelectorTokenTail(parser, firstSelector)
+              : firstSelector;
           skipWhitespace(parser);
           if (peek(parser) === "{") {
             const prefixDirectives = parseLeadingSelectorDirectiveBlocks(parser);
@@ -5783,7 +5854,7 @@
             expect(parser, "}");
             body.push({
               type: "Element",
-              selectors: [firstSelector],
+              selectors: [selectorWithAliasShorthand],
               instanceAlias: String(instanceAlias || "").trim(),
               prefixDirectives: prefixDirectives,
               items: items,
@@ -12724,6 +12795,7 @@
     const signalDeclarations = [];
     const callbackDeclarations = [];
     const aliasDeclarations = [];
+    const varDeclarations = [];
     let componentLoggerCategories = null;
     let wasmConfig = null;
     const lifecycleScripts = [];
@@ -13078,6 +13150,24 @@
         }
         continue;
       }
+      if (item.type === "QVarDeclaration") {
+        if (supportsRuntimeDefinition) {
+          const varName = String(item.name || "").trim();
+          if (varName) {
+            const declarationMeta = createDeclarationMeta({
+              declarationKind: "q-var",
+              declarationName: varName,
+            });
+            varDeclarations.push({
+              name: varName,
+              body: String(item.body || ""),
+              uuid: declarationMeta.uuid,
+              meta: declarationMeta,
+            });
+          }
+        }
+        continue;
+      }
       if (item.type === "QWasmBlock") {
         if (definitionType !== "component") {
           throw new Error("q-wasm is only valid inside q-component definitions.");
@@ -13179,6 +13269,7 @@
       signalDeclarations: signalDeclarations,
       callbackDeclarations: callbackDeclarations,
       aliasDeclarations: aliasDeclarations,
+      varDeclarations: varDeclarations,
       qTimerDefinitions: qTimerDefinitions,
       wasmConfig: wasmConfig,
       lifecycleScripts: lifecycleScripts,
@@ -13712,6 +13803,52 @@
       return callbackNode;
     }
 
+    if (item.type === "QVarDeclaration") {
+      const varName = String(item.name || "").trim();
+      if (!varName) {
+        return null;
+      }
+      const declarationMeta = createDeclarationMeta({
+        declarationKind: "q-var",
+        declarationName: varName,
+      });
+      const varNode = {
+        kind: "q-var",
+        name: varName,
+        body: String(item.body || ""),
+        uuid: declarationMeta.uuid,
+        meta: declarationMeta,
+      };
+      applyKeywordAliasesToNode(varNode, item.keywords);
+      return varNode;
+    }
+
+    if (item.type === "QTimerDefinition") {
+      const timerId = String(item.timerId || "").trim();
+      if (!timerId) {
+        return null;
+      }
+      const config = item.config && typeof item.config === "object" ? item.config : {};
+      const interval = Number(config.interval);
+      const timerNode = {
+        kind: "q-timer",
+        timerId: timerId,
+        interval: Number.isFinite(interval) && interval >= 0 ? Math.floor(interval) : 0,
+        repeat: config.repeat !== false,
+        running: config.running !== false,
+        onTimeout: String(config.onTimeout || ""),
+        meta: {
+          originalSource: item.raw,
+          sourceRange:
+            typeof item.start === "number" && typeof item.end === "number"
+              ? [item.start, item.end]
+              : null,
+        },
+      };
+      applyKeywordAliasesToNode(timerNode, item.keywords);
+      return timerNode;
+    }
+
     if (item.type === "HtmlBlock") {
       const htmlNode = core.createRawHtmlNode({
         html: item.html,
@@ -14232,6 +14369,27 @@
     return lines.join("\n");
   }
 
+  function serializeQVarDeclarationBlock(varDecl, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    if (!varDecl || typeof varDecl !== "object") {
+      return "";
+    }
+    const name = String(varDecl.name || "").trim();
+    if (!name) {
+      return "";
+    }
+    const body = String(varDecl.body || "");
+    const lines = [indent + "q-var " + name + " {"];
+    if (body) {
+      const chunks = body.split("\n");
+      for (let i = 0; i < chunks.length; i += 1) {
+        lines.push(indent + "  " + chunks[i]);
+      }
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
   function serializeWasmConfigBlock(wasmConfig, indentLevel) {
     const config =
       wasmConfig && typeof wasmConfig === "object" && !Array.isArray(wasmConfig)
@@ -14603,6 +14761,10 @@
       return serializeCallbackDeclarationBlock(node, indentLevel);
     }
 
+    if (String(node.kind || "").trim().toLowerCase() === "q-var") {
+      return serializeQVarDeclarationBlock(node, indentLevel);
+    }
+
     if (node.kind === core.NODE_TYPES.component) {
       const explicitDefinitionType = String(node.definitionType || "").trim().toLowerCase();
       const definitionType =
@@ -14678,6 +14840,14 @@
             const serializedCallbackDeclaration = serializeCallbackDeclarationBlock(node.callbackDeclarations[i], indentLevel + 1);
             if (serializedCallbackDeclaration) {
               lines.push(serializedCallbackDeclaration);
+            }
+          }
+        }
+        if (Array.isArray(node.varDeclarations)) {
+          for (let i = 0; i < node.varDeclarations.length; i += 1) {
+            const serializedVarDeclaration = serializeQVarDeclarationBlock(node.varDeclarations[i], indentLevel + 1);
+            if (serializedVarDeclaration) {
+              lines.push(serializedVarDeclaration);
             }
           }
         }
@@ -15044,6 +15214,9 @@
   const QCONTEXT_SYMBOL_HEAD_ONLY_KEY = "__qhtmlContextSymbolHeadOnly";
   const QCONTEXT_OWNER_TYPE_NAME_KEY = "__qhtmlContextOwnerTypeName";
   const QCONTEXT_OWNER_PARENT_HANDLE_KEY = "__qhtmlContextOwnerParentHandle";
+  const Q_VAR_NODE_KIND = "q-var";
+  const Q_TIMER_NODE_KIND = "q-timer";
+  const QHTML_QVAR_HANDLE_FLAG = "__qhtmlVarHandle";
   const Q_MODEL_VIEW_INSTANCE_ATTR = "q-model-view-instance";
   const Q_MODEL_VIEW_SCOPE_TAG = "q-model-view-scope";
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
@@ -15075,6 +15248,7 @@
   const Q_WORKER_IDLE_TERMINATE_MS = 30000;
   let qWorkerFallbackRuntimeCounter = 0;
   let wasmCallSequence = 0;
+  const qVarRuntimeStateByUuid = new Map();
 
   class QSignal {
     connect(handler) {
@@ -15170,6 +15344,167 @@
       const value = this.host[key];
       return value instanceof QSignal ? value : null;
     }
+  }
+
+  class QVar {
+    constructor(state) {
+      this.__qhtmlVarState = state && typeof state === "object" ? state : null;
+      this[QHTML_QVAR_HANDLE_FLAG] = true;
+    }
+    get name() {
+      return this.__qhtmlVarState ? String(this.__qhtmlVarState.name || "") : "";
+    }
+    get uuid() {
+      return this.__qhtmlVarState ? String(this.__qhtmlVarState.uuid || "") : "";
+    }
+    get value() {
+      if (!this.__qhtmlVarState) {
+        return undefined;
+      }
+      return this.__qhtmlVarState.value;
+    }
+    set value(next) {
+      if (!this.__qhtmlVarState) {
+        return;
+      }
+      const state = this.__qhtmlVarState;
+      const previous = this.value;
+      state.previousValue = previous;
+      state.value = next;
+      state.initialized = true;
+      if (!Object.is(previous, next) && state.changed && typeof state.changed.emit === "function") {
+        state.changed.emit(next, previous, true);
+      }
+    }
+    get changed() {
+      return this.__qhtmlVarState ? this.__qhtmlVarState.changed : null;
+    }
+    get() {
+      return this.value;
+    }
+    set(next) {
+      this.value = next;
+      return this.value;
+    }
+    toString() {
+      const value = this.value;
+      return String(value == null ? "" : value);
+    }
+    valueOf() {
+      return this.value;
+    }
+    [Symbol.toPrimitive]() {
+      return this.value;
+    }
+  }
+
+  function isQVarHandle(value) {
+    return !!(value && (typeof value === "object" || typeof value === "function") && value[QHTML_QVAR_HANDLE_FLAG] === true);
+  }
+
+  function readQVarHandleValue(value) {
+    if (!isQVarHandle(value)) {
+      return value;
+    }
+    try {
+      return value.value;
+    } catch (error) {
+      return undefined;
+    }
+  }
+
+  function createQVarSignal(name, owner) {
+    const listeners = [];
+    const signal = createQSignalInstance(name, owner, function emitQVarSignal() {
+      const args = Array.prototype.slice.call(arguments);
+      const snapshot = listeners.slice();
+      for (let i = 0; i < snapshot.length; i += 1) {
+        try {
+          snapshot[i].apply(owner || null, args);
+        } catch (error) {
+          if (global.console && typeof global.console.error === "function") {
+            global.console.error("qhtml q-var signal listener failed:", error);
+          }
+        }
+      }
+      return args[0];
+    });
+    const meta = signal && signal[Q_SIGNAL_META_KEY] && typeof signal[Q_SIGNAL_META_KEY] === "object"
+      ? signal[Q_SIGNAL_META_KEY]
+      : null;
+    if (meta) {
+      meta.connectImpl = function connectQVarChanged(handler) {
+        if (typeof handler !== "function") {
+          return null;
+        }
+        listeners.push(handler);
+        return function disconnectQVarChanged() {
+          const index = listeners.indexOf(handler);
+          if (index >= 0) {
+            listeners.splice(index, 1);
+          }
+        };
+      };
+      meta.disconnectImpl = function disconnectQVarChanged(handler) {
+        const index = listeners.indexOf(handler);
+        if (index < 0) {
+          return false;
+        }
+        listeners.splice(index, 1);
+        return true;
+      };
+    }
+    return signal;
+  }
+
+  function createQVarHandle(state) {
+    const base = function qVarCallableProxy() {
+      const value = state && state.handle ? state.handle.value : undefined;
+      if (typeof value === "function") {
+        return value.apply(state && state.owner ? state.owner : null, arguments);
+      }
+      return value;
+    };
+    Object.setPrototypeOf(base, QVar.prototype);
+    base.__qhtmlVarState = state;
+    base[QHTML_QVAR_HANDLE_FLAG] = true;
+    return new Proxy(base, {
+      get: function getQVarProperty(target, prop) {
+        if (
+          prop === QHTML_QVAR_HANDLE_FLAG ||
+          prop === "__qhtmlVarState" ||
+          prop === "name" ||
+          prop === "uuid" ||
+          prop === "value" ||
+          prop === "get" ||
+          prop === "set" ||
+          prop === "changed" ||
+          prop === "toString" ||
+          prop === "valueOf" ||
+          prop === Symbol.toPrimitive
+        ) {
+          const ownValue = target[prop];
+          return typeof ownValue === "function" ? Function.prototype.bind.call(ownValue, target) : ownValue;
+        }
+        const value = target.value;
+        if (value != null && (typeof value === "object" || typeof value === "function")) {
+          const child = value[prop];
+          return typeof child === "function" ? child.bind(value) : child;
+        }
+        return undefined;
+      },
+      set: function setQVarProperty(target, prop, next) {
+        if (prop === "value") {
+          target.value = next;
+          return true;
+        }
+        const value = target.value;
+        if (value != null && (typeof value === "object" || typeof value === "function")) {
+          value[prop] = next;
+        }
+        return true;
+      },
+    });
   }
 
   function createQSignalInstance(name, owner, emitImpl) {
@@ -17863,6 +18198,7 @@
       "let __qhtmlScriptScope = null;\n" +
       "if (__qhtmlRootNamedValues || __qhtmlNearestComponentScope || __qhtmlNamedValues || __qhtmlLocalScriptScope) {\n" +
       "  __qhtmlScriptScope = Object.assign(Object.create(null), __qhtmlRootNamedValues || null, __qhtmlNearestComponentScope || null, __qhtmlNamedValues || null, __qhtmlLocalScriptScope || null);\n" +
+      "  __qhtmlScriptScope = new Proxy(__qhtmlScriptScope, { get: function(target, prop) { var current = target[prop]; if (current && current.__qhtmlVarHandle === true && typeof current.get === 'function') { return current.get(); } return current; }, set: function(target, prop, value) { var current = target[prop]; if (current && current.__qhtmlVarHandle === true && typeof current.set === 'function') { current.set(value); return true; } target[prop] = value; return true; } });\n" +
       "}\n" +
       "if (__qhtmlScriptScope) { with(__qhtmlScriptScope) {\n" +
       source +
@@ -18401,6 +18737,9 @@
   }
 
   function unwrapModelMethodBridgeValue(value, expressionSource) {
+    if (isQVarHandle(value)) {
+      return readQVarHandleValue(value);
+    }
     if (!value || typeof value !== "function") {
       return value;
     }
@@ -19257,6 +19596,9 @@
       return true;
     }
     const opts = options && typeof options === "object" ? options : {};
+    if (opts.scope && typeof opts.scope === "object") {
+      mergeScriptScopeIntoElement(element, opts.scope);
+    }
     const doc = opts.doc || element.ownerDocument || global.document || null;
     const scopeRoot =
       opts.scopeRoot && opts.scopeRoot.nodeType === 1
@@ -19534,6 +19876,23 @@
     return true;
   }
 
+  function mergeScriptScopeIntoElement(element, scope) {
+    if (!element || element.nodeType !== 1 || !scope || typeof scope !== "object") {
+      return;
+    }
+    if (!element.__qhtmlScriptScope || typeof element.__qhtmlScriptScope !== "object") {
+      element.__qhtmlScriptScope = Object.create(null);
+    }
+    const names = Object.keys(scope);
+    for (let i = 0; i < names.length; i += 1) {
+      const name = String(names[i] || "").trim();
+      if (!name || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name)) {
+        continue;
+      }
+      element.__qhtmlScriptScope[name] = scope[name];
+    }
+  }
+
   function setElementAttributes(element, attrs, options) {
     if (!attrs || typeof attrs !== "object") {
       return;
@@ -19562,6 +19921,7 @@
       if (
         bindEventAttributeListener(element, key, String(normalized), {
           doc: element.ownerDocument || global.document || null,
+          scope: interpolationScope,
           scopeRoot:
             interpolationScope && interpolationScope.root && interpolationScope.root.nodeType === 1
               ? interpolationScope.root
@@ -19672,6 +20032,7 @@
           }
         }
       }
+      nextValue = readQVarHandleValue(nextValue);
       try {
         element[key] = nextValue;
       } catch (error) {
@@ -21427,6 +21788,125 @@
     };
   }
 
+  function bindSingleComponentTimer(timerDefinition, componentNode, hostElement, targetDocument, runtimeApi, scopeFrame, runtimeFrame) {
+    if (!timerDefinition || !hostElement || hostElement.nodeType !== 1) {
+      return null;
+    }
+    const timerStore = ensureComponentTimerStore(hostElement);
+    const timerName = String(timerDefinition.timerId || "").trim();
+    if (!timerName) {
+      return null;
+    }
+    if (timerStore[timerName] && typeof timerStore[timerName].stop === "function") {
+      timerStore[timerName].stop();
+    } else if (Object.prototype.hasOwnProperty.call(hostElement, timerName)) {
+      throw new Error("q-timer id conflicts with existing component member: '" + timerName + "'.");
+    }
+    const runtime = {
+      name: timerName,
+      interval: Number(timerDefinition.interval || 0),
+      repeat: timerDefinition.repeat !== false,
+      running: timerDefinition.running !== false,
+      timerId: null,
+      timeoutSignal: null,
+      handle: null,
+      executeTimeout: null,
+      stop: null,
+      start: null,
+      restart: null,
+    };
+    runtime.timeoutSignal = createComponentTimerTimeoutSignal(hostElement, runtimeApi, timerName);
+    runtime.executeTimeout = createComponentTimerExecutor(timerDefinition, hostElement, targetDocument);
+    const scheduleTick = function scheduleComponentTimerTick() {
+      if (runtime.running !== true) {
+        return;
+      }
+      const delay = Math.max(0, Math.floor(Number(runtime.interval || 0)));
+      if (typeof global.setTimeout === "function") {
+        runtime.timerId = global.setTimeout(onTick, delay);
+      } else {
+        runtime.timerId = null;
+      }
+    };
+    const onTick = function onComponentTimerTick() {
+      if (runtime.running !== true) {
+        return;
+      }
+      if (hostElement.isConnected === false) {
+        runtime.stop();
+        return;
+      }
+      const eventPayload = {
+        type: "timeout",
+        timerId: runtime.name,
+        timerHandle: runtime.timerId,
+        component: String(componentNode && componentNode.componentId || hostElement.tagName || "").trim().toLowerCase(),
+        componentUuid: String(readHostQDomUuid(hostElement) || "").trim(),
+      };
+      const invokeTimeout = function invokeComponentTimerTimeout() {
+        runtime.executeTimeout(runtime, eventPayload);
+        if (runtime.timeoutSignal && typeof runtime.timeoutSignal.emit === "function") {
+          runtime.timeoutSignal.emit(eventPayload);
+        }
+        if (runtime.repeat === true && runtime.running === true) {
+          scheduleTick();
+        } else {
+          runtime.stop();
+        }
+      };
+      if (runtimeApi && typeof runtimeApi.enqueueRuntimeEvent === "function") {
+        runtimeApi.enqueueRuntimeEvent(
+          "component-timer-timeout",
+          invokeTimeout,
+          {
+            target: hostElement,
+            payload: {
+              timerId: runtime.name,
+            },
+          }
+        );
+        return;
+      }
+      invokeTimeout();
+    };
+    runtime.stop = function stopComponentTimer() {
+      if (runtime.timerId != null && typeof global.clearTimeout === "function") {
+        try {
+          global.clearTimeout(runtime.timerId);
+        } catch (error) {
+          // no-op
+        }
+      }
+      runtime.timerId = null;
+      runtime.running = false;
+      return true;
+    };
+    runtime.start = function startComponentTimer() {
+      runtime.stop();
+      runtime.running = true;
+      scheduleTick();
+      return runtime.timerId;
+    };
+    runtime.restart = function restartComponentTimer() {
+      return runtime.start();
+    };
+    runtime.handle = createComponentTimerHandle(runtime);
+    timerStore[timerName] = runtime;
+    if (scopeFrame && typeof scopeFrame.set === "function") {
+      scopeFrame.set(timerName, runtime.handle);
+    }
+    if (runtimeFrame && typeof runtimeFrame.set === "function") {
+      runtimeFrame.set(timerName, runtime.handle);
+    }
+    exportNamedAliasToHost(hostElement, timerName, runtime.handle);
+    if (runtime.running === true) {
+      runtime.start();
+    } else {
+      runtime.stop();
+    }
+    return runtime.handle;
+  }
+
   function bindComponentTimers(componentNode, hostElement, targetDocument, runtimeApi, scopeFrame, runtimeFrame) {
     if (!componentNode || !hostElement || hostElement.nodeType !== 1) {
       return;
@@ -21436,118 +21916,8 @@
     if (definitions.length === 0) {
       return;
     }
-    const timerStore = ensureComponentTimerStore(hostElement);
     for (let i = 0; i < definitions.length; i += 1) {
-      const timerDefinition = definitions[i];
-      const timerName = String(timerDefinition.timerId || "").trim();
-      if (!timerName) {
-        continue;
-      }
-      if (Object.prototype.hasOwnProperty.call(hostElement, timerName)) {
-        throw new Error("q-timer id conflicts with existing component member: '" + timerName + "'.");
-      }
-      const runtime = {
-        name: timerName,
-        interval: Number(timerDefinition.interval || 0),
-        repeat: timerDefinition.repeat !== false,
-        running: timerDefinition.running !== false,
-        timerId: null,
-        timeoutSignal: null,
-        handle: null,
-        executeTimeout: null,
-        stop: null,
-        start: null,
-        restart: null,
-      };
-      runtime.timeoutSignal = createComponentTimerTimeoutSignal(hostElement, runtimeApi, timerName);
-      runtime.executeTimeout = createComponentTimerExecutor(timerDefinition, hostElement, targetDocument);
-      const scheduleTick = function scheduleComponentTimerTick() {
-        if (runtime.running !== true) {
-          return;
-        }
-        const delay = Math.max(0, Math.floor(Number(runtime.interval || 0)));
-        if (typeof global.setTimeout === "function") {
-          runtime.timerId = global.setTimeout(onTick, delay);
-        } else {
-          runtime.timerId = null;
-        }
-      };
-      const onTick = function onComponentTimerTick() {
-        if (runtime.running !== true) {
-          return;
-        }
-        if (hostElement.isConnected === false) {
-          runtime.stop();
-          return;
-        }
-        const eventPayload = {
-          type: "timeout",
-          timerId: runtime.name,
-          timerHandle: runtime.timerId,
-          component: String(componentNode.componentId || hostElement.tagName || "").trim().toLowerCase(),
-          componentUuid: String(readHostQDomUuid(hostElement) || "").trim(),
-        };
-        const invokeTimeout = function invokeComponentTimerTimeout() {
-          runtime.executeTimeout(runtime, eventPayload);
-          if (runtime.timeoutSignal && typeof runtime.timeoutSignal.emit === "function") {
-            runtime.timeoutSignal.emit(eventPayload);
-          }
-          if (runtime.repeat === true && runtime.running === true) {
-            scheduleTick();
-          } else {
-            runtime.stop();
-          }
-        };
-        if (runtimeApi && typeof runtimeApi.enqueueRuntimeEvent === "function") {
-          runtimeApi.enqueueRuntimeEvent(
-            "component-timer-timeout",
-            invokeTimeout,
-            {
-              target: hostElement,
-              payload: {
-                timerId: runtime.name,
-              },
-            }
-          );
-          return;
-        }
-        invokeTimeout();
-      };
-      runtime.stop = function stopComponentTimer() {
-        if (runtime.timerId != null && typeof global.clearTimeout === "function") {
-          try {
-            global.clearTimeout(runtime.timerId);
-          } catch (error) {
-            // no-op
-          }
-        }
-        runtime.timerId = null;
-        runtime.running = false;
-        return true;
-      };
-      runtime.start = function startComponentTimer() {
-        runtime.stop();
-        runtime.running = true;
-        scheduleTick();
-        return runtime.timerId;
-      };
-      runtime.restart = function restartComponentTimer() {
-        return runtime.start();
-      };
-      runtime.handle = createComponentTimerHandle(runtime);
-      timerStore[timerName] = runtime;
-      if (scopeFrame && typeof scopeFrame.set === "function") {
-        scopeFrame.set(timerName, runtime.handle);
-      }
-      if (runtimeFrame && typeof runtimeFrame.set === "function") {
-        runtimeFrame.set(timerName, runtime.handle);
-      }
-      exportNamedAliasToHost(hostElement, timerName, runtime.handle);
-      if (runtime.running === true) {
-        runtime.start();
-      } else {
-        runtime.stop();
-      }
+      bindSingleComponentTimer(definitions[i], componentNode, hostElement, targetDocument, runtimeApi, scopeFrame, runtimeFrame);
     }
   }
 
@@ -24389,6 +24759,231 @@
     return true;
   }
 
+  function readQVarNodeUuid(node) {
+    if (!node || typeof node !== "object") {
+      return "";
+    }
+    if (typeof node.uuid === "string" && node.uuid.trim()) {
+      return node.uuid.trim();
+    }
+    if (node.meta && typeof node.meta === "object") {
+      if (typeof node.meta[QDOM_UUID_META_KEY] === "string" && node.meta[QDOM_UUID_META_KEY].trim()) {
+        return node.meta[QDOM_UUID_META_KEY].trim();
+      }
+      if (typeof node.meta.uuid === "string" && node.meta.uuid.trim()) {
+        return node.meta.uuid.trim();
+      }
+    }
+    if (typeof core.ensureNodeUuid === "function") {
+      try {
+        const ensured = core.ensureNodeUuid(node);
+        if (ensured && ensured.meta && typeof ensured.meta[QDOM_UUID_META_KEY] === "string") {
+          return ensured.meta[QDOM_UUID_META_KEY].trim();
+        }
+      } catch (error) {
+        // no-op
+      }
+    }
+    return "";
+  }
+
+  function evaluateQVarBody(node, ownerHost, context) {
+    const body = String(node && node.body || "").trim();
+    if (!body) {
+      return undefined;
+    }
+    const thisArg = ownerHost && ownerHost.nodeType === 1 ? ownerHost : null;
+    const interpolationScope = buildInterpolationScope(context, thisArg);
+    const scopeNames = Object.keys(interpolationScope).filter(function filterQVarScopeParam(name) {
+      return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(String(name || ""));
+    });
+    const scopeValues = scopeNames.map(function mapQVarScopeParam(name) {
+      return interpolationScope[name];
+    });
+    try {
+      const expressionExecutor = new Function(scopeNames.join(","), "return (" + body + ");");
+      return expressionExecutor.apply(thisArg, scopeValues);
+    } catch (expressionError) {
+      try {
+        const bodyExecutor = new Function(scopeNames.join(","), body);
+        return bodyExecutor.apply(thisArg, scopeValues);
+      } catch (bodyError) {
+        if (global.console && typeof global.console.error === "function") {
+          global.console.error("qhtml q-var evaluation failed:", String(node && node.name || ""), bodyError);
+        }
+        return undefined;
+      }
+    }
+  }
+
+  function ensureQVarState(node, ownerHost, context) {
+    const uuid = readQVarNodeUuid(node) || String(node && node.name || "");
+    let state = qVarRuntimeStateByUuid.get(uuid);
+    if (!state) {
+      state = {
+        uuid: uuid,
+        name: String(node && node.name || "").trim(),
+        owner: ownerHost && ownerHost.nodeType === 1 ? ownerHost : null,
+        value: undefined,
+        previousValue: undefined,
+        initialized: false,
+        changed: null,
+        handle: null,
+      };
+      state.changed = createQVarSignal("changed", ownerHost || null);
+      state.handle = createQVarHandle(state);
+      qVarRuntimeStateByUuid.set(uuid, state);
+    }
+    state.name = String(node && node.name || state.name || "").trim();
+    state.owner = ownerHost && ownerHost.nodeType === 1 ? ownerHost : state.owner || null;
+    if (!state.initialized) {
+      state.value = evaluateQVarBody(node, state.owner, context);
+      state.initialized = true;
+    }
+    return state;
+  }
+
+  function registerQVarHandleInContext(name, handle, ownerHost, context) {
+    const key = String(name || "").trim();
+    if (!key) {
+      return;
+    }
+    ensureContextFrames(context);
+    const aliasStack = ensureInstanceAliasScopeStack(context);
+    const activeFrame =
+      aliasStack.length > 0
+        ? aliasStack[aliasStack.length - 1]
+        : context[QCONTEXT_SCOPE_FRAME_KEY];
+    if (activeFrame && typeof activeFrame.set === "function") {
+      activeFrame.set(key, handle);
+    }
+    if (context[QCONTEXT_RUNTIME_FRAME_KEY] && typeof context[QCONTEXT_RUNTIME_FRAME_KEY].set === "function") {
+      context[QCONTEXT_RUNTIME_FRAME_KEY].set(key, handle);
+    }
+    if (ownerHost && ownerHost.nodeType === 1) {
+      exportNamedAliasToHost(ownerHost, key, handle);
+      try {
+        Object.defineProperty(ownerHost, key, {
+          configurable: true,
+          enumerable: true,
+          get: function getOwnedQVarValue() {
+            return handle.value;
+          },
+          set: function setOwnedQVarValue(next) {
+            handle.value = next;
+          },
+        });
+      } catch (error) {
+        // If the host already has a fixed property, the scoped handle still works.
+      }
+    } else if (context && context.rootHostElement) {
+      exportNamedAliasToHost(context.rootHostElement, key, handle);
+      try {
+        Object.defineProperty(context.rootHostElement, key, {
+          configurable: true,
+          enumerable: true,
+          get: function getRootQVarValue() {
+            return handle.value;
+          },
+          set: function setRootQVarValue(next) {
+            handle.value = next;
+          },
+        });
+      } catch (error) {
+        // If the host already has a fixed property, the scoped handle still works.
+      }
+      if (context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
+        context.namedRuntimeValues[key] = handle;
+      }
+    }
+  }
+
+  function registerQVarDeclarationNode(node, parent, targetDocument, context, ownerHostOverride) {
+    if (!node || String(node.kind || "").trim().toLowerCase() !== Q_VAR_NODE_KIND) {
+      return false;
+    }
+    const name = String(node.name || "").trim();
+    if (!name) {
+      return true;
+    }
+    const stackOwner =
+      context && Array.isArray(context.componentHostStack) && context.componentHostStack.length > 0
+        ? context.componentHostStack[context.componentHostStack.length - 1]
+        : null;
+    const parentOwner =
+      parent && parent.nodeType === 1 && typeof parent.closest === "function"
+        ? parent.closest("[qhtml-component-instance='1']")
+        : null;
+    const ownerHost =
+      ownerHostOverride && ownerHostOverride.nodeType === 1
+        ? ownerHostOverride
+        : parentOwner || stackOwner || (context && context.rootHostElement && context.rootHostElement.nodeType === 1 ? context.rootHostElement : null);
+    const state = ensureQVarState(node, ownerHost, context);
+    registerQVarHandleInContext(name, state.handle, ownerHost, context);
+    return true;
+  }
+
+  function normalizeQTimerNodeDefinition(node) {
+    const timerId = String(node && (node.timerId || node.name || node.id) || "").trim();
+    if (!timerId) {
+      return null;
+    }
+    const interval = Number(node && node.interval);
+    return {
+      timerId: timerId,
+      interval: Number.isFinite(interval) && interval >= 0 ? Math.floor(interval) : 0,
+      repeat: !node || node.repeat !== false,
+      running: !node || node.running !== false,
+      onTimeout: String(node && node.onTimeout || ""),
+    };
+  }
+
+  function resolveContextOwnerHost(parent, context, ownerHostOverride) {
+    if (ownerHostOverride && ownerHostOverride.nodeType === 1) {
+      return ownerHostOverride;
+    }
+    const stackOwner =
+      context && Array.isArray(context.componentHostStack) && context.componentHostStack.length > 0
+        ? context.componentHostStack[context.componentHostStack.length - 1]
+        : null;
+    if (stackOwner && stackOwner.nodeType === 1) {
+      return stackOwner;
+    }
+    if (context && context.rootHostElement && context.rootHostElement.nodeType === 1) {
+      return context.rootHostElement;
+    }
+    if (parent && parent.nodeType === 1) {
+      return parent;
+    }
+    return null;
+  }
+
+  function registerQTimerDeclarationNode(node, parent, targetDocument, context, ownerHostOverride) {
+    if (!node || String(node.kind || "").trim().toLowerCase() !== Q_TIMER_NODE_KIND) {
+      return false;
+    }
+    const timerDefinition = normalizeQTimerNodeDefinition(node);
+    if (!timerDefinition) {
+      return true;
+    }
+    ensureContextFrames(context);
+    const ownerHost = resolveContextOwnerHost(parent, context, ownerHostOverride);
+    if (!ownerHost) {
+      return true;
+    }
+    const runtimeApi = global.QHtml && typeof global.QHtml === "object" ? global.QHtml : null;
+    bindSingleComponentTimer(
+      timerDefinition,
+      { componentId: String(ownerHost.tagName || "q-html").trim().toLowerCase() },
+      ownerHost,
+      targetDocument || ownerHost.ownerDocument || global.document || null,
+      runtimeApi,
+      context[QCONTEXT_SCOPE_FRAME_KEY],
+      context[QCONTEXT_RUNTIME_FRAME_KEY]
+    );
+    return true;
+  }
+
   function renderQHtmlFragmentToken(value, parent, targetDocument, context) {
     if (!isQHtmlFragmentToken(value)) {
       return false;
@@ -24675,6 +25270,16 @@
 
       if (String(node.kind || "").trim().toLowerCase() === Q_CALLBACK_NODE_KIND) {
         registerCallbackDeclarationNode(node, parent, targetDocument, context);
+        return;
+      }
+
+      if (String(node.kind || "").trim().toLowerCase() === Q_VAR_NODE_KIND) {
+        registerQVarDeclarationNode(node, parent, targetDocument, context);
+        return;
+      }
+
+      if (String(node.kind || "").trim().toLowerCase() === Q_TIMER_NODE_KIND) {
+        registerQTimerDeclarationNode(node, parent, targetDocument, context);
         return;
       }
 
@@ -25244,6 +25849,16 @@
       scopeFrame: componentScopeFrame,
       runtimeFrame: componentRuntimeFrame,
     });
+    const varDeclarations = Array.isArray(componentNode.varDeclarations) ? componentNode.varDeclarations : [];
+    for (let vi = 0; vi < varDeclarations.length; vi += 1) {
+      registerQVarDeclarationNode(
+        Object.assign({ kind: Q_VAR_NODE_KIND }, varDeclarations[vi]),
+        hostElement,
+        targetDocument,
+        componentContext,
+        hostElement
+      );
+    }
     try {
       renderComponentContentIntoHost(componentNode, instanceNode, hostElement, targetDocument, componentContext);
     } finally {
@@ -25513,6 +26128,24 @@
       context.instanceAliasScopeStack[0] = context[QCONTEXT_SCOPE_FRAME_KEY];
     }
 
+    const rootTimers =
+      documentNode &&
+      documentNode.meta &&
+      Array.isArray(documentNode.meta.qTimers)
+        ? documentNode.meta.qTimers
+        : [];
+    if (rootTimers.length > 0 && context.rootHostElement && context.rootHostElement.nodeType === 1) {
+      for (let ti = 0; ti < rootTimers.length; ti += 1) {
+        registerQTimerDeclarationNode(
+          Object.assign({ kind: Q_TIMER_NODE_KIND }, rootTimers[ti]),
+          context.rootHostElement,
+          doc,
+          context,
+          context.rootHostElement
+        );
+      }
+    }
+
     const nodes = Array.isArray(documentNode && documentNode.nodes) ? documentNode.nodes : [];
     for (let i = 0; i < nodes.length; i += 1) {
       const node = nodes[i];
@@ -25710,6 +26343,16 @@
     context.componentStack.push(key);
     context.componentHostStack.push(hostElement);
     context.componentQdomStack.push(instanceNode);
+    const varDeclarations = Array.isArray(effectiveComponentNode.varDeclarations) ? effectiveComponentNode.varDeclarations : [];
+    for (let vi = 0; vi < varDeclarations.length; vi += 1) {
+      registerQVarDeclarationNode(
+        Object.assign({ kind: Q_VAR_NODE_KIND }, varDeclarations[vi]),
+        hostElement,
+        doc,
+        context,
+        hostElement
+      );
+    }
     try {
       renderComponentContentIntoHost(effectiveComponentNode, instanceNode, hostElement, doc, context);
     } finally {
@@ -25733,6 +26376,7 @@
     QSignal: QSignal,
     QProperty: QProperty,
     QComponentInstance: QComponentInstance,
+    QVar: QVar,
     createQSignalInstance: createQSignalInstance,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);
@@ -44363,6 +45007,7 @@
     QSignal: renderer && renderer.QSignal ? renderer.QSignal : null,
     QProperty: renderer && renderer.QProperty ? renderer.QProperty : null,
     QComponentInstance: renderer && renderer.QComponentInstance ? renderer.QComponentInstance : null,
+    QVar: renderer && renderer.QVar ? renderer.QVar : null,
     getQDomDataForUuid: getQDomDataForUuid,
     getQDomDataSnapshot: getQDomDataSnapshot,
     rootContext: {
@@ -44414,6 +45059,9 @@
   }
   if (runtimeApi.QComponentInstance) {
     global.QComponentInstance = runtimeApi.QComponentInstance;
+  }
+  if (runtimeApi.QVar) {
+    global.QVar = runtimeApi.QVar;
   }
   global.qhtml = createQHtmlFragment;
 

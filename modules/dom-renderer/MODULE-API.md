@@ -65,6 +65,18 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - pass-by-reference assignment into declared component properties (resolved lazily to callback functions)
   - `qhtml(...)` fragment-return rendering when callbacks return QHTML fragment tokens
   - callback names are also stored in the active lexical/runtime context frame so later expressions in the same scope resolve by name.
+- `q-var` declarations register scoped runtime variables in the existing QContext frames:
+  - declaration form: `q-var name { expressionOrBody }`
+  - declaration bodies are evaluated once when the q-var is registered
+  - supported stored values are strings, numbers, objects, arrays, and functions
+  - reads return the stored value and assignments replace the stored value
+  - dynamic behavior should be expressed by storing a function and invoking it, for example `q-var current { function() { return source.value; } }`
+  - q-vars are visible to following siblings and descendants, and are exported on the owning component or `<q-html>` host for dot-walk access
+- `q-timer` declarations can be registered at document scope or inside anonymous DOM/theme/style containers:
+  - anonymous containers inherit the current QContext instead of creating a new named scope
+  - root timers are registered before document nodes render so handlers and expressions can resolve them by name
+  - timers inside component/worker hosts are owned by that host and remain reachable through normal named-reference dot walking
+- Inline event handlers receive the current inherited QContext in their script scope, so named references visible during render are also visible when the handler runs.
 
 ## Component host assignment behavior
 - `component-instance.attributes` map to DOM attributes.

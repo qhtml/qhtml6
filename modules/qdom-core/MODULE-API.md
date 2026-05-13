@@ -28,6 +28,7 @@ Exports via `globalThis.QHtmlModules.qdomCore`.
   - Supports `extendsComponentIds` (and legacy `extendsComponentId`) for component inheritance chains (`q-component child extends baseA extends baseB { ... }`).
   - Supports `signalDeclarations` array for component-local callable signal definitions.
   - Supports `aliasDeclarations` array for component-local computed alias getters (`q-alias`).
+  - Supports `varDeclarations` array for component-local `q-var` declarations.
 - `createComponentInstanceNode(options?)`
   - Normalizes `props` as an object for component-instance property values.
   - Instance node helpers:
