@@ -78,6 +78,9 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - Prints summary + queue tables, and returns the same snapshot object.
 - Named `q-timer` runtime handles
   - Named timer declarations (`q-timer myTimer { ... }`) are exported as runtime handle objects (not raw numeric IDs).
+- q-perf reporting
+  - Root keyword timer execution is measured when the mounted document has `q-perf { q-timer }` metadata.
+  - During `QHTMLContentLoaded`, runtime calls `domRenderer.logQPerfData()` so measured QDom nodes are reported to the console after render settlement.
   - Handle shape:
     - methods: `start()`, `stop()`, `restart()`
     - properties: `name`, `timerId`, `running`, `repeat`, `interval`
@@ -258,6 +261,14 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - `input` supports QDom nodes, QHTML strings, and mapped DOM nodes.
   - missing named slot falls back to `default`.
   - default update behavior is automatic (`options.autoUpdate !== false`) with UUID-scoped refresh when available.
+- Layout mutation helpers on QDom facades:
+  - `rows()`, `row(index)`, `cols()`, `col(index)`
+  - `addRow(index?, attrs?, text?, options?)`
+  - `addCol(index?, attrs?, text?, options?)`
+  - `addLayout(index?, attrs?, text?, options?)`
+  - `removeRow(index?, options?)`, `removeCol(index?, options?)`
+  - helpers operate on QDom `q-layout` / `q-row` / `q-col` nodes and request scoped refresh by default.
+  - `attrs.width`, `attrs.height`, and `attrs.gap` are preserved as QHTML attributes for renderer layout sizing.
 
 ## Side effects
 - Executes lifecycle scripts and inline `on<Event>` handler bodies with dynamic `Function` evaluation.

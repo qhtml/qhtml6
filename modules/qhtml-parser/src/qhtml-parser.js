@@ -26,6 +26,7 @@
   const MODEL_KEYWORDS = new Set(["q-model"]);
   const MODEL_VIEW_KEYWORDS = new Set(["q-model-view"]);
   const ITERATIVE_MODEL_KEYWORDS = new Set(["q-array", "q-object", "q-map"]);
+  const LAYOUT_KEYWORDS = new Set(["q-layout", "q-row", "q-col"]);
   const DEPRECATED_FEATURE_WARNED = new Set();
   const CANONICAL_KEYWORD_TARGETS = new Set([
     "q-component",
@@ -66,6 +67,11 @@
     "q-connect",
     "q-import",
     "q-logger",
+    "q-perf",
+    "q-anchor",
+    "q-layout",
+    "q-row",
+    "q-col",
     "q-sdml-component",
     "sdml-endpoint",
     "slot",
@@ -1393,6 +1399,212 @@
     return parseQLoggerCategoriesFromAstItems(item.items);
   }
 
+  function normalizeQPerfCategoryToken(rawToken) {
+    const token = String(rawToken || "").trim().toLowerCase();
+    if (!token) {
+      return "";
+    }
+    const condensed = token.replace(/[^a-z0-9]/g, "");
+    if (condensed === "all" || condensed === "qall") {
+      return "all";
+    }
+    if (condensed === "timer" || condensed === "qtimer") {
+      return "q-timer";
+    }
+    if (condensed === "signal" || condensed === "qsignal" || condensed === "qsigal") {
+      return "q-signal";
+    }
+    if (condensed === "property" || condensed === "qproperty") {
+      return "q-property";
+    }
+    if (condensed === "worker" || condensed === "qworker") {
+      return "q-worker";
+    }
+    if (condensed === "function" || condensed === "method" || condensed === "qfunction" || condensed === "qmethod") {
+      return "function";
+    }
+    return token;
+  }
+
+  function parseQPerfCategoriesFromAstItems(items) {
+    const out = [];
+    const seen = new Set();
+    const list = Array.isArray(items) ? items : [];
+    function appendToken(rawToken) {
+      const normalized = normalizeQPerfCategoryToken(rawToken);
+      if (!normalized || seen.has(normalized)) {
+        return;
+      }
+      seen.add(normalized);
+      out.push(normalized);
+    }
+    function appendTextTokens(rawText) {
+      const matches = String(rawText || "").match(/[A-Za-z_][A-Za-z0-9_-]*/g) || [];
+      for (let i = 0; i < matches.length; i += 1) {
+        appendToken(matches[i]);
+      }
+    }
+    for (let i = 0; i < list.length; i += 1) {
+      const item = list[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type === "BareWord") {
+        appendToken(item.name);
+        continue;
+      }
+      if (item.type === "RawTextLine" || item.type === "TextBlock") {
+        appendTextTokens(item.text);
+        continue;
+      }
+      if (item.type === "Property") {
+        appendToken(item.name);
+        continue;
+      }
+      if (item.type === "Element") {
+        const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+        if (selectors.length === 1) {
+          const token = parseTagToken(selectors[0]);
+          appendToken(token && token.tag);
+        }
+      }
+    }
+    return out;
+  }
+
+  function extractQPerfCategoriesFromElement(item) {
+    if (!item || item.type !== "Element") {
+      return null;
+    }
+    const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+    if (selectors.length !== 1) {
+      return null;
+    }
+    const token = parseTagToken(selectors[0]);
+    const tagLower = String(token && token.tag || "").trim().toLowerCase();
+    if (tagLower !== "q-perf") {
+      return null;
+    }
+    return parseQPerfCategoriesFromAstItems(item.items);
+  }
+
+  function normalizeQAnchorRuleKey(rawKey) {
+    const key = String(rawKey || "").trim().toLowerCase();
+    if (!key) {
+      return "";
+    }
+    if (key === "hcenter" || key === "horizontalcenter" || key === "centerx") {
+      return "hcenter";
+    }
+    if (key === "vcenter" || key === "verticalcenter" || key === "centery") {
+      return "vcenter";
+    }
+    if (key === "center") {
+      return "center";
+    }
+    if (key === "left" || key === "right" || key === "top" || key === "bottom") {
+      return key;
+    }
+    return "";
+  }
+
+  function parseQAnchorDefinitionBody(bodyText) {
+    const parser = parserFor(String(bodyText || ""));
+    const entries = [];
+    const seen = new Map();
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+        continue;
+      }
+      if (eof(parser)) {
+        break;
+      }
+
+      const keyStart = parser.index;
+      let key = "";
+      if (isIdentifierStartChar(peek(parser))) {
+        key = parseIdentifier(parser);
+      } else {
+        while (!eof(parser)) {
+          const ch = peek(parser);
+          if (ch === ":" || ch === "{" || ch === "}" || ch === "," || ch === ";" || /\s/.test(ch)) {
+            break;
+          }
+          parser.index += 1;
+        }
+        key = parser.source.slice(keyStart, parser.index).trim();
+      }
+      const normalizedKey = normalizeQAnchorRuleKey(key);
+      if (!normalizedKey) {
+        throw ParseError("Invalid q-anchor key '" + String(key || "").trim() + "'", keyStart);
+      }
+
+      skipWhitespace(parser);
+      let value = "";
+      if (peek(parser) === ":") {
+        consume(parser);
+        value = parseBareValue(parser);
+      } else if (peek(parser) === "{") {
+        consume(parser);
+        value = readBalancedBlockContent(parser);
+      } else {
+        throw ParseError("Expected ':' or '{' after q-anchor key", parser.index);
+      }
+      const entry = {
+        key: normalizedKey,
+        value: String(value || "").trim(),
+      };
+      if (seen.has(normalizedKey)) {
+        entries[seen.get(normalizedKey)] = entry;
+      } else {
+        seen.set(normalizedKey, entries.length);
+        entries.push(entry);
+      }
+
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+      }
+    }
+    return entries;
+  }
+
+  function extractQAnchorRulesFromElement(item) {
+    if (!item || item.type !== "Element") {
+      return null;
+    }
+    const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+    if (selectors.length !== 1) {
+      return null;
+    }
+    const token = parseTagToken(selectors[0]);
+    const tagLower = String(token && token.tag || "").trim().toLowerCase();
+    if (tagLower !== "q-anchor") {
+      return null;
+    }
+    let bodyText = "";
+    const list = Array.isArray(item.items) ? item.items : [];
+    for (let i = 0; i < list.length; i += 1) {
+      const part = list[i];
+      if (!part || typeof part !== "object") {
+        continue;
+      }
+      if (part.type === "TextBlock" || part.type === "RawTextLine") {
+        bodyText += String(part.text || "");
+      } else if (part.type === "Property") {
+        const propName = String(part.name || "").trim();
+        const propValue = String(coercePropertyValue(part.value) || "").trim();
+        bodyText += (bodyText ? "\n" : "") + propName + ": " + propValue;
+      }
+      if (i < list.length - 1) {
+        bodyText += "\n";
+      }
+    }
+    return parseQAnchorDefinitionBody(bodyText);
+  }
+
   function parseQColorIdentifier(parser, keyword) {
     skipWhitespace(parser);
     const start = parser.index;
@@ -2602,6 +2814,29 @@
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
         const nextChar = peek(parser);
+        if ((nameLower === "q-logger" || nameLower === "q-perf" || nameLower === "q-anchor") && nextChar === "{") {
+          consume(parser);
+          const directiveBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "Element",
+            selectors: [name],
+            items: [
+              {
+                type: "TextBlock",
+                text: String(directiveBody || ""),
+                raw: String(directiveBody || ""),
+                keywords: keywordSnapshot,
+                start: itemStart,
+                end: parser.index,
+              },
+            ],
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (FOR_KEYWORDS.has(nameLower) && nextChar === "(") {
           items.push(parseForDefinitionItem(parser, scopedKeywordAliases, keywordSnapshot, itemStart));
           continue;
@@ -3743,6 +3978,30 @@
         }
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
+
+        if ((firstLower === "q-logger" || firstLower === "q-perf" || firstLower === "q-anchor") && peek(parser) === "{") {
+          consume(parser);
+          const directiveBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "Element",
+            selectors: [firstSelector],
+            items: [
+              {
+                type: "TextBlock",
+                text: String(directiveBody || ""),
+                raw: String(directiveBody || ""),
+                keywords: keywordSnapshot,
+                start: start,
+                end: parser.index,
+              },
+            ],
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
 
         if (FOR_KEYWORDS.has(firstLower) && peek(parser) === "(") {
           body.push(parseForDefinitionItem(parser, scopedKeywordAliases, keywordSnapshot, start));
@@ -9092,8 +9351,9 @@
   }
 
   function createElementFromToken(tokenInfo, selectorMode, selectorChain, range, originalSource) {
+    const tagName = tokenInfo.tag || "div";
     const node = core.createElementNode({
-      tagName: tokenInfo.tag || "div",
+      tagName: tagName,
       selectorMode: selectorMode,
       selectorChain: selectorChain,
       meta: {
@@ -9101,6 +9361,12 @@
         sourceRange: range || null,
       },
     });
+
+    const normalizedTag = String(tagName || "").trim().toLowerCase();
+    if (LAYOUT_KEYWORDS.has(normalizedTag)) {
+      node.meta.__qhtmlLayoutKeyword = true;
+      node.meta.__qhtmlLayoutRole = normalizedTag.slice("q-".length);
+    }
 
     if (tokenInfo.id) {
       node.attributes.id = tokenInfo.id;
@@ -9580,6 +9846,14 @@
         node.children = normalizeNodesForDefinitions(node.children, definitionRegistry);
       }
       const tag = String(node.tagName || "").trim().toLowerCase();
+      if (LAYOUT_KEYWORDS.has(tag)) {
+        if (!node.meta || typeof node.meta !== "object") {
+          node.meta = {};
+        }
+        node.meta.__qhtmlLayoutKeyword = true;
+        node.meta.__qhtmlLayoutRole = tag.slice("q-".length);
+        return node;
+      }
       const instanceAlias =
         node &&
         node.meta &&
@@ -11365,6 +11639,22 @@
           targetElement.meta.__qhtmlLoggerCategories = loggerCategories.slice();
           continue;
         }
+        const perfCategories = extractQPerfCategoriesFromElement(item);
+        if (perfCategories !== null) {
+          if (!targetElement.meta || typeof targetElement.meta !== "object") {
+            targetElement.meta = {};
+          }
+          targetElement.meta.__qhtmlPerfFlags = perfCategories.slice();
+          continue;
+        }
+        const anchorRules = extractQAnchorRulesFromElement(item);
+        if (anchorRules !== null) {
+          if (!targetElement.meta || typeof targetElement.meta !== "object") {
+            targetElement.meta = {};
+          }
+          targetElement.meta.__qhtmlAnchorRules = anchorRules.slice();
+          continue;
+        }
       }
       if (item.type === "Property") {
         applyPropertyToElement(targetElement, item, {
@@ -11601,6 +11891,8 @@
     const varDeclarations = [];
     const switchDeclarations = [];
     let componentLoggerCategories = null;
+    let componentPerfCategories = null;
+    let componentAnchorRules = null;
     let wasmConfig = null;
     const lifecycleScripts = [];
     const qTimerDefinitions = [];
@@ -11826,6 +12118,16 @@
         const loggerCategories = extractQLoggerCategoriesFromElement(item);
         if (loggerCategories !== null) {
           componentLoggerCategories = loggerCategories.slice();
+          continue;
+        }
+        const perfCategories = extractQPerfCategoriesFromElement(item);
+        if (perfCategories !== null) {
+          componentPerfCategories = perfCategories.slice();
+          continue;
+        }
+        const anchorRules = extractQAnchorRulesFromElement(item);
+        if (anchorRules !== null) {
+          componentAnchorRules = anchorRules.slice();
           continue;
         }
       }
@@ -12109,6 +12411,18 @@
         componentNode.meta = {};
       }
       componentNode.meta.__qhtmlLoggerCategories = componentLoggerCategories.slice();
+    }
+    if (componentPerfCategories !== null) {
+      if (!componentNode.meta || typeof componentNode.meta !== "object") {
+        componentNode.meta = {};
+      }
+      componentNode.meta.__qhtmlPerfFlags = componentPerfCategories.slice();
+    }
+    if (componentAnchorRules !== null) {
+      if (!componentNode.meta || typeof componentNode.meta !== "object") {
+        componentNode.meta = {};
+      }
+      componentNode.meta.__qhtmlAnchorRules = componentAnchorRules.slice();
     }
     if (Object.keys(componentEventAttributeParams).length > 0) {
       if (!componentNode.meta || typeof componentNode.meta !== "object") {
@@ -12878,6 +13192,16 @@
         });
         continue;
       }
+      if (item.type === "Element") {
+        const perfCategories = extractQPerfCategoriesFromElement(item);
+        if (perfCategories !== null) {
+          if (!doc.meta || typeof doc.meta !== "object") {
+            doc.meta = {};
+          }
+          doc.meta.__qhtmlPerfFlags = perfCategories.slice();
+          continue;
+        }
+      }
       if (item.type === "QConnectDefinition") {
         const connectBody = buildQConnectLifecycleBody(item);
         if (connectBody) {
@@ -13261,6 +13585,26 @@
         }
       }
       lines.push(indent + "  }");
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
+  function serializeQAnchorRulesBlock(anchorRules, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    const list = Array.isArray(anchorRules) ? anchorRules : [];
+    if (list.length === 0) {
+      return "";
+    }
+    const lines = [indent + "q-anchor {"];
+    for (let i = 0; i < list.length; i += 1) {
+      const entry = list[i] && typeof list[i] === "object" ? list[i] : {};
+      const key = normalizeQAnchorRuleKey(entry.key);
+      const value = String(entry.value || "").trim();
+      if (!key) {
+        continue;
+      }
+      lines.push(indent + "  " + key + ": " + value);
     }
     lines.push(indent + "}");
     return lines.join("\n");
@@ -13672,6 +14016,14 @@
           ? keyword + " " + definitionId + extendsClause + " {"
           : keyword + extendsClause + " {";
       const lines = [indent + definitionHead];
+      const componentAnchorRules =
+        node && node.meta && Array.isArray(node.meta.__qhtmlAnchorRules)
+          ? node.meta.__qhtmlAnchorRules
+          : [];
+      const serializedComponentAnchorRules = serializeQAnchorRulesBlock(componentAnchorRules, indentLevel + 1);
+      if (serializedComponentAnchorRules) {
+        lines.push(serializedComponentAnchorRules);
+      }
       const properties = Array.isArray(node.properties) ? node.properties : [];
       if (properties.length > 0) {
         lines.push(indent + "  q-property {");
@@ -13783,6 +14135,14 @@
           : "";
       const head = instanceAlias ? tagName + " " + instanceAlias + " {" : tagName + " {";
       const lines = [indent + head];
+      const instanceAnchorRules =
+        node && node.meta && Array.isArray(node.meta.__qhtmlAnchorRules)
+          ? node.meta.__qhtmlAnchorRules
+          : [];
+      const serializedInstanceAnchorRules = serializeQAnchorRulesBlock(instanceAnchorRules, indentLevel + 1);
+      if (serializedInstanceAnchorRules) {
+        lines.push(serializedInstanceAnchorRules);
+      }
 
       const attrs = node.attributes || {};
       const attrThenMap = normalizeEventAttributeThenMap(node.meta);
@@ -13882,6 +14242,14 @@
     const selectorText = node.selectorMode === "class-shorthand" ? chain.join(",") : chain[0];
 
     const lines = [indent + selectorText + " {"];
+    const elementAnchorRules =
+      node && node.meta && Array.isArray(node.meta.__qhtmlAnchorRules)
+        ? node.meta.__qhtmlAnchorRules
+        : [];
+    const serializedElementAnchorRules = serializeQAnchorRulesBlock(elementAnchorRules, indentLevel + 1);
+    if (serializedElementAnchorRules) {
+      lines.push(serializedElementAnchorRules);
+    }
 
     const textBindings = collectNodeBindingsByTarget(node, "textcontent");
     const contentBinding = textBindings.get("content") || textBindings.get("text") || null;

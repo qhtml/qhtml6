@@ -4,6 +4,7 @@
 
 - Bumped the public release version to `6.9.0`.
 - Added `q-switch name { ... }` / `switch name { ... }` as scoped primitive lookup functions for handlers, interpolation, component code, and `qhtml(...)`.
+- Added `q-perf { q-timer q-signal q-property q-worker function }` as direct-child performance metadata that aggregates timing counters into QDOM `perf_data`.
 - Documented the major `q-var` use cases: arrays, objects, functions, assignment through the q-var handle, scoped references, and declarative QHTML fragments.
 - Copied the release bundle script to root `build-release.sh` and refreshed generated release/doc runtime bundles from source.
 - Removed the obsolete broken parser backup and added the particle emitter star mask asset to tracked files.

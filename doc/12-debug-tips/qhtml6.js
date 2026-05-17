@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-13T22:01:09Z */
+/* generated: 2026-05-17T22:08:57Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -1417,6 +1417,7 @@
   const MODEL_KEYWORDS = new Set(["q-model"]);
   const MODEL_VIEW_KEYWORDS = new Set(["q-model-view"]);
   const ITERATIVE_MODEL_KEYWORDS = new Set(["q-array", "q-object", "q-map"]);
+  const LAYOUT_KEYWORDS = new Set(["q-layout", "q-row", "q-col"]);
   const DEPRECATED_FEATURE_WARNED = new Set();
   const CANONICAL_KEYWORD_TARGETS = new Set([
     "q-component",
@@ -1457,6 +1458,11 @@
     "q-connect",
     "q-import",
     "q-logger",
+    "q-perf",
+    "q-anchor",
+    "q-layout",
+    "q-row",
+    "q-col",
     "q-sdml-component",
     "sdml-endpoint",
     "slot",
@@ -2784,6 +2790,212 @@
     return parseQLoggerCategoriesFromAstItems(item.items);
   }
 
+  function normalizeQPerfCategoryToken(rawToken) {
+    const token = String(rawToken || "").trim().toLowerCase();
+    if (!token) {
+      return "";
+    }
+    const condensed = token.replace(/[^a-z0-9]/g, "");
+    if (condensed === "all" || condensed === "qall") {
+      return "all";
+    }
+    if (condensed === "timer" || condensed === "qtimer") {
+      return "q-timer";
+    }
+    if (condensed === "signal" || condensed === "qsignal" || condensed === "qsigal") {
+      return "q-signal";
+    }
+    if (condensed === "property" || condensed === "qproperty") {
+      return "q-property";
+    }
+    if (condensed === "worker" || condensed === "qworker") {
+      return "q-worker";
+    }
+    if (condensed === "function" || condensed === "method" || condensed === "qfunction" || condensed === "qmethod") {
+      return "function";
+    }
+    return token;
+  }
+
+  function parseQPerfCategoriesFromAstItems(items) {
+    const out = [];
+    const seen = new Set();
+    const list = Array.isArray(items) ? items : [];
+    function appendToken(rawToken) {
+      const normalized = normalizeQPerfCategoryToken(rawToken);
+      if (!normalized || seen.has(normalized)) {
+        return;
+      }
+      seen.add(normalized);
+      out.push(normalized);
+    }
+    function appendTextTokens(rawText) {
+      const matches = String(rawText || "").match(/[A-Za-z_][A-Za-z0-9_-]*/g) || [];
+      for (let i = 0; i < matches.length; i += 1) {
+        appendToken(matches[i]);
+      }
+    }
+    for (let i = 0; i < list.length; i += 1) {
+      const item = list[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type === "BareWord") {
+        appendToken(item.name);
+        continue;
+      }
+      if (item.type === "RawTextLine" || item.type === "TextBlock") {
+        appendTextTokens(item.text);
+        continue;
+      }
+      if (item.type === "Property") {
+        appendToken(item.name);
+        continue;
+      }
+      if (item.type === "Element") {
+        const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+        if (selectors.length === 1) {
+          const token = parseTagToken(selectors[0]);
+          appendToken(token && token.tag);
+        }
+      }
+    }
+    return out;
+  }
+
+  function extractQPerfCategoriesFromElement(item) {
+    if (!item || item.type !== "Element") {
+      return null;
+    }
+    const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+    if (selectors.length !== 1) {
+      return null;
+    }
+    const token = parseTagToken(selectors[0]);
+    const tagLower = String(token && token.tag || "").trim().toLowerCase();
+    if (tagLower !== "q-perf") {
+      return null;
+    }
+    return parseQPerfCategoriesFromAstItems(item.items);
+  }
+
+  function normalizeQAnchorRuleKey(rawKey) {
+    const key = String(rawKey || "").trim().toLowerCase();
+    if (!key) {
+      return "";
+    }
+    if (key === "hcenter" || key === "horizontalcenter" || key === "centerx") {
+      return "hcenter";
+    }
+    if (key === "vcenter" || key === "verticalcenter" || key === "centery") {
+      return "vcenter";
+    }
+    if (key === "center") {
+      return "center";
+    }
+    if (key === "left" || key === "right" || key === "top" || key === "bottom") {
+      return key;
+    }
+    return "";
+  }
+
+  function parseQAnchorDefinitionBody(bodyText) {
+    const parser = parserFor(String(bodyText || ""));
+    const entries = [];
+    const seen = new Map();
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+        continue;
+      }
+      if (eof(parser)) {
+        break;
+      }
+
+      const keyStart = parser.index;
+      let key = "";
+      if (isIdentifierStartChar(peek(parser))) {
+        key = parseIdentifier(parser);
+      } else {
+        while (!eof(parser)) {
+          const ch = peek(parser);
+          if (ch === ":" || ch === "{" || ch === "}" || ch === "," || ch === ";" || /\s/.test(ch)) {
+            break;
+          }
+          parser.index += 1;
+        }
+        key = parser.source.slice(keyStart, parser.index).trim();
+      }
+      const normalizedKey = normalizeQAnchorRuleKey(key);
+      if (!normalizedKey) {
+        throw ParseError("Invalid q-anchor key '" + String(key || "").trim() + "'", keyStart);
+      }
+
+      skipWhitespace(parser);
+      let value = "";
+      if (peek(parser) === ":") {
+        consume(parser);
+        value = parseBareValue(parser);
+      } else if (peek(parser) === "{") {
+        consume(parser);
+        value = readBalancedBlockContent(parser);
+      } else {
+        throw ParseError("Expected ':' or '{' after q-anchor key", parser.index);
+      }
+      const entry = {
+        key: normalizedKey,
+        value: String(value || "").trim(),
+      };
+      if (seen.has(normalizedKey)) {
+        entries[seen.get(normalizedKey)] = entry;
+      } else {
+        seen.set(normalizedKey, entries.length);
+        entries.push(entry);
+      }
+
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+      }
+    }
+    return entries;
+  }
+
+  function extractQAnchorRulesFromElement(item) {
+    if (!item || item.type !== "Element") {
+      return null;
+    }
+    const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+    if (selectors.length !== 1) {
+      return null;
+    }
+    const token = parseTagToken(selectors[0]);
+    const tagLower = String(token && token.tag || "").trim().toLowerCase();
+    if (tagLower !== "q-anchor") {
+      return null;
+    }
+    let bodyText = "";
+    const list = Array.isArray(item.items) ? item.items : [];
+    for (let i = 0; i < list.length; i += 1) {
+      const part = list[i];
+      if (!part || typeof part !== "object") {
+        continue;
+      }
+      if (part.type === "TextBlock" || part.type === "RawTextLine") {
+        bodyText += String(part.text || "");
+      } else if (part.type === "Property") {
+        const propName = String(part.name || "").trim();
+        const propValue = String(coercePropertyValue(part.value) || "").trim();
+        bodyText += (bodyText ? "\n" : "") + propName + ": " + propValue;
+      }
+      if (i < list.length - 1) {
+        bodyText += "\n";
+      }
+    }
+    return parseQAnchorDefinitionBody(bodyText);
+  }
+
   function parseQColorIdentifier(parser, keyword) {
     skipWhitespace(parser);
     const start = parser.index;
@@ -3993,6 +4205,29 @@
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
         const nextChar = peek(parser);
+        if ((nameLower === "q-logger" || nameLower === "q-perf" || nameLower === "q-anchor") && nextChar === "{") {
+          consume(parser);
+          const directiveBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "Element",
+            selectors: [name],
+            items: [
+              {
+                type: "TextBlock",
+                text: String(directiveBody || ""),
+                raw: String(directiveBody || ""),
+                keywords: keywordSnapshot,
+                start: itemStart,
+                end: parser.index,
+              },
+            ],
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (FOR_KEYWORDS.has(nameLower) && nextChar === "(") {
           items.push(parseForDefinitionItem(parser, scopedKeywordAliases, keywordSnapshot, itemStart));
           continue;
@@ -5134,6 +5369,30 @@
         }
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
+
+        if ((firstLower === "q-logger" || firstLower === "q-perf" || firstLower === "q-anchor") && peek(parser) === "{") {
+          consume(parser);
+          const directiveBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "Element",
+            selectors: [firstSelector],
+            items: [
+              {
+                type: "TextBlock",
+                text: String(directiveBody || ""),
+                raw: String(directiveBody || ""),
+                keywords: keywordSnapshot,
+                start: start,
+                end: parser.index,
+              },
+            ],
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
 
         if (FOR_KEYWORDS.has(firstLower) && peek(parser) === "(") {
           body.push(parseForDefinitionItem(parser, scopedKeywordAliases, keywordSnapshot, start));
@@ -10483,8 +10742,9 @@
   }
 
   function createElementFromToken(tokenInfo, selectorMode, selectorChain, range, originalSource) {
+    const tagName = tokenInfo.tag || "div";
     const node = core.createElementNode({
-      tagName: tokenInfo.tag || "div",
+      tagName: tagName,
       selectorMode: selectorMode,
       selectorChain: selectorChain,
       meta: {
@@ -10492,6 +10752,12 @@
         sourceRange: range || null,
       },
     });
+
+    const normalizedTag = String(tagName || "").trim().toLowerCase();
+    if (LAYOUT_KEYWORDS.has(normalizedTag)) {
+      node.meta.__qhtmlLayoutKeyword = true;
+      node.meta.__qhtmlLayoutRole = normalizedTag.slice("q-".length);
+    }
 
     if (tokenInfo.id) {
       node.attributes.id = tokenInfo.id;
@@ -10971,6 +11237,14 @@
         node.children = normalizeNodesForDefinitions(node.children, definitionRegistry);
       }
       const tag = String(node.tagName || "").trim().toLowerCase();
+      if (LAYOUT_KEYWORDS.has(tag)) {
+        if (!node.meta || typeof node.meta !== "object") {
+          node.meta = {};
+        }
+        node.meta.__qhtmlLayoutKeyword = true;
+        node.meta.__qhtmlLayoutRole = tag.slice("q-".length);
+        return node;
+      }
       const instanceAlias =
         node &&
         node.meta &&
@@ -12756,6 +13030,22 @@
           targetElement.meta.__qhtmlLoggerCategories = loggerCategories.slice();
           continue;
         }
+        const perfCategories = extractQPerfCategoriesFromElement(item);
+        if (perfCategories !== null) {
+          if (!targetElement.meta || typeof targetElement.meta !== "object") {
+            targetElement.meta = {};
+          }
+          targetElement.meta.__qhtmlPerfFlags = perfCategories.slice();
+          continue;
+        }
+        const anchorRules = extractQAnchorRulesFromElement(item);
+        if (anchorRules !== null) {
+          if (!targetElement.meta || typeof targetElement.meta !== "object") {
+            targetElement.meta = {};
+          }
+          targetElement.meta.__qhtmlAnchorRules = anchorRules.slice();
+          continue;
+        }
       }
       if (item.type === "Property") {
         applyPropertyToElement(targetElement, item, {
@@ -12992,6 +13282,8 @@
     const varDeclarations = [];
     const switchDeclarations = [];
     let componentLoggerCategories = null;
+    let componentPerfCategories = null;
+    let componentAnchorRules = null;
     let wasmConfig = null;
     const lifecycleScripts = [];
     const qTimerDefinitions = [];
@@ -13217,6 +13509,16 @@
         const loggerCategories = extractQLoggerCategoriesFromElement(item);
         if (loggerCategories !== null) {
           componentLoggerCategories = loggerCategories.slice();
+          continue;
+        }
+        const perfCategories = extractQPerfCategoriesFromElement(item);
+        if (perfCategories !== null) {
+          componentPerfCategories = perfCategories.slice();
+          continue;
+        }
+        const anchorRules = extractQAnchorRulesFromElement(item);
+        if (anchorRules !== null) {
+          componentAnchorRules = anchorRules.slice();
           continue;
         }
       }
@@ -13500,6 +13802,18 @@
         componentNode.meta = {};
       }
       componentNode.meta.__qhtmlLoggerCategories = componentLoggerCategories.slice();
+    }
+    if (componentPerfCategories !== null) {
+      if (!componentNode.meta || typeof componentNode.meta !== "object") {
+        componentNode.meta = {};
+      }
+      componentNode.meta.__qhtmlPerfFlags = componentPerfCategories.slice();
+    }
+    if (componentAnchorRules !== null) {
+      if (!componentNode.meta || typeof componentNode.meta !== "object") {
+        componentNode.meta = {};
+      }
+      componentNode.meta.__qhtmlAnchorRules = componentAnchorRules.slice();
     }
     if (Object.keys(componentEventAttributeParams).length > 0) {
       if (!componentNode.meta || typeof componentNode.meta !== "object") {
@@ -14269,6 +14583,16 @@
         });
         continue;
       }
+      if (item.type === "Element") {
+        const perfCategories = extractQPerfCategoriesFromElement(item);
+        if (perfCategories !== null) {
+          if (!doc.meta || typeof doc.meta !== "object") {
+            doc.meta = {};
+          }
+          doc.meta.__qhtmlPerfFlags = perfCategories.slice();
+          continue;
+        }
+      }
       if (item.type === "QConnectDefinition") {
         const connectBody = buildQConnectLifecycleBody(item);
         if (connectBody) {
@@ -14652,6 +14976,26 @@
         }
       }
       lines.push(indent + "  }");
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
+  function serializeQAnchorRulesBlock(anchorRules, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    const list = Array.isArray(anchorRules) ? anchorRules : [];
+    if (list.length === 0) {
+      return "";
+    }
+    const lines = [indent + "q-anchor {"];
+    for (let i = 0; i < list.length; i += 1) {
+      const entry = list[i] && typeof list[i] === "object" ? list[i] : {};
+      const key = normalizeQAnchorRuleKey(entry.key);
+      const value = String(entry.value || "").trim();
+      if (!key) {
+        continue;
+      }
+      lines.push(indent + "  " + key + ": " + value);
     }
     lines.push(indent + "}");
     return lines.join("\n");
@@ -15063,6 +15407,14 @@
           ? keyword + " " + definitionId + extendsClause + " {"
           : keyword + extendsClause + " {";
       const lines = [indent + definitionHead];
+      const componentAnchorRules =
+        node && node.meta && Array.isArray(node.meta.__qhtmlAnchorRules)
+          ? node.meta.__qhtmlAnchorRules
+          : [];
+      const serializedComponentAnchorRules = serializeQAnchorRulesBlock(componentAnchorRules, indentLevel + 1);
+      if (serializedComponentAnchorRules) {
+        lines.push(serializedComponentAnchorRules);
+      }
       const properties = Array.isArray(node.properties) ? node.properties : [];
       if (properties.length > 0) {
         lines.push(indent + "  q-property {");
@@ -15174,6 +15526,14 @@
           : "";
       const head = instanceAlias ? tagName + " " + instanceAlias + " {" : tagName + " {";
       const lines = [indent + head];
+      const instanceAnchorRules =
+        node && node.meta && Array.isArray(node.meta.__qhtmlAnchorRules)
+          ? node.meta.__qhtmlAnchorRules
+          : [];
+      const serializedInstanceAnchorRules = serializeQAnchorRulesBlock(instanceAnchorRules, indentLevel + 1);
+      if (serializedInstanceAnchorRules) {
+        lines.push(serializedInstanceAnchorRules);
+      }
 
       const attrs = node.attributes || {};
       const attrThenMap = normalizeEventAttributeThenMap(node.meta);
@@ -15273,6 +15633,14 @@
     const selectorText = node.selectorMode === "class-shorthand" ? chain.join(",") : chain[0];
 
     const lines = [indent + selectorText + " {"];
+    const elementAnchorRules =
+      node && node.meta && Array.isArray(node.meta.__qhtmlAnchorRules)
+        ? node.meta.__qhtmlAnchorRules
+        : [];
+    const serializedElementAnchorRules = serializeQAnchorRulesBlock(elementAnchorRules, indentLevel + 1);
+    if (serializedElementAnchorRules) {
+      lines.push(serializedElementAnchorRules);
+    }
 
     const textBindings = collectNodeBindingsByTarget(node, "textcontent");
     const contentBinding = textBindings.get("content") || textBindings.get("text") || null;
@@ -18323,10 +18691,48 @@
     return shortcut;
   }
 
+  function coerceQHtmlFragmentSource(source) {
+    if (source == null) {
+      return "";
+    }
+    if (typeof source === "string") {
+      return source;
+    }
+    if (typeof source === "number" || typeof source === "boolean" || typeof source === "bigint") {
+      return String(source);
+    }
+    if (source && typeof source === "object") {
+      if (source.__qhtmlFragment === true && typeof source.source === "string") {
+        return source.source;
+      }
+      if (typeof source.source === "string") {
+        return source.source;
+      }
+      if (typeof source.qhtml === "string") {
+        return source.qhtml;
+      }
+      if (typeof source.html === "string") {
+        return source.html;
+      }
+      if (typeof source.textContent === "string") {
+        return source.textContent;
+      }
+    }
+    try {
+      return String(source);
+    } catch (error) {
+      try {
+        return JSON.stringify(source);
+      } catch (jsonError) {
+        return "";
+      }
+    }
+  }
+
   function createQHtmlFragmentToken(source) {
     return {
       __qhtmlFragment: true,
-      source: String(source == null ? "" : source),
+      source: coerceQHtmlFragmentSource(source),
     };
   }
 
@@ -19277,6 +19683,31 @@
       }
     }
 
+    const declaredSlotNodes = readRendererSlotNodes(instanceNode);
+    if (declaredSlotNodes.length > 0) {
+      for (let i = 0; i < declaredSlotNodes.length; i += 1) {
+        const slotNode = declaredSlotNodes[i];
+        if (!slotNode || slotNode.kind !== core.NODE_TYPES.slot) {
+          continue;
+        }
+
+        const slotName = String(slotNode.name || "default").trim() || "default";
+        const slotChildren = Array.isArray(slotNode.children) ? slotNode.children : [];
+        if (slotChildren.length > 0) {
+          for (let j = 0; j < slotChildren.length; j += 1) {
+            const normalized = collectNormalizedSlotChildren(slotName, slotChildren[j], []);
+            for (let k = 0; k < normalized.length; k += 1) {
+              pushFill(slotName, normalized[k], slotNode, false);
+            }
+          }
+        } else if (typeof slotNode.textContent === "string" && slotNode.textContent.length > 0) {
+          pushFill(slotName, createTextFillNode(slotNode.textContent), slotNode, false);
+        }
+      }
+
+      return fills;
+    }
+
     const children = Array.isArray(instanceNode.children) ? instanceNode.children : [];
 
     for (let i = 0; i < children.length; i += 1) {
@@ -19332,6 +19763,27 @@
   function materializeSlots(nodes, slotFills) {
     const out = [];
 
+    function readSlotFillEntry(slotName) {
+      const requestedName = String(slotName || "default").trim() || "default";
+      if (!(slotFills instanceof Map)) {
+        return null;
+      }
+      if (slotFills.has(requestedName)) {
+        return slotFills.get(requestedName);
+      }
+      const requestedLower = requestedName.toLowerCase();
+      const entries = slotFills.entries();
+      let next = entries.next();
+      while (!next.done) {
+        const key = String(next.value[0] || "").trim();
+        if (key.toLowerCase() === requestedLower) {
+          return next.value[1];
+        }
+        next = entries.next();
+      }
+      return null;
+    }
+
     for (let i = 0; i < nodes.length; i += 1) {
       const node = nodes[i];
       if (!node || typeof node !== "object") {
@@ -19340,7 +19792,7 @@
 
       if (node.kind === core.NODE_TYPES.element && node.tagName === "slot") {
         const slotName = node.attributes && typeof node.attributes.name === "string" ? node.attributes.name : "default";
-        const fillEntry = slotFills.get(slotName);
+        const fillEntry = readSlotFillEntry(slotName);
         const fillNodes = fillEntry && Array.isArray(fillEntry.nodes) ? fillEntry.nodes : [];
         if (fillNodes.length > 0) {
           for (let j = 0; j < fillNodes.length; j += 1) {
@@ -24248,7 +24700,6 @@
         }
         return;
       }
-      throw new Error("Duplicate named instance alias in same scope: '" + alias + "'.");
     }
     frame.set(alias, aliasHandle);
     context[QCONTEXT_SCOPE_FRAME_KEY] = frame;
@@ -24795,6 +25246,227 @@
       node.meta.__qhtmlStateMachine &&
       typeof node.meta.__qhtmlStateMachine === "object"
     );
+  }
+
+  const QHTML_LAYOUT_TAGS = new Set(["q-layout", "q-row", "q-col"]);
+  const QHTML_LAYOUT_DEFAULT_GAP = "12px";
+
+  function isQLayoutTagName(tagName) {
+    return QHTML_LAYOUT_TAGS.has(String(tagName || "").trim().toLowerCase());
+  }
+
+  function directLayoutChildren(element, tagName) {
+    const wanted = String(tagName || "").trim().toLowerCase();
+    const out = [];
+    if (!element || !element.children || !wanted) {
+      return out;
+    }
+    for (let i = 0; i < element.children.length; i += 1) {
+      const child = element.children[i];
+      if (String(child && child.tagName || "").trim().toLowerCase() === wanted) {
+        out.push(child);
+      }
+    }
+    return out;
+  }
+
+  function normalizeLayoutSizeValue(value, fallback) {
+    if (value == null || value === "") {
+      return typeof fallback === "undefined" ? "auto" : fallback;
+    }
+    const text = String(value).trim();
+    if (!text) {
+      return typeof fallback === "undefined" ? "auto" : fallback;
+    }
+    if (text === "fill") {
+      return "minmax(0, 1fr)";
+    }
+    if (/^-?\d+(?:\.\d+)?$/.test(text)) {
+      return text + "px";
+    }
+    return text;
+  }
+
+  function readLayoutAxis(element) {
+    if (!element || element.nodeType !== 1) {
+      return "";
+    }
+    const tagName = String(element.tagName || "").trim().toLowerCase();
+    const explicit = String(element.getAttribute("axis") || element.getAttribute("flow") || "").trim().toLowerCase();
+    if (explicit === "rows" || explicit === "row" || explicit === "vertical") {
+      return "rows";
+    }
+    if (explicit === "cols" || explicit === "columns" || explicit === "column" || explicit === "horizontal") {
+      return "cols";
+    }
+    const rows = directLayoutChildren(element, "q-row");
+    const cols = directLayoutChildren(element, "q-col");
+    if (rows.length > 0 && cols.length === 0) {
+      return "rows";
+    }
+    if (cols.length > 0 && rows.length === 0) {
+      return "cols";
+    }
+    if (tagName === "q-layout") {
+      return "rows";
+    }
+    if (tagName === "q-row") {
+      return "cols";
+    }
+    if (tagName === "q-col" && rows.length > 0) {
+      return "rows";
+    }
+    if (tagName === "q-col" && cols.length > 0) {
+      return "cols";
+    }
+    return "";
+  }
+
+  function readLayoutTrackValue(child, axis) {
+    if (!child || child.nodeType !== 1) {
+      return "auto";
+    }
+    const attrName = axis === "rows" ? "height" : "width";
+    return normalizeLayoutSizeValue(child.getAttribute(attrName), "auto");
+  }
+
+  function applyQLayoutKeywordStyles(element) {
+    if (!element || element.nodeType !== 1 || !isQLayoutTagName(element.tagName)) {
+      return;
+    }
+    const tagName = String(element.tagName || "").trim().toLowerCase();
+    const style = element.style;
+    style.boxSizing = style.boxSizing || "border-box";
+    style.minWidth = style.minWidth || "0";
+    style.minHeight = style.minHeight || "0";
+    style.gap = element.getAttribute("gap") || style.gap || QHTML_LAYOUT_DEFAULT_GAP;
+
+    const width = normalizeLayoutSizeValue(element.getAttribute("width"), "");
+    const height = normalizeLayoutSizeValue(element.getAttribute("height"), "");
+    if ((tagName === "q-layout" || tagName === "q-col") && width) {
+      style.width = width;
+    }
+    if ((tagName === "q-layout" || tagName === "q-row" || tagName === "q-col") && height) {
+      style.height = height;
+    }
+
+    const axis = readLayoutAxis(element);
+    if (!axis) {
+      if (tagName === "q-col") {
+        style.display = style.display || "block";
+      }
+      return;
+    }
+
+    const children = axis === "rows" ? directLayoutChildren(element, "q-row") : directLayoutChildren(element, "q-col");
+    style.display = "grid";
+    if (axis === "rows") {
+      style.gridTemplateRows = children.length > 0
+        ? children.map(function mapRowTrack(child) { return readLayoutTrackValue(child, "rows"); }).join(" ")
+        : "";
+      style.gridTemplateColumns = "";
+    } else {
+      style.gridTemplateColumns = children.length > 0
+        ? children.map(function mapColTrack(child) { return readLayoutTrackValue(child, "cols"); }).join(" ")
+        : "";
+      style.gridTemplateRows = "";
+    }
+  }
+
+  function relayoutQLayoutTree(root) {
+    if (!root || root.nodeType !== 1) {
+      return root;
+    }
+    const nodes = [];
+    if (isQLayoutTagName(root.tagName)) {
+      nodes.push(root);
+    }
+    if (typeof root.querySelectorAll === "function") {
+      const found = root.querySelectorAll("q-layout,q-row,q-col");
+      for (let i = 0; i < found.length; i += 1) {
+        nodes.push(found[i]);
+      }
+    }
+    for (let i = nodes.length - 1; i >= 0; i -= 1) {
+      applyQLayoutKeywordStyles(nodes[i]);
+    }
+    return root;
+  }
+
+  function installQLayoutDomApi(element) {
+    if (!element || element.nodeType !== 1 || !isQLayoutTagName(element.tagName) || element.__qhtmlLayoutKeywordApi) {
+      return element;
+    }
+
+    function indexOfLayoutChild(idx, length, insert) {
+      if (idx === Infinity || idx === "inf" || idx === "infinity") {
+        return insert ? length : Math.max(0, length - 1);
+      }
+      if (idx == null || idx === "") {
+        return insert ? length : 0;
+      }
+      const parsed = Number(idx);
+      if (!Number.isFinite(parsed)) {
+        return insert ? length : 0;
+      }
+      if (parsed < 0) {
+        return Math.max(0, length + parsed);
+      }
+      return Math.max(0, Math.min(insert ? length : Math.max(0, length - 1), parsed));
+    }
+
+    function setLayoutAttrs(target, attrs) {
+      const input = attrs && typeof attrs === "object" && !Array.isArray(attrs) ? attrs : {};
+      const keys = Object.keys(input);
+      for (let i = 0; i < keys.length; i += 1) {
+        const key = String(keys[i] || "").trim();
+        if (key && input[key] != null) {
+          target.setAttribute(key, String(input[key]));
+        }
+      }
+    }
+
+    function makeLayoutChild(owner, tagName, idx, attrs, text) {
+      const doc = owner.ownerDocument || global.document;
+      const child = doc.createElement(tagName);
+      setLayoutAttrs(child, attrs);
+      if (text != null) {
+        child.textContent = String(text);
+      }
+      installQLayoutDomApi(child);
+      const siblings = directLayoutChildren(owner, tagName);
+      owner.insertBefore(child, siblings[indexOfLayoutChild(idx, siblings.length, true)] || null);
+      relayoutQLayoutTree(owner);
+      return child;
+    }
+
+    function removeLayoutChild(owner, tagName, idx) {
+      const siblings = directLayoutChildren(owner, tagName);
+      if (siblings.length === 0) {
+        return null;
+      }
+      const child = siblings[indexOfLayoutChild(idx, siblings.length, false)];
+      if (child && child.parentNode) {
+        child.parentNode.removeChild(child);
+        relayoutQLayoutTree(owner);
+      }
+      return child || null;
+    }
+
+    Object.defineProperties(element, {
+      rows: { configurable: true, value: function rows() { return directLayoutChildren(this, "q-row").map(installQLayoutDomApi); } },
+      row: { configurable: true, value: function row(idx) { const rows = this.rows(); return rows.length ? rows[indexOfLayoutChild(idx, rows.length, false)] : null; } },
+      cols: { configurable: true, value: function cols() { return directLayoutChildren(this, "q-col").map(installQLayoutDomApi); } },
+      col: { configurable: true, value: function col(idx) { const cols = this.cols(); return cols.length ? cols[indexOfLayoutChild(idx, cols.length, false)] : null; } },
+      addRow: { configurable: true, value: function addRow(idx, attrs, text) { return makeLayoutChild(this, "q-row", idx, attrs, text); } },
+      addCol: { configurable: true, value: function addCol(idx, attrs, text) { return makeLayoutChild(this, "q-col", idx, attrs, text); } },
+      addLayout: { configurable: true, value: function addLayout(idx, attrs, text) { return makeLayoutChild(this, "q-layout", idx, attrs, text); } },
+      removeRow: { configurable: true, value: function removeRow(idx) { return removeLayoutChild(this, "q-row", idx); } },
+      removeCol: { configurable: true, value: function removeCol(idx) { return removeLayoutChild(this, "q-col", idx); } },
+      relayout: { configurable: true, value: function relayout() { return relayoutQLayoutTree(this); } },
+    });
+    element.__qhtmlLayoutKeywordApi = true;
+    return element;
   }
 
   function readInlineQStateMachineComponent(node) {
@@ -25372,7 +26044,7 @@
     if (!isQHtmlFragmentToken(value)) {
       return false;
     }
-    const source = String(value.source || "");
+    const source = coerceQHtmlFragmentSource(value.source);
     if (!source.trim()) {
       return true;
     }
@@ -25731,18 +26403,22 @@
       if (isQStateMachineNode(node)) {
         renderQStateMachineNode(node, parent, targetDocument, context);
         return;
-      }
-
-      const tagName = String(node.tagName || "div").toLowerCase();
-      const registry = context.componentRegistry;
-      const component = registry.get(tagName);
-
-      if (component) {
-        renderComponentInstance(component, node, parent, targetDocument, context);
-        return;
-      }
-
-      const element = targetDocument.createElement(tagName);
+	      }
+	
+	      const tagName = String(node.tagName || "div").toLowerCase();
+	      const isLayoutKeywordElement = isQLayoutTagName(tagName);
+	      const registry = context.componentRegistry;
+	      const component = registry.get(tagName);
+	
+	      if (component && !isLayoutKeywordElement) {
+	        renderComponentInstance(component, node, parent, targetDocument, context);
+	        return;
+	      }
+	
+	      const element = targetDocument.createElement(tagName);
+	      if (isLayoutKeywordElement) {
+	        installQLayoutDomApi(element);
+	      }
       if (
         context &&
         typeof context.__applyModelViewMarker === "function"
@@ -25790,13 +26466,16 @@
         element.appendChild(targetDocument.createTextNode(textContent));
       }
 
-      if (Array.isArray(node.children)) {
-        const childContext = createChildRenderContext(context);
-        for (let i = 0; i < node.children.length; i += 1) {
-          renderNode(node.children[i], element, targetDocument, childContext);
-        }
-      }
-      applyRuntimeThemeRulesToHost(element, node);
+	      if (Array.isArray(node.children)) {
+	        const childContext = createChildRenderContext(context);
+	        for (let i = 0; i < node.children.length; i += 1) {
+	          renderNode(node.children[i], element, targetDocument, childContext);
+	        }
+	      }
+	      applyRuntimeThemeRulesToHost(element, node);
+	      if (isLayoutKeywordElement) {
+	        relayoutQLayoutTree(element);
+	      }
       if (!context.disableLifecycleHooks) {
         runLifecycleHooks(node, element, targetDocument);
       }
@@ -26808,7 +27487,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.9.0";
+  const RUNTIME_VERSION = "6.9.1";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -27862,10 +28541,48 @@
     return createQModel([]);
   }
 
+  function coerceQHtmlFragmentSource(source) {
+    if (source == null) {
+      return "";
+    }
+    if (typeof source === "string") {
+      return source;
+    }
+    if (typeof source === "number" || typeof source === "boolean" || typeof source === "bigint") {
+      return String(source);
+    }
+    if (source && typeof source === "object") {
+      if (source.__qhtmlFragment === true && typeof source.source === "string") {
+        return source.source;
+      }
+      if (typeof source.source === "string") {
+        return source.source;
+      }
+      if (typeof source.qhtml === "string") {
+        return source.qhtml;
+      }
+      if (typeof source.html === "string") {
+        return source.html;
+      }
+      if (typeof source.textContent === "string") {
+        return source.textContent;
+      }
+    }
+    try {
+      return String(source);
+    } catch (error) {
+      try {
+        return JSON.stringify(source);
+      } catch (jsonError) {
+        return "";
+      }
+    }
+  }
+
   function createQHtmlFragment(source) {
     return {
       __qhtmlFragment: true,
-      source: String(source == null ? "" : source),
+      source: coerceQHtmlFragmentSource(source),
     };
   }
 
@@ -41471,6 +42188,99 @@
         return targetNode.children;
       }
 
+      function isQLayoutNodeTag(targetNode) {
+        const tag = String(targetNode && targetNode.tagName || targetNode && targetNode.componentId || "").trim().toLowerCase();
+        return tag === "q-layout" || tag === "q-row" || tag === "q-col";
+      }
+
+      function normalizeLayoutInsertIndex(idx, length, insert) {
+        if (idx === Infinity || idx === "inf" || idx === "infinity") {
+          return insert ? length : Math.max(0, length - 1);
+        }
+        if (idx == null || idx === "") {
+          return insert ? length : 0;
+        }
+        const parsed = Number(idx);
+        if (!Number.isFinite(parsed)) {
+          return insert ? length : 0;
+        }
+        if (parsed < 0) {
+          return Math.max(0, length + parsed);
+        }
+        return Math.max(0, Math.min(insert ? length : Math.max(0, length - 1), parsed));
+      }
+
+      function directQLayoutChildren(targetNode, tagName) {
+        const wanted = String(tagName || "").trim().toLowerCase();
+        const children = ensureChildrenList(targetNode);
+        const out = [];
+        for (let i = 0; i < children.length; i += 1) {
+          const child = sourceNodeOf(children[i]) || children[i];
+          if (String(child && child.tagName || "").trim().toLowerCase() === wanted) {
+            out.push(child);
+          }
+        }
+        return out;
+      }
+
+      function createQLayoutChildNode(tagName, attrs, text) {
+        const tag = String(tagName || "q-layout").trim().toLowerCase();
+        const attributes = attrs && typeof attrs === "object" && !Array.isArray(attrs)
+          ? Object.assign({}, attrs)
+          : {};
+        const created = createElementFactory({
+          tagName: tag,
+          attributes: attributes,
+          children: [],
+          textContent: text == null ? null : String(text),
+          meta: {
+            generated: true,
+            __qhtmlLayoutKeyword: true,
+            __qhtmlLayoutRole: tag.slice("q-".length),
+          },
+        });
+        return sourceNodeOf(created) || created;
+      }
+
+      function insertQLayoutChildNode(targetNode, tagName, idx, attrs, text, options) {
+        if (!isQLayoutNodeTag(targetNode)) {
+          return null;
+        }
+        const tag = String(tagName || "").trim().toLowerCase();
+        if (tag !== "q-layout" && tag !== "q-row" && tag !== "q-col") {
+          return null;
+        }
+        const children = ensureChildrenList(targetNode);
+        const sameTagChildren = directQLayoutChildren(targetNode, tag);
+        const targetSameTag = sameTagChildren[normalizeLayoutInsertIndex(idx, sameTagChildren.length, true)] || null;
+        const insertAt = targetSameTag ? children.indexOf(targetSameTag) : children.length;
+        const created = createQLayoutChildNode(tag, attrs, text);
+        children.splice(insertAt < 0 ? children.length : insertAt, 0, created);
+        markRuntimeQDomDirty(binding, targetNode);
+        requestScopedSlotMutationUpdate(targetNode, options, "qdom.layoutMutation");
+        return installQDomFactories(created);
+      }
+
+      function removeQLayoutChildNode(targetNode, tagName, idx, options) {
+        if (!isQLayoutNodeTag(targetNode)) {
+          return null;
+        }
+        const tag = String(tagName || "").trim().toLowerCase();
+        const sameTagChildren = directQLayoutChildren(targetNode, tag);
+        if (sameTagChildren.length === 0) {
+          return null;
+        }
+        const child = sameTagChildren[normalizeLayoutInsertIndex(idx, sameTagChildren.length, false)];
+        const children = ensureChildrenList(targetNode);
+        const index = children.indexOf(child);
+        if (index !== -1) {
+          children.splice(index, 1);
+          markRuntimeQDomDirty(binding, targetNode);
+          requestScopedSlotMutationUpdate(targetNode, options, "qdom.layoutMutation");
+        }
+        return child ? installQDomFactories(child) : null;
+      }
+
       function findSlotWrapperChild(targetNode, slotName) {
         const wanted = String(slotName || "default").trim().toLowerCase();
         if (!wanted || wanted === "default") {
@@ -42963,11 +43773,11 @@
           return appended == null ? targetNode : appended;
         },
       });
-      Object.defineProperty(node, "appendNode", {
-        configurable: true,
-        enumerable: false,
-        writable: false,
-        value: function appendNode(input) {
+	      Object.defineProperty(node, "appendNode", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function appendNode(input) {
           const nodesToAppend = normalizeNodesForAppend(input, node);
           if (nodesToAppend.length === 0) {
             return null;
@@ -43039,14 +43849,96 @@
             targetList.push(nodesToAppend[i]);
           }
           markRuntimeQDomDirty(binding, node);
-          return nodesToAppend.length === 1
-            ? installQDomFactories(nodesToAppend[0])
-            : nodesToAppend.map(function mapNode(appended) {
-                return installQDomFactories(appended);
-              });
-        },
-      });
-      Object.defineProperty(node, "setAttribute", {
+	          return nodesToAppend.length === 1
+	            ? installQDomFactories(nodesToAppend[0])
+	            : nodesToAppend.map(function mapNode(appended) {
+	                return installQDomFactories(appended);
+	              });
+	        },
+	      });
+	      Object.defineProperty(node, "rows", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function rows() {
+	          return directQLayoutChildren(node, "q-row").map(function mapQLayoutRow(child) {
+	            return installQDomFactories(child);
+	          });
+	        },
+	      });
+	      Object.defineProperty(node, "row", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function row(idx) {
+	          const rows = directQLayoutChildren(node, "q-row");
+	          return rows.length > 0
+	            ? installQDomFactories(rows[normalizeLayoutInsertIndex(idx, rows.length, false)])
+	            : null;
+	        },
+	      });
+	      Object.defineProperty(node, "cols", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function cols() {
+	          return directQLayoutChildren(node, "q-col").map(function mapQLayoutCol(child) {
+	            return installQDomFactories(child);
+	          });
+	        },
+	      });
+	      Object.defineProperty(node, "col", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function col(idx) {
+	          const cols = directQLayoutChildren(node, "q-col");
+	          return cols.length > 0
+	            ? installQDomFactories(cols[normalizeLayoutInsertIndex(idx, cols.length, false)])
+	            : null;
+	        },
+	      });
+	      Object.defineProperty(node, "addRow", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function addRow(idx, attrs, text, options) {
+	          return insertQLayoutChildNode(node, "q-row", idx, attrs, text, options);
+	        },
+	      });
+	      Object.defineProperty(node, "addCol", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function addCol(idx, attrs, text, options) {
+	          return insertQLayoutChildNode(node, "q-col", idx, attrs, text, options);
+	        },
+	      });
+	      Object.defineProperty(node, "addLayout", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function addLayout(idx, attrs, text, options) {
+	          return insertQLayoutChildNode(node, "q-layout", idx, attrs, text, options);
+	        },
+	      });
+	      Object.defineProperty(node, "removeRow", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function removeRow(idx, options) {
+	          return removeQLayoutChildNode(node, "q-row", idx, options);
+	        },
+	      });
+	      Object.defineProperty(node, "removeCol", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function removeCol(idx, options) {
+	          return removeQLayoutChildNode(node, "q-col", idx, options);
+	        },
+	      });
+	      Object.defineProperty(node, "setAttribute", {
         configurable: true,
         enumerable: false,
         writable: false,
@@ -45495,7 +46387,7 @@
   }
 
   const api = runtime;
-  api.version = "6.9.0";
+  api.version = "6.9.1";
   global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {

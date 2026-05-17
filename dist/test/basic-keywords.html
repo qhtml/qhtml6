@@ -1787,6 +1787,105 @@ onReady {
 }
 </q-html>
       </article>
+      <article class="test-card" id="card-123">
+        <div class="test-head">
+          <h2>123. q-anchor css-anchor-first positioning</h2>
+          <span id="badge-123" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> anchor-ref-123 | anchor-target-123 | anchor-center-123</div>
+<q-html id="host-t123" data-test-no="123">
+q-component anchorbox123 {
+  div {
+    text { ${this.component.label} }
+  }
+}
+
+q-style stage123style {
+  position: relative;
+  width: 420px;
+  height: 230px;
+  background: #0f172a;
+  overflow: hidden;
+  border: 1px solid #334155;
+}
+
+q-style a123style {
+  position: absolute;
+  left: 100px;
+  top: 100px;
+  width: 140px;
+  height: 44px;
+  background: #0284c7;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+q-style b123style {
+  position: absolute;
+  width: 130px;
+  height: 36px;
+  background: #16a34a;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+q-style c123style {
+  position: absolute;
+  width: 120px;
+  height: 34px;
+  background: #f59e0b;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+q-theme anchor123theme {
+  #anchor-stage-123 { stage123style }
+  #anchor-a-123 { a123style }
+  #anchor-b-123 { b123style }
+  #anchor-c-123 { c123style }
+}
+
+anchor123theme {
+  div#anchor-stage-123 {
+    anchorbox123 anchorA123#anchor-a-123 {
+      label: "anchor-ref-123"
+    }
+
+    anchorbox123 anchorB123#anchor-b-123 {
+      label: "anchor-target-123"
+      q-anchor {
+        left: anchorA123.right;
+        top: anchorA123.bottom
+      }
+    }
+
+    anchorbox123 anchorC123#anchor-c-123 {
+      label: "anchor-center-123"
+      q-anchor {
+        left: anchorB123.right;
+        top: anchorB123.bottom
+      }
+    }
+  }
+}
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc && typeof acc.resultReported === "function") {
+    acc.resultReported(123, this.innerHTML);
+  }
+}
+</q-html>
+      </article>
     </section>
   </div>
 </body>

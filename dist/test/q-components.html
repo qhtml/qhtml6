@@ -2143,6 +2143,402 @@ onReady {
 }
 </q-html>
       </article>
+      <article class="test-card" id="card-124">
+        <div class="test-head">
+          <h2>124. q-layout nested inside q-row and q-col</h2>
+          <span id="badge-124" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> root-layout | row-nested-layout | col-nested-layout | level-3-layout</div>
+<q-html id="host-t124" data-test-no="124">
+div#t124-stage {
+  style { display: block; padding: 10px; border: 1px solid #cbd5e1; background: #f8fafc; }
+
+  q-layout#t124-root {
+    style { display: block; padding: 10px; border: 2px solid #1d4ed8; background: #dbeafe; margin-bottom: 8px; }
+    div { text { root-layout } }
+
+    q-row#t124-row1 {
+      style { display: block; padding: 8px; border: 2px solid #0f766e; background: #ccfbf1; margin-top: 8px; }
+
+      q-col#t124-col1 {
+        style { display: block; padding: 8px; border: 2px solid #7c3aed; background: #ede9fe; margin-top: 8px; }
+
+        q-layout#t124-nested-in-col {
+          style { display: block; padding: 8px; border: 2px dashed #9333ea; background: #f5f3ff; margin-top: 8px; }
+          div { text { col-nested-layout } }
+
+          q-row {
+            style { display: block; padding: 8px; border: 2px solid #be185d; background: #fce7f3; margin-top: 8px; }
+            q-col {
+              style { display: block; padding: 8px; border: 2px solid #b45309; background: #ffedd5; margin-top: 8px; }
+              q-layout#t124-level3 {
+                style { display: block; padding: 8px; border: 2px solid #374151; background: #f3f4f6; }
+                div { text { level-3-layout } }
+              }
+            }
+          }
+        }
+      }
+
+      q-layout#t124-nested-in-row {
+        style { display: block; padding: 8px; border: 2px dashed #065f46; background: #ecfdf5; margin-top: 8px; }
+        div { text { row-nested-layout } }
+      }
+    }
+  }
+
+  div#t124-out { text { waiting } }
+}
+
+onReady {
+  var host = this;
+  setTimeout(function() {
+    var acc = document.querySelector("#acc-main");
+    var root = host.querySelector("#t124-root");
+    var inRow = host.querySelector("#t124-nested-in-row");
+    var inCol = host.querySelector("#t124-nested-in-col");
+    var level3 = host.querySelector("#t124-level3");
+    var actual = [
+      root ? "root-layout" : "root-missing",
+      inRow ? "row-nested-layout" : "row-missing",
+      inCol ? "col-nested-layout" : "col-missing",
+      level3 ? "level-3-layout" : "level3-missing"
+    ].join(" | ");
+    var out = host.querySelector("#t124-out");
+    if (out) {
+      out.textContent = actual;
+    }
+    if (acc && typeof acc.outcomeReported === "function") {
+      acc.outcomeReported(124, actual.indexOf("missing") < 0, actual);
+    } else if (acc && typeof acc.resultReported === "function") {
+      acc.resultReported(124, actual);
+    }
+  }, 80);
+}
+</q-html>
+      </article>
+      <article class="test-card" id="card-125">
+        <div class="test-head">
+          <h2>125. q-layout slot projection accepts injected q-row/q-col</h2>
+          <span id="badge-125" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> slot-row-a | slot-row-b | slot-context</div>
+<q-html id="host-t125" data-test-no="125">
+q-component t125-value {
+  q-property label: "unset"
+  span.t125-value {
+    text { ${this.component.label} }
+  }
+}
+
+q-component t125-layout-shell {
+  q-layout#t125-slotted-layout {
+    width: "100%"
+    gap: "6px"
+    style { padding: 8px; border: 2px solid #2563eb; background: #eff6ff; }
+    slot { layoutRows }
+  }
+}
+
+t125-value t125source { label: "slot-context" }
+
+t125-layout-shell t125shell {
+  layoutRows {
+    q-row#t125-slot-row-a {
+      height: "auto"
+      q-col {
+        width: "auto"
+        div { text { slot-row-a } }
+      }
+    }
+    q-row#t125-slot-row-b {
+      height: "auto"
+      q-col {
+        width: "auto"
+        div { text { slot-row-b } }
+        t125-value t125child { label: t125source.label }
+      }
+    }
+  }
+}
+
+div#t125-out { text { waiting } }
+
+onReady {
+  var host = this;
+  setTimeout(function() {
+    var layout = host.querySelector("#t125-slotted-layout");
+    var rowA = host.querySelector("#t125-slot-row-a");
+    var rowB = host.querySelector("#t125-slot-row-b");
+    var child = host.querySelector(".t125-value");
+    var actual = [
+      rowA ? "slot-row-a" : "slot-row-a-missing",
+      rowB ? "slot-row-b" : "slot-row-b-missing",
+      child ? String(child.textContent || "").trim() : "slot-context-missing"
+    ].join(" | ");
+    var display = layout ? getComputedStyle(layout).display : "";
+    var out = host.querySelector("#t125-out");
+    var acc = document.querySelector("#acc-main");
+    if (out) { out.textContent = actual + " | display=" + display; }
+    if (acc && typeof acc.outcomeReported === "function") {
+      acc.outcomeReported(125, actual === "slot-row-a | slot-row-b | slot-context" && display === "grid", actual);
+    }
+  }, 120);
+}
+</q-html>
+      </article>
+      <article class="test-card" id="card-126">
+        <div class="test-head">
+          <h2>126. q-layout context pass-through across nested layouts</h2>
+          <span id="badge-126" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> inst3=123 | inst4=123 | inst5=123</div>
+<q-html id="host-t126" data-test-no="126">
+q-component t126-comp {
+  q-property blah: "unset"
+  div.t126-comp-out {
+    text { ${this.component.blah} }
+    slot { fun }
+  }
+}
+
+t126-comp inst1#t126-inst1 { blah: "abc" }
+
+q-layout#t126-layout {
+  gap: "8px"
+  style { padding: 8px; border: 2px solid #0f766e; background: #ecfdf5; }
+
+  q-row {
+    q-col {
+      t126-comp inst2#t126-inst2 { blah: "123" }
+    }
+  }
+
+  q-row {
+    q-col {
+      q-layout#t126-nested {
+        q-row {
+          q-col {
+            t126-comp inst3#t126-inst3 {
+              blah: inst2.blah
+              fun { span { text { nested-slot } } }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+t126-comp inst4#t126-inst4 {
+  blah: inst3.blah
+  fun {
+    q-layout#t126-slot-layout {
+      q-row {
+        q-col {
+          t126-comp inst5#t126-inst5 { blah: inst2.blah }
+        }
+      }
+    }
+  }
+}
+
+div#t126-out { text { waiting } }
+
+onReady {
+  var host = this;
+  setTimeout(function() {
+    var i3 = host.querySelector("#t126-inst3");
+    var i4 = host.querySelector("#t126-inst4");
+    var i5 = host.querySelector("#t126-inst5");
+    var actual = [
+      "inst3=" + (i3 ? String(i3.blah) : "missing"),
+      "inst4=" + (i4 ? String(i4.blah) : "missing"),
+      "inst5=" + (i5 ? String(i5.blah) : "missing")
+    ].join(" | ");
+    var out = host.querySelector("#t126-out");
+    var acc = document.querySelector("#acc-main");
+    if (out) { out.textContent = actual; }
+    if (acc && typeof acc.outcomeReported === "function") {
+      acc.outcomeReported(126, actual === "inst3=123 | inst4=123 | inst5=123", actual);
+    }
+  }, 120);
+}
+</q-html>
+      </article>
+      <article class="test-card" id="card-127">
+        <div class="test-head">
+          <h2>127. q-layout buttons add rows and columns around a container</h2>
+          <span id="badge-127" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> top-row | bottom-row | left-col | right-col</div>
+<q-html id="host-t127" data-test-no="127">
+div#t127-controls {
+  style { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  button#t127-add-top {
+    onclick {
+      var layout = document.querySelector("#t127-layout");
+      var row = layout.addRow(0, { height: "auto" });
+      row.id = "t127-top-row";
+      row.style.padding = "6px";
+      row.style.background = "#dbeafe";
+      row.style.border = "1px solid #60a5fa";
+      row.textContent = "top-row";
+    }
+    text { Add top row }
+  }
+  button#t127-add-bottom {
+    onclick {
+      var layout = document.querySelector("#t127-layout");
+      var row = layout.addRow(Infinity, { height: "auto" });
+      row.id = "t127-bottom-row";
+      row.style.padding = "6px";
+      row.style.background = "#e0f2fe";
+      row.style.border = "1px solid #38bdf8";
+      row.textContent = "bottom-row";
+    }
+    text { Add bottom row }
+  }
+  button#t127-add-left {
+    onclick {
+      var row = document.querySelector("#t127-main-row");
+      var col = row.addCol(0, { width: "90px" });
+      col.id = "t127-left-col";
+      col.style.padding = "6px";
+      col.style.background = "#dcfce7";
+      col.style.border = "1px solid #22c55e";
+      col.textContent = "left-col";
+    }
+    text { Add left col }
+  }
+  button#t127-add-right {
+    onclick {
+      var row = document.querySelector("#t127-main-row");
+      var col = row.addCol(Infinity, { width: "90px" });
+      col.id = "t127-right-col";
+      col.style.padding = "6px";
+      col.style.background = "#fef3c7";
+      col.style.border = "1px solid #f59e0b";
+      col.textContent = "right-col";
+    }
+    text { Add right col }
+  }
+}
+
+q-layout#t127-layout {
+  width: "100%"
+  gap: "8px"
+  style { padding: 10px; border: 2px solid #334155; background: #f8fafc; }
+  q-row#t127-main-row {
+    height: "auto"
+    q-col#t127-center-col {
+      width: "1fr"
+      div#t127-center {
+        style { padding: 12px; background: #ffffff; border: 1px solid #cbd5e1; text-align: center; }
+        text { center }
+      }
+    }
+  }
+}
+
+div#t127-out { text { waiting } }
+
+onReady {
+  var host = this;
+  setTimeout(function() {
+    host.querySelector("#t127-add-top").click();
+    host.querySelector("#t127-add-bottom").click();
+    host.querySelector("#t127-add-left").click();
+    host.querySelector("#t127-add-right").click();
+    setTimeout(function() {
+      var tokens = [
+        host.querySelector("#t127-top-row") ? "top-row" : "top-row-missing",
+        host.querySelector("#t127-bottom-row") ? "bottom-row" : "bottom-row-missing",
+        host.querySelector("#t127-left-col") ? "left-col" : "left-col-missing",
+        host.querySelector("#t127-right-col") ? "right-col" : "right-col-missing"
+      ];
+      var actual = tokens.join(" | ");
+      var out = host.querySelector("#t127-out");
+      var acc = document.querySelector("#acc-main");
+      if (out) { out.textContent = actual; }
+      if (acc && typeof acc.outcomeReported === "function") {
+        acc.outcomeReported(127, actual === "top-row | bottom-row | left-col | right-col", actual);
+      }
+    }, 80);
+  }, 120);
+}
+</q-html>
+      </article>
+      <article class="test-card" id="card-128">
+        <div class="test-head">
+          <h2>128. camelCase slots render inside q-layout/q-row/q-col</h2>
+          <span id="badge-128" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Your heading here | Add a short supporting subtitle for this section. | Add supporting content or nested blocks here.</div>
+<q-html id="host-t128" data-test-no="128">
+q-component t128-heading-block {
+  header {
+    h2 {
+      q-layout#t128-title-layout {
+        width: "100%"
+        gap: "8px"
+        q-row { q-col { slot { headingTitle } } }
+      }
+    }
+    p {
+      q-layout#t128-subtitle-layout {
+        width: "100%"
+        gap: "8px"
+        q-row { q-col { slot { headingSubtitle } } }
+      }
+    }
+    q-layout#t128-content-layout {
+      width: "100%"
+      gap: "8px"
+      q-row { q-col { slot { headingContent } } }
+    }
+  }
+}
+
+q-layout#t128-root {
+  width: "100%"
+  gap: "14px"
+  q-row {
+    height: "auto"
+    q-col {
+      width: "auto"
+      t128-heading-block {
+        headingTitle { text { Your heading here } }
+        headingSubtitle { text { Add a short supporting subtitle for this section. } }
+        headingContent { text { Add supporting content or nested blocks here. } }
+      }
+    }
+  }
+}
+
+div#t128-out { text { waiting } }
+
+onReady {
+  var host = this;
+  setTimeout(function() {
+    var title = host.querySelector("#t128-title-layout q-col");
+    var subtitle = host.querySelector("#t128-subtitle-layout q-col");
+    var content = host.querySelector("#t128-content-layout q-col");
+    var actual = [
+      title ? String(title.textContent || "").trim() : "title-missing",
+      subtitle ? String(subtitle.textContent || "").trim() : "subtitle-missing",
+      content ? String(content.textContent || "").trim() : "content-missing"
+    ].join(" | ");
+    var out = host.querySelector("#t128-out");
+    var acc = document.querySelector("#acc-main");
+    if (out) { out.textContent = actual; }
+    if (acc && typeof acc.outcomeReported === "function") {
+      acc.outcomeReported(128, actual === "Your heading here | Add a short supporting subtitle for this section. | Add supporting content or nested blocks here.", actual);
+    }
+  }, 120);
+}
+</q-html>
+      </article>
     </section>
   </div>
 </body>

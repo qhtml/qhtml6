@@ -20,6 +20,12 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - `QSignal` (callable signal type with `.connect/.disconnect/.emit`)
   - `QProperty` (declared-property backing instance type)
   - `QComponentInstance` (component-instance metadata wrapper)
+- q-perf helpers:
+  - `startQPerfMeasurement(targetNode, configNode, category, label?)`
+  - `finishQPerfMeasurement(marker)`
+  - `recordQPerfMeasurement(targetNode, configNode, category, elapsedMs, label?)`
+  - `logQPerfData()`
+  - These helpers aggregate into `qdomNode.perf_data` with total/count/average values and per-category metric totals.
 
 ## Supported node kinds
 - `element`, `text`, `raw-html`
@@ -48,7 +54,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - `q-model-view` repeaters prefer model-value interpolation (`[object Object]` for object rows) instead of q-object source-string substitution.
 - Named typed instances are registered into lexical scope/context frames:
   - declaration form: `SomeType someName { ... }`
-  - duplicate name in the same lexical frame is a hard error.
+  - duplicate names in the same lexical frame use last-write-wins semantics.
   - alias handles are UUID-backed runtime pointers, resolved lazily when dereferenced.
   - nested instance names live in child lexical scope frames (visible through that instance context chain, not promoted globally).
 - Named `q-state-machine` hosts are registered in lexical/runtime scope by machine name:
@@ -82,8 +88,26 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - root timers are registered before document nodes render so handlers and expressions can resolve them by name
   - timers inside component/worker hosts are owned by that host and remain reachable through normal named-reference dot walking
 - Inline event handlers receive the current inherited QContext in their script scope, so named references visible during render are also visible when the handler runs.
+- `q-perf` instrumentation is opt-in per direct owner node through `meta.__qhtmlPerfFlags`.
+  - Supported categories: `q-timer`, `q-signal`, `q-property`, `q-worker`, and `function`.
+  - Component definition flags are copied to each rendered component/worker instance node so measurements are per instance where a live instance QDom node exists.
+  - Measurements are aggregated in-place on the measured QDom node as `perf_data`; no per-execution records are stored.
+  - `logQPerfData()` prints `{ uuid, canonicalName, referenceName, perf_data }` for measured nodes.
+- `q-anchor` positioning is opt-in per direct owner node through `meta.__qhtmlAnchorRules`.
+  - Supported rule keys: `left`, `right`, `top`, `bottom`, `hcenter`, `vcenter`, `center`.
+  - Rule values can be reference expressions with sides (`someRef.right`, `someRef.center`) or literal CSS values.
+  - Renderer prefers CSS Anchor Positioning (`anchor-name` + `anchor(...)`) when supported.
+  - When CSS anchor positioning is unavailable, renderer falls back to runtime geometry updates (resize/scroll aware) and applies pixel offsets.
+- `q-layout`, `q-row`, and `q-col` are renderer-owned layout keywords:
+  - they render as lightweight layout DOM tags with built-in grid/table-like CSS behavior
+  - `q-layout` defaults to row stacking; `q-row` defaults to column stacking; `q-col` can host nested rows, columns, or layouts
+  - `width`, `height`, and `gap` accept normal CSS values; bare numbers are treated as pixels
+  - child context is pass-through, so layout wrappers do not create lexical QContext scopes and named references remain visible through nested layouts and projected slots
+  - rendered layout elements expose `rows()`, `row(index)`, `cols()`, `col(index)`, `addRow(...)`, `addCol(...)`, `addLayout(...)`, `removeRow(...)`, `removeCol(...)`, and `relayout()`
 
 ## Component host assignment behavior
+- Component slot projection prefers normalized component-instance `slots` over raw instance children when present. This keeps shorthand slot wrappers (`slotName { ... }`) out of rendered output and allows projected `q-layout`, `q-row`, and `q-col` nodes to render normally inside slots.
+- Slot fill lookup is case-insensitive after exact lookup. This preserves declared slot names such as `slot { heroTitle }` while allowing shorthand invocation wrappers like `heroTitle { ... }`, whose tag names are normalized by HTML/QDom parsing, to project into the intended slot.
 - `component-instance.attributes` map to DOM attributes.
 - `component-instance.props` map to direct host element property assignment (`host[propName] = value`).
 - For declared component properties only, bare dotted references (for example `myinstance.myprop1`) are resolved against interpolation scope without `${...}`.

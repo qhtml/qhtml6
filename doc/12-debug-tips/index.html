@@ -18,7 +18,7 @@ wiki-shell {
   sectionKey: "debug-tips"
   pathPrefix: ""
   pageTitle: "Debug Tips"
-  pageIntro: "When a QHTML tree does not do what you expect, start with the smallest inspection tools first: runtime debug flags, update/invalidate calls, and q-logger."
+  pageIntro: "When a QHTML tree does not do what you expect, start with the smallest inspection tools first: runtime debug flags, update/invalidate calls, q-logger, and q-perf."
   main {
     wiki-example-card {
       title: "Enable runtime debug"
@@ -59,6 +59,42 @@ q-component my-comp {
   q-property count: 0
   q-signal ping(value)
 }
+&lt;/q-html&gt;</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
+      title: "q-perf"
+      summary: "q-perf records aggregate performance counters on the measured QDOM object."
+      note: "It is direct-child-only metadata. Descendants do not inherit it."
+      details {
+        html {
+          <q-editor>&lt;q-html&gt;
+q-component measured-counter {
+  q-perf { q-timer q-property q-signal function }
+  q-property count: 0
+  q-signal changed(value)
+
+  function step() {
+    this.component.count = Number(this.component.count) + 1;
+    this.component.changed(this.component.count);
+  }
+
+  q-timer tick {
+    interval: 250
+    repeat: true
+    running: false
+    ontimeout { this.component.step(); }
+  }
+
+  button {
+    text { step once }
+    onclick { this.component.step(); }
+  }
+}
+
+measured-counter counterA { }
 &lt;/q-html&gt;</q-editor>
         }
       }

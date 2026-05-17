@@ -85,6 +85,24 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - top-level `q-switch name { key: { expression } *: defaultExpression }` emitted as QDom `kind: "q-switch"` nodes
       - component-local `q-switch` declarations emitted in `component.switchDeclarations`
       - case bodies are preserved as JavaScript source text for runtime on-demand evaluation
+    - q-perf directives:
+      - `q-perf { q-timer q-signal q-property q-worker function }` is direct-child metadata only and does not render a DOM node
+      - normal element children store flags in `node.meta.__qhtmlPerfFlags`
+      - component/worker definition children store flags in `component.meta.__qhtmlPerfFlags`
+      - top-level children store flags in `document.meta.__qhtmlPerfFlags`
+      - flags are not inherited by descendants; each measured node needs its own direct `q-perf` child
+    - q-anchor directives:
+      - `q-anchor { ... }` is direct-child metadata only and does not render a DOM node
+      - normal element children store rules in `node.meta.__qhtmlAnchorRules`
+      - component/worker definition children store rules in `component.meta.__qhtmlAnchorRules`
+      - supported keys: `left`, `right`, `top`, `bottom`, `hcenter`, `vcenter`, `center`
+      - value syntaxes: `key: value` and `key { value }`
+      - separators supported in the block: newline, `;`, `,`
+    - layout keywords:
+      - `q-layout`, `q-row`, and `q-col` parse as framework layout element nodes, not component invocations
+      - layout nodes store `meta.__qhtmlLayoutKeyword = true` and `meta.__qhtmlLayoutRole`
+      - matching component definitions named `q-layout`, `q-row`, or `q-col` do not override these keyword nodes during definition normalization
+      - layout keyword nodes keep normal child QDom content so slots, nested layouts, and named component references remain available to renderer/runtime context handling
     - q-timer declarations:
       - top-level `q-timer name { ... }` emitted in `document.meta.qTimers`
       - component-local `q-timer name { ... }` emitted in `component.qTimerDefinitions`

@@ -52,9 +52,21 @@ q-component page-builder-palette {
       title: "Blocks"
 
       q-palette-toolbox-button {
+        name: "Heading"
+        component: "pb-heading-block"
+        qhtml: "q-style pbHeadingBlockHeaderStyle { padding: 20px; borderRadius: 18px; background: #ffffff; border: 1px solid #dbe4f0; color: #0f172a } q-style pbHeadingBlockTitleStyle { margin: 0; fontSize: 30px; letterSpacing: -.04em; color: #0f172a } q-style pbHeadingBlockSubtitleStyle { marginTop: 8px; color: #64748b; lineHeight: 1.5 } q-theme pbHeadingBlockTheme { header { pbHeadingBlockHeaderStyle } h2 { pbHeadingBlockTitleStyle } p { pbHeadingBlockSubtitleStyle } } pbHeadingBlockTheme { header { h2 { q-layout { data-pb-slot: \"headingTitle\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { headingTitle } } } } } p { q-layout { data-pb-slot: \"headingSubtitle\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { headingSubtitle } } } } } q-layout { data-pb-slot: \"headingContent\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { headingContent } } } } } }"
+        instance: "pb-heading-block { headingTitle { text { Your heading here } } headingSubtitle { text { Add a short supporting subtitle for this section. } } headingContent { text { Add supporting content or nested blocks here. } } }"
+        div.pb-palette-preview.heading {
+          h3 { text { Heading } }
+          p { text { Title and subtitle } }
+        }
+      }
+
+      q-palette-toolbox-button {
         name: "Hero"
         component: "pb-hero-block"
-        qhtml: "section.pb-hero-block { h1 { text { Launch Faster } } p { text { Compose a clean landing page visually, then export declarative QHTML. } } button { class: \"pb-demo-button\" text { Start Building } } }"
+        qhtml: "q-style pbHeroBlockSectionStyle { padding: 32px; borderRadius: 20px; background: linear-gradient(135deg,#0f172a,#1d4ed8); color: white } q-style pbHeroBlockTitleStyle { margin: 0; fontSize: 38px; letterSpacing: -.06em } q-style pbHeroBlockCopyStyle { maxWidth: 560px; color: #dbeafe; lineHeight: 1.5 } q-style pbHeroBlockButtonStyle { border: 0; borderRadius: 999px; background: #22d3ee; color: #0f172a; fontWeight: 900; padding: 10px 16px } q-theme pbHeroBlockTheme { section.pb-hero-block { pbHeroBlockSectionStyle } h1 { pbHeroBlockTitleStyle } p { pbHeroBlockCopyStyle } button { pbHeroBlockButtonStyle } } pbHeroBlockTheme { section.pb-hero-block { h1 { q-layout { data-pb-slot: \"heroTitle\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { heroTitle } } } } } p { q-layout { data-pb-slot: \"heroSubtitle\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { heroSubtitle } } } } } button { class: \"pb-demo-button\" q-layout { data-pb-slot: \"heroButtonText\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { heroButtonText } } } } } q-layout { data-pb-slot: \"heroContent\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { heroContent } } } } } }"
+        instance: "pb-hero-block { heroTitle { text { Launch Faster } } heroSubtitle { text { Compose a clean landing page visually, then export declarative QHTML. } } heroButtonText { text { Start Building } } heroContent { text { Add hero details or nested blocks here. } } }"
         div.pb-palette-preview.hero {
           h3 { text { Hero } }
           p { text { Headline, copy, CTA } }
@@ -62,29 +74,21 @@ q-component page-builder-palette {
       }
 
       q-palette-toolbox-button {
-        name: "Feature Card"
-        component: "pb-feature-card"
-        qhtml: "article.pb-feature-card { h3 { text { Feature Card } } p { text { Explain one product benefit with a compact reusable component. } } }"
+        name: "Card"
+        component: "pb-card-block"
+        qhtml: "q-style pbCardBlockArticleStyle { padding: 22px; borderRadius: 18px; background: #f8fafc; border: 1px solid #dbe4f0; color: #0f172a; boxShadow: 0 12px 28px rgba(15,23,42,.08) } q-style pbCardBlockTitleStyle { marginTop: 0; marginBottom: 8px; color: #0f172a } q-style pbCardBlockBodyStyle { color: #475569; lineHeight: 1.5 } q-theme pbCardBlockTheme { article.pb-feature-card { pbCardBlockArticleStyle } h3 { pbCardBlockTitleStyle } p { pbCardBlockBodyStyle } } pbCardBlockTheme { article.pb-feature-card { h3 { q-layout { data-pb-slot: \"cardTitle\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { cardTitle } } } } } p { q-layout { data-pb-slot: \"cardBody\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { cardBody } } } } } q-layout { data-pb-slot: \"cardContent\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { cardContent } } } } } }"
+        instance: "pb-card-block { cardTitle { text { Card title } } cardBody { text { Use this card for compact page content or feature summaries. } } cardContent { text { Add card details or nested blocks here. } } }"
         div.pb-palette-preview.card {
-          h3 { text { Feature } }
-          p { text { Card block } }
-        }
-      }
-
-      q-palette-toolbox-button {
-        name: "Two Column Copy"
-        component: "pb-two-column-copy"
-        qhtml: "div.pb-two-column-copy { div { h3 { text { Left Column } } p { text { Drop this into the canvas or compose it beside another block. } } } div { h3 { text { Right Column } } p { text { The exported QHTML keeps this as a component instance. } } } }"
-        div.pb-palette-preview.columns {
-          h3 { text { Columns } }
-          p { text { Two content areas } }
+          h3 { text { Card } }
+          p { text { Title and body } }
         }
       }
 
       q-palette-toolbox-button {
         name: "Callout"
         component: "pb-callout"
-        qhtml: "aside.pb-callout { strong { text { Note } } p { text { Use callouts for announcements, warnings, or highlighted copy. } } }"
+        qhtml: "q-style pbCalloutAsideStyle { padding: 18px; borderRadius: 18px; background: #fffbeb; border: 1px solid #fde68a; color: #78350f } q-style pbCalloutStrongStyle { display: block; marginBottom: 6px; fontWeight: 900 } q-style pbCalloutBodyStyle { margin: 0; color: #78350f; lineHeight: 1.5 } q-theme pbCalloutTheme { aside.pb-callout { pbCalloutAsideStyle } strong { pbCalloutStrongStyle } p { pbCalloutBodyStyle } } pbCalloutTheme { aside.pb-callout { strong { q-layout { data-pb-slot: \"calloutLabel\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { calloutLabel } } } } } p { q-layout { data-pb-slot: \"calloutBody\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { calloutBody } } } } } q-layout { data-pb-slot: \"calloutContent\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { calloutContent } } } } } }"
+        instance: "pb-callout { calloutLabel { text { Note } } calloutBody { text { Use callouts for announcements, warnings, or highlighted copy. } } calloutContent { text { Add supporting details here. } } }"
         div.pb-palette-preview.callout {
           h3 { text { Callout } }
           p { text { Highlight panel } }
@@ -92,12 +96,134 @@ q-component page-builder-palette {
       }
 
       q-palette-toolbox-button {
+        name: "Price Box"
+        component: "pb-price-box"
+        qhtml: "q-style pbPriceBoxSectionStyle { padding: 24px; borderRadius: 20px; background: #f0f9ff; border: 1px solid #bae6fd; color: #0f172a; boxShadow: 0 12px 28px rgba(14,165,233,.14) } q-style pbPriceBoxTitleStyle { marginTop: 0; marginBottom: 8px; color: #075985 } q-style pbPriceBoxAmountStyle { fontSize: 28px; fontWeight: 950; color: #0f172a; margin: 6px 0 14px } q-style pbPriceBoxListStyle { paddingLeft: 20px; color: #334155; lineHeight: 1.6 } q-style pbPriceBoxButtonStyle { border: 0; borderRadius: 999px; background: #0ea5e9; color: white; fontWeight: 900; padding: 10px 16px } q-theme pbPriceBoxTheme { section { pbPriceBoxSectionStyle } h3 { pbPriceBoxTitleStyle } p { pbPriceBoxAmountStyle } ul { pbPriceBoxListStyle } button { pbPriceBoxButtonStyle } } pbPriceBoxTheme { section { h3 { q-layout { data-pb-slot: \"priceTitle\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { priceTitle } } } } } p { q-layout { data-pb-slot: \"priceAmount\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { priceAmount } } } } } ul { q-layout { data-pb-slot: \"priceFeatures\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { priceFeatures } } } } } button { class: \"pb-demo-button\" q-layout { data-pb-slot: \"priceButtonText\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { priceButtonText } } } } } q-layout { data-pb-slot: \"priceContent\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { priceContent } } } } } }"
+        instance: "pb-price-box { priceTitle { text { Starter } } priceAmount { text { $29 / month } } priceFeatures { li { text { Core features } } li { text { Email support } } li { text { Simple onboarding } } } priceButtonText { text { Choose plan } } priceContent { text { Add plan details here. } } }"
+        div.pb-palette-preview.price {
+          h3 { text { Price Box } }
+          p { text { Plan card } }
+        }
+      }
+
+      q-palette-toolbox-button {
+        name: "Aside Box"
+        component: "pb-aside-box"
+        qhtml: "q-style pbAsideBoxStyle { padding: 18px; borderRadius: 18px; background: #f8fafc; border: 1px solid #cbd5e1; color: #334155 } q-style pbAsideTitleStyle { marginTop: 0; color: #0f172a } q-style pbAsideBodyStyle { color: #475569; lineHeight: 1.5 } q-theme pbAsideBoxTheme { aside { pbAsideBoxStyle } h4 { pbAsideTitleStyle } p { pbAsideBodyStyle } } pbAsideBoxTheme { aside { h4 { q-layout { data-pb-slot: \"asideTitle\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { asideTitle } } } } } p { q-layout { data-pb-slot: \"asideBody\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { asideBody } } } } } q-layout { data-pb-slot: \"asideContent\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { asideContent } } } } } }"
+        instance: "pb-aside-box { asideTitle { text { Related } } asideBody { text { Add secondary context, links, or supporting notes here. } } asideContent { text { Add links or nested content here. } } }"
+        div.pb-palette-preview.callout {
+          h3 { text { Aside } }
+          p { text { Sidebar content } }
+        }
+      }
+
+      q-palette-toolbox-button {
+        name: "Container"
+        component: "pb-container-block"
+        qhtml: "q-style pbContainerSectionStyle { padding: 24px; borderRadius: 22px; background: #ffffff; border: 1px solid #dbe4f0; color: #0f172a } q-style pbContainerHeaderStyle { marginBottom: 14px } q-style pbContainerTitleStyle { marginTop: 0; marginBottom: 8px } q-style pbContainerBodyStyle { color: #64748b; lineHeight: 1.5 } q-theme pbContainerBlockTheme { section { pbContainerSectionStyle } div { pbContainerHeaderStyle } h3 { pbContainerTitleStyle } p { pbContainerBodyStyle } } pbContainerBlockTheme { section { div { h3 { q-layout { data-pb-slot: \"containerTitle\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { containerTitle } } } } } p { q-layout { data-pb-slot: \"containerBody\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { containerBody } } } } } } q-layout { data-pb-slot: \"containerContent\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { containerContent } } } } } }"
+        instance: "pb-container-block { containerTitle { text { Container } } containerBody { text { Place grouped content inside this general purpose section. } } containerContent { text { Add grouped content or nested blocks here. } } }"
+        div.pb-palette-preview.card {
+          h3 { text { Container } }
+          p { text { Generic wrapper } }
+        }
+      }
+
+      q-palette-toolbox-button {
+        name: "Text Block"
+        component: "pb-text-block"
+        qhtml: "q-style pbTextBlockStyle { padding: 18px; borderRadius: 16px; background: #ffffff; color: #334155; lineHeight: 1.65 } q-style pbTextBlockParagraphStyle { marginTop: 0; marginBottom: 8px } q-theme pbTextBlockTheme { div { pbTextBlockStyle } p { pbTextBlockParagraphStyle } } pbTextBlockTheme { div { p { q-layout { data-pb-slot: \"textBody\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { textBody } } } } } q-layout { data-pb-slot: \"textContent\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { textContent } } } } } }"
+        instance: "pb-text-block { textBody { text { Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer posuere erat a ante. } } textContent { text { Add additional copy or nested blocks here. } } }"
+        div.pb-palette-preview.card {
+          h3 { text { Text } }
+          p { text { Paragraph copy } }
+        }
+      }
+
+      q-palette-toolbox-button {
+        name: "Image Placeholder"
+        component: "pb-image-placeholder"
+        qhtml: "q-style pbImageFigureStyle { margin: 0; padding: 18px; borderRadius: 18px; background: #ffffff; border: 1px solid #dbe4f0; color: #475569 } q-style pbImageBoxStyle { minHeight: 140px; display: grid; placeItems: center; background: #e2e8f0; borderRadius: 16px; color: #475569 } q-style pbImageCaptionStyle { marginTop: 8px; color: #64748b; fontSize: 14px } q-theme pbImagePlaceholderTheme { figure { pbImageFigureStyle } div { pbImageBoxStyle } figcaption { pbImageCaptionStyle } } pbImagePlaceholderTheme { figure { div { q-layout { data-pb-slot: \"imageLabel\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { imageLabel } } } } } figcaption { q-layout { data-pb-slot: \"imageCaption\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { imageCaption } } } } } q-layout { data-pb-slot: \"imageContent\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { imageContent } } } } } }"
+        instance: "pb-image-placeholder { imageLabel { text { Image } } imageCaption { text { Optional caption } } imageContent { text { Add image-adjacent content here. } } }"
+        div.pb-palette-preview.card {
+          h3 { text { Image } }
+          p { text { Figure block } }
+        }
+      }
+
+      q-palette-toolbox-button {
+        name: "Quote"
+        component: "pb-quote-block"
+        qhtml: "q-style pbQuoteBlockStyle { margin: 0; padding: 22px; borderRadius: 20px; background: #f8fafc; borderLeft: 5px solid #f59e0b; color: #1f2937 } q-style pbQuoteTextStyle { marginTop: 0; fontSize: 20px; lineHeight: 1.45 } q-style pbQuoteCiteStyle { display: block; marginTop: 10px; color: #64748b; fontStyle: normal; fontWeight: 800 } q-theme pbQuoteBlockTheme { blockquote { pbQuoteBlockStyle } p { pbQuoteTextStyle } cite { pbQuoteCiteStyle } } pbQuoteBlockTheme { blockquote { p { q-layout { data-pb-slot: \"quoteText\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { quoteText } } } } } cite { q-layout { data-pb-slot: \"quoteCite\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { quoteCite } } } } } q-layout { data-pb-slot: \"quoteContent\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { quoteContent } } } } } }"
+        instance: "pb-quote-block { quoteText { text { A concise testimonial or pull quote can go here. } } quoteCite { text { Customer Name } } quoteContent { text { Add quote context here. } } }"
+        div.pb-palette-preview.callout {
+          h3 { text { Quote } }
+          p { text { Pull quote } }
+        }
+      }
+
+      q-palette-toolbox-button {
         name: "Button Row"
         component: "pb-button-row"
-        qhtml: "div.pb-button-row { button { class: \"pb-demo-button\" text { Primary } } button { class: \"pb-demo-button ghost\" text { Secondary } } }"
+        qhtml: "q-style pbButtonRowStyle { display: flex; gap: 12px; flexWrap: wrap; alignItems: center } q-style pbButtonPrimaryStyle { border: 0; borderRadius: 999px; background: #22d3ee; color: #0f172a; fontWeight: 900; padding: 10px 16px } q-style pbButtonGhostStyle { border: 1px solid #bfdbfe; borderRadius: 999px; background: white; color: #1d4ed8; fontWeight: 900; padding: 10px 16px } q-theme pbButtonRowTheme { div.pb-button-row { pbButtonRowStyle } button { pbButtonPrimaryStyle } .ghost { pbButtonGhostStyle } } pbButtonRowTheme { div.pb-button-row { button { class: \"pb-demo-button\" q-layout { data-pb-slot: \"primaryButtonText\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { primaryButtonText } } } } } button { class: \"pb-demo-button ghost\" q-layout { data-pb-slot: \"secondaryButtonText\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { secondaryButtonText } } } } } q-layout { data-pb-slot: \"buttonRowContent\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { buttonRowContent } } } } } }"
+        instance: "pb-button-row { primaryButtonText { text { Primary } } secondaryButtonText { text { Secondary } } buttonRowContent { text { Optional helper text } } }"
         div.pb-palette-preview.buttons {
           h3 { text { Buttons } }
           p { text { CTA pair } }
+        }
+      }
+
+      q-palette-toolbox-button {
+        name: "Layout: 1 Column"
+        component: "pb-layout-one-col"
+        qhtml: ""
+        instance: "q-layout { width: \"100%\" gap: \"14px\" q-row { height: \"auto\" q-col { width: \"auto\" } } }"
+        div.pb-palette-preview.layout {
+          h3 { text { 1 Column } }
+          p { text { One row, one column } }
+        }
+      }
+
+      q-palette-toolbox-button {
+        name: "Layout: 2 Columns"
+        component: "pb-layout-two-col"
+        qhtml: ""
+        instance: "q-layout { width: \"100%\" gap: \"14px\" q-row { height: \"auto\" q-col { width: \"1fr\" } q-col { width: \"1fr\" } } }"
+        div.pb-palette-preview.layout {
+          h3 { text { 2 Columns } }
+          p { text { Equal columns } }
+        }
+      }
+
+      q-palette-toolbox-button {
+        name: "Layout: 3 Columns"
+        component: "pb-layout-three-col"
+        qhtml: ""
+        instance: "q-layout { width: \"100%\" gap: \"14px\" q-row { height: \"auto\" q-col { width: \"1fr\" } q-col { width: \"1fr\" } q-col { width: \"1fr\" } } }"
+        div.pb-palette-preview.layout {
+          h3 { text { 3 Columns } }
+          p { text { Equal thirds } }
+        }
+      }
+
+      q-palette-toolbox-button {
+        name: "Layout: 2 Rows"
+        component: "pb-layout-two-row"
+        qhtml: ""
+        instance: "q-layout { width: \"100%\" gap: \"14px\" q-row { height: \"auto\" q-col { width: \"auto\" } } q-row { height: \"auto\" q-col { width: \"auto\" } } }"
+        div.pb-palette-preview.layout {
+          h3 { text { 2 Rows } }
+          p { text { Vertical sections } }
+        }
+      }
+
+      q-palette-toolbox-button {
+        name: "Layout: Nested 1+2"
+        component: "pb-layout-nested-one-two"
+        qhtml: ""
+        instance: "q-layout { width: \"100%\" gap: \"14px\" q-row { height: \"auto\" q-col { width: \"auto\" } } q-row { height: \"auto\" q-col { width: \"1fr\" } q-col { width: \"1fr\" } } }"
+        div.pb-palette-preview.layout {
+          h3 { text { 1 + 2 } }
+          p { text { Header plus split row } }
         }
       }
     }
@@ -119,16 +245,6 @@ q-component page-builder-canvas {
         id: "pb-builder-layout"
         width: "100%"
         gap: "14px"
-        q-row {
-          height: "auto"
-          q-col {
-            width: "auto"
-            div.pb-empty-drop {
-              h3 { text { Drop a block here } }
-              p { text { Start with a hero, card, callout, or button row. } }
-            }
-          }
-        }
       }
     }
   }

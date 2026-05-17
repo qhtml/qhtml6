@@ -13,7 +13,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.9.0";
+  const RUNTIME_VERSION = "6.9.1";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -1067,10 +1067,48 @@
     return createQModel([]);
   }
 
+  function coerceQHtmlFragmentSource(source) {
+    if (source == null) {
+      return "";
+    }
+    if (typeof source === "string") {
+      return source;
+    }
+    if (typeof source === "number" || typeof source === "boolean" || typeof source === "bigint") {
+      return String(source);
+    }
+    if (source && typeof source === "object") {
+      if (source.__qhtmlFragment === true && typeof source.source === "string") {
+        return source.source;
+      }
+      if (typeof source.source === "string") {
+        return source.source;
+      }
+      if (typeof source.qhtml === "string") {
+        return source.qhtml;
+      }
+      if (typeof source.html === "string") {
+        return source.html;
+      }
+      if (typeof source.textContent === "string") {
+        return source.textContent;
+      }
+    }
+    try {
+      return String(source);
+    } catch (error) {
+      try {
+        return JSON.stringify(source);
+      } catch (jsonError) {
+        return "";
+      }
+    }
+  }
+
   function createQHtmlFragment(source) {
     return {
       __qhtmlFragment: true,
-      source: String(source == null ? "" : source),
+      source: coerceQHtmlFragmentSource(source),
     };
   }
 
@@ -14676,6 +14714,99 @@
         return targetNode.children;
       }
 
+      function isQLayoutNodeTag(targetNode) {
+        const tag = String(targetNode && targetNode.tagName || targetNode && targetNode.componentId || "").trim().toLowerCase();
+        return tag === "q-layout" || tag === "q-row" || tag === "q-col";
+      }
+
+      function normalizeLayoutInsertIndex(idx, length, insert) {
+        if (idx === Infinity || idx === "inf" || idx === "infinity") {
+          return insert ? length : Math.max(0, length - 1);
+        }
+        if (idx == null || idx === "") {
+          return insert ? length : 0;
+        }
+        const parsed = Number(idx);
+        if (!Number.isFinite(parsed)) {
+          return insert ? length : 0;
+        }
+        if (parsed < 0) {
+          return Math.max(0, length + parsed);
+        }
+        return Math.max(0, Math.min(insert ? length : Math.max(0, length - 1), parsed));
+      }
+
+      function directQLayoutChildren(targetNode, tagName) {
+        const wanted = String(tagName || "").trim().toLowerCase();
+        const children = ensureChildrenList(targetNode);
+        const out = [];
+        for (let i = 0; i < children.length; i += 1) {
+          const child = sourceNodeOf(children[i]) || children[i];
+          if (String(child && child.tagName || "").trim().toLowerCase() === wanted) {
+            out.push(child);
+          }
+        }
+        return out;
+      }
+
+      function createQLayoutChildNode(tagName, attrs, text) {
+        const tag = String(tagName || "q-layout").trim().toLowerCase();
+        const attributes = attrs && typeof attrs === "object" && !Array.isArray(attrs)
+          ? Object.assign({}, attrs)
+          : {};
+        const created = createElementFactory({
+          tagName: tag,
+          attributes: attributes,
+          children: [],
+          textContent: text == null ? null : String(text),
+          meta: {
+            generated: true,
+            __qhtmlLayoutKeyword: true,
+            __qhtmlLayoutRole: tag.slice("q-".length),
+          },
+        });
+        return sourceNodeOf(created) || created;
+      }
+
+      function insertQLayoutChildNode(targetNode, tagName, idx, attrs, text, options) {
+        if (!isQLayoutNodeTag(targetNode)) {
+          return null;
+        }
+        const tag = String(tagName || "").trim().toLowerCase();
+        if (tag !== "q-layout" && tag !== "q-row" && tag !== "q-col") {
+          return null;
+        }
+        const children = ensureChildrenList(targetNode);
+        const sameTagChildren = directQLayoutChildren(targetNode, tag);
+        const targetSameTag = sameTagChildren[normalizeLayoutInsertIndex(idx, sameTagChildren.length, true)] || null;
+        const insertAt = targetSameTag ? children.indexOf(targetSameTag) : children.length;
+        const created = createQLayoutChildNode(tag, attrs, text);
+        children.splice(insertAt < 0 ? children.length : insertAt, 0, created);
+        markRuntimeQDomDirty(binding, targetNode);
+        requestScopedSlotMutationUpdate(targetNode, options, "qdom.layoutMutation");
+        return installQDomFactories(created);
+      }
+
+      function removeQLayoutChildNode(targetNode, tagName, idx, options) {
+        if (!isQLayoutNodeTag(targetNode)) {
+          return null;
+        }
+        const tag = String(tagName || "").trim().toLowerCase();
+        const sameTagChildren = directQLayoutChildren(targetNode, tag);
+        if (sameTagChildren.length === 0) {
+          return null;
+        }
+        const child = sameTagChildren[normalizeLayoutInsertIndex(idx, sameTagChildren.length, false)];
+        const children = ensureChildrenList(targetNode);
+        const index = children.indexOf(child);
+        if (index !== -1) {
+          children.splice(index, 1);
+          markRuntimeQDomDirty(binding, targetNode);
+          requestScopedSlotMutationUpdate(targetNode, options, "qdom.layoutMutation");
+        }
+        return child ? installQDomFactories(child) : null;
+      }
+
       function findSlotWrapperChild(targetNode, slotName) {
         const wanted = String(slotName || "default").trim().toLowerCase();
         if (!wanted || wanted === "default") {
@@ -16168,11 +16299,11 @@
           return appended == null ? targetNode : appended;
         },
       });
-      Object.defineProperty(node, "appendNode", {
-        configurable: true,
-        enumerable: false,
-        writable: false,
-        value: function appendNode(input) {
+	      Object.defineProperty(node, "appendNode", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function appendNode(input) {
           const nodesToAppend = normalizeNodesForAppend(input, node);
           if (nodesToAppend.length === 0) {
             return null;
@@ -16244,14 +16375,96 @@
             targetList.push(nodesToAppend[i]);
           }
           markRuntimeQDomDirty(binding, node);
-          return nodesToAppend.length === 1
-            ? installQDomFactories(nodesToAppend[0])
-            : nodesToAppend.map(function mapNode(appended) {
-                return installQDomFactories(appended);
-              });
-        },
-      });
-      Object.defineProperty(node, "setAttribute", {
+	          return nodesToAppend.length === 1
+	            ? installQDomFactories(nodesToAppend[0])
+	            : nodesToAppend.map(function mapNode(appended) {
+	                return installQDomFactories(appended);
+	              });
+	        },
+	      });
+	      Object.defineProperty(node, "rows", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function rows() {
+	          return directQLayoutChildren(node, "q-row").map(function mapQLayoutRow(child) {
+	            return installQDomFactories(child);
+	          });
+	        },
+	      });
+	      Object.defineProperty(node, "row", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function row(idx) {
+	          const rows = directQLayoutChildren(node, "q-row");
+	          return rows.length > 0
+	            ? installQDomFactories(rows[normalizeLayoutInsertIndex(idx, rows.length, false)])
+	            : null;
+	        },
+	      });
+	      Object.defineProperty(node, "cols", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function cols() {
+	          return directQLayoutChildren(node, "q-col").map(function mapQLayoutCol(child) {
+	            return installQDomFactories(child);
+	          });
+	        },
+	      });
+	      Object.defineProperty(node, "col", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function col(idx) {
+	          const cols = directQLayoutChildren(node, "q-col");
+	          return cols.length > 0
+	            ? installQDomFactories(cols[normalizeLayoutInsertIndex(idx, cols.length, false)])
+	            : null;
+	        },
+	      });
+	      Object.defineProperty(node, "addRow", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function addRow(idx, attrs, text, options) {
+	          return insertQLayoutChildNode(node, "q-row", idx, attrs, text, options);
+	        },
+	      });
+	      Object.defineProperty(node, "addCol", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function addCol(idx, attrs, text, options) {
+	          return insertQLayoutChildNode(node, "q-col", idx, attrs, text, options);
+	        },
+	      });
+	      Object.defineProperty(node, "addLayout", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function addLayout(idx, attrs, text, options) {
+	          return insertQLayoutChildNode(node, "q-layout", idx, attrs, text, options);
+	        },
+	      });
+	      Object.defineProperty(node, "removeRow", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function removeRow(idx, options) {
+	          return removeQLayoutChildNode(node, "q-row", idx, options);
+	        },
+	      });
+	      Object.defineProperty(node, "removeCol", {
+	        configurable: true,
+	        enumerable: false,
+	        writable: false,
+	        value: function removeCol(idx, options) {
+	          return removeQLayoutChildNode(node, "q-col", idx, options);
+	        },
+	      });
+	      Object.defineProperty(node, "setAttribute", {
         configurable: true,
         enumerable: false,
         writable: false,

@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.9.0
+# QHTML.js v6.9.1
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,10 +12,11 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v6.9.0
+## Whats New in v6.9.1
 
-- Bumped the release line to `6.9.0` and moved release bundling to the root `build-release.sh` entry point.
+- Bumped the release line to `6.9.1` and moved release bundling to the root `build-release.sh` entry point.
 - Added `q-switch name { ... }` / `switch name { ... }` for scoped primitive lookup functions usable from handlers, interpolation, component code, and `qhtml(...)`.
+- Added `q-perf { ... }` for opt-in QDOM-backed performance aggregation on timers, signals, properties, workers, and component functions.
 - Refined `q-var name { ... }` documentation around stored primitive/object/array/function values, assignment through the q-var handle, scoped references, and dynamic QHTML fragments.
 - Refreshed the documentation runtime copies so doc pages can load their local QHTML bundle without parent-directory paths.
 
@@ -1927,6 +1928,55 @@ q-component my-comp {
   - inside a `q-component` definition: applies to all instances of that component
   - inside a specific instance block: applies to that instance only
 - Supported categories: `q-property`, `q-signal`, `q-component`, `function`, `slot`, `model`, `instantiation`, `all`
+
+### `q-perf` (QDOM performance counters)
+
+`q-perf` is direct-child instrumentation metadata. It does not render a DOM element and it is not inherited by descendants. Add it to the exact component, worker, element, or host scope you want to measure.
+
+```qhtml
+q-component measured-counter {
+  q-perf { q-timer q-property q-signal function }
+  q-property count: 0
+  q-signal changed(value)
+
+  function step() {
+    this.component.count = Number(this.component.count) + 1;
+    this.component.changed(this.component.count);
+  }
+
+  q-timer tick {
+    interval: 100
+    repeat: true
+    running: true
+    ontimeout { this.component.step(); }
+  }
+}
+
+measured-counter counterA { }
+```
+
+Supported flags:
+- `q-timer`: timer timeout execution.
+- `q-signal`: signal emission.
+- `q-property`: declared property writes.
+- `q-worker`: worker startup and worker method dispatch.
+- `function`: component method calls.
+- `all`: all q-perf supported categories.
+
+Runtime stores aggregated counters on the measured QDOM object as `perf_data`:
+
+```js
+{
+  totalMs: 12.5,
+  count: 4,
+  averageMs: 3.125,
+  metrics: {
+    "q-timer": { totalMs: 10, count: 2, averageMs: 5 }
+  }
+}
+```
+
+After `QHTMLContentLoaded`, QHTML logs each measured node as `{ uuid, canonicalName, referenceName, perf_data }`.
 
 ## 13. Optional Tag Libraries (`w3-tags.js`, `bs-tags.js`) [DEPRECATED]
 

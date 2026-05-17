@@ -31,6 +31,11 @@
     return value === null || value === undefined || value === "" ? fallback : value;
   }
 
+  function rawAttr(el, name) {
+    var value = el && el.getAttribute ? el.getAttribute(name) : null;
+    return value === null || value === undefined ? "" : String(value);
+  }
+
   function clamp(v, a, b) {
     return Math.max(a, Math.min(b, v));
   }
@@ -252,29 +257,24 @@
   }
 
   function markEmptyColumns(root) {
+    if (root && root.closest && root.closest(Q.toolbox)) {
+      return;
+    }
     directAndNested(root, Q.col).forEach(function (col) {
+      if (col.closest && col.closest(Q.toolbox)) {
+        return;
+      }
       var hasItems = !!col.querySelector(Q.item);
       var hasStructural = direct(col, Q.row).length > 0 || direct(col, Q.layout).length > 0;
-      col.classList.toggle("q-col-empty", !hasItems && !hasStructural && !col.querySelector(".pb-empty-drop"));
+      col.classList.toggle("q-col-empty", !hasItems && !hasStructural);
     });
   }
 
-  function createEmptyDrop() {
-    var empty = document.createElement("div");
-    empty.className = "pb-empty-drop";
-    empty.innerHTML = "<div><h3>Drop a block here</h3><p>Start with a hero, card, callout, or button row.</p></div>";
-    return empty;
-  }
-
   function ensureCanvasPlaceholder(layout) {
-    var row;
-    var col;
-    if (!layout || layout.querySelector(Q.item) || layout.querySelector(".pb-empty-drop")) {
+    if (!layout) {
       return;
     }
-    row = layout.addRow(Infinity, { height: "auto" });
-    col = row.addCol(Infinity, { width: "auto" });
-    col.appendChild(createEmptyDrop());
+    relayout(layout);
   }
 
   function directAndNested(root, tagName) {
@@ -303,10 +303,10 @@
       "q-layout{display:grid;gap:12px;background:transparent;border:0;border-radius:0;padding:0;overflow:visible;color:#0f172a;position:relative}",
       "q-row{display:grid;gap:12px;overflow:visible;border:0;border-radius:0;padding:0;background:transparent}",
       "q-col{display:block;overflow:visible;background:rgba(255,255,255,.92);border:1px solid #d8e0ec;border-radius:18px;padding:14px;color:#0f172a;box-shadow:0 12px 28px rgba(15,23,42,.08);position:relative;transition:border-color .14s ease,box-shadow .14s ease,background .14s ease}",
-      "q-col.q-col-empty:after{content:'Drop here';display:grid;place-items:center;min-height:92px;border:1px dashed #adc2df;border-radius:14px;color:#7b8da5;font-weight:800;background:rgba(241,245,249,.72)}",
-      ".pb-canvas-shell,.pb-export-panel{background:rgba(255,255,255,.78);border:1px solid rgba(148,163,184,.42);border-radius:26px;box-shadow:0 22px 70px rgba(15,23,42,.12);overflow:hidden}.pb-canvas-meta,.pb-export-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid rgba(148,163,184,.28);background:rgba(248,250,252,.82)}.pb-status{font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:#1d4ed8;background:#dbeafe;border:1px solid #bfdbfe;border-radius:999px;padding:8px 11px}.pb-stage{padding:18px;overflow:auto}.pb-empty-drop{min-height:180px;display:grid;place-items:center;text-align:center;border:1px dashed #b7c6dc;border-radius:16px;background:linear-gradient(180deg,#f8fbff,#eef5ff);color:#64748b}.pb-empty-drop h3{margin:0 0 6px;font-size:20px;color:#1e293b}.pb-empty-drop p{margin:0;font-size:13px}",
-      "q-palette-toolbox{display:block;color:#0f172a}q-palette-toolbox:not([docked='true']){position:fixed;left:24px;top:24px;z-index:5000;width:250px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,.35);overflow:hidden;user-select:none}.q-palette-titlebar{cursor:move;padding:13px 15px;background:#0f172a;color:white;font-weight:950;letter-spacing:-.035em}.q-palette-body{border:0;border-radius:0;background:transparent;box-shadow:none;padding:10px 16px 18px}.q-palette-body q-layout{background:transparent;border:0;padding:0;overflow:visible}.q-palette-body q-row{border:0;background:transparent;padding:0}.q-palette-body q-col{padding:0;border:0;background:transparent;box-shadow:none}",
-      "q-palette-toolbox-button{display:block;position:relative;min-height:76px;padding:0;border-radius:18px;background:white;border:1px solid rgba(148,163,184,.3);box-shadow:0 12px 26px rgba(0,0,0,.18);cursor:grab;overflow:hidden}q-palette-toolbox-button:active{cursor:grabbing}.pb-palette-preview{min-height:76px;padding:14px;background:linear-gradient(135deg,#ffffff,#eef6ff);border-left:5px solid #2563eb}.pb-palette-preview h3{margin:0;font-size:14px}.pb-palette-preview p{margin:4px 0 0;font-size:12px;color:#64748b}.pb-palette-preview.hero{border-color:#06b6d4}.pb-palette-preview.card{border-color:#6366f1}.pb-palette-preview.columns{border-color:#14b8a6}.pb-palette-preview.callout{border-color:#f59e0b}.pb-palette-preview.buttons{border-color:#ec4899}.pb-palette-preview.edited{max-height:132px;overflow:hidden;border-color:#2563eb}.pb-palette-edit-button{position:absolute;top:8px;right:8px;z-index:4;width:30px;height:30px;display:grid;place-items:center;border:1px solid rgba(37,99,235,.22);border-radius:999px;background:rgba(255,255,255,.92);color:#1d4ed8;box-shadow:0 8px 20px rgba(15,23,42,.16);cursor:pointer}.pb-palette-edit-button:hover{background:#eff6ff;color:#0f172a}.pb-palette-edit-button svg{width:15px;height:15px;display:block}",
+      "q-col.q-col-empty{min-height:96px;border-style:dashed;background:rgba(248,250,252,.62);box-shadow:none}",
+      ".pb-canvas-shell,.pb-export-panel{background:rgba(255,255,255,.78);border:1px solid rgba(148,163,184,.42);border-radius:26px;box-shadow:0 22px 70px rgba(15,23,42,.12);overflow:hidden}.pb-canvas-meta,.pb-export-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid rgba(148,163,184,.28);background:rgba(248,250,252,.82)}.pb-status{font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:#1d4ed8;background:#dbeafe;border:1px solid #bfdbfe;border-radius:999px;padding:8px 11px}.pb-stage{padding:18px;overflow:auto}.pb-stage>#pb-builder-layout{min-height:280px;padding:12px;border:1px dashed rgba(37,99,235,.25);border-radius:20px;background:rgba(248,250,252,.42)}",
+      "q-palette-toolbox{display:block;color:#0f172a}q-palette-toolbox:not([docked='true']){position:fixed;left:24px;top:24px;z-index:5000;width:250px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,.35);overflow:hidden;user-select:none}.q-palette-titlebar{cursor:move;padding:13px 15px;background:#0f172a;color:white;font-weight:950;letter-spacing:-.035em}.q-palette-body{display:grid;gap:10px;border:0;border-radius:0;background:transparent;box-shadow:none;padding:10px 16px 18px}",
+      "q-palette-toolbox-button{display:block;position:relative;min-height:76px;padding:0;border-radius:18px;background:white;border:1px solid rgba(148,163,184,.3);box-shadow:0 12px 26px rgba(0,0,0,.18);cursor:grab;overflow:hidden}q-palette-toolbox-button:active{cursor:grabbing}.pb-palette-preview{min-height:76px;padding:14px;background:linear-gradient(135deg,#ffffff,#eef6ff);border-left:5px solid #2563eb}.pb-palette-preview h3{margin:0;font-size:14px}.pb-palette-preview p{margin:4px 0 0;font-size:12px;color:#64748b}.pb-palette-preview.hero{border-color:#06b6d4}.pb-palette-preview.card{border-color:#6366f1}.pb-palette-preview.columns{border-color:#14b8a6}.pb-palette-preview.callout{border-color:#f59e0b}.pb-palette-preview.buttons{border-color:#ec4899}.pb-palette-preview.layout{border-color:#10b981}.pb-palette-preview.heading{border-color:#8b5cf6}.pb-palette-preview.price{border-color:#0ea5e9}.pb-palette-preview.edited{border-color:#2563eb}.pb-palette-edit-button{position:absolute;top:8px;right:8px;z-index:4;width:30px;height:30px;display:grid;place-items:center;border:1px solid rgba(37,99,235,.22);border-radius:999px;background:rgba(255,255,255,.92);color:#1d4ed8;box-shadow:0 8px 20px rgba(15,23,42,.16);cursor:pointer}.pb-palette-edit-button:hover{background:#eff6ff;color:#0f172a}.pb-palette-edit-button svg{width:15px;height:15px;display:block}",
       "q-builder-item{display:block;position:relative;margin:0;border-radius:18px;border:1px solid rgba(37,99,235,.28);background:white;box-shadow:0 14px 34px rgba(15,23,42,.1);overflow:hidden;cursor:grab}q-builder-item:active{cursor:grabbing}q-builder-item.pb-selected{outline:3px solid rgba(37,99,235,.32)}.q-builder-item-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;background:#eff6ff;border-bottom:1px solid #bfdbfe;color:#1d4ed8;font-size:11px;font-weight:950;letter-spacing:.04em;text-transform:uppercase}.q-builder-item-actions{display:flex;gap:5px}.q-builder-item-actions button{border:0;border-radius:999px;background:white;color:#1d4ed8;font-weight:950;font-size:11px;padding:3px 7px;cursor:pointer}.q-builder-item-actions button.danger{color:#be123c}.q-builder-item-preview{padding:14px}",
       ".pb-hero-block{padding:32px;border-radius:20px;background:linear-gradient(135deg,#0f172a,#1d4ed8);color:white}.pb-hero-block h1{margin:0;font-size:38px;letter-spacing:-.06em}.pb-hero-block p{max-width:560px;color:#dbeafe}.pb-demo-button{border:0;border-radius:999px;background:#22d3ee;color:#0f172a;font-weight:900;padding:10px 16px}.pb-demo-button.ghost{background:white;color:#1d4ed8;border:1px solid #bfdbfe}.pb-feature-card{padding:22px;border-radius:18px;background:#f8fafc;border:1px solid #dbe4f0}.pb-feature-card h3,.pb-two-column-copy h3{margin-top:0}.pb-two-column-copy{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.pb-two-column-copy>div{padding:18px;border-radius:16px;background:#f8fafc;border:1px solid #dbe4f0}.pb-callout{padding:18px;border-radius:18px;background:#fffbeb;border:1px solid #fde68a;color:#78350f}.pb-button-row{display:flex;gap:12px;flex-wrap:wrap}",
       ".q-drag-ghost{position:fixed;z-index:99999;pointer-events:none;width:128px;min-height:82px;display:grid;place-items:center;border-radius:18px;border:2px solid #2563eb;background:white;color:#1d4ed8;font-size:13px;font-weight:950;text-align:center;padding:12px;box-shadow:0 22px 60px rgba(0,0,0,.38);opacity:.96}.q-drop-indicator{position:fixed;z-index:99998;pointer-events:none;border:3px solid #2563eb;border-radius:14px;background:rgba(37,99,235,.1);box-shadow:0 0 0 2px rgba(255,255,255,.72)}.q-drop-indicator.row-line{height:7px;border:0;border-radius:999px;background:#2563eb;box-shadow:0 0 0 2px rgba(255,255,255,.85)}.q-drop-indicator.col-line{width:7px;border:0;border-radius:999px;background:#2563eb;box-shadow:0 0 0 2px rgba(255,255,255,.85)}",
@@ -320,6 +320,134 @@
 
   function qhtmlAttrSource(el) {
     return safeAttr(el, "qhtml", "div { text { Empty component } }");
+  }
+
+  function qhtmlDefinitionSource(el) {
+    return rawAttr(el, "qhtml");
+  }
+
+  function qhtmlInstanceSource(el) {
+    return safeAttr(el, "instance", qhtmlAttrSource(el));
+  }
+
+  function qhtmlStringLiteral(value) {
+    return JSON.stringify(String(value == null ? "" : value));
+  }
+
+  function builderItemQHtml(name, component, source, instance) {
+    var definition = source == null ? "" : String(source);
+    var instantiation = instance == null || instance === "" ? (definition || "div { text { Empty component } }") : String(instance);
+    return [
+      "q-builder-item {",
+      "  name: " + qhtmlStringLiteral(name || "Item"),
+      "  component: " + qhtmlStringLiteral(component || "pb-item"),
+      "  qhtml: " + qhtmlStringLiteral(definition),
+      "  instance: " + qhtmlStringLiteral(instantiation),
+      "}"
+    ].join("\n");
+  }
+
+  function componentDefinitionBlock(component, source) {
+    var name = String(component || "").trim();
+    var body = String(source || "").trim();
+    if (!name || !body) {
+      return "";
+    }
+    return "q-component " + name + " {\n" + indentBlock(body, 1) + "\n}";
+  }
+
+  function collectPaletteDefinitions(primaryComponent, primaryDefinition) {
+    var map = Object.create(null);
+    var primaryName = String(primaryComponent || "").trim();
+    if (primaryName && String(primaryDefinition || "").trim()) {
+      map[primaryName] = String(primaryDefinition || "");
+    }
+    arr(document.querySelectorAll(Q.button)).forEach(function (button) {
+      var name = componentName(button);
+      var source = qhtmlDefinitionSource(button);
+      if (name && source && !map[name]) {
+        map[name] = source;
+      }
+    });
+    return Object.keys(map).sort().map(function (name) {
+      return componentDefinitionBlock(name, map[name]);
+    }).filter(Boolean).join("\n\n");
+  }
+
+  function qdomOf(el) {
+    if (!el || typeof el.qdom !== "function") {
+      return null;
+    }
+    try {
+      return el.qdom();
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function rootQDom() {
+    var host = document.getElementById("page-builder-host");
+    return qdomOf(host);
+  }
+
+  function isEditorPreviewTarget(el) {
+    return !!(el && el.closest && el.closest(Q.item));
+  }
+
+  function intentTouchesEditorPreview(intent) {
+    return !!(intent && (
+      isEditorPreviewTarget(intent.target) ||
+      isEditorPreviewTarget(intent.container)
+    ));
+  }
+
+  function renderLayoutSoon(reason) {
+    clearTimeout(renderLayoutSoon.timer);
+    renderLayoutSoon.timer = setTimeout(function () {
+      arr(document.querySelectorAll(Q.layout + "," + Q.row + "," + Q.col)).forEach(installApi);
+      arr(document.querySelectorAll(Q.layout)).forEach(relayout);
+      updateExportPanel(false);
+      if (reason) {
+        setStatus(reason);
+      }
+    }, 40);
+  }
+
+  function appendQHtmlToQDom(target, source) {
+    var qdom = qdomOf(target);
+    if (isEditorPreviewTarget(target) || !qdom || typeof qdom.appendNode !== "function") {
+      return false;
+    }
+    qdom.appendNode(String(source || ""));
+    renderLayoutSoon("Canvas updated");
+    return true;
+  }
+
+  function replaceQDomWithQHtml(target, source) {
+    var qdom = qdomOf(target);
+    var root = rootQDom();
+    if (isEditorPreviewTarget(target) || !qdom || typeof qdom.replaceWithQHTML !== "function") {
+      return false;
+    }
+    qdom.replaceWithQHTML(String(source || ""), root || null);
+    renderLayoutSoon("Canvas updated");
+    return true;
+  }
+
+  function insertQDomRow(container, index, attrs) {
+    var qdom = qdomOf(container);
+    if (isEditorPreviewTarget(container) || !qdom || typeof qdom.addRow !== "function") {
+      return null;
+    }
+    return qdom.addRow(index, attrs || { height: "auto" });
+  }
+
+  function insertQDomCol(container, index, attrs) {
+    var qdom = qdomOf(container);
+    if (isEditorPreviewTarget(container) || !qdom || typeof qdom.addCol !== "function") {
+      return null;
+    }
+    return qdom.addCol(index, attrs || { width: "auto" });
   }
 
   function escapeHtmlText(value) {
@@ -414,8 +542,310 @@
     return wrap;
   }
 
+  function previewSourceForElement(el) {
+    var component = componentName(el);
+    var definition = qhtmlDefinitionSource(el);
+    var instance = qhtmlInstanceSource(el);
+    if (definition) {
+      return collectPaletteDefinitions(component, definition) + "\n\n" + instance;
+    }
+    return instance;
+  }
+
   function previewFragmentFromButton(button) {
     return button.__payloadTemplate ? button.__payloadTemplate.content.cloneNode(true) : document.createTextNode(button.getAttribute("name") || "Item");
+  }
+
+  function replaceInstanceSlotSource(instanceSource, slotName, slotSource) {
+    var source = String(instanceSource || "").trim();
+    var slotKey = String(slotName || "").trim();
+    var slotKeyLower = slotKey.toLowerCase();
+    var openIndex;
+    var closeIndex;
+    var i;
+    var nameStart;
+    var name;
+    var blockOpen;
+    var blockClose;
+    var replacement;
+    if (!source || !slotKey) {
+      return "";
+    }
+
+    function isNameChar(ch) {
+      return /[A-Za-z0-9_-]/.test(ch || "");
+    }
+
+    function skipWhitespace(index) {
+      while (index < source.length && /\s/.test(source.charAt(index))) {
+        index += 1;
+      }
+      return index;
+    }
+
+    function matchingBrace(index) {
+      var depth = 0;
+      var quote = "";
+      var escaped = false;
+      for (var j = index; j < source.length; j += 1) {
+        var ch = source.charAt(j);
+        if (quote) {
+          if (escaped) {
+            escaped = false;
+          } else if (ch === "\\") {
+            escaped = true;
+          } else if (ch === quote) {
+            quote = "";
+          }
+          continue;
+        }
+        if (ch === "\"" || ch === "'") {
+          quote = ch;
+          continue;
+        }
+        if (ch === "{") {
+          depth += 1;
+        } else if (ch === "}") {
+          depth -= 1;
+          if (depth === 0) {
+            return j;
+          }
+        }
+      }
+      return -1;
+    }
+
+    openIndex = source.indexOf("{");
+    if (openIndex < 0) {
+      return "";
+    }
+    closeIndex = matchingBrace(openIndex);
+    if (closeIndex < 0) {
+      return "";
+    }
+    replacement = slotKey + " {\n" + indentBlock(slotSource, 1) + "\n}";
+    i = openIndex + 1;
+    while (i < closeIndex) {
+      i = skipWhitespace(i);
+      nameStart = i;
+      while (i < closeIndex && isNameChar(source.charAt(i))) {
+        i += 1;
+      }
+      if (i === nameStart) {
+        i += 1;
+        continue;
+      }
+      name = source.slice(nameStart, i);
+      i = skipWhitespace(i);
+      if (source.charAt(i) !== "{") {
+        continue;
+      }
+      blockOpen = i;
+      blockClose = matchingBrace(blockOpen);
+      if (blockClose < 0) {
+        return "";
+      }
+      if (name.toLowerCase() === slotKeyLower) {
+        return source.slice(0, nameStart) + replacement + source.slice(blockClose + 1);
+      }
+      i = blockClose + 1;
+    }
+    return source.slice(0, closeIndex).trimEnd() + "\n  " + replacement.replace(/\n/g, "\n  ") + "\n" + source.slice(closeIndex);
+  }
+
+  function qhtmlSourceMatchingBrace(source, index) {
+    var depth = 0;
+    var quote = "";
+    var escaped = false;
+    for (var i = index; i < source.length; i += 1) {
+      var ch = source.charAt(i);
+      if (quote) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch === "\\") {
+          escaped = true;
+        } else if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+      if (ch === "\"" || ch === "'") {
+        quote = ch;
+        continue;
+      }
+      if (ch === "{") {
+        depth += 1;
+      } else if (ch === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          return i;
+        }
+      }
+    }
+    return -1;
+  }
+
+  function qhtmlSourceNameChar(ch) {
+    return /[A-Za-z0-9_-]/.test(ch || "");
+  }
+
+  function qhtmlSourceSkipWhitespace(source, index) {
+    while (index < source.length && /\s/.test(source.charAt(index))) {
+      index += 1;
+    }
+    return index;
+  }
+
+  function replaceSlotInComponentOccurrence(instanceSource, componentName, ordinal, slotName, slotSource) {
+    var source = String(instanceSource || "").trim();
+    var wanted = String(componentName || "").trim().toLowerCase();
+    var occurrence = Math.max(0, Number(ordinal) || 0);
+    var count = 0;
+    var i = 0;
+    var nameStart;
+    var name;
+    var blockOpen;
+    var blockClose;
+    var blockSource;
+    var nextBlock;
+    if (!source || !wanted || !slotName) {
+      return "";
+    }
+    while (i < source.length) {
+      i = qhtmlSourceSkipWhitespace(source, i);
+      nameStart = i;
+      while (i < source.length && qhtmlSourceNameChar(source.charAt(i))) {
+        i += 1;
+      }
+      if (i === nameStart) {
+        i += 1;
+        continue;
+      }
+      name = source.slice(nameStart, i);
+      i = qhtmlSourceSkipWhitespace(source, i);
+      if (source.charAt(i) !== "{") {
+        continue;
+      }
+      blockOpen = i;
+      blockClose = qhtmlSourceMatchingBrace(source, blockOpen);
+      if (blockClose < 0) {
+        return "";
+      }
+      if (name.toLowerCase() === wanted) {
+        if (count === occurrence) {
+          blockSource = source.slice(nameStart, blockClose + 1);
+          nextBlock = replaceInstanceSlotSource(blockSource, slotName, slotSource);
+          return nextBlock ? source.slice(0, nameStart) + nextBlock + source.slice(blockClose + 1) : "";
+        }
+        count += 1;
+      }
+      i = blockOpen + 1;
+    }
+    return "";
+  }
+
+  function renderedComponentHostForSlot(surface, owner) {
+    var preview = owner && owner.querySelector ? owner.querySelector(":scope > .q-builder-item-preview") : null;
+    var host = surface && surface.closest ? surface.closest("[q-component]") : null;
+    return host && preview && preview.contains(host) ? host : null;
+  }
+
+  function renderedComponentOrdinal(owner, componentHost) {
+    var componentTag = tag(componentHost);
+    var preview = owner && owner.querySelector ? owner.querySelector(":scope > .q-builder-item-preview") : null;
+    var hosts;
+    var i;
+    if (!componentTag || !preview) {
+      return 0;
+    }
+    hosts = arr(preview.querySelectorAll("[q-component]")).filter(function (candidate) {
+      return tag(candidate) === componentTag;
+    });
+    for (i = 0; i < hosts.length; i += 1) {
+      if (hosts[i] === componentHost) {
+        return i;
+      }
+    }
+    return 0;
+  }
+
+  function applyPaletteItemToRenderedSlot(intent, source, moving) {
+    var target = intent && (intent.target || intent.container);
+    var surface = target && target.closest ? target.closest("[data-pb-slot]") : null;
+    var owner = surface && surface.closest ? surface.closest(Q.item) : null;
+    var componentHost = renderedComponentHostForSlot(surface, owner);
+    var slotName = surface ? surface.getAttribute("data-pb-slot") : "";
+    var nextInstance;
+    if (!surface || !owner || !slotName || !source || owner === source || (source.contains && source.contains(owner))) {
+      return false;
+    }
+    if (componentHost) {
+      nextInstance = replaceSlotInComponentOccurrence(
+        qhtmlInstanceSource(owner),
+        tag(componentHost),
+        renderedComponentOrdinal(owner, componentHost),
+        slotName,
+        qhtmlInstanceSource(source)
+      );
+    }
+    if (!nextInstance) {
+      nextInstance = replaceInstanceSlotSource(
+        qhtmlInstanceSource(owner),
+        slotName,
+        qhtmlInstanceSource(source)
+      );
+    }
+    if (!nextInstance) {
+      return false;
+    }
+    owner.setAttribute("instance", nextInstance);
+    if (typeof owner.refreshSourcePreview === "function") {
+      owner.refreshSourcePreview();
+    }
+    if (moving && source && typeof source.removeItem === "function") {
+      source.removeItem();
+    }
+    BuilderStore.saveSoon();
+    renderLayoutSoon("Updated " + slotName);
+    return true;
+  }
+
+  function directRenderedBuilderItemsIn(surface, owner) {
+    return arr(surface ? surface.querySelectorAll(Q.item) : []).filter(function (item) {
+      var parentOwner = item.parentElement && item.parentElement.closest
+        ? item.parentElement.closest(Q.item)
+        : null;
+      return parentOwner === owner;
+    });
+  }
+
+  function reconcileRenderedSlotsForItem(owner) {
+    var nextInstance = qhtmlInstanceSource(owner);
+    var changed = false;
+    if (!owner || !owner.querySelectorAll) {
+      return false;
+    }
+    arr(owner.querySelectorAll(":scope > .q-builder-item-preview [data-pb-slot]")).forEach(function (surface) {
+      var slotName = surface.getAttribute("data-pb-slot") || "";
+      var droppedItems = directRenderedBuilderItemsIn(surface, owner);
+      var slotSource;
+      if (!slotName || droppedItems.length === 0) {
+        return;
+      }
+      slotSource = droppedItems.map(function (item) {
+        return qhtmlInstanceSource(item);
+      }).join("\n");
+      nextInstance = replaceInstanceSlotSource(nextInstance, slotName, slotSource);
+      changed = true;
+    });
+    if (changed && nextInstance) {
+      owner.setAttribute("instance", nextInstance);
+    }
+    return changed;
+  }
+
+  function reconcileRenderedSlotState(layout) {
+    arr((layout || document).querySelectorAll(Q.item)).forEach(reconcileRenderedSlotsForItem);
   }
 
   function pencilSvg() {
@@ -449,13 +879,26 @@
     var item = document.createElement(Q.item);
     item.setAttribute("name", options.name || "Item");
     item.setAttribute("component", options.component || "pb-item");
-    item.setAttribute("qhtml", options.qhtml || "div { text { Empty component } }");
+    item.setAttribute("qhtml", options.qhtml || "");
+    item.setAttribute("instance", options.instance || options.qhtml || "div { text { Empty component } }");
     item.appendPreview(options.preview || null);
     return item;
   }
 
+  function payloadQHtmlFromSource(source) {
+    if (!source || typeof source.getAttribute !== "function") {
+      return "";
+    }
+    return builderItemQHtml(
+      source.getAttribute("name") || "Item",
+      source.getAttribute("component") || componentName(source),
+      qhtmlDefinitionSource(source),
+      qhtmlInstanceSource(source)
+    );
+  }
+
   var PaletteStore = {
-    key: "qhtml6.pageBuilder.paletteSources",
+    key: "qhtml6.pageBuilder.paletteSources.v2",
     cache: null,
     read: function () {
       if (this.cache) {
@@ -646,6 +1089,12 @@
       existing.forEach(function (node) {
         preview.appendChild(node);
       });
+      if (existing.length === 0) {
+        preview.appendChild(previewFragmentFromSource(
+          previewSourceForElement(this),
+          name
+        ));
+      }
       this.appendChild(bar);
       this.appendChild(preview);
     }
@@ -667,7 +1116,7 @@
 
     refreshSourcePreview() {
       this.appendPreview(previewFragmentFromSource(
-        this.getAttribute("qhtml") || "div { text { Empty component } }",
+        previewSourceForElement(this),
         this.getAttribute("name") || "Item"
       ));
     }
@@ -676,13 +1125,18 @@
       return this;
     }
 
+    sourceQHtml() {
+      return payloadQHtmlFromSource(this);
+    }
+
     clonePayload() {
       var clone = createBuilderItem({
         name: this.getAttribute("name") || "Item",
         component: this.getAttribute("component") || "pb-item",
-        qhtml: this.getAttribute("qhtml") || "div { text { Empty component } }",
+        qhtml: qhtmlDefinitionSource(this),
+        instance: qhtmlInstanceSource(this),
         preview: previewFragmentFromSource(
-          this.getAttribute("qhtml") || "div { text { Empty component } }",
+          previewSourceForElement(this),
           this.getAttribute("name") || "Item"
         )
       });
@@ -757,7 +1211,7 @@
     }
 
     renderLabel() {
-      var preview = this.__sourceEdited ? previewFragmentFromSource(qhtmlAttrSource(this), this.getAttribute("name") || "Item") : previewFragmentFromButton(this);
+      var preview = this.__sourceEdited ? previewFragmentFromSource(previewSourceForElement(this), this.getAttribute("name") || "Item") : previewFragmentFromButton(this);
       this.innerHTML = "";
       this.appendChild(preview);
       this.appendChild(createPaletteEditButton(this));
@@ -774,9 +1228,14 @@
       return createBuilderItem({
         name: this.getAttribute("name") || "Item",
         component: componentName(this),
-        qhtml: qhtmlAttrSource(this),
-        preview: previewFragmentFromSource(qhtmlAttrSource(this), this.getAttribute("name") || "Item")
+        qhtml: qhtmlDefinitionSource(this),
+        instance: qhtmlInstanceSource(this),
+        preview: previewFragmentFromSource(previewSourceForElement(this), this.getAttribute("name") || "Item")
       });
+    }
+
+    sourceQHtml() {
+      return builderItemQHtml(this.getAttribute("name") || "Item", componentName(this), qhtmlDefinitionSource(this), qhtmlInstanceSource(this));
     }
   }
 
@@ -792,7 +1251,7 @@
       var title = this.getAttribute("title") || "Palette";
       var docked = this.getAttribute("docked") === "true";
       var buttons = direct(this, Q.button);
-      var body = document.createElement(Q.layout);
+      var body = document.createElement("div");
       var bar = null;
 
       if (!docked) {
@@ -802,26 +1261,15 @@
       }
 
       body.className = "q-palette-body";
-      body.setAttribute("width", "100%");
-      body.setAttribute("height", "auto");
-      body.setAttribute("gap", "10px");
-
       this.innerHTML = "";
       if (bar) { this.appendChild(bar); }
       this.appendChild(body);
 
       buttons.forEach(function (button) {
-        var row = document.createElement(Q.row);
-        var col = document.createElement(Q.col);
-        row.setAttribute("height", "auto");
-        col.setAttribute("width", "auto");
-        col.appendChild(button);
-        row.appendChild(col);
-        body.appendChild(row);
+        body.appendChild(button);
       });
 
       this.__titlebar = bar;
-      relayout(body);
     }
 
     enableMove() {
@@ -993,12 +1441,30 @@
       var row;
       var col;
       var payload;
+      var payloadSource;
+      var qrow;
+      var qcol;
       if (!intent || !source) { return; }
+      if (applyPaletteItemToRenderedSlot(intent, source, moving)) {
+        return;
+      }
+      if (intentTouchesEditorPreview(intent)) {
+        setStatus("Drop onto a component slot");
+        return;
+      }
+      payloadSource = typeof source.sourceQHtml === "function" ? source.sourceQHtml() : payloadQHtmlFromSource(source);
       payload = moving ? source.createPayload() : source.createPayload();
-      if (!payload) { return; }
+      if (!payload && !payloadSource) { return; }
 
       if (intent.type === "replace") {
         if (moving && (intent.target === payload || payload.contains(intent.target))) { return; }
+        if (payloadSource && replaceQDomWithQHtml(intent.target, "q-col { width: \"auto\"\n" + indentBlock(payloadSource, 1) + "\n}")) {
+          if (moving && source && typeof source.remove === "function") {
+            source.remove();
+          }
+          BuilderStore.saveSoon();
+          return;
+        }
         intent.target.innerHTML = "";
         intent.target.appendChild(payload);
         schedule(intent.target);
@@ -1007,6 +1473,19 @@
       }
 
       if (intent.type === "insert-row") {
+        qrow = insertQDomRow(intent.container, intent.index, { height: "auto" });
+        if (qrow && typeof qrow.addCol === "function" && payloadSource) {
+          qcol = qrow.addCol(Infinity, { width: "auto" });
+          if (qcol && typeof qcol.appendNode === "function") {
+            qcol.appendNode(payloadSource);
+            if (moving && source && typeof source.remove === "function") {
+              source.remove();
+            }
+            BuilderStore.saveSoon();
+            renderLayoutSoon("Canvas updated");
+            return;
+          }
+        }
         row = intent.container.addRow(intent.index, { height: "auto" });
         col = row.addCol(Infinity, { width: "auto" });
         col.appendChild(payload);
@@ -1016,6 +1495,16 @@
       }
 
       if (intent.type === "insert-col") {
+        qcol = insertQDomCol(intent.container, intent.index, { width: "auto" });
+        if (qcol && typeof qcol.appendNode === "function" && payloadSource) {
+          qcol.appendNode(payloadSource);
+          if (moving && source && typeof source.remove === "function") {
+            source.remove();
+          }
+          BuilderStore.saveSoon();
+          renderLayoutSoon("Canvas updated");
+          return;
+        }
         col = intent.container.addCol(intent.index, { width: "auto" });
         col.appendChild(payload);
         schedule(intent.container);
@@ -1093,10 +1582,18 @@
 
   function collectUsedComponents(layout) {
     var map = Object.create(null);
+    arr(document.querySelectorAll(Q.button)).forEach(function (button) {
+      var name = componentName(button);
+      var definition = qhtmlDefinitionSource(button);
+      if (name && definition && !map[name]) {
+        map[name] = definition;
+      }
+    });
     arr(layout.querySelectorAll(Q.item)).forEach(function (item) {
       var name = item.getAttribute("component") || "pb-item";
-      if (!map[name]) {
-        map[name] = item.getAttribute("qhtml") || "div { text { Empty component } }";
+      var definition = qhtmlDefinitionSource(item);
+      if (definition && !map[name]) {
+        map[name] = definition;
       }
     });
     return map;
@@ -1135,7 +1632,7 @@
     attrs.forEach(function (line) { lines.push(indent(level + 1) + line.trim()); });
     children.forEach(function (child) {
       if (tag(child) === Q.item) {
-        lines.push(indent(level + 1) + (child.getAttribute("component") || "pb-item") + " { }");
+        lines.push(indentBlock(qhtmlInstanceSource(child), level + 1));
       } else {
         lines.push(emitLayoutNode(child, level + 1));
       }
@@ -1147,6 +1644,7 @@
   function exportQHtml(layout) {
     var root = layout || document.getElementById("pb-builder-layout") || document.querySelector(".pb-stage " + Q.layout);
     if (!root) { return ""; }
+    reconcileRenderedSlotState(root);
     return emitComponentDefinitions(root) + emitLayoutNode(root, 0) + "\n";
   }
 
@@ -1259,6 +1757,7 @@
     saveSoon: function () {
       if (this.restoring) { return; }
       clearTimeout(this.saveTimer);
+      updateExportPanel(false);
       this.saveTimer = setTimeout(function () {
         BuilderStore.save();
       }, 80);
@@ -1268,6 +1767,7 @@
       if (!layout) { return; }
       try {
         localStorage.setItem(this.key, layout.innerHTML);
+        updateExportPanel(false);
         setStatus("Saved");
       } catch (error) {
         setStatus("Save unavailable");
@@ -1286,8 +1786,10 @@
       if (!html) { return; }
       this.restoring = true;
       layout.innerHTML = html;
+      arr(layout.querySelectorAll(".pb-empty-drop")).forEach(function (node) { node.remove(); });
       arr(layout.querySelectorAll(Q.row + "," + Q.col)).forEach(installApi);
       relayout(layout);
+      updateExportPanel(false);
       this.restoring = false;
       setStatus("Restored saved layout");
     }
@@ -1295,13 +1797,16 @@
 
   function clearCanvas() {
     var layout = document.getElementById("pb-builder-layout");
-    var row;
-    var col;
+    var qdom;
     if (!layout) { return; }
+    qdom = qdomOf(layout);
+    if (qdom && typeof qdom.replaceWithQHTML === "function") {
+      qdom.replaceWithQHTML("q-layout#pb-builder-layout { width: \"100%\" gap: \"14px\" }", rootQDom());
+      renderLayoutSoon("Canvas cleared");
+      BuilderStore.saveSoon();
+      return;
+    }
     layout.innerHTML = "";
-    row = layout.addRow(Infinity, { height: "auto" });
-    col = row.addCol(Infinity, { width: "auto" });
-    col.appendChild(createEmptyDrop());
     relayout(layout);
     BuilderStore.saveSoon();
     setStatus("Canvas cleared");
@@ -1311,7 +1816,15 @@
     var layout = document.getElementById("pb-builder-layout");
     var row;
     var col;
+    var qrow;
     if (!layout) { return; }
+    qrow = insertQDomRow(layout, Infinity, { height: "auto" });
+    if (qrow && typeof qrow.addCol === "function") {
+      qrow.addCol(Infinity, { width: "auto" });
+      BuilderStore.saveSoon();
+      renderLayoutSoon("Row added");
+      return;
+    }
     row = layout.addRow(Infinity, { height: "auto" });
     col = row.addCol(Infinity, { width: "auto" });
     col.classList.add("q-col-empty");
@@ -1324,8 +1837,15 @@
     var row = selected ? selected.closest(Q.row) : null;
     var layout = document.getElementById("pb-builder-layout");
     var col;
+    var qcol;
     if (!row && layout) { row = layout.row(0); }
     if (!row) { return; }
+    qcol = insertQDomCol(row, Infinity, { width: "auto" });
+    if (qcol) {
+      BuilderStore.saveSoon();
+      renderLayoutSoon("Column added");
+      return;
+    }
     col = row.addCol(Infinity, { width: "auto" });
     col.classList.add("q-col-empty");
     relayout(layout || row);
@@ -1333,15 +1853,21 @@
   }
 
   function exportToPanel() {
+    return updateExportPanel(true);
+  }
+
+  function updateExportPanel(focusOutput) {
     var output = document.getElementById("pb-export-output");
     var source = exportQHtml();
     if (output) {
       setPaletteEditorSource(output, source);
-      if (typeof output.focus === "function") {
+      if (focusOutput && typeof output.focus === "function") {
         output.focus();
       }
     }
-    setStatus("Exported QHTML");
+    if (focusOutput) {
+      setStatus("Exported QHTML");
+    }
     return source;
   }
 
@@ -1351,13 +1877,14 @@
     }
   }
 
-  injectStyles();
-  define(Q.layout, QLayout);
-  define(Q.row, QRow);
-  define(Q.col, QCol);
-  define(Q.item, QBuilderItem);
-  define(Q.toolbox, QPaletteToolbox);
-  define(Q.button, QPaletteButton);
+	  injectStyles();
+	  define(Q.item, QBuilderItem);
+	  define(Q.toolbox, QPaletteToolbox);
+	  define(Q.button, QPaletteButton);
+	  arr(document.querySelectorAll(Q.layout + "," + Q.row + "," + Q.col)).forEach(installApi);
+	  arr(document.querySelectorAll(Q.layout)).forEach(relayout);
+	  BuilderStore.restoreSoon();
+	  updateExportPanel(false);
 
   window.QPageBuilder = {
     exportQHtml: exportQHtml,
