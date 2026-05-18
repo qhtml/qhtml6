@@ -1,0 +1,845 @@
+q-painter hudButtonPainter {
+  q-property hudHover: "0"
+  q-property hudActive: "0"
+  q-property hudLine: "0"
+  q-property hudAccent: "#6ea8ff"
+  q-property hudWarn: "#ff7a18"
+  q-property hudYellow: "#f8e66b"
+
+  onpaint {
+    const n = (v, d) => {
+      const x = parseFloat(String(v ?? d));
+      return Number.isFinite(x) ? x : d;
+    };
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const read = (camel, css, fallback) => this[camel] ?? this[css] ?? fallback;
+
+    const w = this.width;
+    const h = this.height;
+
+    const hover = clamp(n(read("hudHover", "--hud-hover", 0), 0), 0, 1);
+    const active = clamp(n(read("hudActive", "--hud-active", 0), 0), 0, 1);
+    const line = clamp(n(read("hudLine", "--hud-line", 0), 0), 0, 1);
+
+    const accent = String(read("hudAccent", "--hud-accent", "#6ea8ff"));
+    const warn = String(read("hudWarn", "--hud-warn", "#ff7a18"));
+    const yellow = String(read("hudYellow", "--hud-yellow", "#f8e66b"));
+
+    const cut = 16;
+    const notch = 34;
+
+    this.save();
+    this.clearRect(0, 0, w, h);
+
+    this.beginPath();
+    this.moveTo(cut, 0);
+    this.lineTo(w - notch, 0);
+    this.lineTo(w, h * 0.5);
+    this.lineTo(w - notch, h);
+    this.lineTo(cut, h);
+    this.lineTo(0, h - cut);
+    this.lineTo(0, cut);
+    this.closePath();
+
+    let bg = this.createLinearGradient(0, 0, w, h);
+    bg.addColorStop(0, "#10264a");
+    bg.addColorStop(0.5, "#0b1528");
+    bg.addColorStop(1, "#050912");
+
+    this.fillStyle = bg;
+    this.fill();
+
+    this.globalAlpha = 0.18 + hover * 0.2 + active * 0.24;
+    this.fillStyle = accent;
+    this.fill();
+
+    this.globalAlpha = 1;
+    this.strokeStyle = accent;
+    this.lineWidth = 1.5;
+    this.stroke();
+
+    this.strokeStyle = yellow;
+    this.lineWidth = 2;
+    this.beginPath();
+    this.moveTo(8, h - 10);
+    this.lineTo(8, h - 26);
+    this.moveTo(w - 24, 7);
+    this.lineTo(w - 6, 7);
+    this.stroke();
+
+    this.strokeStyle = warn;
+    this.beginPath();
+    this.moveTo(8, h - 8);
+    this.lineTo(26, h - 8);
+    this.moveTo(w - 18, 4);
+    this.lineTo(w - 2, 4);
+    this.stroke();
+
+    this.fillStyle = accent;
+    this.globalAlpha = 0.85;
+
+    for (let i = 0; i < 6; i++) {
+      const x = 28 + i * 7;
+      const barH = 12 + i * 3;
+      this.fillRect(x, h * 0.5 - barH * 0.5, 3, barH);
+    }
+
+    this.globalAlpha = 0.95;
+    this.fillStyle = "#8fbaff";
+    this.fillRect(70, 12, 6, h - 24);
+
+    this.globalAlpha = 0.85;
+    this.strokeStyle = accent;
+    this.lineWidth = 2;
+    this.beginPath();
+    this.moveTo(86, 10);
+    this.lineTo(86 + (w - 122) * line, 10);
+    this.stroke();
+
+    this.globalAlpha = 0.55;
+    this.strokeStyle = "#ffffff";
+    this.lineWidth = 1;
+    this.beginPath();
+    this.moveTo(cut + 4, 4);
+    this.lineTo(w - notch - 10, 4);
+    this.stroke();
+
+    this.globalAlpha = active ? 0.95 : 0.36 + hover * 0.36;
+    this.strokeStyle = active ? warn : accent;
+    this.lineWidth = 2;
+    this.beginPath();
+    this.moveTo(w - notch + 6, h * 0.5);
+    this.lineTo(w - 8, h * 0.5);
+    this.stroke();
+
+    this.globalAlpha = 1;
+    this.restore();
+  }
+}
+
+q-painter hudSpinePainter {
+  q-property hudActive: "0"
+  q-property hudAccent: "#6ee7ff"
+  q-property hudWarn: "#ff7a18"
+
+  onpaint {
+    const n = (v, d) => {
+      const x = parseFloat(String(v ?? d));
+      return Number.isFinite(x) ? x : d;
+    };
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const read = (camel, css, fallback) => this[camel] ?? this[css] ?? fallback;
+
+    const w = this.width;
+    const h = this.height;
+
+    const active = clamp(n(read("hudActive", "--hud-active", 0), 0), 0, 1);
+    const accent = String(read("hudAccent", "--hud-accent", "#6ee7ff"));
+    const warn = String(read("hudWarn", "--hud-warn", "#ff7a18"));
+
+    this.save();
+    this.clearRect(0, 0, w, h);
+
+    let bg = this.createLinearGradient(0, 0, w, 0);
+    bg.addColorStop(0, "#111827");
+    bg.addColorStop(0.5, "#1f2937");
+    bg.addColorStop(1, "#070b13");
+
+    this.fillStyle = bg;
+    this.fillRect(0, 0, w, h);
+
+    this.globalAlpha = 0.35;
+    this.strokeStyle = accent;
+    this.lineWidth = 1;
+
+    for (let i = 0; i < 12; i++) {
+      const y = 28 + i * 42;
+
+      this.beginPath();
+      this.moveTo(8, y);
+      this.lineTo(24, y + 16);
+      this.lineTo(24, y + 34);
+      this.stroke();
+    }
+
+    this.globalAlpha = 0.8;
+    this.strokeStyle = active > 0.5 ? warn : accent;
+    this.lineWidth = 2;
+
+    this.beginPath();
+    this.moveTo(w - 12, 20);
+    this.lineTo(w - 12, h - 20);
+    this.stroke();
+
+    for (let i = 0; i < 8; i++) {
+      const y = h * 0.22 + i * 34;
+
+      this.fillStyle = i % 2 ? warn : accent;
+      this.globalAlpha = 0.45 + active * 0.35;
+      this.fillRect(w - 17, y, 9, 3);
+    }
+
+    this.globalAlpha = 0.45;
+    this.fillStyle = "#ffffff";
+    this.fillRect(w - 2, 0, 1, h);
+
+    this.globalAlpha = 0.28 + active * 0.28;
+    this.fillStyle = accent;
+    this.fillRect(0, 0, 2, h);
+
+    this.restore();
+  }
+}
+
+q-painter hudMetalPanelPainter {
+  q-property hudDent: "1"
+  q-property hudPanel: "1"
+  q-property hudGrime: "1"
+  q-property hudRivets: "1"
+  q-property hudAccent: "#6ee7ff"
+
+  onpaint {
+    const n = (v, d) => {
+      const x = parseFloat(String(v ?? d));
+      return Number.isFinite(x) ? x : d;
+    };
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+    const read = (camel, css, fallback) => {
+      return this[camel] ?? this[css] ?? fallback;
+    };
+
+    const rand = seed => {
+      let x = Math.sin(seed * 999.137) * 43758.5453123;
+      return x - Math.floor(x);
+    };
+
+    const w = this.width;
+    const h = this.height;
+
+    const dent = clamp(n(read("hudDent", "--hud-dent", 1), 1), 0, 1);
+    const panel = clamp(n(read("hudPanel", "--hud-panel", 1), 1), 0, 1);
+    const grime = clamp(n(read("hudGrime", "--hud-grime", 1), 1), 0, 1);
+    const rivets = clamp(n(read("hudRivets", "--hud-rivets", 1), 1), 0, 1);
+    const accent = String(read("hudAccent", "--hud-accent", "#6ee7ff"));
+
+    const corner = 28 * dent;
+    const leftBite = 72 * dent;
+    const border = 16;
+
+    const x0 = 0;
+    const y0 = 0;
+    const x1 = w;
+    const y1 = h;
+
+    const drawOuterShape = () => {
+      this.beginPath();
+      this.moveTo(x0 + corner, y0);
+      this.lineTo(x1 - corner, y0);
+      this.quadraticCurveTo(x1, y0, x1, y0 + corner);
+      this.lineTo(x1, y1 - corner);
+      this.quadraticCurveTo(x1, y1, x1 - corner, y1);
+      this.lineTo(x0 + leftBite, y1);
+      this.lineTo(x0 + leftBite, y1 - 44);
+      this.lineTo(x0, y1 - 92);
+      this.lineTo(x0, y0 + corner);
+      this.quadraticCurveTo(x0, y0, x0 + corner, y0);
+      this.closePath();
+    };
+
+    const drawInnerShape = () => {
+      const b = border;
+      this.beginPath();
+      this.moveTo(x0 + corner + b, y0 + b);
+      this.lineTo(x1 - corner - b, y0 + b);
+      this.quadraticCurveTo(x1 - b, y0 + b, x1 - b, y0 + corner + b);
+      this.lineTo(x1 - b, y1 - corner - b);
+      this.quadraticCurveTo(x1 - b, y1 - b, x1 - corner - b, y1 - b);
+      this.lineTo(x0 + leftBite + b, y1 - b);
+      this.lineTo(x0 + leftBite + b, y1 - 52);
+      this.lineTo(x0 + b, y1 - 100);
+      this.lineTo(x0 + b, y0 + corner + b);
+      this.quadraticCurveTo(x0 + b, y0 + b, x0 + corner + b, y0 + b);
+      this.closePath();
+    };
+
+    this.save();
+    this.clearRect(0, 0, w, h);
+
+    drawOuterShape();
+
+    let outer = this.createLinearGradient(0, 0, w, h);
+    outer.addColorStop(0, "#b9b0a3");
+    outer.addColorStop(0.08, "#2e2b29");
+    outer.addColorStop(0.5, "#100f0f");
+    outer.addColorStop(0.92, "#4b4844");
+    outer.addColorStop(1, "#d6d0c3");
+
+    this.fillStyle = outer;
+    this.fill();
+
+    drawInnerShape();
+
+    let metal = this.createLinearGradient(0, 0, w, h);
+    metal.addColorStop(0, "#6d675f");
+    metal.addColorStop(0.22, "#393733");
+    metal.addColorStop(0.5, "#272623");
+    metal.addColorStop(0.78, "#46413b");
+    metal.addColorStop(1, "#1a1918");
+
+    this.fillStyle = metal;
+    this.fill();
+
+    this.save();
+    drawInnerShape();
+    this.clip();
+
+    this.globalAlpha = 0.16 + panel * 0.08;
+    this.fillStyle = accent;
+    this.fillRect(0, 0, w, h);
+
+    for (let i = 0; i < 210; i++) {
+      const x = rand(i + 101) * w;
+      const y = rand(i + 201) * h;
+      const len = 8 + rand(i + 301) * 64;
+      const angle = -0.45 + rand(i + 401) * 0.9;
+
+      this.globalAlpha = 0.05 + rand(i + 501) * 0.16;
+      this.strokeStyle = rand(i + 601) > 0.5 ? "#d7d0c5" : "#070707";
+      this.lineWidth = 0.5 + rand(i + 701) * 1.2;
+
+      this.beginPath();
+      this.moveTo(x, y);
+      this.lineTo(x + Math.cos(angle) * len, y + Math.sin(angle) * len);
+      this.stroke();
+    }
+
+    for (let i = 0; i < 44; i++) {
+      const x = rand(i + 900) * w;
+      const y = rand(i + 1000) * h;
+      const rw = 1.5 + rand(i + 1100) * 4;
+      const rh = 1.5 + rand(i + 1200) * 4;
+
+      this.globalAlpha = 0.22;
+      this.fillStyle = "#0a0a0a";
+      this.beginPath();
+      this.ellipse(x, y, rw, rh, 0, 0, Math.PI * 2);
+      this.fill();
+
+      this.globalAlpha = 0.18;
+      this.fillStyle = "#d9d2c6";
+      this.beginPath();
+      this.ellipse(x - 1, y - 1, rw * 0.45, rh * 0.45, 0, 0, Math.PI * 2);
+      this.fill();
+    }
+
+    if (grime > 0) {
+      for (let i = 0; i < 24; i++) {
+        const x = rand(i + 1300) * w;
+        const y = rand(i + 1400) * h * 0.75;
+        const len = 18 + rand(i + 1500) * 90;
+
+        let drip = this.createLinearGradient(x, y, x, y + len);
+        drip.addColorStop(0, "rgba(83,90,45,0.42)");
+        drip.addColorStop(1, "rgba(83,90,45,0)");
+
+        this.globalAlpha = 0.45 * grime;
+        this.strokeStyle = drip;
+        this.lineWidth = 1 + rand(i + 1600) * 3;
+
+        this.beginPath();
+        this.moveTo(x, y);
+        this.bezierCurveTo(
+        x + rand(i + 1700) * 10 - 5,
+        y + len * 0.25,
+        x + rand(i + 1800) * 10 - 5,
+        y + len * 0.75,
+        x + rand(i + 1900) * 10 - 5,
+        y + len
+        );
+        this.stroke();
+      }
+    }
+
+    if (rivets > 0) {
+      const rivetPoints = [];
+
+      for (let i = 0; i < 6; i++) {
+        rivetPoints.push([border + 24 + i * ((w - border * 2 - 48) / 5), border + 22]);
+        rivetPoints.push([border + 24 + i * ((w - border * 2 - 48) / 5), h - border - 22]);
+      }
+
+      for (let i = 0; i < 4; i++) {
+        rivetPoints.push([border + 22, border + 70 + i * ((h - border * 2 - 140) / 3)]);
+        rivetPoints.push([w - border - 22, border + 70 + i * ((h - border * 2 - 140) / 3)]);
+      }
+
+      rivetPoints.forEach((p, i) => {
+        const x = p[0];
+        const y = p[1];
+
+        let rg = this.createRadialGradient(x - 2, y - 2, 1, x, y, 6);
+        rg.addColorStop(0, "#f1eadb");
+        rg.addColorStop(0.35, "#8d867b");
+        rg.addColorStop(1, "#121212");
+
+        this.globalAlpha = 0.9 * rivets;
+        this.fillStyle = rg;
+        this.beginPath();
+        this.arc(x, y, 5, 0, Math.PI * 2);
+        this.fill();
+
+        this.globalAlpha = 0.35;
+        this.fillStyle = "#000000";
+        this.beginPath();
+        this.arc(x + 2, y + 2, 5, 0, Math.PI * 2);
+        this.fill();
+      });
+    }
+
+    this.restore();
+
+    this.globalAlpha = 1;
+    this.lineWidth = 3;
+    this.strokeStyle = "rgba(255,255,255,0.55)";
+    drawOuterShape();
+    this.stroke();
+
+    this.lineWidth = 2;
+    this.strokeStyle = "rgba(0,0,0,0.85)";
+    drawInnerShape();
+    this.stroke();
+
+    this.globalAlpha = 0.65;
+    this.strokeStyle = accent;
+    this.lineWidth = 1;
+
+    this.beginPath();
+    this.moveTo(18, 66);
+    this.lineTo(18, h - 120);
+    this.stroke();
+
+    this.globalAlpha = 1;
+    this.restore();
+  }
+}
+
+q-transition hudButtonHoverTransition {
+  property { --hud-hover }
+  delay { 0 }
+  timing { ease-out }
+  duration { 180 }
+}
+
+q-transition hudButtonLineTransition {
+  property { --hud-line }
+  delay { 0 }
+  timing { ease-in-out }
+  duration { 420 }
+}
+
+q-transition hudButtonActiveTransition {
+  property { --hud-active }
+  delay { 0 }
+  timing { ease-out }
+  duration { 220 }
+}
+
+q-transition hudPanelWidthTransition {
+  property { width }
+  delay { 80 }
+  timing { cubic-bezier(0.18, 0.84, 0.24, 1) }
+  duration { 720 }
+}
+
+q-transition hudPanelOpacityTransition {
+  property { opacity }
+  delay { 80 }
+  timing { ease-out }
+  duration { 360 }
+}
+
+q-transition hudPanelDentTransition {
+  property { --hud-dent }
+  delay { 760 }
+  timing { ease-out }
+  duration { 360 }
+}
+
+q-style hudRootStyle {
+  minHeight: 100vh
+  background: #000000
+  color: #e6fbff
+  fontFamily: monospace
+  display: grid
+  gridTemplateColumns: 156px 44px 1fr
+  overflow: hidden
+}
+
+q-style hudButtonStackStyle {
+  paddingTop: 140px
+  background: transparent
+  display: flex
+  flexDirection: column
+  gap: 10px
+  zIndex: 3
+}
+
+q-style hudButtonStyle {
+  width: 158px
+  height: 50px
+  border: 0
+  outline: 0
+  cursor: pointer
+  background: transparent
+  color: #f2fbff
+  fontFamily: monospace
+  fontWeight: 700
+  letterSpacing: 0.06em
+  textAlign: right
+  padding: 0 18px 0 82px
+  position: relative
+  overflow: hidden
+
+  --hud-hover: 0
+  --hud-active: 0
+  --hud-line: 0
+  --hud-accent: #6ea8ff
+  --hud-warn: #ff7a18
+  --hud-yellow: #f8e66b
+
+  q-style-painter {
+    background { hudButtonPainter }
+  }
+
+  q-style-transition {
+    hudButtonHoverTransition
+    hudButtonLineTransition
+    hudButtonActiveTransition
+  }
+}
+
+q-style hudButtonLabelStyle {
+  position: relative
+  zIndex: 2
+  fontSize: 13px
+  lineHeight: 50px
+  whiteSpace: nowrap
+}
+
+q-style hudSpineStyle {
+  height: 100vh
+  width: 44px
+
+  --hud-active: 0
+  --hud-accent: #6ee7ff
+  --hud-warn: #ff7a18
+
+  q-style-painter {
+    background { hudSpinePainter }
+  }
+
+  q-style-transition {
+    hudButtonActiveTransition
+  }
+}
+
+q-style hudPanelSlotStyle {
+  height: 100vh
+  display: flex
+  alignItems: flex-start
+  paddingTop: 0
+  overflow: hidden
+}
+
+q-style hudMetalPanelStyle {
+  width: 0
+  height: 92vh
+  maxWidth: 980px
+  minHeight: 520px
+  opacity: 0
+  position: relative
+  overflow: hidden
+  marginTop: 0
+
+  --hud-dent: 0
+  --hud-panel: 1
+  --hud-grime: 1
+  --hud-rivets: 1
+  --hud-accent: #6ee7ff
+
+  q-style-painter {
+    background { hudMetalPanelPainter }
+  }
+
+  q-style-transition {
+    hudPanelWidthTransition
+    hudPanelOpacityTransition
+    hudPanelDentTransition
+  }
+}
+
+q-style hudFrameStyle {
+  position: absolute
+  left: 34px
+  top: 34px
+  width: calc(100% - 68px)
+  height: calc(100% - 68px)
+  border: 0
+  background: transparent
+  opacity: 0.92
+}
+
+q-theme hudTheme {
+  .hud-root { hudRootStyle }
+  .hud-button-stack { hudButtonStackStyle }
+  .hud-button { hudButtonStyle }
+  .hud-button-label { hudButtonLabelStyle }
+  .hud-spine { hudSpineStyle }
+  .hud-panel-slot { hudPanelSlotStyle }
+  .hud-metal-panel { hudMetalPanelStyle }
+  .hud-frame { hudFrameStyle }
+}
+
+q-component hud-button {
+  q-property label: "TITLE 01"
+  q-property url: "about:blank"
+  q-property accent: "#6ea8ff"
+  q-property warn: "#ff7a18"
+
+  button.hud-button {
+    type: "button"
+    data-url: "${this.component.url}"
+    data-label: "${this.component.label}"
+    data-accent: "${this.component.accent}"
+    data-warn: "${this.component.warn}"
+
+    style {
+      --hud-accent: "${this.component.accent}"
+      --hud-warn: "${this.component.warn}"
+    }
+
+    onmouseenter {
+      const root = this.closest("hud-system");
+
+      if (root && root.previewButton) {
+        root.previewButton(this);
+      }
+    }
+
+    onmouseleave {
+      const root = this.closest("hud-system");
+
+      if (root && root.leaveButton) {
+        root.leaveButton(this);
+      }
+    }
+
+    onclick {
+      const root = this.closest("hud-system");
+
+      if (root && root.selectButton) {
+        root.selectButton(this);
+      }
+    }
+
+    span.hud-button-label {
+      text { ${this.component.label} }
+    }
+  }
+}
+
+q-component hud-system {
+  q-property panelWidth: "78vw"
+  q-property defaultUrl: "about:blank"
+
+  q-signal hudHover
+  q-signal hudLeave
+  q-signal hudSelect
+
+  function dashName(name) {
+    return "--" + String(name).replace(/[A-Z]/g, m => "-" + m.toLowerCase());
+  }
+
+  function setPainterProp(el, name, value) {
+    if (!el) {
+      return;
+    }
+
+    const raw = String(value);
+
+    el.style.setProperty(name, raw);
+    el.style.setProperty(this.dashName(name), raw);
+  }
+
+  function spine() {
+    return this.querySelector(".hud-spine");
+  }
+
+  function panel() {
+    return this.querySelector(".hud-metal-panel");
+  }
+
+  function iframe() {
+    return this.querySelector(".hud-frame");
+  }
+
+  function emitHudSignal(name, detail) {
+    if (this[name] && this[name].emit) {
+      this[name].emit(detail);
+      return;
+    }
+
+    this.dispatchEvent(new CustomEvent(name, {
+      bubbles: true,
+      detail: detail
+    }));
+  }
+
+  function previewButton(button) {
+    const accent = button.getAttribute("data-accent") || "#6ea8ff";
+    const warn = button.getAttribute("data-warn") || "#ff7a18";
+
+    this.setPainterProp(button, "hudHover", "1");
+    this.setPainterProp(button, "hudLine", "0.75");
+    this.setPainterProp(button, "hudAccent", accent);
+    this.setPainterProp(button, "hudWarn", warn);
+
+    const s = this.spine();
+
+    this.setPainterProp(s, "hudActive", "0.55");
+    this.setPainterProp(s, "hudAccent", accent);
+    this.setPainterProp(s, "hudWarn", warn);
+
+    this.emitHudSignal("hudHover", {
+      url: button.getAttribute("data-url"),
+      label: button.getAttribute("data-label")
+    });
+  }
+
+  function leaveButton(button) {
+    if (button.getAttribute("data-active") === "1") {
+      return;
+    }
+
+    this.setPainterProp(button, "hudHover", "0");
+    this.setPainterProp(button, "hudLine", "0");
+
+    const selected = this.querySelector(".hud-button[data-active='1']");
+
+    if (!selected) {
+      this.setPainterProp(this.spine(), "hudActive", "0");
+    }
+
+    this.emitHudSignal("hudLeave", {
+      url: button.getAttribute("data-url"),
+      label: button.getAttribute("data-label")
+    });
+  }
+
+  function selectButton(button) {
+    const url = button.getAttribute("data-url") || this.component.defaultUrl || "about:blank";
+    const label = button.getAttribute("data-label") || "";
+    const accent = button.getAttribute("data-accent") || "#6ea8ff";
+    const warn = button.getAttribute("data-warn") || "#ff7a18";
+
+    this.querySelectorAll(".hud-button").forEach(btn => {
+      btn.setAttribute("data-active", "0");
+
+      this.setPainterProp(btn, "hudActive", "0");
+      this.setPainterProp(btn, "hudHover", "0");
+      this.setPainterProp(btn, "hudLine", "0");
+    });
+
+    button.setAttribute("data-active", "1");
+
+    this.setPainterProp(button, "hudActive", "1");
+    this.setPainterProp(button, "hudHover", "1");
+    this.setPainterProp(button, "hudLine", "1");
+
+    const s = this.spine();
+
+    this.setPainterProp(s, "hudActive", "1");
+    this.setPainterProp(s, "hudAccent", accent);
+    this.setPainterProp(s, "hudWarn", warn);
+
+    const p = this.panel();
+
+    this.setPainterProp(p, "hudAccent", accent);
+    this.setPainterProp(p, "hudDent", "1");
+    this.setPainterProp(p, "hudPanel", "1");
+
+    p.style.width = this.component.panelWidth || "78vw";
+    p.style.opacity = "1";
+
+    const frame = this.iframe();
+
+    if (frame) {
+      frame.setAttribute("src", url);
+    }
+
+    this.emitHudSignal("hudSelect", {
+      url: url,
+      label: label
+    });
+  }
+
+  hudTheme {
+    div.hud-root {
+      aside.hud-button-stack {
+        slot { buttons }
+      }
+
+      div.hud-spine { }
+
+      div.hud-panel-slot {
+        div.hud-metal-panel {
+          iframe.hud-frame {
+            src: "${this.component.defaultUrl}"
+          }
+        }
+      }
+    }
+  }
+}
+/* usage pattern 
+
+
+hud-system {
+  panelWidth: "78vw"
+  defaultUrl: "about:blank"
+
+  buttons {
+    hud-button {
+      label: "TITLE 01"
+      url: "https://datafault.net/"
+      accent: "#6ea8ff"
+      warn: "#ff7a18"
+    }
+
+    hud-button {
+      label: "TITLE 02"
+      url: "https://datafault.net/tools/"
+      accent: "#6ee7ff"
+      warn: "#facc15"
+    }
+
+    hud-button {
+      label: "TITLE 03"
+      url: "https://datafault.net/stats/"
+      accent: "#93c5fd"
+      warn: "#fb7185"
+    }
+
+    hud-button {
+      label: "TITLE 04"
+      url: "https://datafault.net/search/"
+      accent: "#67e8f9"
+      warn: "#f97316"
+    }
+  }
+}
+*/

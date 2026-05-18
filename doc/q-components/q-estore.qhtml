@@ -1,5 +1,3 @@
-q-import { q-modal.qhtml }
-
 q-component estore-cart {
   q-property cartData: q-array { }
   function addItem(name, price) { this.component.cartData.push(QMap({"name": name, "price": price }));

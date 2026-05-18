@@ -4,150 +4,131 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QHTML Wiki</title>
-  <link rel="stylesheet" href="w3.css" />
-  <link rel="stylesheet" href="wiki.css" />
+  <link rel="icon" href="data:," />
   <script src="qhtml6.js"></script>
-  <script src="q-editor.js"></script>
 </head>
 <body>
-  <main class="doc-root">
-    <section class="doc-hero">
-      <h1>QHTML Wiki</h1>
-      <p>QHTML is a block-based UI language for writing HTML, components, styles, state, and runtime behaviors in a compact declarative form. This wiki is organized like a guided tour: start with basic syntax, then move into components, signals, styling, and editor tooling.</p>
-    </section>
+  <q-html>
+q-import { q-components/q-hud.qhtml }
 
-    <section class="doc-plain-panel">
-      <p>This landing page intentionally mixes plain HTML and multiple <span class="doc-inline-code">&lt;q-html&gt;</span> blocks. The goal is to show how QHTML can sit beside normal HTML instead of replacing the whole page.</p>
-      <div class="doc-link-grid">
-        <a href="01-quick-start/">
-          <strong>Quick Start</strong>
-          First render, first import, and the smallest working page.
-        </a>
-        <a href="02-core-syntax/">
-          <strong>Core Syntax</strong>
-          Nesting, selector chains, shorthand, attributes, and text/html/style blocks.
-        </a>
-        <a href="03-components/">
-          <strong>Components</strong>
-          Runtime pieces, named instances, properties, workers, timers, and more.
-        </a>
-        <a href="04-styles-and-themes/">
-          <strong>Styles and Themes</strong>
-          Reusable styles, theme mapping, transitions, and painters.
-        </a>
-        <a href="05-state-with-q-script/">
-          <strong>State with q-script</strong>
-          Compute property values from short JavaScript expressions.
-        </a>
-        <a href="06-q-script/">
-          <strong>q-script</strong>
-          Inline replacement and assignment-form script results.
-        </a>
-        <a href="07-inline-expressions/">
-          <strong>Inline Expressions</strong>
-          Use ${...} in text, attributes, macros, and scoped aliases.
-        </a>
-        <a href="08-signals/">
-          <strong>Signals</strong>
-          Function-style q-signal, slot signals, connect, and q-connect.
-        </a>
-        <a href="09-state-machines/">
-          <strong>State Machines</strong>
-          Swap active declarative QHTML states through a component-backed host.
-        </a>
-        <a href="10-qdom-api/">
-          <strong>QDOM API</strong>
-          Mutate the source-of-truth tree and re-render explicitly.
-        </a>
-        <a href="11-particle-emitter/">
-          <strong>Particle Emitter</strong>
-          Canvas-backed particles from one custom element and declarative attributes.
-        </a>
-        <a href="12-debug-tips/">
-          <strong>Debug Tips</strong>
-          Runtime flags, update flows, and q-logger.
-        </a>
-        <a href="13-optional-tag-libraries/">
-          <strong>Optional Tag Libraries</strong>
-          Deprecated W3 and Bootstrap tag helpers plus q-style equivalents.
-        </a>
-        <a href="14-module-readmes/">
-          <strong>Module READMEs</strong>
-          Where to read next if you are extending the framework itself.
-        </a>
-        <a href="15-escape-sequences/">
-          <strong>Escape Sequences</strong>
-          Literal brace handling inside block content.
-        </a>
-        <a href="try-it-yourself/">
-          <strong>Try It Yourself</strong>
-          Open a live editor and send QHTML through a GET request.
-        </a>
-      </div>
-    </section>
+hud-system {
+  panelWidth: "78vw"
+  defaultUrl: "01-quick-start/index.html"
 
-    <q-html>
-q-import { wiki-common.qhtml }
-
-wiki-shell {
-  sectionKey: "home"
-  pathPrefix: ""
-  pageTitle: "Start here"
-  pageIntro: "Use the sidebar to move through the language in README order. Each section keeps the examples small so you can see one idea at a time."
-  main {
-    wiki-example-card {
-      title: "A first render"
-      summary: "This is the smallest useful QHTML block. It creates real DOM without any helper JavaScript."
-      note: "Use this pattern when you want to prove the runtime is mounted and parsing correctly."
-      details {
-        html {
-          <q-editor>&lt;q-html&gt;
-  h1 { text { Hello QHTML } }
-  p { text { Your first QHTML render is running. } }
-&lt;/q-html&gt;</q-editor>
-        }
-      }
+  buttons {
+    hud-button {
+      label: "01 QUICK START"
+      url: "01-quick-start/index.html"
+      accent: "#6ea8ff"
+      warn: "#ff7a18"
     }
 
-    wiki-example-card {
-      title: "One page can use many q-html blocks"
-      summary: "QHTML can be used in small islands. You can keep plain HTML for the page shell and add QHTML where you want live behavior."
-      note: "This page itself is built that way."
-      details {
-        html {
-          <q-editor>&lt;q-html&gt;
-&lt;section&gt;Normal HTML hero&lt;/section&gt;
+    hud-button {
+      label: "02 CORE SYNTAX"
+      url: "02-core-syntax/index.html"
+      accent: "#6ee7ff"
+      warn: "#facc15"
+    }
 
-&lt;q-html&gt;
-  div {
-    p { text { QHTML island one } }
-  }
-&lt;/q-html&gt;
+    hud-button {
+      label: "03 COMPONENTS"
+      url: "03-components/index.html"
+      accent: "#93c5fd"
+      warn: "#fb7185"
+    }
 
-&lt;q-html&gt;
-  div {
-    p { text { QHTML island two } }
-  }
-&lt;/q-html&gt;
-&lt;/q-html&gt;</q-editor>
-        }
-      }
+    hud-button {
+      label: "04 STYLE THEME"
+      url: "04-styles-and-themes/index.html"
+      accent: "#67e8f9"
+      warn: "#f97316"
+    }
+
+    hud-button {
+      label: "05 Q-SCRIPT STATE"
+      url: "05-state-with-q-script/index.html"
+      accent: "#a7f3d0"
+      warn: "#f59e0b"
+    }
+
+    hud-button {
+      label: "06 Q-SCRIPT"
+      url: "06-q-script/index.html"
+      accent: "#7dd3fc"
+      warn: "#fb923c"
+    }
+
+    hud-button {
+      label: "07 INLINE EXPR"
+      url: "07-inline-expressions/index.html"
+      accent: "#c4b5fd"
+      warn: "#f87171"
+    }
+
+    hud-button {
+      label: "08 SIGNALS"
+      url: "08-signals/index.html"
+      accent: "#5eead4"
+      warn: "#facc15"
+    }
+
+    hud-button {
+      label: "09 STATE MACHINE"
+      url: "09-state-machines/index.html"
+      accent: "#bae6fd"
+      warn: "#fb7185"
+    }
+
+    hud-button {
+      label: "10 QDOM API"
+      url: "10-qdom-api/index.html"
+      accent: "#93c5fd"
+      warn: "#f97316"
+    }
+
+    hud-button {
+      label: "11 PARTICLES"
+      url: "11-particle-emitter/index.html"
+      accent: "#a5f3fc"
+      warn: "#ff7a18"
+    }
+
+    hud-button {
+      label: "12 DEBUG TIPS"
+      url: "12-debug-tips/index.html"
+      accent: "#bfdbfe"
+      warn: "#facc15"
+    }
+
+    hud-button {
+      label: "13 TAG LIBRARIES"
+      url: "13-optional-tag-libraries/index.html"
+      accent: "#99f6e4"
+      warn: "#fb923c"
+    }
+
+    hud-button {
+      label: "14 MODULE READMES"
+      url: "14-module-readmes/index.html"
+      accent: "#ddd6fe"
+      warn: "#f97316"
+    }
+
+    hud-button {
+      label: "15 ESCAPES"
+      url: "15-escape-sequences/index.html"
+      accent: "#67e8f9"
+      warn: "#fb7185"
+    }
+
+    hud-button {
+      label: "TRY IT YOURSELF"
+      url: "try-it-yourself/index.html"
+      accent: "#86efac"
+      warn: "#ff7a18"
     }
   }
 }
-    </q-html>
-
-    <q-html>
-div.wiki-mini-card {
-  h3 { text { A tiny live component } }
-  q-component welcome-pill {
-    q-property title: "Readable blocks"
-    span.w3-tag.w3-round.w3-blue { text { ${this.component.title} } }
-  }
-  p { text { Below is a real component instance rendered on the page: } }
-  welcome-pill { }
-}
-    </q-html>
-  </main>
+  </q-html>
 </body>
 </html>
