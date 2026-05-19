@@ -1,4 +1,4 @@
-q-import { q-components.qhtml }
+q-import { ../q-components.qhtml }
 
 q-style wiki-page-shell-style {
   display: block

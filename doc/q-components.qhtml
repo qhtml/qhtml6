@@ -1,15 +1,5982 @@
-q-import { q-components/q-tech-tag.qhtml }
-q-import { q-components/q-tech-panel.qhtml }
-q-import { q-components/q-form.qhtml }
-q-import { q-components/q-modal.qhtml }
-q-import { q-components/q-grid.qhtml }
-q-import { q-components/q-tabs.qhtml }
-q-import { q-components/q-list-view.qhtml }
-q-import { q-components/q-tree-view.qhtml?v=tree-css-28 }
-q-import { q-components/q-dom-tree.qhtml?v=dom-tree-3 }
-q-import { q-components/q-estore.qhtml?v=6.3.1 }
-q-import { q-components/q-spritesheet.qhtml?v=6.3.1 }
-q-import { q-components/q-factory.qhtml }
-q-import { q-components/q-sidebar.qhtml }
-q-import { q-components/q-popup-menu.qhtml?v=popup-redesign-6 }
-q-import { q-components/sdml-object.qhtml }
+/* ========================================================= */
+/* SHARED STYLE OBJECTS                                      */
+/* ========================================================= */
+
+q-style qbReset {
+  box-sizing: border-box
+}
+
+q-style qbSurface {
+  background: #ffffff
+  color: #0f172a
+  border: 1px solid #e2e8f0
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08)
+}
+
+q-style qbSoftSurface {
+  background: #f8fafc
+  color: #0f172a
+  border: 1px solid #e2e8f0
+}
+
+q-style qbDarkSurface {
+  background: #0f172a
+  color: #ffffff
+  border: 1px solid rgba(255, 255, 255, 0.10)
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.22)
+}
+
+q-style qbTitle {
+  color: inherit
+  font-size: 22px
+  font-weight: 900
+  letter-spacing: -0.04em
+  line-height: 1.1
+  margin: 0
+}
+
+q-style qbSmallTitle {
+  color: inherit
+  font-size: 16px
+  font-weight: 900
+  letter-spacing: -0.03em
+  line-height: 1.2
+  margin: 0
+}
+
+q-style qbBody {
+  margin: 0
+  font-size: 14px
+  line-height: 1.6
+  color: #64748b
+}
+
+q-style qbMutedText {
+  color: #64748b
+  line-height: 1.6
+}
+
+q-style qbLightText {
+  color: #cbd5e1
+  line-height: 1.6
+}
+
+q-style qbStack {
+  display: grid
+  gap: 12px
+}
+
+q-style qbInline {
+  display: flex
+  align-items: center
+  gap: 10px
+  flex-wrap: wrap
+}
+
+
+/* ========================================================= */
+/* BUTTON STYLES                                             */
+/* ========================================================= */
+
+q-style qbButtonHost {
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  width: fit-content
+  min-height: 42px
+  padding: 0 17px
+  border-radius: 999px
+  background: #2563eb
+  color: #ffffff
+  border: 1px solid #2563eb
+  font-size: 14px
+  font-weight: 850
+  line-height: 1
+  text-decoration: none
+  cursor: pointer
+  user-select: none
+  white-space: nowrap
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.24)
+}
+
+q-style qbButtonSoft {
+  background: #eff6ff
+  color: #1d4ed8
+  border: 1px solid #bfdbfe
+  box-shadow: none
+}
+
+q-style qbButtonDark {
+  background: #0f172a
+  color: #ffffff
+  border: 1px solid #1e293b
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.24)
+}
+
+q-style qbButtonGhost {
+  background: transparent
+  color: #0f172a
+  border: 1px solid #e2e8f0
+  box-shadow: none
+}
+
+q-style qbButtonWide {
+  width: 100%
+}
+
+
+/* ========================================================= */
+/* CARD STYLES                                               */
+/* ========================================================= */
+
+q-style qbCardHost {
+  display: grid
+  gap: 14px
+  width: 100%
+  min-width: 0
+  border-radius: 22px
+  padding: 22px
+  overflow: hidden
+}
+
+q-style qbCardHeader {
+  display: grid
+  gap: 6px
+}
+
+q-style qbCardContent {
+  display: grid
+  gap: 12px
+}
+
+q-style qbCardFooter {
+  display: flex
+  align-items: center
+  gap: 10px
+  flex-wrap: wrap
+  margin-top: 4px
+}
+
+
+/* ========================================================= */
+/* NAVBAR STYLES                                             */
+/* ========================================================= */
+
+q-style qbNavbarHost {
+  display: flex
+  align-items: center
+  justify-content: space-between
+  gap: 18px
+  width: 100%
+  min-width: 0
+  border-radius: 20px
+  padding: 14px 18px
+}
+
+q-style qbNavbarBrand {
+  display: flex
+  align-items: center
+  gap: 10px
+  min-width: 0
+  font-size: 20px
+  font-weight: 950
+  letter-spacing: -0.045em
+  white-space: nowrap
+}
+
+q-style qbNavbarLinks {
+  display: flex
+  align-items: center
+  justify-content: center
+  gap: 18px
+  flex-wrap: wrap
+  min-width: 0
+}
+
+q-style qbNavbarLink {
+  color: #64748b
+  font-size: 14px
+  font-weight: 780
+  text-decoration: none
+  cursor: pointer
+}
+
+q-style qbNavbarActions {
+  display: flex
+  align-items: center
+  justify-content: flex-end
+  gap: 10px
+  flex-wrap: wrap
+}
+
+
+/* ========================================================= */
+/* SIDEBAR STYLES                                            */
+/* ========================================================= */
+
+q-style qbSidebarHost {
+  display: grid
+  align-content: start
+  gap: 16px
+  width: 100%
+  min-width: 0
+  min-height: 100%
+  border-radius: 22px
+  padding: 18px
+}
+
+q-style qbSidebarHeader {
+  display: grid
+  gap: 5px
+}
+
+q-style qbSidebarNav {
+  display: grid
+  gap: 8px
+}
+
+q-style qbSidebarItem {
+  display: block
+  padding: 11px 13px
+  border-radius: 13px
+  color: #64748b
+  font-size: 14px
+  font-weight: 800
+  text-decoration: none
+  cursor: pointer
+}
+
+q-style qbSidebarItemActive {
+  background: #dbeafe
+  color: #1d4ed8
+}
+
+q-style qbSidebarFooter {
+  display: grid
+  gap: 10px
+  margin-top: auto
+}
+
+
+/* ========================================================= */
+/* PRICEBOX STYLES                                           */
+/* ========================================================= */
+
+q-style qbPriceboxHost {
+  display: grid
+  gap: 18px
+  width: 100%
+  min-width: 0
+  border-radius: 24px
+  padding: 24px
+  overflow: hidden
+}
+
+q-style qbPriceboxFeatured {
+  border: 1px solid #2563eb
+  box-shadow: 0 20px 56px rgba(37, 99, 235, 0.18)
+}
+
+q-style qbPriceboxTop {
+  display: grid
+  gap: 8px
+}
+
+q-style qbPrice {
+  display: flex
+  align-items: end
+  gap: 6px
+  color: inherit
+  font-size: 46px
+  font-weight: 950
+  letter-spacing: -0.07em
+  line-height: 1
+  margin: 0
+}
+
+q-style qbPricePeriod {
+  color: #64748b
+  font-size: 14px
+  font-weight: 750
+  letter-spacing: 0
+  line-height: 1.35
+  padding-bottom: 5px
+}
+
+q-style qbFeatureList {
+  display: grid
+  gap: 10px
+  margin: 0
+  padding: 0
+}
+
+q-style qbFeatureItem {
+  display: grid
+  grid-template-columns: 18px 1fr
+  gap: 10px
+  align-items: start
+  color: #64748b
+  font-size: 14px
+  line-height: 1.5
+}
+
+q-style qbCheck {
+  width: 18px
+  height: 18px
+  border-radius: 999px
+  background: #dcfce7
+  color: #166534
+  display: grid
+  place-items: center
+  font-size: 12px
+  font-weight: 950
+}
+
+
+/* ========================================================= */
+/* GROUPBOX STYLES                                           */
+/* ========================================================= */
+
+q-style qbGroupboxHost {
+  position: relative
+  display: grid
+  gap: 14px
+  width: 100%
+  min-width: 0
+  border-radius: 20px
+  padding: 28px 20px 20px
+  margin-top: 12px
+  border: 1px solid #cbd5e1
+  background: #ffffff
+}
+
+q-style qbGroupboxLabel {
+  position: absolute
+  top: -13px
+  left: 18px
+  display: inline-flex
+  align-items: center
+  min-height: 26px
+  padding: 0 11px
+  border-radius: 999px
+  background: #ffffff
+  border: 1px solid #cbd5e1
+  color: #334155
+  font-size: 13px
+  font-weight: 900
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08)
+}
+
+q-style qbGroupboxContent {
+  display: grid
+  gap: 12px
+}
+
+
+/* ========================================================= */
+/* THEME MAP                                                 */
+/* ========================================================= */
+
+q-theme qbTheme {
+  q-button { qbReset qbButtonHost }
+  q-button.soft { qbButtonSoft }
+  q-button.dark { qbButtonDark }
+  q-button.ghost { qbButtonGhost }
+  q-button.wide { qbButtonWide }
+
+  q-card { qbReset qbSurface qbCardHost }
+  q-card.soft { qbSoftSurface }
+  q-card.dark { qbDarkSurface }
+  q-card-header { qbCardHeader }
+  q-card-content { qbCardContent }
+  q-card-footer { qbCardFooter }
+
+  q-navbar { qbReset qbSurface qbNavbarHost }
+  q-navbar.dark { qbDarkSurface }
+  q-navbar-brand { qbNavbarBrand }
+  q-navbar-links { qbNavbarLinks }
+  q-navbar-link { qbNavbarLink }
+  q-navbar-actions { qbNavbarActions }
+
+  q-sidebar { qbReset qbSurface qbSidebarHost }
+  q-sidebar.dark { qbDarkSurface }
+  q-sidebar-header { qbSidebarHeader }
+  q-sidebar-nav { qbSidebarNav }
+  q-sidebar-item { qbSidebarItem }
+  q-sidebar-item.active { qbSidebarItem qbSidebarItemActive }
+  q-sidebar-footer { qbSidebarFooter }
+
+  q-pricebox { qbReset qbSurface qbPriceboxHost }
+  q-pricebox.featured { qbPriceboxFeatured }
+  q-pricebox.dark { qbDarkSurface }
+  q-pricebox-top { qbPriceboxTop }
+  q-price { qbPrice }
+  q-price-period { qbPricePeriod }
+  q-feature-list { qbFeatureList }
+  q-feature-item { qbFeatureItem }
+  q-check { qbCheck }
+
+  q-groupbox { qbReset qbGroupboxHost }
+  q-groupbox-label { qbGroupboxLabel }
+  q-groupbox-content { qbGroupboxContent }
+
+  h1.qb-title { qbTitle }
+  h2.qb-title { qbTitle }
+  h3.qb-title { qbTitle }
+  h4.qb-title { qbSmallTitle }
+
+  p.qb-body { qbBody }
+  p.qb-muted { qbMutedText }
+  p.qb-light { qbLightText }
+
+  div.qb-stack { qbStack }
+  div.qb-inline { qbInline }
+}
+
+
+/* ========================================================= */
+/* COMPONENT: q-button                                       */
+/* Slots: content                                             */
+/* ========================================================= */
+
+q-component q-button {
+  q-var label { this.getAttribute("label") || "" }
+
+  button {
+    type: "button"
+
+    slot { content }
+
+    text { ${label} }
+  }
+}
+
+
+/* ========================================================= */
+/* COMPONENT: q-card                                         */
+/* Slots: header, content, footer                             */
+/* ========================================================= */
+
+q-component q-card {
+  q-var title { this.getAttribute("title") || "" }
+  q-var subtitle { this.getAttribute("subtitle") || "" }
+
+  q-card-header {
+    slot { header }
+
+    h3.qb-title {
+      text { ${title} }
+    }
+
+    p.qb-muted {
+      text { ${subtitle} }
+    }
+  }
+
+  q-card-content {
+    slot { content }
+  }
+
+  q-card-footer {
+    slot { footer }
+  }
+}
+
+
+/* ========================================================= */
+/* COMPONENT: q-navbar                                       */
+/* Slots: brand, links, actions                               */
+/* ========================================================= */
+
+q-component q-navbar {
+  q-var brand { this.getAttribute("brand") || "Brand" }
+
+  q-var links {
+    [
+      { label: "Overview" },
+      { label: "Features" },
+      { label: "Docs" },
+      { label: "Contact" }
+    ]
+  }
+
+  q-navbar-brand {
+    slot { brand }
+
+    text { ${brand} }
+  }
+
+  q-navbar-links {
+    slot { links }
+
+    for (item in links) {
+      q-navbar-link {
+        text { ${item.label} }
+      }
+    }
+  }
+
+  q-navbar-actions {
+    slot { actions }
+  }
+}
+
+
+/* ========================================================= */
+/* COMPONENT: q-sidebar                                      */
+/* Slots: header, nav, footer                                 */
+/* ========================================================= */
+
+q-component q-sidebar {
+  q-var title { this.getAttribute("title") || "Navigation" }
+  q-var subtitle { this.getAttribute("subtitle") || "" }
+
+  q-var items {
+    [
+      { label: "General Information", active: true },
+      { label: "Features" },
+      { label: "Documentation" },
+      { label: "Guides" },
+      { label: "Best Practices" },
+      { label: "Comparisons" }
+    ]
+  }
+
+  q-sidebar-header {
+    slot { header }
+
+    h3.qb-title {
+      text { ${title} }
+    }
+
+    p.qb-muted {
+      text { ${subtitle} }
+    }
+  }
+
+  q-sidebar-nav {
+    slot { nav }
+
+    for (item in items) {
+      q-sidebar-item {
+        q-var cls { item.active ? "active" : "" }
+
+        class: "${cls}"
+
+        text { ${item.label} }
+      }
+    }
+  }
+
+  q-sidebar-footer {
+    slot { footer }
+  }
+}
+
+
+/* ========================================================= */
+/* COMPONENT: q-pricebox                                     */
+/* Slots: top, price, features, actions                       */
+/* ========================================================= */
+
+q-component q-pricebox {
+  q-var plan { this.getAttribute("plan") || "Pro" }
+  q-var price { this.getAttribute("price") || "$49" }
+  q-var period { this.getAttribute("period") || "/ month" }
+  q-var description { this.getAttribute("description") || "For professional teams that need a clean, scalable plan." }
+  q-var cta { this.getAttribute("cta") || "Choose Plan" }
+
+  q-var features {
+    [
+      "Unlimited projects",
+      "Priority support",
+      "Advanced dashboard",
+      "Team access"
+    ]
+  }
+
+  q-pricebox-top {
+    slot { top }
+
+    h3.qb-title {
+      text { ${plan} }
+    }
+
+    p.qb-muted {
+      text { ${description} }
+    }
+  }
+
+  q-price {
+    slot { price }
+
+    text { ${price} }
+
+    q-price-period {
+      text { ${period} }
+    }
+  }
+
+  q-feature-list {
+    slot { features }
+
+    for (feature in features) {
+      q-feature-item {
+        q-check {
+          text { ✓ }
+        }
+
+        span {
+          text { ${feature} }
+        }
+      }
+    }
+  }
+
+  q-card-footer {
+    slot { actions }
+
+    q-button.wide {
+      label: "${cta}"
+    }
+  }
+}
+
+
+/* ========================================================= */
+/* COMPONENT: q-groupbox                                     */
+/* Slots: label, content                                      */
+/* ========================================================= */
+
+q-component q-groupbox {
+  q-var label { this.getAttribute("label") || "Group" }
+
+  q-groupbox-label {
+    slot { label }
+
+    text { ${label} }
+  }
+
+  q-groupbox-content {
+    slot { content }
+  }
+}
+
+
+/* ========================================================= */
+/* LIGHTWEIGHT SEMANTIC CHILD COMPONENTS                      */
+/* ========================================================= */
+
+q-component q-card-header {
+  slot { content }
+}
+
+q-component q-card-content {
+  slot { content }
+}
+
+q-component q-card-footer {
+  slot { content }
+}
+
+q-component q-navbar-brand {
+  slot { content }
+}
+
+q-component q-navbar-links {
+  slot { content }
+}
+
+q-component q-navbar-link {
+  slot { content }
+}
+
+q-component q-navbar-actions {
+  slot { content }
+}
+
+q-component q-sidebar-header {
+  slot { content }
+}
+
+q-component q-sidebar-nav {
+  slot { content }
+}
+
+q-component q-sidebar-item {
+  slot { content }
+}
+
+q-component q-sidebar-footer {
+  slot { content }
+}
+
+q-component q-pricebox-top {
+  slot { content }
+}
+
+q-component q-price {
+  slot { content }
+}
+
+q-component q-price-period {
+  slot { content }
+}
+
+q-component q-feature-list {
+  slot { content }
+}
+
+q-component q-feature-item {
+  slot { content }
+}
+
+q-component q-check {
+  slot { content }
+}
+
+q-component q-groupbox-label {
+  slot { content }
+}
+
+q-component q-groupbox-content {
+  slot { content }
+}
+
+q-component q-dom-tree extends q-tree-view {
+  q-property filters: q-array { "q-property", "q-signal", "slot" }
+  q-property includeFullTree: true
+
+  function _effectiveModel() {
+    if (this.__qdomTreeRawModel && typeof this.__qdomTreeRawModel === "object") {
+      return this.__qdomTreeRawModel
+    }
+    if (this.__treeRawModel && typeof this.__treeRawModel === "object") {
+      return this.__treeRawModel
+    }
+    var value = this.treeModel
+    if (value === null || typeof value === "undefined" || value === "") { value = this.model }
+    if (value === null || typeof value === "undefined" || value === "") { value = this.getAttribute("treeModel") }
+    if (value === null || typeof value === "undefined" || value === "") { value = this.getAttribute("model") }
+    return value
+  }
+
+  function _setRawModel(value) {
+    var normalized = value && typeof value === "object" ? value : {}
+    this.__qdomTreeRawModel = normalized
+    this.treeModel = ""
+    this.model = ""
+    return normalized
+  }
+
+  function _normalizeFilters(input) {
+    if (Array.isArray(input)) {
+      var out = []
+      var i = 0
+      while (i < input.length) {
+        var token = String(input[i] || "").trim().toLowerCase()
+        if (token && out.indexOf(token) < 0) {
+          out.push(token)
+        }
+        i += 1
+      }
+      return out
+    }
+    if (typeof input === "string") {
+      return this._normalizeFilters(String(input || "").split(/[\s,]+/g))
+    }
+    return this._normalizeFilters(this.filters)
+  }
+
+  function _resolveIncludeFullTree(options) {
+    if (options && typeof options === "object" && Object.prototype.hasOwnProperty.call(options, "includeFullTree")) {
+      return options.includeFullTree === true
+    }
+    return this.includeFullTree === true
+  }
+
+  function load(source, options) {
+    if (source && typeof source === "object" && typeof source.qmap === "function") {
+      return this.loadFromQDom(source, options)
+    }
+    if (source && source.nodeType === 1) {
+      return this.loadFromElement(source, options)
+    }
+    if (source && typeof source === "object" && typeof source.kind === "string") {
+      return this.loadFromQDom(source, options)
+    }
+    if (typeof source === "string") {
+      var selector = String(source || "").trim()
+      if (selector) {
+        var element = document.querySelector(selector)
+        if (element) {
+          return this.loadFromElement(element, options)
+        }
+      }
+      return this.loadFromObject({}, options)
+    }
+    if (Array.isArray(source)) {
+      return this.loadFromArray(source, options)
+    }
+    if (source && typeof source === "object") {
+      return this.loadFromObject(source, options)
+    }
+    return this.loadFromObject({}, options)
+  }
+
+  function loadFromQDom(qdomNode, options) {
+    var filters = this._normalizeFilters(options && options.filters)
+    var includeFullTree = this._resolveIncludeFullTree(options)
+    var mapped = {}
+    if (qdomNode && typeof qdomNode.qmap === "function") {
+      mapped = qdomNode.qmap(filters, includeFullTree)
+    } else if (globalThis.QHtml && typeof globalThis.QHtml.qmapNode === "function") {
+      mapped = globalThis.QHtml.qmapNode(qdomNode, {
+        filters: filters,
+        includeFullTree: includeFullTree
+      })
+    }
+    this._setRawModel(mapped)
+    this.refresh()
+    return mapped
+  }
+
+  function loadFromElement(element, options) {
+    if (!element || typeof element.qdom !== "function") {
+      return this.loadFromObject({}, options)
+    }
+    return this.loadFromQDom(element.qdom(), options)
+  }
+
+  function loadFromObject(value) {
+    var out = this._setRawModel(value)
+    this.refresh()
+    return out
+  }
+
+  function loadFromArray(value) {
+    var out = this._setRawModel(Array.isArray(value) ? value : [])
+    this.refresh()
+    return out
+  }
+
+  function import(value, options) {
+    return this.load(value, options)
+  }
+
+  function export() {
+    return this.__qdomTreeRawModel && typeof this.__qdomTreeRawModel === "object"
+      ? this.__qdomTreeRawModel
+      : {}
+  }
+}
+
+q-component q-draggable-item {
+  q-property { x y }
+
+  function numberOr(value, fallback) {
+    var n = Number(value);
+    if (!Number.isFinite(n)) {
+      return Number(fallback);
+    }
+    return n;
+  }
+
+  function applyPosition(rawX, rawY) {
+    var nextX = Math.round(this.numberOr(rawX, this.x == null ? 40 : this.x));
+    var nextY = Math.round(this.numberOr(rawY, this.y == null ? 40 : this.y));
+
+    this.x = nextX;
+    this.y = nextY;
+
+    if (this.style) {
+      this.style.position = "fixed";
+      this.style.left = String(nextX) + "px";
+      this.style.top = String(nextY) + "px";
+      if (!this.style.zIndex) {
+        this.style.zIndex = "1000";
+      }
+    }
+
+    return { x: nextX, y: nextY };
+  }
+
+  function dragHandle() {
+    return this.querySelector("[q-drag-handle='1']") || this;
+  }
+
+  function handleDragStart(event) {
+    if (!event || (event.button != null && event.button !== 0)) {
+      return;
+    }
+
+    var start = this.getBoundingClientRect ? this.getBoundingClientRect() : { left: 0, top: 0 };
+    this.__dragState = {
+      mouseX: Number(event.clientX || 0),
+      mouseY: Number(event.clientY || 0),
+      startLeft: Number(start.left || 0),
+      startTop: Number(start.top || 0)
+    };
+
+    var win = this.ownerDocument && this.ownerDocument.defaultView ? this.ownerDocument.defaultView : window;
+    if (!this.__dragMoveHandler) {
+      var host = this;
+      this.__dragMoveHandler = function(moveEvent) {
+        if (!host.__dragState) {
+          return;
+        }
+        var dx = Number(moveEvent.clientX || 0) - host.__dragState.mouseX;
+        var dy = Number(moveEvent.clientY || 0) - host.__dragState.mouseY;
+        host.applyPosition(host.__dragState.startLeft + dx, host.__dragState.startTop + dy);
+      };
+    }
+
+    if (!this.__dragEndHandler) {
+      var hostEnd = this;
+      this.__dragEndHandler = function() {
+        hostEnd.__dragState = null;
+        win.removeEventListener("mousemove", hostEnd.__dragMoveHandler);
+        win.removeEventListener("mouseup", hostEnd.__dragEndHandler);
+      };
+    }
+
+    win.addEventListener("mousemove", this.__dragMoveHandler);
+    win.addEventListener("mouseup", this.__dragEndHandler);
+
+    if (typeof event.preventDefault === "function") {
+      event.preventDefault();
+    }
+  }
+
+  function setupDragging() {
+    if (this.__dragReady) {
+      return;
+    }
+    this.__dragReady = true;
+
+    var handle = this.dragHandle();
+    if (!handle || typeof handle.addEventListener !== "function") {
+      return;
+    }
+
+    var host = this;
+    this.__dragStartHandler = function(event) {
+      host.handleDragStart(event);
+    };
+
+    handle.addEventListener("mousedown", this.__dragStartHandler);
+  }
+
+  onReady {
+    this.setupDragging();
+    this.applyPosition(this.x, this.y);
+  }
+}
+
+q-component estore-cart {
+  q-property cartData: q-array { }
+  function addItem(name, price) { this.component.cartData.push(QMap({"name": name, "price": price }));
+    console.log(JSON.stringify(this.component.cartData))
+  }
+  function removeItem(name, price) { }
+  slot { cartModal }
+}
+
+q-component estore-catalog {
+  q-signal addItem(name, price)
+  q-property productData: q-array {
+    q-map {
+      SKU: "NL-100"
+      name: "Night Lamp"
+      description: "Warm bedside glow"
+      price: "39.99"
+    },
+    q-map {
+      SKU: "DC-220"
+      name: "Desk Clock"
+      description: "Minimal analog clock"
+      price: "24.50"
+    },
+    q-map {
+      SKU: "MK-305"
+      name: "Ceramic Mug"
+      description: "Matte finish coffee mug"
+      price: "14.00"
+    },
+    q-map {
+      SKU: "NB-410"
+      name: "Notebook Set"
+      description: "Hardcover dotted journals"
+      price: "19.95"
+    }
+  }
+
+  q-grid {
+    columns: 3
+    for (product in this.component.productData) {
+      div.w3-panel.w3-border.w3-round-large {
+        style { minHeight: 170px; padding: 0.8rem; display: flex; flex-direction: column; justify-content: space-between; background: #fff; }
+        div.w3-small.w3-text-gray { text { SKU: ${product.SKU} } }
+        div.estore-name-row,span.estore-name-text { text { ${product.name} } }
+        div.estore-description-row,span.estore-description-text { text { ${product.description} } }
+        div.estore-price-row,span.estore-price-text.w3-text-indigo { text { $${product.price} } }
+        div.estore-action-row {
+          button {
+            text { add to cart }
+            onclick { this.component.addItem("${product.name}", "${product.price}") }
+          }
+        }
+      }
+    }
+  }
+}
+
+q-component q-estore {
+  estore-cart mycart {
+    q-modal cartmodal {
+      onready { this.component.hide() }
+      title { text { Shopping Cart } }
+      content {
+        ul {
+          for (product in mycart.cartData) {
+            li { text { ${product.name} - ${product.price} } }
+          }
+        }
+      }
+    }
+  }
+
+  button {
+    text { checkout }
+    onclick { this.component.mycart.cartmodal.show() }
+  }
+
+  estore-catalog mycatalog { }
+  q-connect { mycatalog.addItem mycart.addItem }
+}
+
+q-component q-factory {
+  q-property target: ""
+  q-property lastUuid: ""
+  q-property count: 0
+
+  q-signal created(uuid)
+
+  function getRootHost() {
+    if (this.qhtml && this.qhtml.nodeType === 1) {
+      return this.qhtml;
+    }
+    if (this.closest) {
+      return this.closest("q-html");
+    }
+    return null;
+  }
+
+  function getRootQDom() {
+    var host = this.getRootHost();
+    return host && typeof host.qdom === "function" ? host.qdom() : null;
+  }
+
+  function getTemplateSlot() {
+    var self = typeof this.qdom === "function" ? this.qdom() : null;
+    return self && typeof self.slot === "function" ? self.slot("default") : null;
+  }
+
+  function templateQHTML() {
+    var slot = this.getTemplateSlot();
+    if (!slot) {
+      return "";
+    }
+    if (typeof slot.listChildren === "function") {
+      var children = slot.listChildren();
+      if (children && typeof children.qhtml === "function") {
+        return String(children.qhtml({ preserveOriginal: false }) || "").trim();
+      }
+    }
+    if (slot.children && typeof slot.children.qhtml === "function") {
+      return String(slot.children.qhtml({ preserveOriginal: false }) || "").trim();
+    }
+    if (typeof slot.qhtml === "function") {
+      return String(slot.qhtml({ preserveOriginal: false }) || "").trim();
+    }
+    return "";
+  }
+
+  function resolveTargetQDom(root, targetOverride) {
+    var rootQdom = root || this.getRootQDom();
+    if (!rootQdom) {
+      return null;
+    }
+    if (targetOverride && typeof targetOverride === "object") {
+      if (typeof targetOverride.appendToSlot === "function") {
+        return targetOverride;
+      }
+      if (typeof targetOverride.qdom === "function") {
+        return targetOverride.qdom();
+      }
+      if (typeof targetOverride.appendNode === "function") {
+        return targetOverride;
+      }
+    }
+    var targetValue = typeof targetOverride === "string" && targetOverride.trim()
+      ? targetOverride
+      : String(this.target || "").trim();
+    if (!targetValue) {
+      return rootQdom;
+    }
+    if (typeof rootQdom.find === "function") {
+      var found = rootQdom.find(targetValue);
+      if (found && typeof found.appendNode === "function") {
+        return found;
+      }
+    }
+    return rootQdom;
+  }
+
+  function normalizeCreatedNode(created) {
+    if (!created) {
+      return null;
+    }
+    if (Array.isArray(created)) {
+      return created.length > 0 ? created[0] : null;
+    }
+    if (created.toArray && typeof created.toArray === "function") {
+      var arr = created.toArray();
+      return arr && arr.length > 0 ? arr[0] : null;
+    }
+    return created;
+  }
+
+  function normalizeProps(value) {
+    if (!value) {
+      return {};
+    }
+    if (typeof value.toObject === "function") {
+      return value.toObject() || {};
+    }
+    if (typeof value.toMap === "function") {
+      return value.toMap() || {};
+    }
+    if (typeof value === "object") {
+      return value;
+    }
+    return {};
+  }
+
+  function applyPropsToQDomNode(node, props) {
+    if (!node || typeof node !== "object") {
+      return node;
+    }
+    if (Array.isArray(node)) {
+      for (var ai = 0; ai < node.length; ai += 1) {
+        this.applyPropsToQDomNode(node[ai], props);
+      }
+      return node;
+    }
+    var incoming = this.normalizeProps(props);
+    var keys = Object.keys(incoming);
+    if (keys.length === 0) {
+      return node;
+    }
+    if (!node.props || typeof node.props !== "object" || Array.isArray(node.props)) {
+      node.props = {};
+    }
+    if (!node.attributes || typeof node.attributes !== "object" || Array.isArray(node.attributes)) {
+      node.attributes = {};
+    }
+    for (var i = 0; i < keys.length; i += 1) {
+      var key = String(keys[i] || "").trim();
+      if (!key) {
+        continue;
+      }
+      var value = incoming[keys[i]];
+      node.props[key] = value;
+      node.attributes[key] = String(value);
+    }
+    return node;
+  }
+
+  function applyPropsToElement(element, props) {
+    if (!element || typeof element !== "object") {
+      return element;
+    }
+    var incoming = this.normalizeProps(props);
+    var keys = Object.keys(incoming);
+    for (var i = 0; i < keys.length; i += 1) {
+      var key = String(keys[i] || "").trim();
+      if (!key) {
+        continue;
+      }
+      var value = incoming[keys[i]];
+      try {
+        element[key] = value;
+      } catch (ignoredPropertyWrite) { }
+      if (element.setAttribute) {
+        element.setAttribute(key, String(value));
+      }
+    }
+    return element;
+  }
+
+  function sanitizeQDomNode(node) {
+    if (!node || typeof node !== "object") {
+      return node;
+    }
+    if (Array.isArray(node)) {
+      for (var ai = 0; ai < node.length; ai += 1) {
+        this.sanitizeQDomNode(node[ai]);
+      }
+      return node;
+    }
+    if (Object.prototype.hasOwnProperty.call(node, "component")) {
+      try { delete node.component; } catch (ignoredDeleteComponent) { node.component = null; }
+    }
+    var lists = [node.nodes, node.children, node.templateNodes, node.slots, node.__qhtmlSlotNodes];
+    if (node.model && typeof node.model === "object") {
+      this.sanitizeQDomNode(node.model);
+    }
+    if (Array.isArray(node.entries)) {
+      for (var ei = 0; ei < node.entries.length; ei += 1) {
+        var entry = node.entries[ei];
+        if (entry && typeof entry === "object" && Array.isArray(entry.nodes)) {
+          this.sanitizeQDomNode(entry.nodes);
+        }
+      }
+    }
+    for (var li = 0; li < lists.length; li += 1) {
+      if (Array.isArray(lists[li])) {
+        this.sanitizeQDomNode(lists[li]);
+      }
+    }
+    return node;
+  }
+
+  function coerceFactoryNode(root, node) {
+    if (!node || typeof node !== "object") {
+      return node;
+    }
+    if (Array.isArray(node)) {
+      var out = [];
+      for (var i = 0; i < node.length; i += 1) {
+        out.push(this.coerceFactoryNode(root, node[i]));
+      }
+      return out;
+    }
+    var kind = String(node.kind || "").trim().toLowerCase();
+    var tagName = String(node.tagName || node.componentId || "").trim().toLowerCase();
+    if (
+      kind === "element" &&
+      tagName.indexOf("-") !== -1 &&
+      root &&
+      typeof root.createQComponentInstance === "function"
+    ) {
+      var attrs = node.attributes && typeof node.attributes === "object" ? Object.assign({}, node.attributes) : {};
+      return root.createQComponentInstance({
+        componentId: tagName,
+        tagName: tagName,
+        attributes: attrs,
+        props: Object.assign({}, attrs),
+        children: Array.isArray(node.children) ? node.children : []
+      });
+    }
+    return node;
+  }
+
+  function resolveCreatedElement(scope, qdomNode) {
+    if (!scope || !qdomNode) {
+      return null;
+    }
+    var uuid = String(qdomNode.UUID || (qdomNode.meta && qdomNode.meta.uuid) || "").trim();
+    if (!uuid) {
+      return null;
+    }
+    if (typeof scope.elementForUuid === "function") {
+      var byUuid = scope.elementForUuid(uuid);
+      if (byUuid) {
+        return byUuid;
+      }
+    }
+    if (scope.querySelectorAll) {
+      var all = scope.querySelectorAll("[qdom-uuid='" + uuid + "'],[data-qdom-uuid='" + uuid + "']");
+      if (all && all.length > 0) {
+        return all[0];
+      }
+    }
+    var tagName = String(qdomNode.tagName || qdomNode.componentId || "").trim();
+    if (tagName && scope.querySelectorAll) {
+      var matches = scope.querySelectorAll(tagName);
+      if (matches && matches.length > 0) {
+        return matches[matches.length - 1];
+      }
+    }
+    return null;
+  }
+
+  function refreshTarget(scope, target, createdNode) {
+    if (!scope || !target) {
+      return false;
+    }
+    var targetQdom = target && typeof target.qdom === "function" ? target.qdom() : target;
+    var targetUuid = String((targetQdom && targetQdom.UUID) || "").trim();
+    var createdUuid = String(createdNode && (createdNode.UUID || (createdNode.meta && createdNode.meta.uuid)) || "").trim();
+    var updateUuid = targetUuid || createdUuid;
+    if (!updateUuid || typeof scope.update !== "function") {
+      return false;
+    }
+    return scope.update(updateUuid);
+  }
+
+  function create(options) {
+    var opts = options && typeof options === "object" ? options : {};
+    var scope = this.getRootHost();
+    var root = scope && typeof scope.qdom === "function" ? scope.qdom() : null;
+    if (!scope || !root || typeof root.createInstanceFromQHTML !== "function") {
+      return null;
+    }
+
+    var source = String(opts.source || this.templateQHTML() || "").trim();
+    if (!source) {
+      return null;
+    }
+    var factoryQdom = typeof this.qdom === "function" ? this.qdom() : null;
+    this.sanitizeQDomNode(factoryQdom);
+    this.sanitizeQDomNode(root);
+
+    var target = this.resolveTargetQDom(root, opts.target || "");
+    if (!target || (typeof target.appendNode !== "function" && typeof target.appendToSlot !== "function")) {
+      return null;
+    }
+
+    var created = root.createInstanceFromQHTML(source);
+    created = this.coerceFactoryNode(root, created);
+    this.applyPropsToQDomNode(created, opts.props || opts.properties || {});
+    this.sanitizeQDomNode(created);
+    var appended = typeof target.appendToSlot === "function"
+      ? target.appendToSlot("default", created)
+      : target.appendNode(created);
+    var createdNode = this.normalizeCreatedNode(appended) || this.normalizeCreatedNode(created);
+    if (!createdNode) {
+      return null;
+    }
+
+    this.refreshTarget(scope, target, createdNode);
+
+    var uuid = String(createdNode.UUID || (createdNode.meta && createdNode.meta.uuid) || "").trim();
+    this.lastUuid = uuid;
+    this.count = Number(this.count || 0) + 1;
+
+    var instance = this.resolveCreatedElement(scope, createdNode);
+    this.applyPropsToElement(instance, opts.props || opts.properties || {});
+    if (typeof this.created === "function") {
+      this.created(uuid);
+    }
+    return instance || createdNode;
+  }
+
+  onReady {
+    this.style.display = "none";
+  }
+}
+
+q-style q-form-root-style {
+  q-style-class { w3-container w3-margin-top w3-margin-bottom }
+  color: #102a43
+}
+
+q-style q-form-shell-style {
+  q-style-class { w3-card w3-round-large w3-padding }
+  backgroundColor: #eef4fb
+  color: #102a43
+  border: 1px solid #c7d8ef
+}
+
+q-style q-form-input-style {
+  q-style-class { w3-input w3-border w3-round-large w3-margin-bottom }
+  backgroundColor: #f8fbff
+  color: #102a43
+  borderColor: #c7d8ef
+}
+
+q-style q-form-textarea-style {
+  q-style-class { w3-input w3-border w3-round-large w3-margin-bottom }
+  backgroundColor: #f8fbff
+  color: #102a43
+  borderColor: #c7d8ef
+}
+
+q-style q-form-submit-style {
+  q-style-class { w3-button w3-round-large w3-margin-top }
+  backgroundColor: #334155
+  color: #f8fbff
+  border: 1px solid #1e293b
+}
+
+q-default-theme q-form-theme {
+  .q-form-root { q-form-root-style }
+  .q-form-shell { q-form-shell-style }
+  .q-form-input { q-form-input-style }
+  .q-form-textarea { q-form-textarea-style }
+  .q-form-submit { q-form-submit-style }
+}
+
+q-keyword q-form { q-form-theme,form.q-form-root,div.q-form-shell }
+q-keyword q-input { q-form-theme,input.q-form-input }
+q-keyword q-textarea { q-form-theme,textarea.q-form-textarea }
+q-keyword q-submit { q-form-theme,button.q-form-submit }
+
+q-rewrite q-grid {
+  slot { main }
+  return {
+    q-script {
+      var src = this.qdom().slot("main");
+      var match = src.match(/\bcolumns\s*:\s*(\d+)\s*;?/i);
+      var cols = match ? Math.max(1, parseInt(match[1], 10)) : 1;
+      var body = src.replace(/\bcolumns\s*:\s*\d+\s*;?/i, "").trim();
+
+      return "div {" +
+        " class: \"q-grid-rewrite\"" +
+        " style { display: grid; grid-template-columns: repeat(" + cols + ", minmax(0, 1fr)); gap: 12px; align-items: stretch; } " +
+        body +
+      " }";
+    }
+  }
+}
+
+q-painter hudButtonPainter {
+  q-property hudHover: "0"
+  q-property hudActive: "0"
+  q-property hudLine: "0"
+  q-property hudAccent: "#6ea8ff"
+  q-property hudWarn: "#ff7a18"
+  q-property hudYellow: "#f8e66b"
+
+  onpaint {
+    const n = (v, d) => {
+      const x = parseFloat(String(v ?? d));
+      return Number.isFinite(x) ? x : d;
+    };
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const read = (camel, css, fallback) => this[camel] ?? this[css] ?? fallback;
+
+    const w = this.width;
+    const h = this.height;
+
+    const hover = clamp(n(read("hudHover", "--hud-hover", 0), 0), 0, 1);
+    const active = clamp(n(read("hudActive", "--hud-active", 0), 0), 0, 1);
+    const line = clamp(n(read("hudLine", "--hud-line", 0), 0), 0, 1);
+
+    const accent = String(read("hudAccent", "--hud-accent", "#6ea8ff"));
+    const warn = String(read("hudWarn", "--hud-warn", "#ff7a18"));
+    const yellow = String(read("hudYellow", "--hud-yellow", "#f8e66b"));
+
+    const cut = 16;
+    const notch = 34;
+
+    this.save();
+    this.clearRect(0, 0, w, h);
+
+    this.beginPath();
+    this.moveTo(cut, 0);
+    this.lineTo(w - notch, 0);
+    this.lineTo(w, h * 0.5);
+    this.lineTo(w - notch, h);
+    this.lineTo(cut, h);
+    this.lineTo(0, h - cut);
+    this.lineTo(0, cut);
+    this.closePath();
+
+    let bg = this.createLinearGradient(0, 0, w, h);
+    bg.addColorStop(0, "#10264a");
+    bg.addColorStop(0.5, "#0b1528");
+    bg.addColorStop(1, "#050912");
+
+    this.fillStyle = bg;
+    this.fill();
+
+    this.globalAlpha = 0.18 + hover * 0.2 + active * 0.24;
+    this.fillStyle = accent;
+    this.fill();
+
+    this.globalAlpha = 1;
+    this.strokeStyle = accent;
+    this.lineWidth = 1.5;
+    this.stroke();
+
+    this.strokeStyle = yellow;
+    this.lineWidth = 2;
+    this.beginPath();
+    this.moveTo(w - 24, 7);
+    this.lineTo(w - 6, 7);
+    this.stroke();
+
+    this.strokeStyle = warn;
+    this.beginPath();
+    this.moveTo(w - 18, 4);
+    this.lineTo(w - 2, 4);
+    this.stroke();
+
+    this.globalAlpha = 0.85;
+    this.strokeStyle = accent;
+    this.lineWidth = 2;
+    this.beginPath();
+    this.moveTo(cut + 10, 10);
+    this.lineTo(cut + 10 + (w - notch - cut - 30) * line, 10);
+    this.stroke();
+
+    this.globalAlpha = 0.55;
+    this.strokeStyle = "#ffffff";
+    this.lineWidth = 1;
+    this.beginPath();
+    this.moveTo(cut + 4, 4);
+    this.lineTo(w - notch - 10, 4);
+    this.stroke();
+
+    this.globalAlpha = active ? 0.95 : 0.36 + hover * 0.36;
+    this.strokeStyle = active ? warn : accent;
+    this.lineWidth = 2;
+    this.beginPath();
+    this.moveTo(w - notch + 6, h * 0.5);
+    this.lineTo(w - 8, h * 0.5);
+    this.stroke();
+
+    this.globalAlpha = 1;
+    this.restore();
+  }
+}
+
+q-painter hudSpinePainter {
+  q-property hudActive: "0"
+  q-property hudAccent: "#6ee7ff"
+  q-property hudWarn: "#ff7a18"
+
+  onpaint {
+    const n = (v, d) => {
+      const x = parseFloat(String(v ?? d));
+      return Number.isFinite(x) ? x : d;
+    };
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const read = (camel, css, fallback) => this[camel] ?? this[css] ?? fallback;
+
+    const w = this.width;
+    const h = this.height;
+
+    const active = clamp(n(read("hudActive", "--hud-active", 0), 0), 0, 1);
+    const accent = String(read("hudAccent", "--hud-accent", "#6ee7ff"));
+    const warn = String(read("hudWarn", "--hud-warn", "#ff7a18"));
+
+    this.save();
+    this.clearRect(0, 0, w, h);
+
+    let bg = this.createLinearGradient(0, 0, w, 0);
+    bg.addColorStop(0, "#111827");
+    bg.addColorStop(0.5, "#1f2937");
+    bg.addColorStop(1, "#070b13");
+
+    this.fillStyle = bg;
+    this.fillRect(0, 0, w, h);
+
+    this.globalAlpha = 0.35;
+    this.strokeStyle = accent;
+    this.lineWidth = 1;
+
+    for (let i = 0; i < 12; i++) {
+      const y = 28 + i * 42;
+
+      this.beginPath();
+      this.moveTo(8, y);
+      this.lineTo(24, y + 16);
+      this.lineTo(24, y + 34);
+      this.stroke();
+    }
+
+    this.globalAlpha = 0.8;
+    this.strokeStyle = active > 0.5 ? warn : accent;
+    this.lineWidth = 2;
+
+    this.beginPath();
+    this.moveTo(w - 12, 20);
+    this.lineTo(w - 12, h - 20);
+    this.stroke();
+
+    for (let i = 0; i < 8; i++) {
+      const y = h * 0.22 + i * 34;
+
+      this.fillStyle = i % 2 ? warn : accent;
+      this.globalAlpha = 0.45 + active * 0.35;
+      this.fillRect(w - 17, y, 9, 3);
+    }
+
+    this.globalAlpha = 0.45;
+    this.fillStyle = "#ffffff";
+    this.fillRect(w - 2, 0, 1, h);
+
+    this.globalAlpha = 0.28 + active * 0.28;
+    this.fillStyle = accent;
+    this.fillRect(0, 0, 2, h);
+
+    this.restore();
+  }
+}
+
+q-painter hudMetalPanelPainter {
+  q-property hudDent: "1"
+  q-property hudPanel: "1"
+  q-property hudGrime: "1"
+  q-property hudRivets: "1"
+  q-property hudAccent: "#6ee7ff"
+
+  onpaint {
+    const n = (v, d) => {
+      const x = parseFloat(String(v ?? d));
+      return Number.isFinite(x) ? x : d;
+    };
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+    const read = (camel, css, fallback) => {
+      return this[camel] ?? this[css] ?? fallback;
+    };
+
+    const rand = seed => {
+      let x = Math.sin(seed * 999.137) * 43758.5453123;
+      return x - Math.floor(x);
+    };
+
+    const w = this.width;
+    const h = this.height;
+
+    const dent = clamp(n(read("hudDent", "--hud-dent", 1), 1), 0, 1);
+    const panel = clamp(n(read("hudPanel", "--hud-panel", 1), 1), 0, 1);
+    const grime = clamp(n(read("hudGrime", "--hud-grime", 1), 1), 0, 1);
+    const rivets = clamp(n(read("hudRivets", "--hud-rivets", 1), 1), 0, 1);
+    const accent = String(read("hudAccent", "--hud-accent", "#6ee7ff"));
+
+    const corner = 28 * dent;
+    const leftBite = 72 * dent;
+    const border = 16;
+
+    const x0 = 0;
+    const y0 = 0;
+    const x1 = w;
+    const y1 = h;
+
+    const drawOuterShape = () => {
+      this.beginPath();
+      this.moveTo(x0 + corner, y0);
+      this.lineTo(x1 - corner, y0);
+      this.quadraticCurveTo(x1, y0, x1, y0 + corner);
+      this.lineTo(x1, y1 - corner);
+      this.quadraticCurveTo(x1, y1, x1 - corner, y1);
+      this.lineTo(x0 + leftBite, y1);
+      this.lineTo(x0 + leftBite, y1 - 44);
+      this.lineTo(x0, y1 - 92);
+      this.lineTo(x0, y0 + corner);
+      this.quadraticCurveTo(x0, y0, x0 + corner, y0);
+      this.closePath();
+    };
+
+    const drawInnerShape = () => {
+      const b = border;
+      this.beginPath();
+      this.moveTo(x0 + corner + b, y0 + b);
+      this.lineTo(x1 - corner - b, y0 + b);
+      this.quadraticCurveTo(x1 - b, y0 + b, x1 - b, y0 + corner + b);
+      this.lineTo(x1 - b, y1 - corner - b);
+      this.quadraticCurveTo(x1 - b, y1 - b, x1 - corner - b, y1 - b);
+      this.lineTo(x0 + leftBite + b, y1 - b);
+      this.lineTo(x0 + leftBite + b, y1 - 52);
+      this.lineTo(x0 + b, y1 - 100);
+      this.lineTo(x0 + b, y0 + corner + b);
+      this.quadraticCurveTo(x0 + b, y0 + b, x0 + corner + b, y0 + b);
+      this.closePath();
+    };
+
+    this.save();
+    this.clearRect(0, 0, w, h);
+
+    drawOuterShape();
+
+    let outer = this.createLinearGradient(0, 0, w, h);
+    outer.addColorStop(0, "#b9b0a3");
+    outer.addColorStop(0.08, "#2e2b29");
+    outer.addColorStop(0.5, "#100f0f");
+    outer.addColorStop(0.92, "#4b4844");
+    outer.addColorStop(1, "#d6d0c3");
+
+    this.fillStyle = outer;
+    this.fill();
+
+    drawInnerShape();
+
+    let metal = this.createLinearGradient(0, 0, w, h);
+    metal.addColorStop(0, "#6d675f");
+    metal.addColorStop(0.22, "#393733");
+    metal.addColorStop(0.5, "#272623");
+    metal.addColorStop(0.78, "#46413b");
+    metal.addColorStop(1, "#1a1918");
+
+    this.fillStyle = metal;
+    this.fill();
+
+    this.save();
+    drawInnerShape();
+    this.clip();
+
+    this.globalAlpha = 0.16 + panel * 0.08;
+    this.fillStyle = accent;
+    this.fillRect(0, 0, w, h);
+
+    for (let i = 0; i < 210; i++) {
+      const x = rand(i + 101) * w;
+      const y = rand(i + 201) * h;
+      const len = 8 + rand(i + 301) * 64;
+      const angle = -0.45 + rand(i + 401) * 0.9;
+
+      this.globalAlpha = 0.05 + rand(i + 501) * 0.16;
+      this.strokeStyle = rand(i + 601) > 0.5 ? "#d7d0c5" : "#070707";
+      this.lineWidth = 0.5 + rand(i + 701) * 1.2;
+
+      this.beginPath();
+      this.moveTo(x, y);
+      this.lineTo(x + Math.cos(angle) * len, y + Math.sin(angle) * len);
+      this.stroke();
+    }
+
+    for (let i = 0; i < 44; i++) {
+      const x = rand(i + 900) * w;
+      const y = rand(i + 1000) * h;
+      const rw = 1.5 + rand(i + 1100) * 4;
+      const rh = 1.5 + rand(i + 1200) * 4;
+
+      this.globalAlpha = 0.22;
+      this.fillStyle = "#0a0a0a";
+      this.beginPath();
+      this.ellipse(x, y, rw, rh, 0, 0, Math.PI * 2);
+      this.fill();
+
+      this.globalAlpha = 0.18;
+      this.fillStyle = "#d9d2c6";
+      this.beginPath();
+      this.ellipse(x - 1, y - 1, rw * 0.45, rh * 0.45, 0, 0, Math.PI * 2);
+      this.fill();
+    }
+
+    if (grime > 0) {
+      for (let i = 0; i < 24; i++) {
+        const x = rand(i + 1300) * w;
+        const y = rand(i + 1400) * h * 0.75;
+        const len = 18 + rand(i + 1500) * 90;
+
+        let drip = this.createLinearGradient(x, y, x, y + len);
+        drip.addColorStop(0, "rgba(83,90,45,0.42)");
+        drip.addColorStop(1, "rgba(83,90,45,0)");
+
+        this.globalAlpha = 0.45 * grime;
+        this.strokeStyle = drip;
+        this.lineWidth = 1 + rand(i + 1600) * 3;
+
+        this.beginPath();
+        this.moveTo(x, y);
+        this.bezierCurveTo(
+        x + rand(i + 1700) * 10 - 5,
+        y + len * 0.25,
+        x + rand(i + 1800) * 10 - 5,
+        y + len * 0.75,
+        x + rand(i + 1900) * 10 - 5,
+        y + len
+        );
+        this.stroke();
+      }
+    }
+
+    if (rivets > 0) {
+      const rivetPoints = [];
+
+      for (let i = 0; i < 6; i++) {
+        rivetPoints.push([border + 24 + i * ((w - border * 2 - 48) / 5), border + 22]);
+        rivetPoints.push([border + 24 + i * ((w - border * 2 - 48) / 5), h - border - 22]);
+      }
+
+      for (let i = 0; i < 4; i++) {
+        rivetPoints.push([border + 22, border + 70 + i * ((h - border * 2 - 140) / 3)]);
+        rivetPoints.push([w - border - 22, border + 70 + i * ((h - border * 2 - 140) / 3)]);
+      }
+
+      rivetPoints.forEach((p, i) => {
+        const x = p[0];
+        const y = p[1];
+
+        let rg = this.createRadialGradient(x - 2, y - 2, 1, x, y, 6);
+        rg.addColorStop(0, "#f1eadb");
+        rg.addColorStop(0.35, "#8d867b");
+        rg.addColorStop(1, "#121212");
+
+        this.globalAlpha = 0.9 * rivets;
+        this.fillStyle = rg;
+        this.beginPath();
+        this.arc(x, y, 5, 0, Math.PI * 2);
+        this.fill();
+
+        this.globalAlpha = 0.35;
+        this.fillStyle = "#000000";
+        this.beginPath();
+        this.arc(x + 2, y + 2, 5, 0, Math.PI * 2);
+        this.fill();
+      });
+    }
+
+    this.restore();
+
+    this.globalAlpha = 1;
+    this.lineWidth = 3;
+    this.strokeStyle = "rgba(255,255,255,0.55)";
+    drawOuterShape();
+    this.stroke();
+
+    this.lineWidth = 2;
+    this.strokeStyle = "rgba(0,0,0,0.85)";
+    drawInnerShape();
+    this.stroke();
+
+    this.globalAlpha = 0.65;
+    this.strokeStyle = accent;
+    this.lineWidth = 1;
+
+    this.beginPath();
+    this.moveTo(18, 66);
+    this.lineTo(18, h - 120);
+    this.stroke();
+
+    this.globalAlpha = 1;
+    this.restore();
+  }
+}
+
+q-transition hudButtonHoverTransition {
+  property { --hud-hover }
+  delay { 0 }
+  timing { ease-out }
+  duration { 180 }
+}
+
+q-transition hudButtonLineTransition {
+  property { --hud-line }
+  delay { 0 }
+  timing { ease-in-out }
+  duration { 420 }
+}
+
+q-transition hudButtonActiveTransition {
+  property { --hud-active }
+  delay { 0 }
+  timing { ease-out }
+  duration { 220 }
+}
+
+q-transition hudPanelWidthTransition {
+  property { width }
+  delay { 80 }
+  timing { cubic-bezier(0.18, 0.84, 0.24, 1) }
+  duration { 720 }
+}
+
+q-transition hudPanelOpacityTransition {
+  property { opacity }
+  delay { 80 }
+  timing { ease-out }
+  duration { 360 }
+}
+
+q-transition hudPanelDentTransition {
+  property { --hud-dent }
+  delay { 760 }
+  timing { ease-out }
+  duration { 360 }
+}
+
+q-style hudRootStyle {
+  minHeight: 200vh
+  background: #000000
+  color: #e6fbff
+  fontFamily: monospace
+  display: grid
+  gridTemplateColumns: 300px 44px 1fr
+  overflow: hidden
+}
+
+q-style hudButtonStackStyle {
+  paddingTop: 140px
+  background: transparent
+  display: flex
+  flexDirection: column
+  gap: 10px
+  zIndex: 3
+}
+
+q-style hudButtonStyle {
+  width: 298px
+  height: 56px
+  border: 0
+  outline: 0
+  cursor: pointer
+  background: transparent
+  color: #f2fbff
+  fontFamily: monospace
+  fontWeight: 700
+  letterSpacing: 0.035em
+  textAlign: center
+  padding: 0 34px 0 22px
+  position: relative
+  overflow: hidden
+
+  --hud-hover: 0
+  --hud-active: 0
+  --hud-line: 0
+  --hud-accent: #6ea8ff
+  --hud-warn: #ff7a18
+  --hud-yellow: #f8e66b
+
+  q-style-painter {
+    background { hudButtonPainter }
+  }
+
+  q-style-transition {
+    hudButtonHoverTransition
+    hudButtonLineTransition
+    hudButtonActiveTransition
+  }
+}
+
+q-style hudButtonLabelStyle {
+  position: relative
+  zIndex: 2
+  fontSize: 14px
+  lineHeight: 56px
+  whiteSpace: nowrap
+}
+
+q-style hudSpineStyle {
+  height: 200vh
+  width: 44px
+
+  --hud-active: 0
+  --hud-accent: #6ee7ff
+  --hud-warn: #ff7a18
+
+  q-style-painter {
+    background { hudSpinePainter }
+  }
+
+  q-style-transition {
+    hudButtonActiveTransition
+  }
+}
+
+q-style hudPanelSlotStyle {
+  height: 200vh
+  display: flex
+  alignItems: flex-start
+  paddingTop: 0
+  overflow: hidden
+}
+
+q-style hudMetalPanelStyle {
+  width: 0
+  height: 200vh
+  maxWidth: 980px
+  minHeight: 520px
+  opacity: 0
+  position: relative
+  overflow: hidden
+  marginTop: 0
+
+  --hud-dent: 0
+  --hud-panel: 1
+  --hud-grime: 1
+  --hud-rivets: 1
+  --hud-accent: #6ee7ff
+
+  q-style-painter {
+    background { hudMetalPanelPainter }
+  }
+
+  q-style-transition {
+    hudPanelWidthTransition
+    hudPanelOpacityTransition
+    hudPanelDentTransition
+  }
+}
+
+q-style hudFrameStyle {
+  position: absolute
+  left: 34px
+  top: 34px
+  width: calc(100% - 68px)
+  height: calc(100% - 94px)
+  border: 0
+  background: transparent
+  opacity: 0.92
+}
+
+q-theme hudTheme {
+  .hud-root { hudRootStyle }
+  .hud-button-stack { hudButtonStackStyle }
+  .hud-button { hudButtonStyle }
+  .hud-button-label { hudButtonLabelStyle }
+  .hud-spine { hudSpineStyle }
+  .hud-panel-slot { hudPanelSlotStyle }
+  .hud-metal-panel { hudMetalPanelStyle }
+  .hud-frame { hudFrameStyle }
+}
+
+q-component hud-button {
+  q-property label: "TITLE 01"
+  q-property url: "about:blank"
+  q-property accent: "#6ea8ff"
+  q-property warn: "#ff7a18"
+
+  button.hud-button {
+    type: "button"
+    data-url: "${this.component.url}"
+    data-label: "${this.component.label}"
+    data-accent: "${this.component.accent}"
+    data-warn: "${this.component.warn}"
+
+    style {
+      --hud-accent: "${this.component.accent}"
+      --hud-warn: "${this.component.warn}"
+    }
+
+    onmouseenter {
+      const root = this.closest("hud-system");
+
+      if (root && root.previewButton) {
+        root.previewButton(this);
+      }
+    }
+
+    onmouseleave {
+      const root = this.closest("hud-system");
+
+      if (root && root.leaveButton) {
+        root.leaveButton(this);
+      }
+    }
+
+    onclick {
+      const root = this.closest("hud-system");
+
+      if (root && root.selectButton) {
+        root.selectButton(this);
+      }
+    }
+
+    span.hud-button-label {
+      text { ${this.component.label} }
+    }
+  }
+}
+
+q-component hud-system {
+  q-property panelWidth: "78vw"
+  q-property defaultUrl: "about:blank"
+
+  q-signal hudHover
+  q-signal hudLeave
+  q-signal hudSelect
+
+  function dashName(name) {
+    return "--" + String(name).replace(/[A-Z]/g, m => "-" + m.toLowerCase());
+  }
+
+  function setPainterProp(el, name, value) {
+    if (!el) {
+      return;
+    }
+
+    const raw = String(value);
+
+    el.style.setProperty(name, raw);
+    el.style.setProperty(this.dashName(name), raw);
+  }
+
+  function spine() {
+    return this.querySelector(".hud-spine");
+  }
+
+  function panel() {
+    return this.querySelector(".hud-metal-panel");
+  }
+
+  function iframe() {
+    return this.querySelector(".hud-frame");
+  }
+
+  function emitHudSignal(name, detail) {
+    if (this[name] && this[name].emit) {
+      this[name].emit(detail);
+      return;
+    }
+
+    this.dispatchEvent(new CustomEvent(name, {
+      bubbles: true,
+      detail: detail
+    }));
+  }
+
+  function previewButton(button) {
+    const accent = button.getAttribute("data-accent") || "#6ea8ff";
+    const warn = button.getAttribute("data-warn") || "#ff7a18";
+
+    this.setPainterProp(button, "hudHover", "1");
+    this.setPainterProp(button, "hudLine", "0.75");
+    this.setPainterProp(button, "hudAccent", accent);
+    this.setPainterProp(button, "hudWarn", warn);
+
+    const s = this.spine();
+
+    this.setPainterProp(s, "hudActive", "0.55");
+    this.setPainterProp(s, "hudAccent", accent);
+    this.setPainterProp(s, "hudWarn", warn);
+
+    this.emitHudSignal("hudHover", {
+      url: button.getAttribute("data-url"),
+      label: button.getAttribute("data-label")
+    });
+  }
+
+  function leaveButton(button) {
+    if (button.getAttribute("data-active") === "1") {
+      return;
+    }
+
+    this.setPainterProp(button, "hudHover", "0");
+    this.setPainterProp(button, "hudLine", "0");
+
+    const selected = this.querySelector(".hud-button[data-active='1']");
+
+    if (!selected) {
+      this.setPainterProp(this.spine(), "hudActive", "0");
+    }
+
+    this.emitHudSignal("hudLeave", {
+      url: button.getAttribute("data-url"),
+      label: button.getAttribute("data-label")
+    });
+  }
+
+  function selectButton(button) {
+    const url = button.getAttribute("data-url") || this.component.defaultUrl || "about:blank";
+    const label = button.getAttribute("data-label") || "";
+    const accent = button.getAttribute("data-accent") || "#6ea8ff";
+    const warn = button.getAttribute("data-warn") || "#ff7a18";
+
+    this.querySelectorAll(".hud-button").forEach(btn => {
+      btn.setAttribute("data-active", "0");
+
+      this.setPainterProp(btn, "hudActive", "0");
+      this.setPainterProp(btn, "hudHover", "0");
+      this.setPainterProp(btn, "hudLine", "0");
+    });
+
+    button.setAttribute("data-active", "1");
+
+    this.setPainterProp(button, "hudActive", "1");
+    this.setPainterProp(button, "hudHover", "1");
+    this.setPainterProp(button, "hudLine", "1");
+
+    const s = this.spine();
+
+    this.setPainterProp(s, "hudActive", "1");
+    this.setPainterProp(s, "hudAccent", accent);
+    this.setPainterProp(s, "hudWarn", warn);
+
+    const p = this.panel();
+
+    this.setPainterProp(p, "hudAccent", accent);
+    this.setPainterProp(p, "hudDent", "1");
+    this.setPainterProp(p, "hudPanel", "1");
+
+    p.style.width = this.component.panelWidth || "78vw";
+    p.style.opacity = "1";
+
+    const frame = this.iframe();
+
+    if (frame) {
+      frame.setAttribute("src", url);
+    }
+
+    this.emitHudSignal("hudSelect", {
+      url: url,
+      label: label
+    });
+  }
+
+  hudTheme {
+    div.hud-root {
+      aside.hud-button-stack {
+        slot { buttons }
+      }
+
+      div.hud-spine { }
+
+      div.hud-panel-slot {
+        div.hud-metal-panel {
+          iframe.hud-frame {
+            src: "${this.component.defaultUrl}"
+          }
+        }
+      }
+    }
+  }
+}
+/* usage pattern 
+
+
+hud-system {
+  panelWidth: "78vw"
+  defaultUrl: "about:blank"
+
+  buttons {
+    hud-button {
+      label: "TITLE 01"
+      url: "https://datafault.net/"
+      accent: "#6ea8ff"
+      warn: "#ff7a18"
+    }
+
+    hud-button {
+      label: "TITLE 02"
+      url: "https://datafault.net/tools/"
+      accent: "#6ee7ff"
+      warn: "#facc15"
+    }
+
+    hud-button {
+      label: "TITLE 03"
+      url: "https://datafault.net/stats/"
+      accent: "#93c5fd"
+      warn: "#fb7185"
+    }
+
+    hud-button {
+      label: "TITLE 04"
+      url: "https://datafault.net/search/"
+      accent: "#67e8f9"
+      warn: "#f97316"
+    }
+  }
+}
+*/
+
+q-painter hudContainerTopLinePainter {
+  q-property hudAccent: "#6ea8ff"
+  q-property hudWarn: "#ff3b18"
+  q-property hudYellow: "#d49a36"
+  q-property hudLineAlpha: "0.9"
+  q-property hudLineScale: "1"
+
+  onpaint {
+    const n = (v, d) => {
+      const x = parseFloat(String(v ?? d));
+      return Number.isFinite(x) ? x : d;
+    };
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const read = (camel, css, fallback) => this[camel] ?? this[css] ?? fallback;
+
+    const w = this.width;
+    const h = this.height;
+
+    const accent = String(read("hudAccent", "--hud-accent", "#6ea8ff"));
+    const warn = String(read("hudWarn", "--hud-warn", "#ff3b18"));
+    const yellow = String(read("hudYellow", "--hud-yellow", "#d49a36"));
+    const alpha = clamp(n(read("hudLineAlpha", "--hud-line-alpha", 0.9), 0.9), 0, 1);
+    const lineScale = clamp(n(read("hudLineScale", "--hud-line-scale", 1), 1), 0.25, 4);
+
+    const sx = w / 760;
+    const sy = h / 106;
+    const s = Math.min(sx, sy) * lineScale;
+
+    const strokePath = (yOffset, color, opacity, width) => {
+      this.globalAlpha = opacity * alpha;
+      this.strokeStyle = color;
+      this.lineWidth = width * s;
+      this.lineJoin = "miter";
+      this.lineCap = "butt";
+
+      this.beginPath();
+      this.moveTo(24 * sx, 78 * sy + yOffset);
+      this.lineTo(148 * sx, 78 * sy + yOffset);
+      this.lineTo(184 * sx, 46 * sy + yOffset);
+      this.lineTo(360 * sx, 46 * sy + yOffset);
+      this.lineTo(390 * sx, 24 * sy + yOffset);
+      this.lineTo(524 * sx, 24 * sy + yOffset);
+      this.lineTo(554 * sx, 48 * sy + yOffset);
+      this.lineTo(w - 74 * sx, 48 * sy + yOffset);
+      this.lineTo(w - 74 * sx, h - 8 * sy + yOffset);
+      this.stroke();
+    };
+
+    this.save();
+    this.clearRect(0, 0, w, h);
+
+    strokePath(0, "#8ba7c2", 0.86, 4.2);
+    strokePath(10 * sy, accent, 0.72, 2.4);
+    strokePath(20 * sy, "#34546a", 0.58, 1.8);
+
+    this.globalAlpha = 0.78 * alpha;
+    this.strokeStyle = "#b7c9d8";
+    this.lineWidth = 2 * s;
+    this.beginPath();
+    this.moveTo(185 * sx, 56 * sy);
+    this.lineTo(348 * sx, 56 * sy);
+    this.lineTo(374 * sx, 36 * sy);
+    this.lineTo(512 * sx, 36 * sy);
+    this.stroke();
+
+    this.globalAlpha = 0.85 * alpha;
+    this.strokeStyle = yellow;
+    this.lineWidth = 5 * s;
+    for (let i = 0; i < 3; i++) {
+      const x = 58 * sx + i * 34 * sx;
+      this.beginPath();
+      this.moveTo(x, 18 * sy);
+      this.lineTo(x + 22 * sx, 4 * sy);
+      this.stroke();
+    }
+
+    this.globalAlpha = 0.82 * alpha;
+    this.strokeStyle = yellow;
+    this.lineWidth = 5 * s;
+    for (let i = 0; i < 2; i++) {
+      const x = w - 118 * sx + i * 28 * sx;
+      this.beginPath();
+      this.moveTo(x, 8 * sy);
+      this.lineTo(x + 24 * sx, 32 * sy);
+      this.stroke();
+    }
+
+    this.globalAlpha = 0.85 * alpha;
+    this.strokeStyle = accent;
+    this.lineWidth = 3 * s;
+    this.beginPath();
+    this.moveTo(w - 112 * sx, 54 * sy);
+    this.lineTo(w - 56 * sx, 54 * sy);
+    this.stroke();
+
+    this.globalAlpha = 0.9 * alpha;
+    this.strokeStyle = "#2dd4bf";
+    this.lineWidth = 3 * s;
+    this.strokeRect(336 * sx, 38 * sy, 8 * sx, 8 * sy);
+
+    this.globalAlpha = 0.52 * alpha;
+    this.strokeStyle = "#8ba7c2";
+    this.lineWidth = 2 * s;
+    for (let i = 0; i < 5; i++) {
+      const x = 498 * sx + i * 14 * sx;
+      this.beginPath();
+      this.moveTo(x, 74 * sy);
+      this.lineTo(x + 5 * sx, 74 * sy);
+      this.stroke();
+    }
+
+    this.globalAlpha = 0.46 * alpha;
+    this.strokeStyle = warn;
+    this.lineWidth = 2 * s;
+    this.beginPath();
+    this.moveTo(w - 76 * sx, 90 * sy);
+    this.lineTo(w - 42 * sx, 90 * sy);
+    this.stroke();
+
+    this.globalAlpha = 1;
+    this.restore();
+  }
+}
+
+q-painter hudContainerBottomLinePainter {
+  q-property hudAccent: "#6ea8ff"
+  q-property hudLineAlpha: "0.9"
+  q-property hudLineScale: "1"
+
+  onpaint {
+    const n = (v, d) => {
+      const x = parseFloat(String(v ?? d));
+      return Number.isFinite(x) ? x : d;
+    };
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const read = (camel, css, fallback) => this[camel] ?? this[css] ?? fallback;
+
+    const w = this.width;
+    const h = this.height;
+
+    const accent = String(read("hudAccent", "--hud-accent", "#6ea8ff"));
+    const alpha = clamp(n(read("hudLineAlpha", "--hud-line-alpha", 0.9), 0.9), 0, 1);
+    const lineScale = clamp(n(read("hudLineScale", "--hud-line-scale", 1), 1), 0.25, 4);
+
+    const sx = w / 760;
+    const sy = h / 78;
+    const s = Math.min(sx, sy) * lineScale;
+
+    this.save();
+    this.clearRect(0, 0, w, h);
+
+    this.globalAlpha = 0.84 * alpha;
+    this.strokeStyle = "#8ba7c2";
+    this.lineWidth = 4 * s;
+    this.lineJoin = "miter";
+    this.lineCap = "butt";
+
+    this.beginPath();
+    this.moveTo(0, 40 * sy);
+    this.lineTo(128 * sx, 40 * sy);
+    this.lineTo(160 * sx, 22 * sy);
+    this.lineTo(462 * sx, 22 * sy);
+    this.lineTo(494 * sx, 50 * sy);
+    this.lineTo(612 * sx, 50 * sy);
+    this.lineTo(650 * sx, 28 * sy);
+    this.lineTo(w - 36 * sx, 28 * sy);
+    this.stroke();
+
+    this.globalAlpha = 0.72 * alpha;
+    this.strokeStyle = accent;
+    this.lineWidth = 2.4 * s;
+
+    this.beginPath();
+    this.moveTo(0, 48 * sy);
+    this.lineTo(132 * sx, 48 * sy);
+    this.lineTo(164 * sx, 30 * sy);
+    this.lineTo(456 * sx, 30 * sy);
+    this.lineTo(488 * sx, 58 * sy);
+    this.lineTo(616 * sx, 58 * sy);
+    this.lineTo(654 * sx, 36 * sy);
+    this.lineTo(w - 36 * sx, 36 * sy);
+    this.stroke();
+
+    this.globalAlpha = 0.46 * alpha;
+    this.strokeStyle = "#8ba7c2";
+    this.lineWidth = 5 * s;
+
+    for (let i = 0; i < 8; i++) {
+      const x = 236 * sx + i * 32 * sx;
+      this.beginPath();
+      this.moveTo(x, 26 * sy);
+      this.lineTo(x + 34 * sx, 62 * sy);
+      this.stroke();
+    }
+
+    this.globalAlpha = 0.36 * alpha;
+    this.strokeStyle = "#b7c9d8";
+    this.lineWidth = 1.4 * s;
+    this.beginPath();
+    this.moveTo(180 * sx, 12 * sy);
+    this.lineTo(460 * sx, 12 * sy);
+    this.stroke();
+
+    this.globalAlpha = 1;
+    this.restore();
+  }
+}
+
+q-painter hudContainerRightLinePainter {
+  q-property hudAccent: "#6ea8ff"
+  q-property hudWarn: "#ff3b18"
+  q-property hudLineAlpha: "0.9"
+  q-property hudLineScale: "1"
+
+  onpaint {
+    const n = (v, d) => {
+      const x = parseFloat(String(v ?? d));
+      return Number.isFinite(x) ? x : d;
+    };
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const read = (camel, css, fallback) => this[camel] ?? this[css] ?? fallback;
+
+    const w = this.width;
+    const h = this.height;
+
+    const accent = String(read("hudAccent", "--hud-accent", "#6ea8ff"));
+    const warn = String(read("hudWarn", "--hud-warn", "#ff3b18"));
+    const alpha = clamp(n(read("hudLineAlpha", "--hud-line-alpha", 0.9), 0.9), 0, 1);
+    const lineScale = clamp(n(read("hudLineScale", "--hud-line-scale", 1), 1), 0.25, 4);
+
+    const s = lineScale;
+
+    this.save();
+    this.clearRect(0, 0, w, h);
+
+    this.globalAlpha = 0.86 * alpha;
+    this.strokeStyle = "#8ba7c2";
+    this.lineWidth = 4 * s;
+    this.lineJoin = "miter";
+    this.lineCap = "butt";
+
+    this.beginPath();
+    this.moveTo(8, 8);
+    this.lineTo(w - 16, 8);
+    this.lineTo(w - 16, h - 10);
+    this.stroke();
+
+    this.globalAlpha = 0.72 * alpha;
+    this.strokeStyle = accent;
+    this.lineWidth = 2.2 * s;
+
+    this.beginPath();
+    this.moveTo(16, 18);
+    this.lineTo(w - 26, 18);
+    this.lineTo(w - 26, h - 22);
+    this.stroke();
+
+    this.globalAlpha = 0.82 * alpha;
+    this.strokeStyle = warn;
+    this.lineWidth = 5 * s;
+
+    for (let i = 0; i < 3; i++) {
+      const y = h * 0.44 + i * 30;
+      this.beginPath();
+      this.moveTo(w - 42, y);
+      this.lineTo(w - 72, y + 26);
+      this.stroke();
+    }
+
+    this.globalAlpha = 0.38 * alpha;
+    this.strokeStyle = "#b7c9d8";
+    this.lineWidth = 1.5 * s;
+    this.beginPath();
+    this.moveTo(w - 18, 34);
+    this.lineTo(w - 18, h - 38);
+    this.stroke();
+
+    this.globalAlpha = 1;
+    this.restore();
+  }
+}
+
+q-style hudContainerRootStyle {
+  display: inline-grid
+  gridTemplateColumns: var(--hud-left-overhang) auto var(--hud-right-overhang)
+  gridTemplateRows: var(--hud-top-height) auto var(--hud-bottom-height)
+  position: relative
+  width: fit-content
+  height: fit-content
+  background: transparent
+  isolation: isolate
+
+  --hud-left-overhang: 28px
+  --hud-right-overhang: 96px
+  --hud-top-height: 106px
+  --hud-bottom-height: 78px
+  --hud-accent: #6ea8ff
+  --hud-warn: #ff3b18
+  --hud-yellow: #d49a36
+  --hud-line-alpha: 0.9
+  --hud-line-scale: 1
+}
+
+q-style hudContainerTopStyle {
+  gridColumn: 1 / 4
+  gridRow: 1
+  position: relative
+  zIndex: 3
+  pointerEvents: none
+  background: transparent
+
+  q-style-painter {
+    background { hudContainerTopLinePainter }
+  }
+}
+
+q-style hudContainerBottomStyle {
+  gridColumn: 1 / 4
+  gridRow: 3
+  position: relative
+  zIndex: 3
+  pointerEvents: none
+  background: transparent
+
+  q-style-painter {
+    background { hudContainerBottomLinePainter }
+  }
+}
+
+q-style hudContainerRightHookStyle {
+  gridColumn: 3
+  gridRow: 1 / 3
+  position: relative
+  zIndex: 4
+  pointerEvents: none
+  background: transparent
+
+  q-style-painter {
+    background { hudContainerRightLinePainter }
+  }
+}
+
+q-style hudContainerBodyStyle {
+  gridColumn: 2
+  gridRow: 2
+  position: relative
+  zIndex: 2
+  minWidth: 1px
+  minHeight: 1px
+  overflow: visible
+  background: transparent
+}
+
+q-style hudContainerInnerStyle {
+  position: relative
+  zIndex: 2
+  width: fit-content
+  height: fit-content
+  background: transparent
+}
+
+q-theme hudContainerTheme {
+  .hud-container-root { hudContainerRootStyle }
+  .hud-container-top { hudContainerTopStyle }
+  .hud-container-bottom { hudContainerBottomStyle }
+  .hud-container-right-hook { hudContainerRightHookStyle }
+  .hud-container-body { hudContainerBodyStyle }
+  .hud-container-inner { hudContainerInnerStyle }
+}
+
+q-component hud-container {
+  q-property accent: "#6ea8ff"
+  q-property warn: "#ff3b18"
+  q-property yellow: "#d49a36"
+  q-property lineAlpha: "0.9"
+  q-property lineScale: "1"
+  q-property topHeight: "106px"
+  q-property bottomHeight: "78px"
+  q-property leftOverhang: "28px"
+  q-property rightOverhang: "96px"
+
+  q-signal hudContainerResize
+
+  hudContainerTheme {
+    div.hud-container-root {
+      style {
+        --hud-accent: "${this.component.accent}"
+        --hud-warn: "${this.component.warn}"
+        --hud-yellow: "${this.component.yellow}"
+        --hud-line-alpha: "${this.component.lineAlpha}"
+        --hud-line-scale: "${this.component.lineScale}"
+        --hud-top-height: "${this.component.topHeight}"
+        --hud-bottom-height: "${this.component.bottomHeight}"
+        --hud-left-overhang: "${this.component.leftOverhang}"
+        --hud-right-overhang: "${this.component.rightOverhang}"
+      }
+
+      onReady {
+        const root = this;
+        const host = root.closest("hud-container");
+        const body = root.querySelector(".hud-container-body");
+
+        if (!body) {
+          return;
+        }
+
+        const emitResize = detail => {
+          if (host && host.hudContainerResize && host.hudContainerResize.emit) {
+            host.hudContainerResize.emit(detail);
+            return;
+          }
+
+          if (host) {
+            host.dispatchEvent(new CustomEvent("hudContainerResize", {
+              bubbles: true,
+              detail: detail
+            }));
+          }
+        };
+
+        const sync = () => {
+          const rect = body.getBoundingClientRect();
+
+          root.style.setProperty("--hud-content-width", rect.width + "px");
+          root.style.setProperty("--hud-content-height", rect.height + "px");
+
+          emitResize({
+            width: rect.width,
+            height: rect.height
+          });
+        };
+
+        if (root.__hudContainerResizeObserver) {
+          root.__hudContainerResizeObserver.disconnect();
+        }
+
+        const observer = new ResizeObserver(sync);
+        observer.observe(body);
+
+        Array.from(body.children || []).forEach(child => {
+          observer.observe(child);
+        });
+
+        root.__hudContainerResizeObserver = observer;
+
+        requestAnimationFrame(sync);
+      }
+
+      div.hud-container-top { }
+
+      div.hud-container-right-hook { }
+
+      div.hud-container-body {
+        div.hud-container-inner {
+          slot { content }
+        }
+      }
+
+      div.hud-container-bottom { }
+    }
+  }
+}
+
+q-component q-list-view {
+  q-property model: q-array { }
+  ul {
+    for (item in this.component.model) {
+      li { item }
+    }
+  }
+}
+
+q-style q-modal-root-style {
+  q-style-class { w3-modal }
+}
+q-style q-modal-container-style {
+  q-style-class { w3-modal-content w3-card-4 w3-animate-zoom }
+  backgroundColor: rgb(230, 238, 249)
+  color: #0f172a
+}
+q-style q-modal-titlebar-style {
+  q-style-class { w3-center }
+  backgroundColor: rgb(222, 232, 246)
+  color: #0f172a
+}
+q-style q-modal-closebutton-style {
+  q-style-class { w3-button w3-xlarge w3-display-topright }
+  backgroundColor: rgb(203, 213, 225)
+  color: #0f172a
+}
+q-style q-modal-title-style {
+  q-style-class { w3-margin-top w3-large }
+  backgroundColor: rgb(230, 238, 249)
+  color: #0f172a
+}
+q-style q-modal-content-style {
+  q-style-class { w3-container w3-section }
+  backgroundColor: rgb(238, 243, 251)
+  color: #0f172a
+}
+q-style q-modal-footer-style {
+  q-style-class { w3-container w3-border-top w3-padding-16 }
+  backgroundColor: rgb(222, 232, 246)
+  color: #0f172a
+}
+q-default-theme q-modal-theme {
+  .q-modal-root { q-modal-root-style }
+  .q-modal-container { q-modal-container-style }
+  .q-modal-titlebar { q-modal-titlebar-style }
+  .q-modal-closebutton { q-modal-closebutton-style }
+  .q-modal-title { q-modal-title-style }
+  .q-modal-content { q-modal-content-style }
+  .q-modal-footer { q-modal-footer-style }
+}
+
+q-component q-modal {
+  function ensureOpenState() {
+    if (typeof this.__isOpen !== "boolean") {
+      this.__isOpen = false;
+    }
+    return this.__isOpen;
+  }
+
+  function modalRoot() {
+    return this.querySelector("[q-modal-root='1']");
+  }
+
+  function setOpen(nextState) {
+    this.__isOpen = !!nextState;
+    this.isOpen = this.__isOpen;
+    var root = this.modalRoot();
+    if (root && root.style) {
+      root.style.display = this.__isOpen ? "block" : "none";
+    }
+    return this.__isOpen;
+  }
+
+  function show() {
+    this.setOpen(true);
+  }
+
+  function hide() {
+    this.setOpen(false);
+  }
+
+  function toggle() {
+    this.setOpen(!this.ensureOpenState());
+  }
+
+  onReady {
+    this.ensureOpenState();
+    this.hide();
+  }
+
+  q-modal-theme {
+    div.q-modal-root {
+      q-modal-root: "1"
+      style { display: none; }
+
+      div.q-modal-container {
+        style { max-width: 600px; }
+
+        div.q-modal-titlebar {
+          br { }
+          span.q-modal-closebutton {
+            q-modal-close-trigger: "1"
+            title: "Close Modal"
+            onclick { this.closest("q-modal").hide(); }
+            html { &times; }
+          }
+          div.q-modal-title {
+            slot { title }
+            slot { heading }
+            slot { header }
+          }
+        }
+
+        div.q-modal-content {
+          slot { body }
+          slot { main }
+          slot { content }
+        }
+
+        div.q-modal-footer {
+          slot { bottom }
+          slot { footer }
+          slot { foot }
+        }
+      }
+    }
+  }
+}
+
+q-style q-popup-floating-div-style { position: fixed; width: 100%; height: 100%; }
+q-style q-popup-visible-style { display: block;  }
+q-style q-popup-style { display: none; }
+q-theme q-popup-theme {
+q-popup-menu { q-popup-floating-div-style }
+q-popup-menu.visible { q-popup-floating-div-style q-popup-visible-style }
+}
+
+q-component q-popup-floating-div {
+q-popup-theme {
+
+ div.q-popup-container {
+ slot { popup-contents }
+ }
+ }
+}
+
+q-component q-popup-menu extends q-popup-floating-div {
+function uuidv4() {
+  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c =>
+    (+c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> +c / 4).toString(16)
+  );
+}
+
+ function show(x,y) { this.component.style.display = "block"; this.component.style.left = x; this.component.style.top = y; this.component.classList.add("visible");
+  this.component.classList.add("q-popup-menu-open");
+  if (String(this.component.getAttribute("id")) == "") { this.component.setAttribute("id", this.component.uuidv4()) }
+  var popup = this.component;
+ document.addEventListener("click", function(e) {
+    popup.hide()
+    }, { once: true })
+  }
+  function hide() { this.component.style.display = "none"; this.component.classList.remove("visible"); }
+}
+
+
+/* implementation is
+q-popup-menu myMenu {
+  id: "my-menu"
+  popup-contents {
+    ul {
+      li { text { hello world } }
+      li { text { hello world } }
+      hr { }
+      li { text { hello world } }
+    }
+  }
+}
+
+
+div { oncontextmenu { myMenu.show(event.clientX, event.clientY); console.log("Context menu opened at", event.pageX, event.pageY, event) } }
+*/
+
+q-component q-resizable-item {
+  q-property { width height }
+
+  function numberOr(value, fallback) {
+    var n = Number(value);
+    if (!Number.isFinite(n)) {
+      return Number(fallback);
+    }
+    return n;
+  }
+
+  function minWidth() {
+    return 64;
+  }
+
+  function minHeight() {
+    return 44;
+  }
+
+  function afterResize(width, height) {
+    return { width: width, height: height };
+  }
+
+  function applySize(rawWidth, rawHeight) {
+    var nextWidth = Math.max(this.minWidth(), Math.round(this.numberOr(rawWidth, this.width == null ? 320 : this.width)));
+    var nextHeight = Math.max(this.minHeight(), Math.round(this.numberOr(rawHeight, this.height == null ? 56 : this.height)));
+
+    this.width = nextWidth;
+    this.height = nextHeight;
+
+    if (this.style) {
+      this.style.width = String(nextWidth) + "px";
+      this.style.height = String(nextHeight) + "px";
+      this.style.boxSizing = "border-box";
+    }
+
+    this.afterResize(nextWidth, nextHeight);
+    return { width: nextWidth, height: nextHeight };
+  }
+
+  function resizeHandle() {
+    return this.querySelector("[q-resize-handle='1']") || this;
+  }
+
+  function handleResizeStart(event) {
+    if (!event || (event.button != null && event.button !== 0)) {
+      return;
+    }
+
+    var rect = this.getBoundingClientRect ? this.getBoundingClientRect() : { width: this.width || 320, height: this.height || 56 };
+    this.__resizeState = {
+      mouseX: Number(event.clientX || 0),
+      mouseY: Number(event.clientY || 0),
+      startWidth: Number(rect.width || this.width || 320),
+      startHeight: Number(rect.height || this.height || 56)
+    };
+
+    var win = this.ownerDocument && this.ownerDocument.defaultView ? this.ownerDocument.defaultView : window;
+    if (!this.__resizeMoveHandler) {
+      var host = this;
+      this.__resizeMoveHandler = function(moveEvent) {
+        if (!host.__resizeState) {
+          return;
+        }
+        var dx = Number(moveEvent.clientX || 0) - host.__resizeState.mouseX;
+        var dy = Number(moveEvent.clientY || 0) - host.__resizeState.mouseY;
+        host.applySize(host.__resizeState.startWidth + dx, host.__resizeState.startHeight + dy);
+      };
+    }
+
+    if (!this.__resizeEndHandler) {
+      var hostEnd = this;
+      this.__resizeEndHandler = function() {
+        hostEnd.__resizeState = null;
+        win.removeEventListener("mousemove", hostEnd.__resizeMoveHandler);
+        win.removeEventListener("mouseup", hostEnd.__resizeEndHandler);
+      };
+    }
+
+    win.addEventListener("mousemove", this.__resizeMoveHandler);
+    win.addEventListener("mouseup", this.__resizeEndHandler);
+
+    if (typeof event.preventDefault === "function") {
+      event.preventDefault();
+    }
+  }
+
+  function setupResizing() {
+    if (this.__resizeReady) {
+      return;
+    }
+    this.__resizeReady = true;
+
+    var handle = this.resizeHandle();
+    if (!handle || typeof handle.addEventListener !== "function") {
+      return;
+    }
+
+    var host = this;
+    this.__resizeStartHandler = function(event) {
+      host.handleResizeStart(event);
+    };
+
+    handle.addEventListener("mousedown", this.__resizeStartHandler);
+  }
+
+  onReady {
+    this.setupResizing();
+    this.applySize(this.width, this.height);
+  }
+}
+
+q-style q-sidebar-panel-style {
+  backgroundColor: rgb(230, 238, 249)
+  color: #0f172a
+  borderColor: #c7d8ef
+}
+q-style q-sidebar-toggle-style {
+  q-style-class { w3-button }
+  backgroundColor: rgb(203, 213, 225)
+  color: #0f172a
+  borderColor: #94a3b8
+}
+q-default-theme q-sidebar-theme {
+  .q-sidebar-panel { q-sidebar-panel-style }
+  .q-sidebar-toggle { q-sidebar-toggle-style }
+}
+
+q-component q-sidebar {
+
+  q-property open: "1"
+  q-property sidebarWidth: "260"
+  q-property collapsedWidth: "2vw"
+
+  function normalizeOpenValue(rawValue) {
+    var value = String(rawValue == null ? "" : rawValue).toLowerCase().trim();
+    if (value === "0" || value === "false" || value === "off" || value === "closed" || value === "hide" || value === "hidden") {
+      return "0";
+    }
+    return "1";
+  }
+
+  function currentOpenValue() {
+    return this.normalizeOpenValue(this.open == null ? "1" : this.open);
+  }
+
+  function expandedWidthPx() {
+    var value = Number(this.sidebarWidth);
+    if (!Number.isFinite(value) || value < 120) {
+      value = 260;
+    }
+    return Math.floor(value);
+  }
+
+  function collapsedWidthValue() {
+    var value = String(this.collapsedWidth || "2vw").trim();
+    if (!value) {
+      value = "2vw";
+    }
+    return value;
+  }
+
+  function sidebarTrackForMode(mode) {
+    if (String(mode) === "1") {
+      return this.expandedWidthPx() + "px";
+    }
+    return "max(" + this.collapsedWidthValue() + ", 24px)";
+  }
+
+  function applyOpenMode(nextOpenValue) {
+    var mode = this.normalizeOpenValue(nextOpenValue);
+    this.open = mode;
+
+    if (this.classList && typeof this.classList.add === "function") {
+      this.classList.remove("q-sidebar-open");
+      this.classList.remove("q-sidebar-closed");
+      this.classList.add(mode === "1" ? "q-sidebar-open" : "q-sidebar-closed");
+    }
+
+    var layout = this.querySelector("[q-sidebar-layout='1']");
+    var panel = this.querySelector("[q-sidebar-panel='1']");
+    var button = this.querySelector("[q-sidebar-toggle='1']");
+    var indicator = this.querySelector("[q-sidebar-indicator='1']");
+    var track = this.sidebarTrackForMode(mode);
+
+    if (layout && layout.style) {
+      layout.style.gridTemplateColumns = track + " minmax(0, 1fr)";
+    }
+    if (panel && panel.style) {
+      panel.style.opacity = mode === "1" ? "1" : "0.6";
+    }
+    if (button && button.style) {
+      button.style.left = "calc(" + track + " - 16px)";
+    }
+    if (indicator) {
+      indicator.innerHTML = mode === "1" ? "&#10094;" : "&#9776;";
+    }
+    return mode;
+  }
+
+  function show() {
+    return this.applyOpenMode("1");
+  }
+
+  function hide() {
+    return this.applyOpenMode("0");
+  }
+
+  function toggle() {
+    return this.applyOpenMode(this.currentOpenValue() === "1" ? "0" : "1");
+  }
+
+  onReady {
+    if (this.__qSidebarReady) {
+      return;
+    }
+    this.__qSidebarReady = true;
+    this.applyOpenMode(this.currentOpenValue());
+  }
+
+  q-sidebar-theme {
+    div {
+      q-sidebar-root: "1"
+      style { position: relative; min-height: 1px; height: 100%; overflow: hidden; }
+      div {
+        q-sidebar-layout: "1"
+        style {
+          display: grid;
+          grid-template-columns: 260px minmax(0, 1fr);
+          height: 100%;
+          min-height: 1px;
+          transition: grid-template-columns 220ms ease;
+        }
+        aside.q-sidebar-panel {
+          q-sidebar-panel: "1"
+          style {
+            min-width: 0;
+            overflow: hidden;
+            border-right: 1px solid transparent;
+            transition: opacity 140ms ease;
+          }
+          slot { content }
+        }
+        div {
+          q-sidebar-main: "1"
+          style { min-width: 0; overflow: auto; }
+          slot { main }
+        }
+      }
+
+      button.q-sidebar-toggle {
+        q-sidebar-toggle: "1"
+        type: "button"
+        style {
+          position: absolute;
+          top: 8px;
+          left: calc(260px - 16px);
+          z-index: 1002;
+          border-radius: 6px;
+          transition: left 220ms ease;
+          padding: 4px 10px;
+        }
+        onclick {
+          var host = this.closest ? this.closest("q-sidebar") : null;
+          if (!host && this.component) {
+            host = this.component.closest ? this.component.closest("q-sidebar") : this.component;
+          }
+          if (host && typeof host.toggle === "function") {
+            host.toggle();
+          }
+        }
+        span {
+          q-sidebar-indicator: "1"
+          html { &#10094; }
+        }
+      }
+    }
+  }
+}
+
+q-component q-spritesheet {
+  q-signal frameChanged(frameIndex)
+
+  q-property source: ""
+  q-property frameCount: 1
+  q-property frameStart: 0
+  q-property frameStop: 0
+  q-property frameDuration: 120
+  q-property frameWidth: 0
+  q-property frameHeight: 0
+  q-property currentFrame: 0
+  q-property repeat: true
+  q-property running: false
+  q-property interpolate: false
+  q-property columns: 0
+  q-property rows: 0
+  q-property imageWidth: 0
+  q-property imageHeight: 0
+  q-property loaded: false
+
+  div.q-spritesheet-viewport#q-spritesheet-viewport { }
+
+  q-timer frameTimer {
+    interval: 120
+    repeat: true
+    running: false
+  }
+
+  q-connect { frameTimer.timeout this.component.nextFrame }
+
+  function normalizePositiveInt(value, fallbackValue) {
+    var numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return Math.max(1, Math.floor(Number(fallbackValue || 1)));
+    }
+    return Math.max(1, Math.floor(numeric));
+  }
+
+  function normalizeBoolean(value, fallbackValue) {
+    if (value === true || value === false) {
+      return value;
+    }
+    if (value === 1 || value === "1") {
+      return true;
+    }
+    if (value === 0 || value === "0") {
+      return false;
+    }
+    var text = String(value == null ? "" : value).trim().toLowerCase();
+    if (text === "true" || text === "yes" || text === "on") {
+      return true;
+    }
+    if (text === "false" || text === "no" || text === "off" || text === "") {
+      return false;
+    }
+    return Boolean(fallbackValue);
+  }
+
+  function resolveFrameStart() {
+    var count = this.component.normalizePositiveInt(this.component.frameCount, 1);
+    var start = Math.floor(Number(this.component.frameStart || 0));
+    if (!Number.isFinite(start) || start < 0) {
+      start = 0;
+    }
+    if (start > (count - 1)) {
+      start = count - 1;
+    }
+    return start;
+  }
+
+  function resolveFrameStop() {
+    var count = this.component.normalizePositiveInt(this.component.frameCount, 1);
+    var start = this.component.resolveFrameStart();
+    var maxStop = Math.max(start, count - 1);
+    var stop = Math.floor(Number(this.component.frameStop || 0));
+    if (!Number.isFinite(stop) || stop < start || stop > maxStop) {
+      stop = maxStop;
+    }
+    return stop;
+  }
+
+  function clampFrame(value) {
+    var start = this.component.resolveFrameStart();
+    var stop = this.component.resolveFrameStop();
+    var frame = Math.floor(Number(value || 0));
+    if (!Number.isFinite(frame)) {
+      frame = start;
+    }
+    if (frame < start) {
+      frame = start;
+    }
+    if (frame > stop) {
+      frame = stop;
+    }
+    return frame;
+  }
+
+  function configureGeometry() {
+    var count = this.component.normalizePositiveInt(this.component.frameCount, 1);
+    var imgWidth = Math.max(0, Math.floor(Number(this.component.imageWidth || 0)));
+    var imgHeight = Math.max(0, Math.floor(Number(this.component.imageHeight || 0)));
+
+    var currentFrameWidth = Math.floor(Number(this.component.frameWidth));
+    var autoFrameWidth = !Number.isFinite(currentFrameWidth) || currentFrameWidth <= 0;
+    var nextFrameWidth = autoFrameWidth ? 0 : currentFrameWidth;
+    if (autoFrameWidth && imgWidth > 0 && count > 0) {
+      nextFrameWidth = Math.floor(imgWidth / count);
+    }
+    nextFrameWidth = this.component.normalizePositiveInt(nextFrameWidth, 1);
+
+    var currentFrameHeight = Math.floor(Number(this.component.frameHeight));
+    var autoFrameHeight = !Number.isFinite(currentFrameHeight) || currentFrameHeight <= 0;
+    var nextFrameHeight = autoFrameHeight ? 0 : currentFrameHeight;
+    if (autoFrameHeight && imgHeight > 0) {
+      nextFrameHeight = imgHeight;
+    }
+    nextFrameHeight = this.component.normalizePositiveInt(nextFrameHeight, 1);
+
+    if ((!autoFrameWidth || imgWidth > 0) && Number(this.component.frameWidth) !== nextFrameWidth) {
+      this.component.frameWidth = nextFrameWidth;
+    }
+    if ((!autoFrameHeight || imgHeight > 0) && Number(this.component.frameHeight) !== nextFrameHeight) {
+      this.component.frameHeight = nextFrameHeight;
+    }
+
+    var derivedColumns = count;
+    if (imgWidth > 0 && nextFrameWidth > 0) {
+      derivedColumns = Math.max(1, Math.floor(imgWidth / nextFrameWidth));
+    }
+    var derivedRows = 1;
+    if (imgHeight > 0 && nextFrameHeight > 0) {
+      derivedRows = Math.max(1, Math.floor(imgHeight / nextFrameHeight));
+    }
+
+    if (Number(this.component.columns || 0) !== derivedColumns) {
+      this.component.columns = derivedColumns;
+    }
+    if (Number(this.component.rows || 0) !== derivedRows) {
+      this.component.rows = derivedRows;
+    }
+  }
+
+  function applyFrameToViewport() {
+    var viewport = this.querySelector("#q-spritesheet-viewport");
+    if (!viewport) {
+      return;
+    }
+    var frameWidth = this.component.normalizePositiveInt(this.component.frameWidth, 1);
+    var frameHeight = this.component.normalizePositiveInt(this.component.frameHeight, 1);
+    var frame = this.component.clampFrame(this.component.currentFrame);
+    if (frame !== Number(this.component.currentFrame || 0)) {
+      this.component.currentFrame = frame;
+      return;
+    }
+
+    viewport.style.display = "inline-block";
+    viewport.style.position = "relative";
+    viewport.style.overflow = "hidden";
+    viewport.style.width = String(frameWidth) + "px";
+    viewport.style.height = String(frameHeight) + "px";
+    viewport.style.backgroundRepeat = "no-repeat";
+    viewport.style.backgroundImage = this.component.source ? ("url(\"" + String(this.component.source) + "\")") : "none";
+    viewport.style.transition = this.component.normalizeBoolean(this.component.interpolate, false) ? "background-position 120ms linear" : "none";
+    viewport.style.backgroundPosition = String(-frame * frameWidth) + "px 0px";
+
+    this.component.frameChanged(frame);
+  }
+
+  function refreshTimer() {
+    var duration = Math.max(0, Math.floor(Number(this.component.frameDuration || 0)));
+    frameTimer.interval = duration;
+    if (this.component.normalizeBoolean(this.component.running, false) && this.component.loaded === true) {
+      frameTimer.start();
+      return;
+    }
+    frameTimer.stop();
+  }
+
+  function syncSource() {
+    var src = String(this.component.source || "").trim();
+    this.component.loaded = false;
+    this.component.imageWidth = 0;
+    this.component.imageHeight = 0;
+    if (!src) {
+      this.component.configureGeometry();
+      this.component.applyFrameToViewport();
+      this.component.refreshTimer();
+      return;
+    }
+    var image = new Image();
+    image.onload = function onSpriteSourceLoaded() {
+      this.component.imageWidth = Math.max(0, Math.floor(Number(image.width || 0)));
+      this.component.imageHeight = Math.max(0, Math.floor(Number(image.height || 0)));
+      this.component.loaded = true;
+      this.component.configureGeometry();
+      this.component.applyFrameToViewport();
+      this.component.refreshTimer();
+    }.bind(this);
+    image.onerror = function onSpriteSourceError() {
+      this.component.loaded = false;
+      this.component.configureGeometry();
+      this.component.applyFrameToViewport();
+      this.component.refreshTimer();
+    }.bind(this);
+    image.src = src;
+  }
+
+  function nextFrame() {
+    if (this.component.loaded !== true) {
+      return;
+    }
+    var start = this.component.resolveFrameStart();
+    var stop = this.component.resolveFrameStop();
+    var current = this.component.clampFrame(this.component.currentFrame);
+    var next = current + 1;
+    if (next > stop) {
+      if (this.component.normalizeBoolean(this.component.repeat, true)) {
+        next = start;
+      } else {
+        next = stop;
+        this.component.running = false;
+      }
+    }
+    this.component.currentFrame = next;
+  }
+
+  function start() {
+    this.component.running = true;
+  }
+
+  function stop() {
+    this.component.running = false;
+  }
+
+  onready {
+    this.component.configureGeometry();
+    this.component.applyFrameToViewport();
+    this.component.syncSource();
+  }
+
+  onsourcechanged {
+    this.component.syncSource();
+  }
+
+  onframeCountchanged {
+    this.component.configureGeometry();
+    this.component.applyFrameToViewport();
+  }
+
+  onframeWidthchanged {
+    this.component.configureGeometry();
+    this.component.applyFrameToViewport();
+  }
+
+  onframeHeightchanged {
+    this.component.configureGeometry();
+    this.component.applyFrameToViewport();
+  }
+
+  onframeStartchanged {
+    this.component.applyFrameToViewport();
+  }
+
+  onframeStopchanged {
+    this.component.applyFrameToViewport();
+  }
+
+  onframeDurationchanged {
+    this.component.refreshTimer();
+  }
+
+  onrunningchanged {
+    this.component.refreshTimer();
+  }
+
+  oninterpolatechanged {
+    this.component.applyFrameToViewport();
+  }
+
+  oncurrentFramechanged {
+    this.component.applyFrameToViewport();
+  }
+}
+
+q-rewrite q-tab-panel-rewriter {
+  slot { main }
+  return {
+    q-script {
+      var body = String(this.qdom().slot("main") || "").trim();
+      if (!body) {
+        body = "html { &nbsp; }";
+      }
+      return "div.q-tab-panel { q-tab-panel: \"1\" " + body + " }";
+    }
+  }
+}
+
+q-component q-tab {
+  function getTabsContainer() {
+    return this.closest ? this.closest("q-tabs") : null;
+  }
+
+  function getLabel() {
+    const attrLabel = String(this.getAttribute("name") || this.getAttribute("label") || "").trim();
+    if (attrLabel) {
+      return attrLabel;
+    }
+    const labelNode = this.querySelector("[q-tab-name='1']");
+    const text = labelNode ? String(labelNode.textContent || "").trim() : "";
+    return text || "Tab";
+  }
+
+  function show() {
+    const tabsHost = this.getTabsContainer();
+    if (tabsHost && typeof tabsHost.showTab === "function") {
+      tabsHost.showTab(this);
+      return this;
+    }
+    this.style.display = "block";
+    this.setAttribute("q-tab-active", "1");
+    return this;
+  }
+
+  function hide() {
+    this.style.display = "none";
+    this.setAttribute("q-tab-active", "0");
+    return this;
+  }
+
+  onReady {
+    if (this.getTabsContainer()) {
+      this.hide();
+    }
+  }
+
+  div {
+    q-tab-name: "1"
+    style { display: none; }
+    slot { name }
+  }
+
+  q-tab-panel-rewriter {
+    main { slot { content } }
+  }
+}
+
+q-component q-tabs {
+q-style q-tab-panel-style {
+  q-style-class { w3-container }
+  backgroundColor: rgba(255, 255, 255, 0.55)
+  color: inherit
+  border: 1px solid #d7e2f1
+  borderRadius: 8px
+  marginTop: 0.35rem
+  padding: 0.6rem 0.7rem
+}
+q-style q-tabs-container-style {
+  q-style-class { w3-container w3-round-large w3-border }
+  backgroundColor: #eef3fb
+  color: #0f172a
+  borderColor: #c7d8ef
+  padding: 0
+  overflow: hidden
+}
+q-style q-tabs-nav-style {
+  q-style-class { w3-bar }
+  backgroundColor: #dde8f7
+  borderBottom: 1px solid #c7d8ef
+  display: flex
+  gap: 0.25rem
+  padding: 0.25rem
+}
+q-style q-tabs-content-style {
+  q-style-class { w3-animate-opacity }
+  backgroundColor: #f6f9fe
+  color: #0f172a
+  borderColor: #d7e2f1
+  minHeight: 5rem
+  padding: 0.65rem
+}
+q-default-theme q-tabs-theme {
+  .q-tab-panel { q-tab-panel-style }
+  .q-tabs-container { q-tabs-container-style }
+  .q-tabs-nav { q-tabs-nav-style }
+  .q-tabs-content-themed { q-tabs-content-style }
+}
+q-property navActiveButtonClass: ""
+q-property navInactiveButtonClass: ""
+q-property containerClass: ""
+q-alias containerclass { return this.component.containerClass }
+q-alias navinactivebuttonclass { return this.component.navInactiveButtonClass }
+q-alias navactivebuttonclass { return this.component.navActiveButtonClass }
+
+  function applyNavButtonStyle(button, isActive) {
+    if (!button || !button.style) {
+      return;
+    }
+    var active = !!isActive;
+    button.style.backgroundColor = active ? "#1d4ed8" : "#e2e8f0";
+    button.style.color = active ? "#ffffff" : "#0f172a";
+    button.style.border = "1px solid " + (active ? "#1e40af" : "#c7d8ef");
+    button.style.borderRadius = "6px";
+    button.style.padding = "0.42rem 0.72rem";
+    button.style.lineHeight = "1.1";
+    button.style.transition = "background-color 140ms ease, color 140ms ease, border-color 140ms ease";
+    button.style.boxShadow = active
+      ? "0 1px 0 rgba(15, 23, 42, 0.12)"
+      : "none";
+  }
+
+  function createSignalEvent(payload) {
+    if (typeof CustomEvent === "function") {
+      return new CustomEvent("q-signal", {
+        detail: payload,
+        bubbles: true,
+      });
+    }
+    return null;
+  }
+
+  function emitSignal(signalName, detail) {
+    const payload = {
+      component: "q-tabs",
+      signal: String(signalName || "").trim(),
+      detail: detail || {},
+    };
+
+    const signalEvent = this.createSignalEvent(payload);
+    if (signalEvent) {
+      this.dispatchEvent(signalEvent);
+    }
+
+    if (typeof CustomEvent === "function" && payload.signal) {
+      this.dispatchEvent(new CustomEvent("q-tabs:" + payload.signal, {
+        detail: payload,
+        bubbles: true,
+      }));
+    }
+  }
+
+  function getNavBar() {
+    return this.querySelector("[q-tabs-nav='1']");
+  }
+
+  function getContentRoot() {
+    return this.querySelector("[q-tabs-content='1']") || this;
+  }
+
+  function isOwnedByThisTabs(tabNode) {
+    if (!tabNode || typeof tabNode !== "object") {
+      return false;
+    }
+
+    let current = tabNode.parentElement;
+    while (current) {
+      if (current === this) {
+        return true;
+      }
+      if (current.tagName && String(current.tagName).toLowerCase() === "q-tabs") {
+        return false;
+      }
+      current = current.parentElement;
+    }
+
+    return false;
+  }
+
+  function collectTabs() {
+    const root = this.getContentRoot();
+    const all = Array.from(root.querySelectorAll("q-tab"));
+    const tabs = all.filter((node) => this.isOwnedByThisTabs(node));
+    this.tabs = tabs;
+    for (let i = 0; i < tabs.length; i += 1) {
+      tabs[i].setAttribute("q-tab-index", String(i));
+    }
+    return tabs;
+  }
+
+  function getTabLabel(tabNode, index) {
+    if (tabNode && typeof tabNode.getLabel === "function") {
+      const text = String(tabNode.getLabel() || "").trim();
+      if (text) {
+        return text;
+      }
+    }
+    return "Tab " + (index + 1);
+  }
+
+  function classTokens(value) {
+    return String(value || "")
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter(Boolean);
+  }
+
+  function normalizeTabSelection(tabOrIndex, tabs) {
+    const list = Array.isArray(tabs) ? tabs : [];
+    if (!list.length) {
+      return null;
+    }
+
+    if (typeof tabOrIndex === "number" && Number.isFinite(tabOrIndex)) {
+      const idx = Math.max(0, Math.min(list.length - 1, Math.floor(tabOrIndex)));
+      return list[idx];
+    }
+
+    if (typeof tabOrIndex === "string") {
+      const raw = String(tabOrIndex).trim();
+      if (!raw) {
+        return null;
+      }
+      const asNumber = Number(raw);
+      if (Number.isFinite(asNumber)) {
+        return this.normalizeTabSelection(asNumber, list);
+      }
+      for (let i = 0; i < list.length; i += 1) {
+        const label = this.getTabLabel(list[i], i);
+        if (label === raw) {
+          return list[i];
+        }
+      }
+      const byId = this.querySelector("#" + raw);
+      if (byId && list.indexOf(byId) !== -1) {
+        return byId;
+      }
+      return null;
+    }
+
+    if (tabOrIndex && typeof tabOrIndex === "object" && list.indexOf(tabOrIndex) !== -1) {
+      return tabOrIndex;
+    }
+
+    return null;
+  }
+
+  function getRootHost() {
+    if (typeof this.root === "function") {
+      const root = this.root();
+      if (root && root.nodeType === 1) {
+        return root;
+      }
+    }
+    return this.closest ? this.closest("q-html") : null;
+  }
+
+  function normalizeTabLabel(label, indexHint) {
+    const text = String(label == null ? "" : label).trim();
+    if (text) {
+      return text;
+    }
+    const idx = Number.isFinite(Number(indexHint)) ? Number(indexHint) : 0;
+    return "Tab " + String(idx + 1);
+  }
+
+  function cloneQDomNode(node) {
+    if (!node || typeof node !== "object") {
+      return null;
+    }
+    try {
+      return JSON.parse(JSON.stringify(node));
+    } catch (err) {
+      return node;
+    }
+  }
+
+  function resolveQDomNodeFromHtmlNode(domNode) {
+    if (!domNode || typeof domNode !== "object" || typeof domNode.nodeType !== "number") {
+      return null;
+    }
+    if (typeof domNode.qdom === "function") {
+      try {
+        const direct = domNode.qdom();
+        if (direct && typeof direct === "object") {
+          return direct;
+        }
+      } catch (err) { }
+    }
+    const host = this.getRootHost();
+    if (!host || typeof host.uuidFor !== "function" || typeof host.qdomForUuid !== "function") {
+      return null;
+    }
+    const uuid = String(host.uuidFor(domNode) || "").trim();
+    if (!uuid) {
+      return null;
+    }
+    const mapped = host.qdomForUuid(uuid);
+    return mapped && typeof mapped === "object" ? mapped : null;
+  }
+
+  function normalizeTabContentNodes(input) {
+    if (input == null) {
+      return [];
+    }
+
+    if (typeof input === "string") {
+      const host = this.getRootHost();
+      const rootQdom = host && typeof host.qdom === "function" ? host.qdom() : null;
+      if (!rootQdom || typeof rootQdom.createInstanceFromQHTML !== "function") {
+        return [];
+      }
+      const parsed = rootQdom.createInstanceFromQHTML(input);
+      return this.normalizeTabContentNodes(parsed);
+    }
+
+    if (Array.isArray(input)) {
+      const out = [];
+      for (let i = 0; i < input.length; i += 1) {
+        const nextNodes = this.normalizeTabContentNodes(input[i]);
+        for (let j = 0; j < nextNodes.length; j += 1) {
+          out.push(nextNodes[j]);
+        }
+      }
+      return out;
+    }
+
+    if (input && typeof input === "object" && typeof input.nodeType === "number") {
+      if (input.nodeType === 3) {
+        const tabsQdom = typeof this.qdom === "function" ? this.qdom() : null;
+        if (tabsQdom && typeof tabsQdom.createQText === "function") {
+          return [tabsQdom.createQText(String(input.textContent || ""))];
+        }
+        return [];
+      }
+      const mapped = this.resolveQDomNodeFromHtmlNode(input);
+      return this.normalizeTabContentNodes(mapped);
+    }
+
+    if (input && typeof input === "object") {
+      const kind = String(input.kind || "").trim().toLowerCase();
+      if (kind === "document" && Array.isArray(input.nodes)) {
+        return this.normalizeTabContentNodes(input.nodes);
+      }
+      const cloned = this.cloneQDomNode(input);
+      return cloned && typeof cloned === "object" ? [cloned] : [];
+    }
+
+    return [];
+  }
+
+  function addTab(label, input) {
+    const tabsQdom = typeof this.qdom === "function" ? this.qdom() : null;
+    if (!tabsQdom || typeof tabsQdom.createQComponentInstance !== "function" || typeof tabsQdom.appendNode !== "function") {
+      return null;
+    }
+
+    const existing = this.collectTabs();
+    const nextIndex = Array.isArray(existing) ? existing.length : 0;
+    const tabLabel = this.normalizeTabLabel(label, nextIndex);
+
+    const tabNode = tabsQdom.createQComponentInstance("q-tab", {
+      name: tabLabel,
+    });
+    if (!tabNode || typeof tabNode.appendNode !== "function" || typeof tabNode.createQSlot !== "function") {
+      return null;
+    }
+
+    const contentNodes = this.normalizeTabContentNodes(input);
+    if (contentNodes.length > 0) {
+      tabNode.appendNode(tabNode.createQSlot("content", contentNodes));
+    } else {
+      const fallback = tabNode.createQElement("div", {}, [tabNode.createQText(" ")]);
+      tabNode.appendNode(tabNode.createQSlot("content", [fallback]));
+    }
+
+    tabsQdom.appendNode(tabNode);
+
+    const host = this.getRootHost();
+    const tabsUuid = String((tabsQdom && tabsQdom.UUID) || "").trim();
+    if (host && typeof host.update === "function") {
+      if (tabsUuid) {
+        host.update(tabsUuid);
+      } else {
+        host.update();
+      }
+    }
+
+    const liveTabs = host && this.id ? host.querySelector("#" + this.id) || this : this;
+    if (liveTabs && typeof liveTabs.refreshTabs === "function") {
+      const refreshed = liveTabs.refreshTabs();
+      const index = Array.isArray(refreshed) ? Math.max(0, refreshed.length - 1) : nextIndex;
+      if (typeof liveTabs.showTab === "function") {
+        liveTabs.showTab(index);
+      }
+    }
+
+    return tabNode;
+  }
+
+  function buildNav(tabs) {
+    const nav = this.getNavBar();
+    if (!nav) {
+      return;
+    }
+
+    nav.innerHTML = "";
+    const list = Array.isArray(tabs) ? tabs : [];
+
+    for (let i = 0; i < list.length; i += 1) {
+      const tab = list[i];
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "w3-bar-item w3-btn q-tab-link";
+      button.setAttribute("q-tab-link-index", String(i));
+      button.textContent = this.getTabLabel(tab, i);
+      button.onclick = () => this.showTab(tab);
+      this.applyNavButtonStyle(button, false);
+      nav.appendChild(button);
+      tab.__qTabsButton = button;
+    }
+  }
+
+  function applyActiveState(tabs, activeIndex) {
+    const list = Array.isArray(tabs) ? tabs : [];
+    const activeTokens = this.classTokens(this.component.navActiveButtonClass);
+    const inactiveTokens = this.classTokens(this.component.navInactiveButtonClass);
+    for (let i = 0; i < list.length; i += 1) {
+      const tab = list[i];
+      const isActive = i === activeIndex;
+      tab.style.display = isActive ? "block" : "none";
+      tab.setAttribute("q-tab-active", isActive ? "1" : "0");
+
+      const button = tab.__qTabsButton;
+      if (button && button.classList) {
+        for (let j = 0; j < activeTokens.length; j += 1) {
+          button.classList.remove(activeTokens[j]);
+        }
+        for (let j = 0; j < inactiveTokens.length; j += 1) {
+          button.classList.remove(inactiveTokens[j]);
+        }
+        if (isActive) {
+          for (let j = 0; j < activeTokens.length; j += 1) {
+            button.classList.add(activeTokens[j]);
+          }
+        } else {
+          for (let j = 0; j < inactiveTokens.length; j += 1) {
+            button.classList.add(inactiveTokens[j]);
+          }
+        }
+        if (activeTokens.length > 0 || inactiveTokens.length > 0) {
+          button.style.backgroundColor = "";
+          button.style.color = "";
+          button.style.border = "";
+          button.style.boxShadow = "";
+          button.style.borderRadius = "6px";
+          button.style.padding = "0.42rem 0.72rem";
+          button.style.lineHeight = "1.1";
+          button.style.transition = "background-color 140ms ease, color 140ms ease, border-color 140ms ease";
+        } else {
+          this.applyNavButtonStyle(button, isActive);
+        }
+      }
+    }
+  }
+
+  function showTab(tabOrIndex) {
+    const tabs = this.collectTabs();
+    if (!tabs.length) {
+      this.activeTab = null;
+      return null;
+    }
+
+    const target = this.normalizeTabSelection(tabOrIndex, tabs) || tabs[0];
+    const activeIndex = tabs.indexOf(target);
+
+    this.applyActiveState(tabs, activeIndex);
+    this.activeTab = target;
+    this.setAttribute("q-tabs-active-index", String(activeIndex));
+
+    this.emitSignal("tab-shown", {
+      index: activeIndex,
+      tabName: this.getTabLabel(target, activeIndex),
+    });
+
+    return target;
+  }
+
+  function hideAllTabs() {
+    const tabs = this.collectTabs();
+    this.applyActiveState(tabs, -1);
+    this.activeTab = null;
+    this.setAttribute("q-tabs-active-index", "-1");
+    this.emitSignal("tabs-hidden", {
+      count: tabs.length,
+    });
+    return tabs;
+  }
+
+  function refreshTabs() {
+    const tabs = this.collectTabs();
+    this.buildNav(tabs);
+    if (!tabs.length) {
+      this.activeTab = null;
+      this.setAttribute("q-tabs-active-index", "-1");
+      return [];
+    }
+
+    const preferred = this.getAttribute("q-tabs-active-index");
+    const initial = this.normalizeTabSelection(preferred, tabs) || this.activeTab || tabs[0];
+    this.showTab(initial);
+    return tabs;
+  }
+
+  onReady {
+    const self = this;
+    setTimeout(function() {
+      try {
+        self.refreshTabs();
+      } catch (err) {
+        console.error("q-tabs refresh failed", err);
+      }
+    }, 0);
+  }
+
+  q-tabs-theme {
+    div.q-tabs-container {
+      div.q-tabs-nav{
+        q-tabs-nav: "1"
+      }
+
+      div.q-tabs-content-themed.q-tabs-content {
+        onReady {
+          var tokens = this.component.classTokens(this.component.containerClass);
+          for (var i = 0; i < tokens.length; i += 1) {
+            this.classList.add(tokens[i]);
+          }
+        }
+        q-tabs-content: "1"
+        slot { content }
+      }
+    }
+  }
+}
+
+q-painter q-tech-panel-painter {
+  q-property borderWidth: "5px"
+  q-property borderColor: "white"
+  q-property shadowColor: "green"
+  q-property topLeft: "0px 0px"
+  q-property topRight: "0px 0px"
+  q-property bottomRight: "0px 0px"
+  q-property bottomLeft: "0px 0px"
+  q-property patternShift: "0px 0px"
+  q-property patternSize: "20px"
+  q-property topDent: "10px"
+  q-property topDentLength: "10%"
+  q-property percentage: "0.5"
+  q-property backgroundSeed: "117"
+  q-property backgroundImage: ""
+  q-property backgroundSize: "cover"
+  q-property backgroundPosition: "center"
+  q-property backgroundRepeat: "no-repeat"
+
+  onpaint {
+    function isNumericStart(value) {
+      var text = String(value == null ? "" : value).trim();
+      var first = text.charAt(0);
+      return (first >= "0" && first <= "9") || first === "-" || first === ".";
+    }
+
+    function normalizeCssValue(value, maxValue, fallback) {
+      var text = String(value == null ? "" : value).trim();
+      if (!text) {
+        return fallback;
+      }
+      if (!isNumericStart(text)) {
+        return text;
+      }
+      if (text.charAt(text.length - 1) === "%" && maxValue != null) {
+        var pct = Number.parseFloat(text.slice(0, -1));
+        return Number.isFinite(pct) ? (pct / 100) * maxValue : fallback;
+      }
+      var parsed = Number.parseFloat(text);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function normalizePair(value, maxV, maxH) {
+      var text = String(value == null ? "" : value).trim();
+      if (!text) {
+        return { v: 0, h: 0 };
+      }
+      var parts = text.split(/\s+/).filter(Boolean);
+      if (parts.length === 1) {
+        return {
+          v: normalizeCssValue(parts[0], maxV, 0),
+          h: normalizeCssValue(parts[0], maxH, 0)
+        };
+      }
+      return {
+        v: normalizeCssValue(parts[0], maxV, 0),
+        h: normalizeCssValue(parts[1], maxH, 0)
+      };
+    }
+
+    function asNumber(value, fallback) {
+      var parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function buildBorderPath(width, height, cfg) {
+      var offset = cfg.offset || 0;
+      var topLeft = cfg.topLeft;
+      var topRight = cfg.topRight;
+      var bottomRight = cfg.bottomRight;
+      var bottomLeft = cfg.bottomLeft;
+      var topDent = Math.max(0, cfg.topDent || 0);
+      var topDentLength = Math.max(0, cfg.topDentLength || 0);
+      var path = new Path2D();
+      var topStartX = offset + topLeft.h;
+      var topEndX = width - offset - topRight.h;
+      var topY = offset;
+
+      path.moveTo(offset, offset + topLeft.v);
+      if (topLeft.h !== 0 || topLeft.v !== 0) {
+        path.lineTo(topStartX, topY);
+      } else {
+        path.lineTo(offset, topY);
+      }
+
+      var topSpan = Math.max(0, topEndX - topStartX);
+      if (topDent > 0 && topDentLength > 0 && topSpan > 0) {
+        var dentLength = Math.min(topDentLength, topSpan);
+        var slope = Math.min(topDent, Math.max(0, (topSpan - dentLength) / 2));
+        var side = Math.max(0, (topSpan - dentLength - (2 * slope)) / 2);
+        var x1 = topStartX + side;
+        path.lineTo(x1, topY);
+        path.lineTo(x1 + slope, topY + topDent);
+        path.lineTo(x1 + slope + dentLength, topY + topDent);
+        path.lineTo(x1 + (2 * slope) + dentLength, topY);
+      }
+
+      path.lineTo(topEndX, topY);
+      if (topRight.h !== 0 || topRight.v !== 0) {
+        path.lineTo(width - offset, offset + topRight.v);
+      }
+
+      path.lineTo(width - offset, height - offset - bottomRight.v);
+      if (bottomRight.h !== 0 || bottomRight.v !== 0) {
+        path.lineTo(width - offset - bottomRight.h, height - offset);
+      }
+
+      path.lineTo(offset + bottomLeft.h, height - offset);
+      if (bottomLeft.h !== 0 || bottomLeft.v !== 0) {
+        path.lineTo(offset, height - offset - bottomLeft.v);
+      }
+
+      path.closePath();
+      return path;
+    }
+
+    function drawHexagon(ctx, hexSize, start) {
+      var ang = Math.sin(Math.PI / 3);
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(start.x + hexSize, start.y);
+      ctx.lineTo(start.x + hexSize + (hexSize * ang), start.y + (1.5 * hexSize * ang));
+      ctx.lineTo(start.x + hexSize, start.y + (3 * hexSize * ang));
+      ctx.lineTo(start.x, start.y + (3 * hexSize * ang));
+      ctx.lineTo(start.x - (hexSize * ang), start.y + (1.5 * hexSize * ang));
+      ctx.closePath();
+    }
+
+    function drawHexaGrid(ctx, width, height, hexSize, shift) {
+      if (!Number.isFinite(hexSize) || hexSize <= 0) {
+        return;
+      }
+      var ang = Math.sin(Math.PI / 3);
+      var rowHeight = Math.max(1, 3 * ang * hexSize);
+      var colWidth = Math.max(1, hexSize + (hexSize * ang));
+      var rows = Math.ceil(height / rowHeight) + 3;
+      var cols = Math.ceil(width / colWidth) + 3;
+      for (var row = -1; row < rows; row += 1) {
+        for (var col = -1; col < cols; col += 1) {
+          drawHexagon(ctx, hexSize, {
+            x: (col * colWidth) + shift.h,
+            y: (row * rowHeight) + (col % 2 ? 0 : 1.5 * hexSize * ang) + shift.v
+          });
+        }
+      }
+    }
+
+    function createRng(seed) {
+      var state = Number(seed);
+      if (!Number.isFinite(state)) {
+        state = 117;
+      }
+      state = state >>> 0;
+      return {
+        next: function() {
+          state = ((1664525 * state) + 1013904223) >>> 0;
+          return state / 4294967296;
+        },
+        range: function(min, max) {
+          return min + ((max - min) * this.next());
+        },
+        int: function(min, max) {
+          return Math.floor(this.range(min, max + 1));
+        }
+      };
+    }
+
+    function roundedPath(ctx, x, y, w, h, r) {
+      var rr = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.lineTo(x + w - rr, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+      ctx.lineTo(x + w, y + h - rr);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+      ctx.lineTo(x + rr, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+      ctx.lineTo(x, y + rr);
+      ctx.quadraticCurveTo(x, y, x + rr, y);
+      ctx.closePath();
+    }
+
+    function metalStroke(ctx, pathFn, width, color, shadowBlur, shadowColor) {
+      ctx.save();
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.lineWidth = width;
+      ctx.strokeStyle = color;
+      ctx.shadowBlur = shadowBlur || 0;
+      ctx.shadowColor = shadowColor || "transparent";
+      pathFn();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawBrushedLines(ctx, rng, x, y, w, h, count, alpha, mostlyHorizontal) {
+      ctx.save();
+      ctx.lineWidth = 1;
+      for (var i = 0; i < count; i += 1) {
+        var sx = rng.range(x, x + w);
+        var sy = rng.range(y, y + h);
+        var len = rng.range(8, mostlyHorizontal ? 90 : 48);
+        var angle = mostlyHorizontal ? rng.range(-0.04, 0.04) : rng.range(-0.95, 0.95);
+        ctx.strokeStyle = rng.next() > 0.5 ? "rgba(255,255,255," + (alpha * rng.range(0.15, 1)) + ")" : "rgba(0,0,0," + (alpha * rng.range(0.25, 1.4)) + ")";
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + (Math.cos(angle) * len), sy + (Math.sin(angle) * len));
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawCloudyMetal(ctx, rng, x, y, w, h) {
+      for (var i = 0; i < 64; i += 1) {
+        var rx = rng.range(x, x + w);
+        var ry = rng.range(y, y + h);
+        var r = rng.range(18, 95);
+        var a = rng.range(0.018, 0.075);
+        var g = ctx.createRadialGradient(rx, ry, 0, rx, ry, r);
+        g.addColorStop(0, rng.next() > 0.55 ? "rgba(255,255,255," + a + ")" : "rgba(0,0,0," + (a * 1.5) + ")");
+        g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.ellipse(rx, ry, r * rng.range(0.8, 1.7), r * rng.range(0.25, 0.75), rng.range(-0.7, 0.7), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawPit(ctx, rng, x, y, r) {
+      ctx.save();
+      var g = ctx.createRadialGradient(x - (r * 0.2), y - (r * 0.4), 0, x, y, r * 2.1);
+      g.addColorStop(0, "rgba(255,255,255,.25)");
+      g.addColorStop(0.35, "rgba(0,0,0,.55)");
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r * 1.5, r, rng.range(-0.6, 0.6), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawScratchCluster(ctx, rng, x, y, spread, count) {
+      ctx.save();
+      for (var i = 0; i < count; i += 1) {
+        var sx = x + rng.range(-spread * 0.45, spread * 0.45);
+        var sy = y + rng.range(-spread * 0.25, spread * 0.25);
+        var len = rng.range(12, spread);
+        var ang = rng.range(-0.65, 0.65);
+        ctx.strokeStyle = rng.next() > 0.5 ? "rgba(235,235,225,.14)" : "rgba(0,0,0,.5)";
+        ctx.lineWidth = rng.range(0.6, 1.4);
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + (Math.cos(ang) * len), sy + (Math.sin(ang) * len));
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawRivet(ctx, x, y, r) {
+      var g = ctx.createRadialGradient(x - (r * 0.45), y - (r * 0.45), 0, x, y, r * 1.5);
+      g.addColorStop(0, "#eeeeea");
+      g.addColorStop(0.24, "#9c9d98");
+      g.addColorStop(0.72, "#282b2c");
+      g.addColorStop(1, "#050606");
+      ctx.save();
+      ctx.fillStyle = g;
+      ctx.strokeStyle = "rgba(0,0,0,.95)";
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawSideVent(ctx, x, y, w, h, side) {
+      if (h < 24 || w < 4) {
+        return;
+      }
+      ctx.save();
+      roundedPath(ctx, x, y, w, h, Math.min(10, w * 0.45, h * 0.18));
+      var g = ctx.createLinearGradient(x, y, x + w, y);
+      g.addColorStop(0, side < 0 ? "#020203" : "#4d504d");
+      g.addColorStop(0.35, "#565955");
+      g.addColorStop(0.52, "#111314");
+      g.addColorStop(1, side < 0 ? "#4d504d" : "#020203");
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.clip();
+
+      var slotStep = Math.max(8, h / 10.5);
+      var slotHeight = Math.max(3, slotStep * 0.5);
+      for (var i = 0; i < 9; i += 1) {
+        var yy = y + Math.max(5, slotStep * 0.85) + (i * slotStep);
+        if (yy + slotHeight > y + h - 3) {
+          break;
+        }
+        ctx.fillStyle = "#090a0b";
+        ctx.fillRect(x - 2, yy, w + 4, slotHeight);
+        ctx.fillStyle = "rgba(220,220,210,.28)";
+        ctx.fillRect(x + Math.max(2, w * 0.1), yy - 1, Math.max(1, w * 0.8), 1.5);
+      }
+
+      ctx.restore();
+      metalStroke(ctx, function() { roundedPath(ctx, x, y, w, h, Math.min(10, w * 0.45, h * 0.18)); }, Math.max(1, Math.min(3, w * 0.1)), "rgba(210,210,200,.7)", 0);
+      metalStroke(ctx, function() { roundedPath(ctx, x + 3, y + 3, Math.max(1, w - 6), Math.max(1, h - 6), Math.min(7, w * 0.36, h * 0.14)); }, Math.max(1, Math.min(3, w * 0.1)), "rgba(0,0,0,.9)", 0);
+    }
+
+    function drawSideHazardStrip(ctx, x, y, w, h, rng) {
+      if (h < 24 || w < 3) {
+        return;
+      }
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+      ctx.fillStyle = "#0b0b08";
+      ctx.fillRect(x - (w * 0.3), y - 6, w * 1.8, h + 12);
+
+      var stripeStep = Math.max(12, w * 1.7);
+      for (var i = -h; i < h + stripeStep; i += stripeStep) {
+        ctx.save();
+        ctx.translate(x, y + i);
+        ctx.rotate(0.62);
+        ctx.fillStyle = "#d8b10e";
+        ctx.fillRect(-w * 2.2, 0, w * 4.8, Math.max(4, w * 0.72));
+        ctx.restore();
+      }
+
+      ctx.globalAlpha = 0.45;
+      drawBrushedLines(ctx, rng, x, y, w, h, Math.max(16, Math.floor(h / 3)), 0.22, false);
+      ctx.restore();
+
+      ctx.save();
+      ctx.strokeStyle = "rgba(210,210,200,.8)";
+      ctx.lineWidth = Math.max(1, w * 0.14);
+      ctx.beginPath();
+      ctx.moveTo(x + w, y);
+      ctx.lineTo(x + w, y + h);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function safeRivet(ctx, clipPath, x, y, r) {
+      if (
+        ctx.isPointInPath(clipPath, x, y) &&
+        ctx.isPointInPath(clipPath, x - r, y) &&
+        ctx.isPointInPath(clipPath, x + r, y) &&
+        ctx.isPointInPath(clipPath, x, y - r) &&
+        ctx.isPointInPath(clipPath, x, y + r)
+      ) {
+        drawRivet(ctx, x, y, r);
+      }
+    }
+
+    function drawFixedEdgeDecorations(ctx, width, height, cfg, clipPath, rng) {
+      var sx = width / 640;
+      var sy = height / 480;
+      var guard = Math.max(2, cfg.offset * 0.75);
+      var leftMin = cfg.offset + cfg.topLeft.v + guard;
+      var leftMax = height - cfg.offset - cfg.bottomLeft.v - guard;
+      var rightMin = cfg.offset + cfg.topRight.v + guard;
+      var rightMax = height - cfg.offset - cfg.bottomRight.v - guard;
+
+      function clippedRange(baseY, baseH, minY, maxY) {
+        var y1 = Math.max(baseY * sy, minY);
+        var y2 = Math.min((baseY + baseH) * sy, maxY);
+        return { y: y1, h: Math.max(0, y2 - y1) };
+      }
+
+      var leftVent = clippedRange(59, 147, leftMin, leftMax);
+      drawSideVent(ctx, 1 * sx, leftVent.y, 30 * sx, leftVent.h, -1);
+
+      var rightVent = clippedRange(59, 147, rightMin, rightMax);
+      drawSideVent(ctx, 608 * sx, rightVent.y, 31 * sx, rightVent.h, 1);
+
+      var hazard = clippedRange(235, 128, leftMin, leftMax);
+      drawSideHazardStrip(ctx, 0, hazard.y, 14 * sx, hazard.h, rng);
+
+      var rivets = [];
+      var rx;
+      for (rx = 38; rx <= 604; rx += 190) { rivets.push([rx, 38, 4.1]); }
+      for (rx = 38; rx <= 604; rx += 190) { rivets.push([rx, 451, 4.2]); }
+      rivets.push([217, 37, 4.2], [414, 38, 4.2], [606, 231, 4.7], [604, 404, 4.7], [35, 230, 4.5], [217, 452, 4.2], [415, 452, 4.2], [217, 161, 3.3], [414, 160, 3.3], [320, 240, 2.8], [500, 254, 3.0]);
+      for (var ri = 0; ri < rivets.length; ri += 1) {
+        safeRivet(ctx, clipPath, rivets[ri][0] * sx, rivets[ri][1] * sy, rivets[ri][2] * Math.min(sx, sy));
+      }
+    }
+
+    function drawTechMetalBackground(ctx, width, height, seed) {
+      var rng = createRng(seed);
+      var sx = width / 640;
+      var sy = height / 480;
+      ctx.save();
+      ctx.scale(sx, sy);
+
+      var backdrop = ctx.createLinearGradient(0, 0, 640, 480);
+      backdrop.addColorStop(0, "#07080b");
+      backdrop.addColorStop(0.45, "#15191e");
+      backdrop.addColorStop(1, "#030405");
+      ctx.fillStyle = backdrop;
+      ctx.fillRect(0, 0, 640, 480);
+
+      var f = { x: 8, y: 10, w: 624, h: 458, r: 23 };
+      ctx.save();
+      roundedPath(ctx, f.x, f.y, f.w, f.h, f.r);
+      var frameFill = ctx.createLinearGradient(f.x, f.y, f.x, f.y + f.h);
+      frameFill.addColorStop(0, "#1e2223");
+      frameFill.addColorStop(0.08, "#a9aaa4");
+      frameFill.addColorStop(0.16, "#2d3030");
+      frameFill.addColorStop(0.5, "#111314");
+      frameFill.addColorStop(0.88, "#8b8c87");
+      frameFill.addColorStop(1, "#161819");
+      ctx.fillStyle = frameFill;
+      ctx.fill();
+      ctx.clip();
+      drawBrushedLines(ctx, rng, f.x, f.y, f.w, f.h, 180, 0.16, true);
+      ctx.restore();
+
+      metalStroke(ctx, function() { roundedPath(ctx, f.x + 2, f.y + 2, f.w - 4, f.h - 4, f.r - 2); }, 9, "#111314", 18, "rgba(0,0,0,.9)");
+      metalStroke(ctx, function() { roundedPath(ctx, f.x + 7, f.y + 7, f.w - 14, f.h - 14, f.r - 7); }, 4, "#d2d2cd", 4, "rgba(255,255,255,.25)");
+      metalStroke(ctx, function() { roundedPath(ctx, f.x + 13, f.y + 13, f.w - 26, f.h - 26, f.r - 11); }, 5, "#070809", 0);
+      metalStroke(ctx, function() { roundedPath(ctx, f.x + 20, f.y + 20, f.w - 40, f.h - 40, f.r - 15); }, 2, "rgba(255,255,255,.35)", 0);
+
+      var p = { x: 28, y: 32, w: 584, h: 418, r: 9 };
+      ctx.save();
+      roundedPath(ctx, p.x, p.y, p.w, p.h, p.r);
+      var plateFill = ctx.createLinearGradient(p.x, p.y, p.x + p.w, p.y + p.h);
+      plateFill.addColorStop(0, "#464947");
+      plateFill.addColorStop(0.22, "#343838");
+      plateFill.addColorStop(0.55, "#222629");
+      plateFill.addColorStop(1, "#111416");
+      ctx.fillStyle = plateFill;
+      ctx.fill();
+      ctx.clip();
+
+      var glow = ctx.createRadialGradient(p.x + (p.w * 0.43), p.y + (p.h * 0.35), 0, p.x + (p.w * 0.43), p.y + (p.h * 0.35), p.w * 0.72);
+      glow.addColorStop(0, "rgba(255,255,255,.13)");
+      glow.addColorStop(0.38, "rgba(190,205,205,.04)");
+      glow.addColorStop(1, "rgba(0,0,0,.35)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      drawCloudyMetal(ctx, rng, p.x, p.y, p.w, p.h);
+      drawBrushedLines(ctx, rng, p.x, p.y, p.w, p.h, 520, 0.13, false);
+
+      for (var ti = 0; ti < 1400; ti += 1) {
+        var v = rng.int(0, 255);
+        var a = rng.range(0.012, 0.038);
+        ctx.fillStyle = "rgba(" + v + "," + v + "," + v + "," + a + ")";
+        ctx.fillRect(rng.range(p.x, p.x + p.w), rng.range(p.y, p.y + p.h), rng.range(0.6, 1.8), rng.range(0.6, 1.8));
+      }
+
+      for (var pi = 0; pi < 72; pi += 1) {
+        drawPit(ctx, rng, rng.range(p.x + 30, p.x + p.w - 30), rng.range(p.y + 35, p.y + p.h - 35), rng.range(1.2, 3.2));
+      }
+      drawScratchCluster(ctx, rng, 150, 318, 72, 14);
+      drawScratchCluster(ctx, rng, 450, 340, 70, 8);
+      drawScratchCluster(ctx, rng, 530, 112, 56, 8);
+      drawScratchCluster(ctx, rng, 210, 95, 70, 10);
+      ctx.restore();
+
+      metalStroke(ctx, function() { roundedPath(ctx, p.x, p.y, p.w, p.h, p.r); }, 7, "rgba(0,0,0,.82)", 10, "rgba(0,0,0,.85)");
+      metalStroke(ctx, function() { roundedPath(ctx, p.x + 3, p.y + 3, p.w - 6, p.h - 6, p.r - 2); }, 2, "rgba(196,198,192,.7)", 0);
+      metalStroke(ctx, function() { roundedPath(ctx, p.x + 9, p.y + 9, p.w - 18, p.h - 18, p.r - 4); }, 2, "rgba(0,0,0,.95)", 0);
+
+      ctx.save();
+      var bullet = ctx.createRadialGradient(149, 322, 0, 152, 326, 25);
+      bullet.addColorStop(0, "#d2d0c7");
+      bullet.addColorStop(0.2, "#202020");
+      bullet.addColorStop(0.52, "#030303");
+      bullet.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = bullet;
+      ctx.beginPath();
+      ctx.arc(152, 326, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      var anchors = [[69,155,70], [218,45,48], [414,45,62], [462,220,75], [500,254,48], [590,90,78], [84,318,60], [565,366,48]];
+      ctx.save();
+      ctx.lineCap = "round";
+      for (var gi = 0; gi < anchors.length; gi += 1) {
+        var ax = anchors[gi][0];
+        var ay = anchors[gi][1];
+        var len = anchors[gi][2];
+        var grime = ctx.createLinearGradient(ax, ay, ax, ay + len);
+        grime.addColorStop(0, "rgba(56,72,32,.5)");
+        grime.addColorStop(0.5, "rgba(42,61,24,.25)");
+        grime.addColorStop(1, "rgba(42,61,24,0)");
+        ctx.strokeStyle = grime;
+        ctx.lineWidth = rng.range(2, 4);
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.bezierCurveTo(ax + rng.range(-5, 5), ay + (len * 0.25), ax + rng.range(-6, 6), ay + (len * 0.6), ax + rng.range(-4, 4), ay + len);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.globalAlpha = 0.22;
+      var shine = ctx.createLinearGradient(0, 0, 0, 480);
+      shine.addColorStop(0, "#ffffff");
+      shine.addColorStop(0.08, "rgba(255,255,255,0)");
+      shine.addColorStop(0.92, "rgba(255,255,255,0)");
+      shine.addColorStop(1, "#ffffff");
+      ctx.fillStyle = shine;
+      ctx.fillRect(0, 0, 640, 480);
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalCompositeOperation = "multiply";
+      var vignette = ctx.createRadialGradient(320, 230, 80, 320, 230, 420);
+      vignette.addColorStop(0, "rgba(0,0,0,0)");
+      vignette.addColorStop(1, "rgba(0,0,0,.38)");
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, 640, 480);
+      ctx.restore();
+
+      ctx.restore();
+    }
+
+    function drawShapeMetalFrame(ctx, path, width, height, borderWidth, shadowColor) {
+      if (!Number.isFinite(borderWidth) || borderWidth <= 0) {
+        return;
+      }
+
+      var outer = ctx.createLinearGradient(0, 0, width, height);
+      outer.addColorStop(0, "#141718");
+      outer.addColorStop(0.12, "#d0d0c9");
+      outer.addColorStop(0.28, "#4a4d4b");
+      outer.addColorStop(0.52, "#08090a");
+      outer.addColorStop(0.78, "#9b9c96");
+      outer.addColorStop(1, "#101213");
+
+      var bevel = ctx.createLinearGradient(0, 0, 0, height);
+      bevel.addColorStop(0, "rgba(255,255,255,.88)");
+      bevel.addColorStop(0.22, "rgba(25,27,28,.82)");
+      bevel.addColorStop(0.72, "rgba(8,9,10,.92)");
+      bevel.addColorStop(1, "rgba(230,230,220,.55)");
+
+      ctx.save();
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+
+      ctx.shadowColor = shadowColor || "rgba(0,0,0,.8)";
+      ctx.shadowBlur = Math.max(8, borderWidth * 1.15);
+      ctx.lineWidth = borderWidth;
+      ctx.strokeStyle = "rgba(0,0,0,.72)";
+      ctx.stroke(path);
+
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = Math.max(1, borderWidth * 0.86);
+      ctx.strokeStyle = outer;
+      ctx.stroke(path);
+
+      ctx.lineWidth = Math.max(1, borderWidth * 0.48);
+      ctx.strokeStyle = "rgba(6,7,8,.72)";
+      ctx.stroke(path);
+
+      ctx.lineWidth = Math.max(1, borderWidth * 0.18);
+      ctx.strokeStyle = bevel;
+      ctx.stroke(path);
+      ctx.restore();
+    }
+
+    var ctx = this.context;
+    var canvasWidth = this.width;
+    var canvasHeight = this.height;
+    var borderWidth = Math.max(0, normalizeCssValue(this.borderWidth, canvasWidth, 5));
+    var patternSize = Math.max(1, normalizeCssValue(this.patternSize, canvasWidth, 20));
+    var borderColor = String(this.borderColor || "white");
+    var shadowColor = String(this.shadowColor || "green");
+    var percentage = clamp(asNumber(this.percentage, 0.5), 0, 1);
+    var cfg = {
+      offset: borderWidth / 2,
+      topLeft: normalizePair(this.topLeft, canvasHeight, canvasWidth),
+      topRight: normalizePair(this.topRight, canvasHeight, canvasWidth),
+      bottomRight: normalizePair(this.bottomRight, canvasHeight, canvasWidth),
+      bottomLeft: normalizePair(this.bottomLeft, canvasHeight, canvasWidth),
+      patternShift: normalizePair(this.patternShift, canvasHeight, canvasWidth),
+      topDent: normalizeCssValue(this.topDent, canvasHeight, 0),
+      topDentLength: normalizeCssValue(this.topDentLength, canvasWidth, 0)
+    };
+
+    var borderPath = buildBorderPath(canvasWidth, canvasHeight, cfg);
+    var clipPath = buildBorderPath(canvasWidth, canvasHeight, Object.assign({}, cfg, { offset: 0 }));
+    var decorRng = createRng(Number(this.backgroundSeed) + 0x9e3779b9);
+
+    ctx.save();
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+    ctx.save();
+    ctx.clip(clipPath);
+    drawTechMetalBackground(ctx, canvasWidth, canvasHeight, this.backgroundSeed);
+    ctx.restore();
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+    ctx.fill(borderPath);
+    ctx.clip(clipPath);
+    drawShapeMetalFrame(ctx, borderPath, canvasWidth, canvasHeight, borderWidth, shadowColor);
+    drawFixedEdgeDecorations(ctx, canvasWidth, canvasHeight, cfg, clipPath, decorRng);
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.globalAlpha = 0.34;
+    var grad = ctx.createRadialGradient(
+      (canvasWidth / 2) + cfg.patternShift.h,
+      (canvasHeight / 2) + cfg.patternShift.v,
+      0.25 * Math.max(canvasWidth, canvasHeight),
+      (canvasWidth / 2) + cfg.patternShift.h,
+      (canvasHeight / 2) + cfg.patternShift.v,
+      Math.max(canvasWidth, canvasHeight)
+    );
+    grad.addColorStop(percentage, "transparent");
+    grad.addColorStop(1, borderColor);
+    ctx.beginPath();
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 1;
+    drawHexaGrid(ctx, canvasWidth, canvasHeight, patternSize, cfg.patternShift);
+    ctx.stroke();
+    ctx.restore();
+    ctx.restore();
+  }
+}
+
+q-painter q-tech-panel-mask-painter {
+  q-property topLeft: "0px 0px"
+  q-property topRight: "0px 0px"
+  q-property bottomRight: "0px 0px"
+  q-property bottomLeft: "0px 0px"
+  q-property topDent: "10px"
+  q-property topDentLength: "10%"
+
+  onpaint {
+    function isNumericStart(value) {
+      var text = String(value == null ? "" : value).trim();
+      var first = text.charAt(0);
+      return (first >= "0" && first <= "9") || first === "-" || first === ".";
+    }
+
+    function normalizeCssValue(value, maxValue, fallback) {
+      var text = String(value == null ? "" : value).trim();
+      if (!text) {
+        return fallback;
+      }
+      if (!isNumericStart(text)) {
+        return text;
+      }
+      if (text.charAt(text.length - 1) === "%" && maxValue != null) {
+        var pct = Number.parseFloat(text.slice(0, -1));
+        return Number.isFinite(pct) ? (pct / 100) * maxValue : fallback;
+      }
+      var parsed = Number.parseFloat(text);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function normalizePair(value, maxV, maxH) {
+      var text = String(value == null ? "" : value).trim();
+      if (!text) {
+        return { v: 0, h: 0 };
+      }
+      var parts = text.split(/\s+/).filter(Boolean);
+      if (parts.length === 1) {
+        return {
+          v: normalizeCssValue(parts[0], maxV, 0),
+          h: normalizeCssValue(parts[0], maxH, 0)
+        };
+      }
+      return {
+        v: normalizeCssValue(parts[0], maxV, 0),
+        h: normalizeCssValue(parts[1], maxH, 0)
+      };
+    }
+
+    function buildPanelPath(width, height, cfg) {
+      var offset = cfg.offset || 0;
+      var topLeft = cfg.topLeft;
+      var topRight = cfg.topRight;
+      var bottomRight = cfg.bottomRight;
+      var bottomLeft = cfg.bottomLeft;
+      var topDent = Math.max(0, cfg.topDent || 0);
+      var topDentLength = Math.max(0, cfg.topDentLength || 0);
+      var path = new Path2D();
+      var topStartX = offset + topLeft.h;
+      var topEndX = width - offset - topRight.h;
+      var topY = offset;
+
+      path.moveTo(offset, offset + topLeft.v);
+      if (topLeft.h !== 0 || topLeft.v !== 0) {
+        path.lineTo(topStartX, topY);
+      } else {
+        path.lineTo(offset, topY);
+      }
+
+      var topSpan = Math.max(0, topEndX - topStartX);
+      if (topDent > 0 && topDentLength > 0 && topSpan > 0) {
+        var dentLength = Math.min(topDentLength, topSpan);
+        var slope = Math.min(topDent, Math.max(0, (topSpan - dentLength) / 2));
+        var side = Math.max(0, (topSpan - dentLength - (2 * slope)) / 2);
+        var x1 = topStartX + side;
+        path.lineTo(x1, topY);
+        path.lineTo(x1 + slope, topY + topDent);
+        path.lineTo(x1 + slope + dentLength, topY + topDent);
+        path.lineTo(x1 + (2 * slope) + dentLength, topY);
+      }
+
+      path.lineTo(topEndX, topY);
+      if (topRight.h !== 0 || topRight.v !== 0) {
+        path.lineTo(width - offset, offset + topRight.v);
+      }
+      path.lineTo(width - offset, height - offset - bottomRight.v);
+      if (bottomRight.h !== 0 || bottomRight.v !== 0) {
+        path.lineTo(width - offset - bottomRight.h, height - offset);
+      }
+      path.lineTo(offset + bottomLeft.h, height - offset);
+      if (bottomLeft.h !== 0 || bottomLeft.v !== 0) {
+        path.lineTo(offset, height - offset - bottomLeft.v);
+      }
+      path.closePath();
+      return path;
+    }
+
+    var width = this.width;
+    var height = this.height;
+    var cfg = {
+      offset: 0,
+      topLeft: normalizePair(this.topLeft, height, width),
+      topRight: normalizePair(this.topRight, height, width),
+      bottomRight: normalizePair(this.bottomRight, height, width),
+      bottomLeft: normalizePair(this.bottomLeft, height, width),
+      topDent: normalizeCssValue(this.topDent, height, 0),
+      topDentLength: normalizeCssValue(this.topDentLength, width, 0)
+    };
+    this.clearRect(0, 0, width, height);
+    this.fillStyle = "black";
+    this.fill(buildPanelPath(width, height, cfg));
+  }
+}
+
+q-style q-tech-panel-surface-style {
+  q-style-class { q-tech-panel-surface }
+  display: block
+  position: relative
+  minHeight: 1px
+  background-repeat: no-repeat
+  background-size: 100% 100%
+  background-position: center
+  q-style-painter {
+    background { q-tech-panel-painter }
+  }
+}
+
+q-style q-tech-panel-mask-style {
+  mask-repeat: no-repeat
+  mask-size: 100% 100%
+  mask-position: center
+  -webkit-mask-repeat: no-repeat
+  -webkit-mask-size: 100% 100%
+  -webkit-mask-position: center
+  q-style-painter {
+    mask { q-tech-panel-mask-painter }
+  }
+}
+
+q-theme q-tech-panel-theme {
+  .q-tech-panel-painter-primer { q-tech-panel-surface-style }
+  .q-tech-panel-mask-primer { q-tech-panel-mask-style }
+}
+
+q-component q-tech-panel {
+  q-property borderWidth: "5px"
+  q-property borderColor: "white"
+  q-property shadowColor: "green"
+  q-property topLeft: "0px 0px"
+  q-property topRight: "0px 0px"
+  q-property bottomRight: "0px 0px"
+  q-property bottomLeft: "0px 0px"
+  q-property patternShift: "0px 0px"
+  q-property patternSize: "20px"
+  q-property topDent: "10px"
+  q-property topDentLength: "10%"
+  q-property percentage: "0.5"
+  q-property backgroundSeed: "117"
+  q-property backgroundImage: ""
+  q-property backgroundSize: "cover"
+  q-property backgroundPosition: "center"
+  q-property backgroundRepeat: "no-repeat"
+
+  function hostElement() {
+    return this.component || this;
+  }
+
+  function directPanelDivs() {
+    var host = this.hostElement();
+    var out = [];
+    if (!host || !host.children) {
+      return out;
+    }
+    for (var i = 0; i < host.children.length; i += 1) {
+      var child = host.children[i];
+      if (
+        child &&
+        String(child.tagName || "").toLowerCase() === "div" &&
+        String(child.getAttribute && child.getAttribute("q-tech-panel-primer") || "") !== "1"
+      ) {
+        out.push(child);
+      }
+    }
+    return out;
+  }
+
+  function painterBackgroundImage() {
+    var host = this.hostElement();
+    var primer = host && typeof host.querySelector === "function" ? host.querySelector("[q-tech-panel-primer='1']") : null;
+    var fromPrimer = primer && primer.style ? String(primer.style.backgroundImage || "").trim() : "";
+    if (fromPrimer.indexOf("paint(") >= 0) {
+      return fromPrimer;
+    }
+    var registry = typeof globalThis !== "undefined" ? globalThis.__qhtmlPainterRegistry : null;
+    if (registry && typeof registry.forEach === "function") {
+      var found = "";
+      registry.forEach(function(value, key) {
+        var name = String(key || "");
+        if (!found && name.indexOf("q-tech-panel-painter") >= 0) {
+          found = "paint(" + name + ")";
+        }
+      });
+      return found;
+    }
+    return "";
+  }
+
+  function hidePainterPrimer() {
+    var host = this.hostElement();
+    var primers = host && typeof host.querySelectorAll === "function" ? host.querySelectorAll("[q-tech-panel-primer='1']") : [];
+    for (var i = 0; i < primers.length; i += 1) {
+      var primer = primers[i];
+      if (!primer || !primer.style) {
+        continue;
+      }
+      primer.style.setProperty("display", "none");
+      primer.style.setProperty("width", "0");
+      primer.style.setProperty("height", "0");
+      primer.style.setProperty("overflow", "hidden");
+      primer.style.setProperty("pointer-events", "none");
+    }
+  }
+
+  function painterMaskImage() {
+    var host = this.hostElement();
+    var primer = host && typeof host.querySelector === "function" ? host.querySelector("[q-tech-panel-mask-primer='1']") : null;
+    var fromPrimer = primer && primer.style ? String(primer.style.maskImage || primer.style.webkitMaskImage || "").trim() : "";
+    if (fromPrimer.indexOf("paint(") >= 0) {
+      return fromPrimer;
+    }
+    var registry = typeof globalThis !== "undefined" ? globalThis.__qhtmlPainterRegistry : null;
+    if (registry && typeof registry.forEach === "function") {
+      var found = "";
+      registry.forEach(function(value, key) {
+        var name = String(key || "");
+        if (!found && name.indexOf("q-tech-panel-mask-painter") >= 0) {
+          found = "paint(" + name + ")";
+        }
+      });
+      return found;
+    }
+    return "";
+  }
+
+  function composeBackgroundImage(target, paintBackground) {
+    if (!target || !target.style || !paintBackground) {
+      return "";
+    }
+    var host = this.hostElement();
+    var configured = host ? String(host.backgroundImage || "").trim() : "";
+    if (configured && configured !== "none") {
+      return paintBackground + ", " + configured;
+    }
+    var existing = String(target.style.backgroundImage || "").trim();
+    if (!existing || existing === "none") {
+      return paintBackground;
+    }
+    if (existing.indexOf("paint(") >= 0) {
+      return existing;
+    }
+    return paintBackground + ", " + existing;
+  }
+
+  function panelPropertyMap() {
+    var host = this.hostElement();
+    return {
+      borderWidth: host.borderWidth,
+      borderColor: host.borderColor,
+      shadowColor: host.shadowColor,
+      topLeft: host.topLeft,
+      topRight: host.topRight,
+      bottomRight: host.bottomRight,
+      bottomLeft: host.bottomLeft,
+      patternShift: host.patternShift,
+      patternSize: host.patternSize,
+      topDent: host.topDent,
+      topDentLength: host.topDentLength,
+      percentage: host.percentage,
+      backgroundSeed: host.backgroundSeed
+    };
+  }
+
+  function applyTechPanelProperties() {
+    var targets = this.directPanelDivs();
+    var props = this.panelPropertyMap();
+    var names = Object.keys(props);
+    var paintBackground = this.painterBackgroundImage();
+    var paintMask = this.painterMaskImage();
+    this.hidePainterPrimer();
+    for (var i = 0; i < targets.length; i += 1) {
+      var target = targets[i];
+      if (target.classList && typeof target.classList.add === "function") {
+        target.classList.add("q-tech-panel-surface");
+      }
+      if (!target.style || typeof target.style.setProperty !== "function") {
+        continue;
+      }
+      for (var ni = 0; ni < names.length; ni += 1) {
+        var name = names[ni];
+        var value = props[name];
+        target.style.setProperty("--" + name, String(value == null ? "" : value));
+      }
+      if (paintBackground) {
+        target.style.setProperty("background-image", this.composeBackgroundImage(target, paintBackground));
+      }
+      if (paintMask) {
+        target.style.setProperty("mask-image", paintMask);
+        target.style.setProperty("-webkit-mask-image", paintMask);
+        target.style.setProperty("mask-mode", "alpha");
+        target.style.setProperty("mask-repeat", "no-repeat");
+        target.style.setProperty("mask-size", "100% 100%");
+        target.style.setProperty("mask-position", "center");
+        target.style.setProperty("-webkit-mask-repeat", "no-repeat");
+        target.style.setProperty("-webkit-mask-size", "100% 100%");
+        target.style.setProperty("-webkit-mask-position", "center");
+      }
+      if (String(this.hostElement().backgroundImage || "").trim()) {
+        target.style.setProperty("background-size", "100% 100%, " + String(this.hostElement().backgroundSize || "cover"));
+        target.style.setProperty("background-position", "center, " + String(this.hostElement().backgroundPosition || "center"));
+        target.style.setProperty("background-repeat", "no-repeat, " + String(this.hostElement().backgroundRepeat || "no-repeat"));
+      }
+      if (!String(target.style.getPropertyValue("background-repeat") || "").trim()) {
+        target.style.setProperty("background-repeat", "no-repeat");
+      }
+      if (!String(target.style.getPropertyValue("background-size") || "").trim()) {
+        target.style.setProperty("background-size", "100% 100%");
+      }
+      if (!String(target.style.getPropertyValue("background-position") || "").trim()) {
+        target.style.setProperty("background-position", "center");
+      }
+    }
+  }
+
+  onready {
+    this.component.applyTechPanelProperties();
+  }
+
+  onborderWidthchanged { this.component.applyTechPanelProperties(); }
+  onborderColorchanged { this.component.applyTechPanelProperties(); }
+  onshadowColorchanged { this.component.applyTechPanelProperties(); }
+  ontopLeftchanged { this.component.applyTechPanelProperties(); }
+  ontopRightchanged { this.component.applyTechPanelProperties(); }
+  onbottomRightchanged { this.component.applyTechPanelProperties(); }
+  onbottomLeftchanged { this.component.applyTechPanelProperties(); }
+  onpatternShiftchanged { this.component.applyTechPanelProperties(); }
+  onpatternSizechanged { this.component.applyTechPanelProperties(); }
+  ontopDentchanged { this.component.applyTechPanelProperties(); }
+  ontopDentLengthchanged { this.component.applyTechPanelProperties(); }
+  onpercentagechanged { this.component.applyTechPanelProperties(); }
+  onbackgroundSeedchanged { this.component.applyTechPanelProperties(); }
+  onbackgroundImagechanged { this.component.applyTechPanelProperties(); }
+  onbackgroundSizechanged { this.component.applyTechPanelProperties(); }
+  onbackgroundPositionchanged { this.component.applyTechPanelProperties(); }
+  onbackgroundRepeatchanged { this.component.applyTechPanelProperties(); }
+
+  q-tech-panel-theme {
+    q-tech-panel-surface-style,div.q-tech-panel-painter-primer {
+      q-tech-panel-primer: "1"
+      aria-hidden: "true"
+      style { display: none; width: 1px; height: 1px; }
+      text { }
+    }
+    q-tech-panel-mask-style,div.q-tech-panel-mask-primer {
+      q-tech-panel-primer: "1"
+      q-tech-panel-mask-primer: "1"
+      aria-hidden: "true"
+      style { display: none; width: 1px; height: 1px; }
+      text { }
+    }
+    slot { default }
+  }
+}
+
+
+q-component q-toolbar extends q-draggable-item extends q-resizable-item {
+  q-property open: "1"
+  q-property title: "Toolbar"
+  q-property orientation: "horizontal"
+  q-signal resized(width, height)
+  q-signal closed()
+
+  function numberOr(value, fallback) {
+    var parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      return Number(fallback);
+    }
+    return parsed;
+  }
+
+  function applyToolbarLayout(rawWidth, rawHeight) {
+    var width = Math.max(64, Math.round(this.numberOr(rawWidth, this.width || 360)));
+    var height = Math.max(44, Math.round(this.numberOr(rawHeight, this.height || 64)));
+    var horizontal = width >= height;
+    var nextOrientation = horizontal ? "horizontal" : "vertical";
+    var buttonSize = Math.max(24, Math.floor((horizontal ? height : width) - 22));
+    var items = this.querySelector("[q-toolbar-items='1']");
+    var count = this.querySelectorAll("q-toolbutton").length;
+    if (count <= 0) {
+      count = 1;
+    }
+
+    this.orientation = nextOrientation;
+    this.setAttribute("orientation", nextOrientation);
+    this.style.setProperty("--q-toolbutton-size", String(buttonSize) + "px");
+
+    if (items && items.style) {
+      if (horizontal) {
+        items.style.gridTemplateColumns = "repeat(" + String(count) + ", minmax(0, 1fr))";
+        items.style.gridTemplateRows = "1fr";
+        items.style.gridAutoFlow = "column";
+      } else {
+        items.style.gridTemplateColumns = "1fr";
+        items.style.gridTemplateRows = "repeat(" + String(count) + ", minmax(0, 1fr))";
+        items.style.gridAutoFlow = "row";
+      }
+    }
+
+    if (typeof this.resized === "function") {
+      this.resized(width, height);
+    }
+    if (typeof CustomEvent === "function") {
+      this.dispatchEvent(new CustomEvent("q-toolbar:resized", {
+        detail: { width: width, height: height, orientation: nextOrientation },
+        bubbles: true
+      }));
+    }
+    return { width: width, height: height };
+  }
+
+  function afterResize(width, height) {
+    return this.applyToolbarLayout(width, height);
+  }
+
+  function minWidth() {
+    return 64;
+  }
+
+  function minHeight() {
+    return 44;
+  }
+
+  function shellNode() {
+    return this.querySelector("[q-toolbar-shell='1']");
+  }
+
+  function applyPosition(rawX, rawY) {
+    var nextX = Math.round(this.numberOr(rawX, this.x == null ? 24 : this.x));
+    var nextY = Math.round(this.numberOr(rawY, this.y == null ? 24 : this.y));
+    var shell = this.shellNode();
+    this.x = nextX;
+    this.y = nextY;
+    if (shell && shell.style) {
+      shell.style.position = "fixed";
+      shell.style.left = String(nextX) + "px";
+      shell.style.top = String(nextY) + "px";
+      shell.style.zIndex = "1000";
+    }
+    return { x: nextX, y: nextY };
+  }
+
+  function applySize(rawWidth, rawHeight) {
+    var nextWidth = Math.max(this.minWidth(), Math.round(this.numberOr(rawWidth, this.width == null ? 360 : this.width)));
+    var nextHeight = Math.max(this.minHeight(), Math.round(this.numberOr(rawHeight, this.height == null ? 64 : this.height)));
+    var shell = this.shellNode();
+    this.width = nextWidth;
+    this.height = nextHeight;
+    if (shell && shell.style) {
+      shell.style.width = String(nextWidth) + "px";
+      shell.style.height = String(nextHeight) + "px";
+      shell.style.boxSizing = "border-box";
+    }
+    this.afterResize(nextWidth, nextHeight);
+    return { width: nextWidth, height: nextHeight };
+  }
+
+  function syncOpenState() {
+    var visible = String(this.open || "1") !== "0";
+    var shell = this.shellNode();
+    if (shell && shell.style) {
+      shell.style.display = visible ? "grid" : "none";
+    }
+    this.style.display = visible ? "block" : "none";
+    return visible;
+  }
+
+  function closeToolbar() {
+    this.open = "0";
+    this.syncOpenState();
+    if (typeof this.closed === "function") {
+      this.closed();
+    }
+    if (typeof CustomEvent === "function") {
+      this.dispatchEvent(new CustomEvent("q-toolbar:closed", { detail: {}, bubbles: true }));
+    }
+  }
+
+  function showToolbar() {
+    this.open = "1";
+    this.syncOpenState();
+    var shell = this.shellNode();
+    var rect = shell && shell.getBoundingClientRect
+      ? shell.getBoundingClientRect()
+      : { width: this.width || 360, height: this.height || 64 };
+    this.applyToolbarLayout(rect.width, rect.height);
+  }
+
+  onReady {
+    if (typeof this.setupDragging === "function") {
+      this.setupDragging();
+    }
+    if (typeof this.setupResizing === "function") {
+      this.setupResizing();
+    }
+    this.applyPosition(this.x == null ? 24 : this.x, this.y == null ? 24 : this.y);
+    this.applySize(this.width == null ? 360 : this.width, this.height == null ? 64 : this.height);
+    this.syncOpenState();
+    if (String(this.open || "1") !== "0") {
+      this.showToolbar();
+    }
+  }
+
+  div.q-toolbar-shell {
+    q-toolbar-shell: "1"
+    style {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-rows: 1fr;
+      border: 1px solid #64748b;
+      border-radius: 10px;
+      background: #e2e8f0;
+      box-shadow: 0 10px 28px rgba(2, 6, 23, 0.25);
+      overflow: hidden;
+      box-sizing: border-box;
+      user-select: none;
+      position: relative;
+    }
+
+    div.q-toolbar-drag-strip {
+      q-drag-handle: "1"
+      style {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 26px;
+        height: 12px;
+        cursor: move;
+        background: transparent;
+        z-index: 2;
+      }
+    }
+
+    div.q-toolbar-items {
+      q-toolbar-items: "1"
+      style {
+        display: grid;
+        grid-template-columns: repeat(1, minmax(0, 1fr));
+        grid-template-rows: 1fr;
+        grid-auto-flow: column;
+        align-items: center;
+        justify-items: center;
+        gap: 6px;
+        padding: 12px 8px 10px 8px;
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+      }
+      slot { content }
+    }
+
+    button.q-toolbar-close {
+      type: "button"
+      title: "Close toolbar"
+      style {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        width: 18px;
+        height: 18px;
+        border: 0;
+        border-radius: 4px;
+        cursor: pointer;
+        background: #ef4444;
+        color: #ffffff;
+        font-weight: 700;
+        line-height: 1;
+        padding: 0;
+        z-index: 4;
+      }
+      onmousedown { event.stopPropagation(); }
+      onclick { this.closest("q-toolbar").closeToolbar(); }
+      text { x }
+    }
+
+    div.q-toolbar-resizer {
+      q-resize-handle: "1"
+      title: "Resize toolbar"
+      style {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        width: 16px;
+        height: 16px;
+        cursor: nwse-resize;
+        z-index: 3;
+        background: linear-gradient(135deg, transparent 0%, transparent 40%, #475569 40%, #475569 52%, transparent 52%, transparent 64%, #475569 64%, #475569 76%, transparent 76%);
+      }
+      onmousedown { event.stopPropagation(); }
+    }
+  }
+}
+q-component q-draggable-item {
+  q-property { x y }
+
+  function numberOr(value, fallback) {
+    var n = Number(value);
+    if (!Number.isFinite(n)) {
+      return Number(fallback);
+    }
+    return n;
+  }
+
+  function applyPosition(rawX, rawY) {
+    var nextX = Math.round(this.numberOr(rawX, this.x == null ? 40 : this.x));
+    var nextY = Math.round(this.numberOr(rawY, this.y == null ? 40 : this.y));
+
+    this.x = nextX;
+    this.y = nextY;
+
+    if (this.style) {
+      this.style.position = "fixed";
+      this.style.left = String(nextX) + "px";
+      this.style.top = String(nextY) + "px";
+      if (!this.style.zIndex) {
+        this.style.zIndex = "1000";
+      }
+    }
+
+    return { x: nextX, y: nextY };
+  }
+
+  function dragHandle() {
+    return this.querySelector("[q-drag-handle='1']") || this;
+  }
+
+  function handleDragStart(event) {
+    if (!event || (event.button != null && event.button !== 0)) {
+      return;
+    }
+
+    var start = this.getBoundingClientRect ? this.getBoundingClientRect() : { left: 0, top: 0 };
+    this.__dragState = {
+      mouseX: Number(event.clientX || 0),
+      mouseY: Number(event.clientY || 0),
+      startLeft: Number(start.left || 0),
+      startTop: Number(start.top || 0)
+    };
+
+    var win = this.ownerDocument && this.ownerDocument.defaultView ? this.ownerDocument.defaultView : window;
+    if (!this.__dragMoveHandler) {
+      var host = this;
+      this.__dragMoveHandler = function(moveEvent) {
+        if (!host.__dragState) {
+          return;
+        }
+        var dx = Number(moveEvent.clientX || 0) - host.__dragState.mouseX;
+        var dy = Number(moveEvent.clientY || 0) - host.__dragState.mouseY;
+        host.applyPosition(host.__dragState.startLeft + dx, host.__dragState.startTop + dy);
+      };
+    }
+
+    if (!this.__dragEndHandler) {
+      var hostEnd = this;
+      this.__dragEndHandler = function() {
+        hostEnd.__dragState = null;
+        win.removeEventListener("mousemove", hostEnd.__dragMoveHandler);
+        win.removeEventListener("mouseup", hostEnd.__dragEndHandler);
+      };
+    }
+
+    win.addEventListener("mousemove", this.__dragMoveHandler);
+    win.addEventListener("mouseup", this.__dragEndHandler);
+
+    if (typeof event.preventDefault === "function") {
+      event.preventDefault();
+    }
+  }
+
+  function setupDragging() {
+    if (this.__dragReady) {
+      return;
+    }
+    this.__dragReady = true;
+
+    var handle = this.dragHandle();
+    if (!handle || typeof handle.addEventListener !== "function") {
+      return;
+    }
+
+    var host = this;
+    this.__dragStartHandler = function(event) {
+      host.handleDragStart(event);
+    };
+
+    handle.addEventListener("mousedown", this.__dragStartHandler);
+  }
+
+  onReady {
+    this.setupDragging();
+    this.applyPosition(this.x, this.y);
+  }
+}
+q-component q-resizable-item {
+  q-property { width height }
+
+  function numberOr(value, fallback) {
+    var n = Number(value);
+    if (!Number.isFinite(n)) {
+      return Number(fallback);
+    }
+    return n;
+  }
+
+  function minWidth() {
+    return 64;
+  }
+
+  function minHeight() {
+    return 44;
+  }
+
+  function afterResize(width, height) {
+    return { width: width, height: height };
+  }
+
+  function applySize(rawWidth, rawHeight) {
+    var nextWidth = Math.max(this.minWidth(), Math.round(this.numberOr(rawWidth, this.width == null ? 320 : this.width)));
+    var nextHeight = Math.max(this.minHeight(), Math.round(this.numberOr(rawHeight, this.height == null ? 56 : this.height)));
+
+    this.width = nextWidth;
+    this.height = nextHeight;
+
+    if (this.style) {
+      this.style.width = String(nextWidth) + "px";
+      this.style.height = String(nextHeight) + "px";
+      this.style.boxSizing = "border-box";
+    }
+
+    this.afterResize(nextWidth, nextHeight);
+    return { width: nextWidth, height: nextHeight };
+  }
+
+  function resizeHandle() {
+    return this.querySelector("[q-resize-handle='1']") || this;
+  }
+
+  function handleResizeStart(event) {
+    if (!event || (event.button != null && event.button !== 0)) {
+      return;
+    }
+
+    var rect = this.getBoundingClientRect ? this.getBoundingClientRect() : { width: this.width || 320, height: this.height || 56 };
+    this.__resizeState = {
+      mouseX: Number(event.clientX || 0),
+      mouseY: Number(event.clientY || 0),
+      startWidth: Number(rect.width || this.width || 320),
+      startHeight: Number(rect.height || this.height || 56)
+    };
+
+    var win = this.ownerDocument && this.ownerDocument.defaultView ? this.ownerDocument.defaultView : window;
+    if (!this.__resizeMoveHandler) {
+      var host = this;
+      this.__resizeMoveHandler = function(moveEvent) {
+        if (!host.__resizeState) {
+          return;
+        }
+        var dx = Number(moveEvent.clientX || 0) - host.__resizeState.mouseX;
+        var dy = Number(moveEvent.clientY || 0) - host.__resizeState.mouseY;
+        host.applySize(host.__resizeState.startWidth + dx, host.__resizeState.startHeight + dy);
+      };
+    }
+
+    if (!this.__resizeEndHandler) {
+      var hostEnd = this;
+      this.__resizeEndHandler = function() {
+        hostEnd.__resizeState = null;
+        win.removeEventListener("mousemove", hostEnd.__resizeMoveHandler);
+        win.removeEventListener("mouseup", hostEnd.__resizeEndHandler);
+      };
+    }
+
+    win.addEventListener("mousemove", this.__resizeMoveHandler);
+    win.addEventListener("mouseup", this.__resizeEndHandler);
+
+    if (typeof event.preventDefault === "function") {
+      event.preventDefault();
+    }
+  }
+
+  function setupResizing() {
+    if (this.__resizeReady) {
+      return;
+    }
+    this.__resizeReady = true;
+
+    var handle = this.resizeHandle();
+    if (!handle || typeof handle.addEventListener !== "function") {
+      return;
+    }
+
+    var host = this;
+    this.__resizeStartHandler = function(event) {
+      host.handleResizeStart(event);
+    };
+
+    handle.addEventListener("mousedown", this.__resizeStartHandler);
+  }
+
+  onReady {
+    this.setupResizing();
+    this.applySize(this.width, this.height);
+  }
+}
+
+q-component q-toolbutton {
+  q-property src: ""
+  q-property label: ""
+  q-property size: 44
+
+  function numberOr(value, fallback) {
+    var parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      return Number(fallback);
+    }
+    return parsed;
+  }
+
+  function applySize(rawSize) {
+    var nextSize = Math.max(24, Math.round(this.numberOr(rawSize, this.size || 44)));
+    this.size = nextSize;
+    this.style.setProperty("--q-toolbutton-size", String(nextSize) + "px");
+    return nextSize;
+  }
+
+  function setSize(rawSize) {
+    return this.applySize(rawSize);
+  }
+
+  onReady {
+    this.applySize(this.size);
+  }
+
+  button.q-toolbutton-root {
+    q-toolbutton-root: "1"
+    type: "button"
+    title: "${this.component.label}"
+    aria-label: "${this.component.label}"
+    style {
+      width: var(--q-toolbutton-size, 44px);
+      height: var(--q-toolbutton-size, 44px);
+      padding: 6px;
+      margin: 0;
+      border: 1px solid #94a3b8;
+      border-radius: 8px;
+      background: #f8fafc;
+      cursor: pointer;
+      display: inline-grid;
+      place-items: center;
+      box-sizing: border-box;
+    }
+
+    img.q-toolbutton-image {
+      q-toolbutton-image: "1"
+      src: "${this.component.src}"
+      alt: "${this.component.label}"
+      draggable: "false"
+      style {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+        pointer-events: none;
+      }
+    }
+
+    slot { content }
+  }
+}
+
+q-component q-tree-view {
+  q-property model: ""
+  q-property treeModel: ""
+
+  function _normalizeSetModelInput(input) {
+    if (input && typeof input === "object") {
+      return input
+    }
+    if (typeof input === "string") {
+      var text = String(input || "").trim()
+      if (!text) {
+        return {}
+      }
+      try {
+        return JSON.parse(text)
+      } catch (error) {
+        return {}
+      }
+    }
+    return {}
+  }
+
+  function setModel(qdomModel) {
+    var normalized = this._normalizeSetModelInput(qdomModel)
+    this.__treeRawModel = normalized
+    this.treeModel = ""
+    this.model = ""
+    this.refresh()
+    return normalized
+  }
+
+  function _effectiveModel() {
+    if (this.__treeRawModel && typeof this.__treeRawModel === "object") {
+      return this.__treeRawModel
+    }
+    var value = this.treeModel
+    if (value === null || typeof value === "undefined" || value === "") { value = this.model }
+    if (value === null || typeof value === "undefined" || value === "") { value = this.getAttribute("treeModel") }
+    if (value === null || typeof value === "undefined" || value === "") { value = this.getAttribute("model") }
+    return value
+  }
+
+  function _unbindModelObserver() {
+    if (typeof this.__treeModelUnsubscribe === "function") {
+      this.__treeModelUnsubscribe()
+    }
+    this.__treeModelUnsubscribe = null
+    this.__treeObservedModel = null
+  }
+
+  function _bindModelObserver(modelValue) {
+    if (!modelValue || typeof modelValue.subscribe !== "function") {
+      this._unbindModelObserver()
+      return
+    }
+    if (this.__treeObservedModel === modelValue && typeof this.__treeModelUnsubscribe === "function") {
+      return
+    }
+    this._unbindModelObserver()
+    var component = this
+    this.__treeModelUnsubscribe = modelValue.subscribe(function() {
+      component.refresh()
+    })
+    this.__treeObservedModel = modelValue
+  }
+
+  function _normalizeBranches() {
+    var component = this
+    function setBranchState(branchNode, summaryNode, openState) {
+      if (!branchNode || !summaryNode) { return }
+      var open = openState === true
+      var marker = summaryNode.querySelector(".q-tree-marker")
+      var children = branchNode.querySelector(".q-tree-children")
+      branchNode.open = open
+      branchNode.setAttribute("q-tree-open", open ? "1" : "0")
+      if (children) { children.style.display = open ? "block" : "none" }
+      if (marker) {
+        marker.className = "q-tree-marker " + (open ? "q-tree-marker-open" : "q-tree-marker-closed")
+        marker.textContent = open ? "-" : "+"
+      }
+    }
+    var detailsBranches = component.querySelectorAll("details.q-tree-branch")
+    var i = 0
+    while (i < detailsBranches.length) {
+      var details = detailsBranches[i]
+      var summary = details.querySelector(":scope > .q-tree-summary")
+      var children = details.querySelector(":scope > .q-tree-children")
+      if (summary && children) {
+        if (String(summary.tagName || "").toLowerCase() !== "summary") {
+          var realSummary = document.createElement("summary")
+          realSummary.className = summary.className
+          while (summary.firstChild) {
+            realSummary.appendChild(summary.firstChild)
+          }
+          details.replaceChild(realSummary, summary)
+          summary = realSummary
+        }
+        setBranchState(details, summary, details.open === true)
+      }
+      i += 1
+    }
+  }
+
+  function _queueNormalizeBranches() {
+    var component = this
+    if (typeof component.__normalizeRaf === "number") {
+      cancelAnimationFrame(component.__normalizeRaf)
+    }
+    component.__normalizeRaf = requestAnimationFrame(function() {
+      component.__normalizeRaf = null
+      component._normalizeBranches()
+    })
+  }
+
+  function refresh() {
+    var host = (typeof this.qhtmlRoot === "function" ? this.qhtmlRoot() : this.qhtmlRoot) || this.closest("q-html")
+    var root = this.querySelector("[q-tree-root='1']")
+    if (!root || typeof root.qdom !== "function") { return }
+    var modelInput = this._effectiveModel()
+    this._bindModelObserver(modelInput)
+    var rootQdom = root.qdom()
+    if (!rootQdom || typeof rootQdom.createQTreeSource !== "function") { return }
+    var body = rootQdom.createQTreeSource(modelInput, { host: host, targetElement: this })
+    rootQdom.replaceWithQHTML("ul.q-tree.q-tree-list { q-tree-root: \"1\" " + body + " }")
+    this._queueNormalizeBranches()
+  }
+
+  onReady { this.refresh() }
+
+  ul.q-tree.q-tree-list { q-tree-root: "1" }
+}
+
+q-component sdml-object {
+  q-property url: ""
+  q-property data: ""
+  q-property method: "GET"
+
+  q-signal response(url, data)
+  q-signal error(url, error)
+  q-signal request(url, method, data)
+
+  function ensureComponentBridge() {
+    const host = this;
+    if (!host || (typeof host !== "object" && typeof host !== "function")) {
+      return null;
+    }
+    if (host.__sdmlComponentBridgeReady && host.component) {
+      return host.component;
+    }
+    if (typeof Proxy !== "function") {
+      host.component = host;
+      host.__sdmlComponentBridgeReady = true;
+      return host.component;
+    }
+
+    const bridgeCallable = function componentBridge(handler) {
+      if (typeof handler === "function") {
+        return handler.bind(host);
+      }
+      return host;
+    };
+
+    const bridge = new Proxy(bridgeCallable, {
+      get(target, property) {
+        if (property === "__host") {
+          return host;
+        }
+        if (property in host) {
+          return host[property];
+        }
+        return target[property];
+      },
+      set(target, property, value) {
+        host[property] = value;
+        return true;
+      },
+      apply(target, thisArg, args) {
+        if (Array.isArray(args) && args.length > 0 && typeof args[0] === "function") {
+          return args[0].bind(host);
+        }
+        return host;
+      },
+    });
+
+    host.component = bridge;
+    host.__sdmlComponentBridgeReady = true;
+    return bridge;
+  }
+
+  function interpolateTemplateString(source) {
+    const body = String(source || "");
+    const marker = "$" + "{";
+    if (!body || body.indexOf(marker) === -1) {
+      return body;
+    }
+    let output = "";
+    let cursor = 0;
+    while (cursor < body.length) {
+      const start = body.indexOf(marker, cursor);
+      if (start === -1) {
+        output += body.slice(cursor);
+        break;
+      }
+      output += body.slice(cursor, start);
+      const end = body.indexOf("}", start + 2);
+      if (end === -1) {
+        output += body.slice(start);
+        break;
+      }
+      const expression = body.slice(start + 2, end).trim();
+      try {
+        const evaluate = new Function(
+          "component",
+          "self",
+          "with({component: component, self: self, this: component}){ return (" + expression + "); }"
+        );
+        const value = evaluate.call(this, this, this);
+        if (typeof value === "string") {
+          output += JSON.stringify(value);
+        } else if (value && typeof value === "object") {
+          output += JSON.stringify(value);
+        } else if (value == null) {
+          output += "null";
+        } else {
+          output += String(value);
+        }
+      } catch (error) {
+        output += "null";
+      }
+      cursor = end + 1;
+    }
+    return output;
+  }
+
+  function normalizePayload(rawPayload) {
+    if (typeof rawPayload !== "string") {
+      return rawPayload;
+    }
+    const interpolated = this.interpolateTemplateString(rawPayload);
+    const text = String(interpolated || "").trim();
+    if (!text) {
+      return "";
+    }
+    if ((text.charAt(0) === "{" && text.charAt(text.length - 1) === "}") ||
+        (text.charAt(0) === "[" && text.charAt(text.length - 1) === "]")) {
+      try {
+        return JSON.parse(text);
+      } catch (jsonError) {
+        try {
+          return (new Function("return (" + text + ");"))();
+        } catch (jsObjectError) {
+          return text;
+        }
+      }
+    }
+    return text;
+  }
+
+  function normalizeMethod(rawMethod) {
+    const value = String(rawMethod || "").trim().toUpperCase();
+    return value === "POST" ? "POST" : "GET";
+  }
+
+  function resolveUrl(urlOverride) {
+    const explicit = String(urlOverride == null ? "" : urlOverride).trim();
+    if (explicit) {
+      return explicit;
+    }
+    return String(this.url || "").trim();
+  }
+
+  function resolveData(dataOverride) {
+    if (typeof dataOverride !== "undefined") {
+      return this.normalizePayload(dataOverride);
+    }
+    return this.normalizePayload(this.data);
+  }
+
+  function appendQueryParams(baseUrl, payload) {
+    const target = String(baseUrl || "").trim();
+    if (!target) {
+      return "";
+    }
+    if (typeof payload === "string") {
+      const text = String(payload || "").trim();
+      if (!text) {
+        return target;
+      }
+      if (text.indexOf("=") !== -1) {
+        return target + (target.indexOf("?") === -1 ? "?" : "&") + text.replace(/^\?/, "");
+      }
+      return target;
+    }
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      return target;
+    }
+    const query = new URLSearchParams();
+    const keys = Object.keys(payload);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = String(keys[i] || "").trim();
+      if (!key) {
+        continue;
+      }
+      const value = payload[key];
+      if (typeof value === "undefined") {
+        continue;
+      }
+      if (Array.isArray(value)) {
+        for (let j = 0; j < value.length; j += 1) {
+          query.append(key, value[j] == null ? "" : String(value[j]));
+        }
+        continue;
+      }
+      query.append(key, value == null ? "" : String(value));
+    }
+    const encoded = query.toString();
+    if (!encoded) {
+      return target;
+    }
+    return target + (target.indexOf("?") === -1 ? "?" : "&") + encoded;
+  }
+
+  function parseResponsePayload(response) {
+    if (!response || typeof response !== "object") {
+      return Promise.resolve({ result: "" });
+    }
+    const contentType = response.headers && typeof response.headers.get === "function"
+      ? String(response.headers.get("content-type") || "").toLowerCase()
+      : "";
+    if (contentType.indexOf("application/json") !== -1 && typeof response.json === "function") {
+      return response.json().catch(() => ({ result: "" }));
+    }
+    if (typeof response.text === "function") {
+      return response.text().then((text) => {
+        const raw = String(text || "");
+        if (!raw.trim()) {
+          return { result: "" };
+        }
+        try {
+          return JSON.parse(raw);
+        } catch (error) {
+          return { result: raw };
+        }
+      });
+    }
+    return Promise.resolve({ result: "" });
+  }
+
+  function get(urlOverride, dataOverride, init) {
+    this.ensureComponentBridge();
+    const targetUrl = this.resolveUrl(urlOverride);
+    if (!targetUrl) {
+      const missingUrlError = new Error("sdml-object.get requires a non-empty url.");
+      this.error("", missingUrlError);
+      return Promise.reject(missingUrlError);
+    }
+    const payload = this.resolveData(dataOverride);
+    const finalUrl = this.appendQueryParams(targetUrl, payload);
+    this.request(finalUrl, "GET", payload);
+    if (typeof fetch !== "function") {
+      const missingFetchError = new Error("sdml-object.get requires fetch() support.");
+      this.error(finalUrl, missingFetchError);
+      return Promise.reject(missingFetchError);
+    }
+    return fetch(finalUrl, Object.assign({}, init || {}, { method: "GET" }))
+      .then((response) => this.parseResponsePayload(response))
+      .then((body) => {
+        this.response(finalUrl, body);
+        return body;
+      })
+      .catch((error) => {
+        this.error(finalUrl, error);
+        throw error;
+      });
+  }
+
+  function post(urlOverride, dataOverride, init) {
+    this.ensureComponentBridge();
+    const targetUrl = this.resolveUrl(urlOverride);
+    if (!targetUrl) {
+      const missingUrlError = new Error("sdml-object.post requires a non-empty url.");
+      this.error("", missingUrlError);
+      return Promise.reject(missingUrlError);
+    }
+    const payload = this.resolveData(dataOverride);
+    if (typeof fetch !== "function") {
+      const missingFetchError = new Error("sdml-object.post requires fetch() support.");
+      this.error(targetUrl, missingFetchError);
+      return Promise.reject(missingFetchError);
+    }
+    const requestInit = Object.assign({}, init || {}, { method: "POST" });
+    if (typeof payload !== "undefined" && payload !== null) {
+      const isFormData = typeof FormData !== "undefined" && payload instanceof FormData;
+      const isUrlSearchParams = typeof URLSearchParams !== "undefined" && payload instanceof URLSearchParams;
+      const isBlob = typeof Blob !== "undefined" && payload instanceof Blob;
+      if (!isFormData && !isUrlSearchParams && !isBlob && typeof payload === "object") {
+        requestInit.headers = Object.assign({}, requestInit.headers || {}, { "Content-Type": "application/json" });
+        requestInit.body = JSON.stringify(payload);
+      } else {
+        requestInit.body = payload;
+      }
+    }
+    this.request(targetUrl, "POST", payload);
+    return fetch(targetUrl, requestInit)
+      .then((response) => this.parseResponsePayload(response))
+      .then((body) => {
+        this.response(targetUrl, body);
+        return body;
+      })
+      .catch((error) => {
+        this.error(targetUrl, error);
+        throw error;
+      });
+  }
+
+  function send(urlOverride, dataOverride, init) {
+    this.ensureComponentBridge();
+    const selectedMethod = this.normalizeMethod(this.method);
+    if (selectedMethod === "POST") {
+      return this.post(urlOverride, dataOverride, init);
+    }
+    return this.get(urlOverride, dataOverride, init);
+  }
+
+  onReady {
+    this.ensureComponentBridge();
+  }
+}
+
