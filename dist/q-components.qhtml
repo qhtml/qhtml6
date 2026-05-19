@@ -1,15 +1,15 @@
-q-import { q-components/q-tech-tag.qhtml }
-q-import { q-components/q-tech-panel.qhtml }
-q-import { q-components/q-form.qhtml }
-q-import { q-components/q-modal.qhtml }
-q-import { q-components/q-grid.qhtml }
-q-import { q-components/q-tabs.qhtml }
-q-import { q-components/q-list-view.qhtml }
-q-import { q-components/q-tree-view.qhtml?v=tree-css-28 }
-q-import { q-components/q-dom-tree.qhtml?v=dom-tree-3 }
-q-import { q-components/q-estore.qhtml?v=6.3.1 }
-q-import { q-components/q-spritesheet.qhtml?v=6.3.1 }
-q-import { q-components/q-factory.qhtml }
-q-import { q-components/q-sidebar.qhtml }
-q-import { q-components/q-popup-menu.qhtml?v=popup-redesign-6 }
-q-import { q-components/sdml-object.qhtml }
+q-import { q-components/q-tech-tag.qhtml cache }
+q-import { q-components/q-tech-panel.qhtml cache }
+q-import { q-components/q-form.qhtml cache }
+q-import { q-components/q-modal.qhtml cache }
+q-import { q-components/q-grid.qhtml cache }
+q-import { q-components/q-tabs.qhtml cache }
+q-import { q-components/q-list-view.qhtml cache }
+q-import { q-components/q-tree-view.qhtml cache }
+q-import { q-components/q-dom-tree.qhtml cache }
+q-import { q-components/q-estore.qhtml cache }
+q-import { q-components/q-spritesheet.qhtml cache }
+q-import { q-components/q-factory.qhtml cache }
+q-import { q-components/q-sidebar.qhtml cache }
+q-import { q-components/q-popup-menu.qhtml cache }
+q-import { q-components/sdml-object.qhtml cache }
