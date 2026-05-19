@@ -26,8 +26,7 @@ wiki-shell {
       note: "This is the simplest manual mutation flow."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-div {
+          <q-editor>div {
   button {
     text { Append item }
     onclick {
@@ -43,8 +42,7 @@ div {
     id: "items"
     li { text { Existing item } }
   }
-}
-&lt;/q-html&gt;</q-editor>
+}</q-editor>
         }
       }
     }
@@ -55,8 +53,7 @@ div {
       note: "Use this when replacing a whole branch is easier than mutating fields one by one."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-div {
+          <q-editor>div {
   button {
     text { Replace list }
     onclick {
@@ -71,8 +68,7 @@ div {
     li { text { Original row A } }
     li { text { Original row B } }
   }
-}
-&lt;/q-html&gt;</q-editor>
+}</q-editor>
         }
       }
     }
@@ -83,8 +79,7 @@ div {
       note: "It mirrors the idea of q-rewrite, but runs against a mounted QDOM node."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-div {
+          <q-editor>div {
   button {
     text { Rewrite target }
     onclick {
@@ -100,8 +95,7 @@ div {
     id: "rewrite-target"
     text { Original rewrite target }
   }
-}
-&lt;/q-html&gt;</q-editor>
+}</q-editor>
         }
       }
     }
@@ -112,8 +106,7 @@ div {
       note: "This is useful for persistence, snapshots, and editor-style flows."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-div {
+          <q-editor>div {
   button {
     text { Append snapshot }
     onclick {
@@ -146,8 +139,7 @@ div {
     style { padding: 10px; border: 1px dashed #94a3b8; margin-top: 10px; }
     text { Snapshot target }
   }
-}
-&lt;/q-html&gt;</q-editor>
+}</q-editor>
         }
       }
     }
@@ -158,8 +150,7 @@ div {
       note: "Use these when mutating a component through its QDOM facade."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-q-component my-card {
+          <q-editor>q-component my-card {
   q-property title: "Initial title"
   div.card-shell {
     style { padding: 12px; border: 1px solid #cbd5e1; margin-top: 10px; }
@@ -177,8 +168,7 @@ button {
     qnode.property("title", "Updated through component qdom()");
     comp.update();
   }
-}
-&lt;/q-html&gt;</q-editor>
+}</q-editor>
         }
       }
     }
@@ -189,8 +179,7 @@ button {
       note: "Prefer the smaller update when you know the scope."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-q-component scope-demo {
+          <q-editor>q-component scope-demo {
   q-property count: 0
 
   div {
@@ -219,8 +208,7 @@ button {
 div {
   id: "page-summary"
   text { Page sees count: ${localScopeDemo.count} }
-}
-&lt;/q-html&gt;</q-editor>
+}</q-editor>
         }
       }
     }

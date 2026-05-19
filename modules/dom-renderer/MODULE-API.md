@@ -73,7 +73,8 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - callback names are also stored in the active lexical/runtime context frame so later expressions in the same scope resolve by name.
 - `q-var` declarations register scoped runtime variables in the existing QContext frames:
   - declaration form: `q-var name { expressionOrBody }`
-  - declaration bodies are evaluated once when the q-var is registered
+  - declaration bodies are stored on the QDom q-var declaration and evaluated lazily when the variable is first read
+  - declaration bodies can reference earlier q-vars, q-switches, callbacks, and named references from the current inherited QContext
   - supported stored values are strings, numbers, objects, arrays, and functions
   - reads return the stored value and assignments replace the stored value
   - dynamic behavior should be expressed by storing a function and invoking it, for example `q-var current { function() { return source.value; } }`
@@ -81,6 +82,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - `q-switch` declarations register scoped callable functions in the existing QContext frames:
   - declaration form: `q-switch name { key: { expression } *: defaultExpression }`
   - `name(value)` resolves by primitive key and evaluates only the selected case body on demand
+  - case bodies evaluate with the current inherited QContext and q-var references resolve to their stored JavaScript values
   - no property binding or listener behavior is installed; dynamic behavior must come from the caller or from expressions/functions returned by cases
   - returned QHTML source strings can be passed into `qhtml(name(value))`
 - `q-timer` declarations can be registered at document scope or inside anonymous DOM/theme/style containers:
@@ -88,6 +90,8 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - root timers are registered before document nodes render so handlers and expressions can resolve them by name
   - timers inside component/worker hosts are owned by that host and remain reachable through normal named-reference dot walking
 - Inline event handlers receive the current inherited QContext in their script scope, so named references visible during render are also visible when the handler runs.
+  - Rendered DOM elements are bound to the active scope/runtime context frames before event attributes are compiled.
+  - Script contexts read `q-var` declarations as their stored JavaScript values and write assignment back to q-var storage, so handlers can use natural `var`-like syntax such as `count = count + 1` or `helper()`.
 - `q-perf` instrumentation is opt-in per direct owner node through `meta.__qhtmlPerfFlags`.
   - Supported categories: `q-timer`, `q-signal`, `q-property`, `q-worker`, and `function`.
   - Component definition flags are copied to each rendered component/worker instance node so measurements are per instance where a live instance QDom node exists.
@@ -154,6 +158,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - `instance.name.disconnect(fn?)`
   - `instance.name.emit(...)`
   - each signal callable is an instance of `QSignal` (runtime type) while preserving call syntax
+  - signal emission uses `Function.prototype.apply.call(...)` internally so callable signal functions keep working after their prototype is changed to `QSignal.prototype`
 - Declared `q-property` entries register backing `QProperty` instances on host metadata map (`host.__qhtmlPropertyInstances`).
 - Component hosts register `QComponentInstance` metadata (`host.__qhtmlComponentInstanceMeta`).
 - Component execution contexts aggressively normalize `this.component` to the nearest owning component instance host before hook/event/method execution.

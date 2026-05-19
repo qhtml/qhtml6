@@ -24,8 +24,7 @@ wiki-shell {
       summary: "Use particle-emitter when you want a visual particle effect from declarative QHTML attributes."
       note: "The element is not a q-component. It is a framework-registered custom element, so it works in plain HTML and in QHTML-rendered markup. Use particle-emitter or q-particle-emitter interchangeably. Each emitter owns one canvas, one particle array, one seeded random generator, and one animation loop."
       details {
-        html { <q-editor>&lt;q-html&gt;
-div#field {
+        html { <q-editor>div#field {
   style {
     position: relative;
     width: 420px;
@@ -38,8 +37,7 @@ div#field {
     running: "false"
     src: "particle.png"
   }
-}
-&lt;/q-html&gt;</q-editor> }
+}</q-editor> }
       }
     }
 
@@ -48,8 +46,7 @@ div#field {
       summary: "This example starts particles at the bottom of the container, spreads them horizontally, and moves them upward with a long fade."
       note: "The parent must have real dimensions. If the parent has static positioning, particle-emitter changes it to relative so the canvas can fill it."
       details {
-        html { <q-editor>&lt;q-html&gt;
-div#energy-field {
+        html { <q-editor>div#energy-field {
   style {
     position: relative;
     width: 420px;
@@ -98,8 +95,7 @@ button {
 button {
   text { Stop energy }
   onclick { document.querySelector("#energy-emitter").running = false; }
-}
-&lt;/q-html&gt;</q-editor> }
+}</q-editor> }
       }
     }
 
@@ -108,8 +104,7 @@ button {
       summary: "The emitter starts an internal requestAnimationFrame loop when connected. The loop keeps rendering, but it only creates new particles while running is true."
       note: "Setting running to false or calling stop() stops continuous emission but existing particles continue to age out. burst(num, x, y) queues one-shot particles from a supplied origin at the current emitRate without changing the emitter's configured x/y. clear() immediately removes all current particles, pending bursts, and resets total-created counters."
       details {
-        html { <q-editor>&lt;q-html&gt;
-particle-emitter#fx {
+        html { <q-editor>particle-emitter#fx {
   running: "false"
   emitRate: "40"
 }
@@ -117,8 +112,7 @@ particle-emitter#fx {
 button { text { Start } onclick { document.querySelector("#fx").running = true; } }
 button { text { Stop } onclick { document.querySelector("#fx").running = false; } }
 button { text { Burst } onclick { document.querySelector("#fx").burst(20, 180, 90); } }
-button { text { Clear } onclick { document.querySelector("#fx").clear(); } }
-&lt;/q-html&gt;</q-editor> }
+button { text { Clear } onclick { document.querySelector("#fx").clear(); } }</q-editor> }
       }
     }
 
@@ -127,8 +121,7 @@ button { text { Clear } onclick { document.querySelector("#fx").clear(); } }
       summary: "These attributes decide how many particles are created and when emission stops."
       note: "Attribute names may be written in camelCase in QHTML. The browser lowercases HTML attributes, and the emitter reads both forms."
       details {
-        html { <q-editor>&lt;q-html&gt;
-div#emission-demo {
+        html { <q-editor>div#emission-demo {
   style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #07111f; }
 
   particle-emitter#emission-emitter {
@@ -150,8 +143,7 @@ div#emission-demo {
     src: "particle.png"
     color: "#67e8f9"
   }
-}
-&lt;/q-html&gt;</q-editor> }
+}</q-editor> }
       }
     }
 
@@ -160,8 +152,7 @@ div#emission-demo {
       summary: "Particles are born at x/y, then receive velocity and acceleration each frame."
       note: "Use xVariation and yVariation for spawn spread. For rising energy, place y near the container bottom and make yVelocity negative."
       details {
-        html { <q-editor>&lt;q-html&gt;
-div#motion-demo {
+        html { <q-editor>div#motion-demo {
   style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #0f172a; }
 
   particle-emitter#motion-emitter {
@@ -185,8 +176,7 @@ div#motion-demo {
     src: "particle.png"
     color: "#a7f3d0"
   }
-}
-&lt;/q-html&gt;</q-editor> }
+}</q-editor> }
       }
     }
 
@@ -195,8 +185,7 @@ div#motion-demo {
       summary: "Each particle interpolates from start values to end values over its lifetime."
       note: "The renderer computes progress as age / lifetime. Size and opacity are then linearly interpolated from start to end."
       details {
-        html { <q-editor>&lt;q-html&gt;
-div#size-demo {
+        html { <q-editor>div#size-demo {
   style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #1e1238; }
 
   particle-emitter#size-emitter {
@@ -220,8 +209,7 @@ div#size-demo {
     src: "particle.png"
     color: "#c084fc"
   }
-}
-&lt;/q-html&gt;</q-editor> }
+}</q-editor> }
       }
     }
 
@@ -230,8 +218,7 @@ div#size-demo {
       summary: "Particles draw either a composed sprite canvas or a fallback colored circle."
       note: "The mask attribute is applied to each particle sprite's alpha, not to the whole emitter canvas. The emitterMask attribute is different: it is an emitter-area alpha mask, and particles whose centers fall on transparent mask pixels are skipped during rendering. Images are loaded with crossOrigin=\"anonymous\"."
       details {
-        html { <q-editor>&lt;q-html&gt;
-div#sprite-demo {
+        html { <q-editor>div#sprite-demo {
   style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #330d12; }
 
   particle-emitter#sprite-emitter {
@@ -254,8 +241,7 @@ div#sprite-demo {
     running: "true"
     interval: "10"
   }
-}
-&lt;/q-html&gt;</q-editor> }
+}</q-editor> }
       }
     }
 
@@ -264,8 +250,7 @@ div#sprite-demo {
       summary: "Use emitterMask when the particle field itself should be clipped to a larger shape."
       note: "Use mask for the shape of each individual particle sprite. Use emitterMask or emitter-mask for the area where particles are allowed to render. The emitter samples the mask alpha using each particle center in parent-container coordinates."
       details {
-        html { <q-editor>&lt;q-html&gt;
-div#emitter-mask-demo {
+        html { <q-editor>div#emitter-mask-demo {
   style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #06131f; }
 
   particle-emitter#masked-area-emitter {
@@ -288,8 +273,7 @@ div#emitter-mask-demo {
     running: "true"
     interval: "10"
   }
-}
-&lt;/q-html&gt;</q-editor> }
+}</q-editor> }
       }
     }
 
@@ -298,8 +282,7 @@ div#emitter-mask-demo {
       summary: "The emitter appends a canvas inside itself and sizes that canvas from the parent element."
       note: "The canvas backing store is scaled by devicePixelRatio, while drawing coordinates stay in CSS pixels. This keeps the effect crisp on high-DPI screens."
       details {
-        html { <q-editor>&lt;q-html&gt;
-div#render-demo {
+        html { <q-editor>div#render-demo {
   style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #082915; }
 
   particle-emitter#render-emitter {
@@ -319,8 +302,7 @@ div#render-demo {
     src: "particle.png"
     color: "#86efac"
   }
-}
-&lt;/q-html&gt;</q-editor> }
+}</q-editor> }
       }
     }
   }

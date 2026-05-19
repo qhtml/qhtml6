@@ -1,7 +1,8 @@
 html, body {
   margin: 0;
   padding: 0;
-  background: #f3f7fb;
+  background: transparent !important;
+  background-color: transparent !important;
   color: #10243d;
   font-family: "Avenir Next", "Segoe UI", sans-serif;
 }

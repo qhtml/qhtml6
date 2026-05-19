@@ -62,39 +62,22 @@ q-painter hudButtonPainter {
     this.strokeStyle = yellow;
     this.lineWidth = 2;
     this.beginPath();
-    this.moveTo(8, h - 10);
-    this.lineTo(8, h - 26);
     this.moveTo(w - 24, 7);
     this.lineTo(w - 6, 7);
     this.stroke();
 
     this.strokeStyle = warn;
     this.beginPath();
-    this.moveTo(8, h - 8);
-    this.lineTo(26, h - 8);
     this.moveTo(w - 18, 4);
     this.lineTo(w - 2, 4);
     this.stroke();
-
-    this.fillStyle = accent;
-    this.globalAlpha = 0.85;
-
-    for (let i = 0; i < 6; i++) {
-      const x = 28 + i * 7;
-      const barH = 12 + i * 3;
-      this.fillRect(x, h * 0.5 - barH * 0.5, 3, barH);
-    }
-
-    this.globalAlpha = 0.95;
-    this.fillStyle = "#8fbaff";
-    this.fillRect(70, 12, 6, h - 24);
 
     this.globalAlpha = 0.85;
     this.strokeStyle = accent;
     this.lineWidth = 2;
     this.beginPath();
-    this.moveTo(86, 10);
-    this.lineTo(86 + (w - 122) * line, 10);
+    this.moveTo(cut + 10, 10);
+    this.lineTo(cut + 10 + (w - notch - cut - 30) * line, 10);
     this.stroke();
 
     this.globalAlpha = 0.55;
@@ -470,12 +453,12 @@ q-transition hudPanelDentTransition {
 }
 
 q-style hudRootStyle {
-  minHeight: 100vh
+  minHeight: 200vh
   background: #000000
   color: #e6fbff
   fontFamily: monospace
   display: grid
-  gridTemplateColumns: 156px 44px 1fr
+  gridTemplateColumns: 300px 44px 1fr
   overflow: hidden
 }
 
@@ -489,8 +472,8 @@ q-style hudButtonStackStyle {
 }
 
 q-style hudButtonStyle {
-  width: 158px
-  height: 50px
+  width: 298px
+  height: 56px
   border: 0
   outline: 0
   cursor: pointer
@@ -498,9 +481,9 @@ q-style hudButtonStyle {
   color: #f2fbff
   fontFamily: monospace
   fontWeight: 700
-  letterSpacing: 0.06em
-  textAlign: right
-  padding: 0 18px 0 82px
+  letterSpacing: 0.035em
+  textAlign: center
+  padding: 0 34px 0 22px
   position: relative
   overflow: hidden
 
@@ -525,13 +508,13 @@ q-style hudButtonStyle {
 q-style hudButtonLabelStyle {
   position: relative
   zIndex: 2
-  fontSize: 13px
-  lineHeight: 50px
+  fontSize: 14px
+  lineHeight: 56px
   whiteSpace: nowrap
 }
 
 q-style hudSpineStyle {
-  height: 100vh
+  height: 200vh
   width: 44px
 
   --hud-active: 0
@@ -548,7 +531,7 @@ q-style hudSpineStyle {
 }
 
 q-style hudPanelSlotStyle {
-  height: 100vh
+  height: 200vh
   display: flex
   alignItems: flex-start
   paddingTop: 0
@@ -557,7 +540,7 @@ q-style hudPanelSlotStyle {
 
 q-style hudMetalPanelStyle {
   width: 0
-  height: 92vh
+  height: 200vh
   maxWidth: 980px
   minHeight: 520px
   opacity: 0
@@ -587,7 +570,7 @@ q-style hudFrameStyle {
   left: 34px
   top: 34px
   width: calc(100% - 68px)
-  height: calc(100% - 68px)
+  height: calc(100% - 94px)
   border: 0
   background: transparent
   opacity: 0.92
@@ -843,3 +826,469 @@ hud-system {
   }
 }
 */
+
+q-painter hudContainerTopLinePainter {
+  q-property hudAccent: "#6ea8ff"
+  q-property hudWarn: "#ff3b18"
+  q-property hudYellow: "#d49a36"
+  q-property hudLineAlpha: "0.9"
+  q-property hudLineScale: "1"
+
+  onpaint {
+    const n = (v, d) => {
+      const x = parseFloat(String(v ?? d));
+      return Number.isFinite(x) ? x : d;
+    };
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const read = (camel, css, fallback) => this[camel] ?? this[css] ?? fallback;
+
+    const w = this.width;
+    const h = this.height;
+
+    const accent = String(read("hudAccent", "--hud-accent", "#6ea8ff"));
+    const warn = String(read("hudWarn", "--hud-warn", "#ff3b18"));
+    const yellow = String(read("hudYellow", "--hud-yellow", "#d49a36"));
+    const alpha = clamp(n(read("hudLineAlpha", "--hud-line-alpha", 0.9), 0.9), 0, 1);
+    const lineScale = clamp(n(read("hudLineScale", "--hud-line-scale", 1), 1), 0.25, 4);
+
+    const sx = w / 760;
+    const sy = h / 106;
+    const s = Math.min(sx, sy) * lineScale;
+
+    const strokePath = (yOffset, color, opacity, width) => {
+      this.globalAlpha = opacity * alpha;
+      this.strokeStyle = color;
+      this.lineWidth = width * s;
+      this.lineJoin = "miter";
+      this.lineCap = "butt";
+
+      this.beginPath();
+      this.moveTo(24 * sx, 78 * sy + yOffset);
+      this.lineTo(148 * sx, 78 * sy + yOffset);
+      this.lineTo(184 * sx, 46 * sy + yOffset);
+      this.lineTo(360 * sx, 46 * sy + yOffset);
+      this.lineTo(390 * sx, 24 * sy + yOffset);
+      this.lineTo(524 * sx, 24 * sy + yOffset);
+      this.lineTo(554 * sx, 48 * sy + yOffset);
+      this.lineTo(w - 74 * sx, 48 * sy + yOffset);
+      this.lineTo(w - 74 * sx, h - 8 * sy + yOffset);
+      this.stroke();
+    };
+
+    this.save();
+    this.clearRect(0, 0, w, h);
+
+    strokePath(0, "#8ba7c2", 0.86, 4.2);
+    strokePath(10 * sy, accent, 0.72, 2.4);
+    strokePath(20 * sy, "#34546a", 0.58, 1.8);
+
+    this.globalAlpha = 0.78 * alpha;
+    this.strokeStyle = "#b7c9d8";
+    this.lineWidth = 2 * s;
+    this.beginPath();
+    this.moveTo(185 * sx, 56 * sy);
+    this.lineTo(348 * sx, 56 * sy);
+    this.lineTo(374 * sx, 36 * sy);
+    this.lineTo(512 * sx, 36 * sy);
+    this.stroke();
+
+    this.globalAlpha = 0.85 * alpha;
+    this.strokeStyle = yellow;
+    this.lineWidth = 5 * s;
+    for (let i = 0; i < 3; i++) {
+      const x = 58 * sx + i * 34 * sx;
+      this.beginPath();
+      this.moveTo(x, 18 * sy);
+      this.lineTo(x + 22 * sx, 4 * sy);
+      this.stroke();
+    }
+
+    this.globalAlpha = 0.82 * alpha;
+    this.strokeStyle = yellow;
+    this.lineWidth = 5 * s;
+    for (let i = 0; i < 2; i++) {
+      const x = w - 118 * sx + i * 28 * sx;
+      this.beginPath();
+      this.moveTo(x, 8 * sy);
+      this.lineTo(x + 24 * sx, 32 * sy);
+      this.stroke();
+    }
+
+    this.globalAlpha = 0.85 * alpha;
+    this.strokeStyle = accent;
+    this.lineWidth = 3 * s;
+    this.beginPath();
+    this.moveTo(w - 112 * sx, 54 * sy);
+    this.lineTo(w - 56 * sx, 54 * sy);
+    this.stroke();
+
+    this.globalAlpha = 0.9 * alpha;
+    this.strokeStyle = "#2dd4bf";
+    this.lineWidth = 3 * s;
+    this.strokeRect(336 * sx, 38 * sy, 8 * sx, 8 * sy);
+
+    this.globalAlpha = 0.52 * alpha;
+    this.strokeStyle = "#8ba7c2";
+    this.lineWidth = 2 * s;
+    for (let i = 0; i < 5; i++) {
+      const x = 498 * sx + i * 14 * sx;
+      this.beginPath();
+      this.moveTo(x, 74 * sy);
+      this.lineTo(x + 5 * sx, 74 * sy);
+      this.stroke();
+    }
+
+    this.globalAlpha = 0.46 * alpha;
+    this.strokeStyle = warn;
+    this.lineWidth = 2 * s;
+    this.beginPath();
+    this.moveTo(w - 76 * sx, 90 * sy);
+    this.lineTo(w - 42 * sx, 90 * sy);
+    this.stroke();
+
+    this.globalAlpha = 1;
+    this.restore();
+  }
+}
+
+q-painter hudContainerBottomLinePainter {
+  q-property hudAccent: "#6ea8ff"
+  q-property hudLineAlpha: "0.9"
+  q-property hudLineScale: "1"
+
+  onpaint {
+    const n = (v, d) => {
+      const x = parseFloat(String(v ?? d));
+      return Number.isFinite(x) ? x : d;
+    };
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const read = (camel, css, fallback) => this[camel] ?? this[css] ?? fallback;
+
+    const w = this.width;
+    const h = this.height;
+
+    const accent = String(read("hudAccent", "--hud-accent", "#6ea8ff"));
+    const alpha = clamp(n(read("hudLineAlpha", "--hud-line-alpha", 0.9), 0.9), 0, 1);
+    const lineScale = clamp(n(read("hudLineScale", "--hud-line-scale", 1), 1), 0.25, 4);
+
+    const sx = w / 760;
+    const sy = h / 78;
+    const s = Math.min(sx, sy) * lineScale;
+
+    this.save();
+    this.clearRect(0, 0, w, h);
+
+    this.globalAlpha = 0.84 * alpha;
+    this.strokeStyle = "#8ba7c2";
+    this.lineWidth = 4 * s;
+    this.lineJoin = "miter";
+    this.lineCap = "butt";
+
+    this.beginPath();
+    this.moveTo(0, 40 * sy);
+    this.lineTo(128 * sx, 40 * sy);
+    this.lineTo(160 * sx, 22 * sy);
+    this.lineTo(462 * sx, 22 * sy);
+    this.lineTo(494 * sx, 50 * sy);
+    this.lineTo(612 * sx, 50 * sy);
+    this.lineTo(650 * sx, 28 * sy);
+    this.lineTo(w - 36 * sx, 28 * sy);
+    this.stroke();
+
+    this.globalAlpha = 0.72 * alpha;
+    this.strokeStyle = accent;
+    this.lineWidth = 2.4 * s;
+
+    this.beginPath();
+    this.moveTo(0, 48 * sy);
+    this.lineTo(132 * sx, 48 * sy);
+    this.lineTo(164 * sx, 30 * sy);
+    this.lineTo(456 * sx, 30 * sy);
+    this.lineTo(488 * sx, 58 * sy);
+    this.lineTo(616 * sx, 58 * sy);
+    this.lineTo(654 * sx, 36 * sy);
+    this.lineTo(w - 36 * sx, 36 * sy);
+    this.stroke();
+
+    this.globalAlpha = 0.46 * alpha;
+    this.strokeStyle = "#8ba7c2";
+    this.lineWidth = 5 * s;
+
+    for (let i = 0; i < 8; i++) {
+      const x = 236 * sx + i * 32 * sx;
+      this.beginPath();
+      this.moveTo(x, 26 * sy);
+      this.lineTo(x + 34 * sx, 62 * sy);
+      this.stroke();
+    }
+
+    this.globalAlpha = 0.36 * alpha;
+    this.strokeStyle = "#b7c9d8";
+    this.lineWidth = 1.4 * s;
+    this.beginPath();
+    this.moveTo(180 * sx, 12 * sy);
+    this.lineTo(460 * sx, 12 * sy);
+    this.stroke();
+
+    this.globalAlpha = 1;
+    this.restore();
+  }
+}
+
+q-painter hudContainerRightLinePainter {
+  q-property hudAccent: "#6ea8ff"
+  q-property hudWarn: "#ff3b18"
+  q-property hudLineAlpha: "0.9"
+  q-property hudLineScale: "1"
+
+  onpaint {
+    const n = (v, d) => {
+      const x = parseFloat(String(v ?? d));
+      return Number.isFinite(x) ? x : d;
+    };
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const read = (camel, css, fallback) => this[camel] ?? this[css] ?? fallback;
+
+    const w = this.width;
+    const h = this.height;
+
+    const accent = String(read("hudAccent", "--hud-accent", "#6ea8ff"));
+    const warn = String(read("hudWarn", "--hud-warn", "#ff3b18"));
+    const alpha = clamp(n(read("hudLineAlpha", "--hud-line-alpha", 0.9), 0.9), 0, 1);
+    const lineScale = clamp(n(read("hudLineScale", "--hud-line-scale", 1), 1), 0.25, 4);
+
+    const s = lineScale;
+
+    this.save();
+    this.clearRect(0, 0, w, h);
+
+    this.globalAlpha = 0.86 * alpha;
+    this.strokeStyle = "#8ba7c2";
+    this.lineWidth = 4 * s;
+    this.lineJoin = "miter";
+    this.lineCap = "butt";
+
+    this.beginPath();
+    this.moveTo(8, 8);
+    this.lineTo(w - 16, 8);
+    this.lineTo(w - 16, h - 10);
+    this.stroke();
+
+    this.globalAlpha = 0.72 * alpha;
+    this.strokeStyle = accent;
+    this.lineWidth = 2.2 * s;
+
+    this.beginPath();
+    this.moveTo(16, 18);
+    this.lineTo(w - 26, 18);
+    this.lineTo(w - 26, h - 22);
+    this.stroke();
+
+    this.globalAlpha = 0.82 * alpha;
+    this.strokeStyle = warn;
+    this.lineWidth = 5 * s;
+
+    for (let i = 0; i < 3; i++) {
+      const y = h * 0.44 + i * 30;
+      this.beginPath();
+      this.moveTo(w - 42, y);
+      this.lineTo(w - 72, y + 26);
+      this.stroke();
+    }
+
+    this.globalAlpha = 0.38 * alpha;
+    this.strokeStyle = "#b7c9d8";
+    this.lineWidth = 1.5 * s;
+    this.beginPath();
+    this.moveTo(w - 18, 34);
+    this.lineTo(w - 18, h - 38);
+    this.stroke();
+
+    this.globalAlpha = 1;
+    this.restore();
+  }
+}
+
+q-style hudContainerRootStyle {
+  display: inline-grid
+  gridTemplateColumns: var(--hud-left-overhang) auto var(--hud-right-overhang)
+  gridTemplateRows: var(--hud-top-height) auto var(--hud-bottom-height)
+  position: relative
+  width: fit-content
+  height: fit-content
+  background: transparent
+  isolation: isolate
+
+  --hud-left-overhang: 28px
+  --hud-right-overhang: 96px
+  --hud-top-height: 106px
+  --hud-bottom-height: 78px
+  --hud-accent: #6ea8ff
+  --hud-warn: #ff3b18
+  --hud-yellow: #d49a36
+  --hud-line-alpha: 0.9
+  --hud-line-scale: 1
+}
+
+q-style hudContainerTopStyle {
+  gridColumn: 1 / 4
+  gridRow: 1
+  position: relative
+  zIndex: 3
+  pointerEvents: none
+  background: transparent
+
+  q-style-painter {
+    background { hudContainerTopLinePainter }
+  }
+}
+
+q-style hudContainerBottomStyle {
+  gridColumn: 1 / 4
+  gridRow: 3
+  position: relative
+  zIndex: 3
+  pointerEvents: none
+  background: transparent
+
+  q-style-painter {
+    background { hudContainerBottomLinePainter }
+  }
+}
+
+q-style hudContainerRightHookStyle {
+  gridColumn: 3
+  gridRow: 1 / 3
+  position: relative
+  zIndex: 4
+  pointerEvents: none
+  background: transparent
+
+  q-style-painter {
+    background { hudContainerRightLinePainter }
+  }
+}
+
+q-style hudContainerBodyStyle {
+  gridColumn: 2
+  gridRow: 2
+  position: relative
+  zIndex: 2
+  minWidth: 1px
+  minHeight: 1px
+  overflow: visible
+  background: transparent
+}
+
+q-style hudContainerInnerStyle {
+  position: relative
+  zIndex: 2
+  width: fit-content
+  height: fit-content
+  background: transparent
+}
+
+q-theme hudContainerTheme {
+  .hud-container-root { hudContainerRootStyle }
+  .hud-container-top { hudContainerTopStyle }
+  .hud-container-bottom { hudContainerBottomStyle }
+  .hud-container-right-hook { hudContainerRightHookStyle }
+  .hud-container-body { hudContainerBodyStyle }
+  .hud-container-inner { hudContainerInnerStyle }
+}
+
+q-component hud-container {
+  q-property accent: "#6ea8ff"
+  q-property warn: "#ff3b18"
+  q-property yellow: "#d49a36"
+  q-property lineAlpha: "0.9"
+  q-property lineScale: "1"
+  q-property topHeight: "106px"
+  q-property bottomHeight: "78px"
+  q-property leftOverhang: "28px"
+  q-property rightOverhang: "96px"
+
+  q-signal hudContainerResize
+
+  hudContainerTheme {
+    div.hud-container-root {
+      style {
+        --hud-accent: "${this.component.accent}"
+        --hud-warn: "${this.component.warn}"
+        --hud-yellow: "${this.component.yellow}"
+        --hud-line-alpha: "${this.component.lineAlpha}"
+        --hud-line-scale: "${this.component.lineScale}"
+        --hud-top-height: "${this.component.topHeight}"
+        --hud-bottom-height: "${this.component.bottomHeight}"
+        --hud-left-overhang: "${this.component.leftOverhang}"
+        --hud-right-overhang: "${this.component.rightOverhang}"
+      }
+
+      onReady {
+        const root = this;
+        const host = root.closest("hud-container");
+        const body = root.querySelector(".hud-container-body");
+
+        if (!body) {
+          return;
+        }
+
+        const emitResize = detail => {
+          if (host && host.hudContainerResize && host.hudContainerResize.emit) {
+            host.hudContainerResize.emit(detail);
+            return;
+          }
+
+          if (host) {
+            host.dispatchEvent(new CustomEvent("hudContainerResize", {
+              bubbles: true,
+              detail: detail
+            }));
+          }
+        };
+
+        const sync = () => {
+          const rect = body.getBoundingClientRect();
+
+          root.style.setProperty("--hud-content-width", rect.width + "px");
+          root.style.setProperty("--hud-content-height", rect.height + "px");
+
+          emitResize({
+            width: rect.width,
+            height: rect.height
+          });
+        };
+
+        if (root.__hudContainerResizeObserver) {
+          root.__hudContainerResizeObserver.disconnect();
+        }
+
+        const observer = new ResizeObserver(sync);
+        observer.observe(body);
+
+        Array.from(body.children || []).forEach(child => {
+          observer.observe(child);
+        });
+
+        root.__hudContainerResizeObserver = observer;
+
+        requestAnimationFrame(sync);
+      }
+
+      div.hud-container-top { }
+
+      div.hud-container-right-hook { }
+
+      div.hud-container-body {
+        div.hud-container-inner {
+          slot { content }
+        }
+      }
+
+      div.hud-container-bottom { }
+    }
+  }
+}

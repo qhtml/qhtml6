@@ -7,10 +7,19 @@
   <link rel="icon" href="data:," />
   <script src="qhtml6.js"></script>
 </head>
-<body>
+<body style="background-color: black;">
   <q-html>
 q-import { q-components/q-hud.qhtml }
+hud-container {
+  accent: "black"
+  warn: "#ff3b18"
+  yellow: "#d49a36"
+  topHeight: "106px"
+  bottomHeight: "78px"
+  leftOverhang: "28px"
+  rightOverhang: "96px"
 
+  content {
 hud-system {
   panelWidth: "78vw"
   defaultUrl: "01-quick-start/index.html"
@@ -129,6 +138,7 @@ hud-system {
     }
   }
 }
+} }
   </q-html>
 </body>
 </html>

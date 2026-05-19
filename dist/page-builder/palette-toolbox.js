@@ -307,11 +307,13 @@
       ".pb-canvas-shell,.pb-export-panel{background:rgba(255,255,255,.78);border:1px solid rgba(148,163,184,.42);border-radius:26px;box-shadow:0 22px 70px rgba(15,23,42,.12);overflow:hidden}.pb-canvas-meta,.pb-export-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid rgba(148,163,184,.28);background:rgba(248,250,252,.82)}.pb-status{font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:#1d4ed8;background:#dbeafe;border:1px solid #bfdbfe;border-radius:999px;padding:8px 11px}.pb-stage{padding:18px;overflow:auto}.pb-stage>#pb-builder-layout{min-height:280px;padding:12px;border:1px dashed rgba(37,99,235,.25);border-radius:20px;background:rgba(248,250,252,.42)}",
       "q-palette-toolbox{display:block;color:#0f172a}q-palette-toolbox:not([docked='true']){position:fixed;left:24px;top:24px;z-index:5000;width:250px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,.35);overflow:hidden;user-select:none}.q-palette-titlebar{cursor:move;padding:13px 15px;background:#0f172a;color:white;font-weight:950;letter-spacing:-.035em}.q-palette-body{display:grid;gap:10px;border:0;border-radius:0;background:transparent;box-shadow:none;padding:10px 16px 18px}",
       "q-palette-toolbox-button{display:block;position:relative;min-height:76px;padding:0;border-radius:18px;background:white;border:1px solid rgba(148,163,184,.3);box-shadow:0 12px 26px rgba(0,0,0,.18);cursor:grab;overflow:hidden}q-palette-toolbox-button:active{cursor:grabbing}.pb-palette-preview{min-height:76px;padding:14px;background:linear-gradient(135deg,#ffffff,#eef6ff);border-left:5px solid #2563eb}.pb-palette-preview h3{margin:0;font-size:14px}.pb-palette-preview p{margin:4px 0 0;font-size:12px;color:#64748b}.pb-palette-preview.hero{border-color:#06b6d4}.pb-palette-preview.card{border-color:#6366f1}.pb-palette-preview.columns{border-color:#14b8a6}.pb-palette-preview.callout{border-color:#f59e0b}.pb-palette-preview.buttons{border-color:#ec4899}.pb-palette-preview.layout{border-color:#10b981}.pb-palette-preview.heading{border-color:#8b5cf6}.pb-palette-preview.price{border-color:#0ea5e9}.pb-palette-preview.edited{border-color:#2563eb}.pb-palette-edit-button{position:absolute;top:8px;right:8px;z-index:4;width:30px;height:30px;display:grid;place-items:center;border:1px solid rgba(37,99,235,.22);border-radius:999px;background:rgba(255,255,255,.92);color:#1d4ed8;box-shadow:0 8px 20px rgba(15,23,42,.16);cursor:pointer}.pb-palette-edit-button:hover{background:#eff6ff;color:#0f172a}.pb-palette-edit-button svg{width:15px;height:15px;display:block}",
-      "q-builder-item{display:block;position:relative;margin:0;border-radius:18px;border:1px solid rgba(37,99,235,.28);background:white;box-shadow:0 14px 34px rgba(15,23,42,.1);overflow:hidden;cursor:grab}q-builder-item:active{cursor:grabbing}q-builder-item.pb-selected{outline:3px solid rgba(37,99,235,.32)}.q-builder-item-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;background:#eff6ff;border-bottom:1px solid #bfdbfe;color:#1d4ed8;font-size:11px;font-weight:950;letter-spacing:.04em;text-transform:uppercase}.q-builder-item-actions{display:flex;gap:5px}.q-builder-item-actions button{border:0;border-radius:999px;background:white;color:#1d4ed8;font-weight:950;font-size:11px;padding:3px 7px;cursor:pointer}.q-builder-item-actions button.danger{color:#be123c}.q-builder-item-preview{padding:14px}",
+      "q-builder-item{display:block;position:relative;margin:0;border-radius:18px;border:1px solid rgba(37,99,235,.28);background:white;box-shadow:0 14px 34px rgba(15,23,42,.1);overflow:hidden;cursor:grab}q-builder-item:active{cursor:grabbing}q-builder-item.pb-selected{outline:3px solid rgba(37,99,235,.32)}.q-builder-item-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;background:#eff6ff;border-bottom:1px solid #bfdbfe;color:#1d4ed8;font-size:11px;font-weight:950;letter-spacing:.04em;text-transform:uppercase}.q-builder-item-preview{padding:14px}",
+      ".q-builder-instance-edit{position:absolute;top:10px;right:10px;z-index:30;width:34px;height:34px;display:grid;place-items:center;border:1px solid rgba(37,99,235,.28);border-radius:999px;background:rgba(255,255,255,.97);color:#1d4ed8;box-shadow:0 10px 24px rgba(15,23,42,.2);cursor:pointer;opacity:0;pointer-events:none;transform:translateY(-4px);transition:opacity .14s ease,transform .14s ease,color .14s ease,background .14s ease}q-builder-item:hover>.q-builder-instance-edit,q-builder-item.pb-selected>.q-builder-instance-edit,q-builder-item:focus-within>.q-builder-instance-edit{opacity:1;pointer-events:auto;transform:translateY(0)}.q-builder-instance-edit:hover{background:#eff6ff;color:#0f172a}.q-builder-instance-edit svg{width:15px;height:15px;display:block}",
       ".pb-hero-block{padding:32px;border-radius:20px;background:linear-gradient(135deg,#0f172a,#1d4ed8);color:white}.pb-hero-block h1{margin:0;font-size:38px;letter-spacing:-.06em}.pb-hero-block p{max-width:560px;color:#dbeafe}.pb-demo-button{border:0;border-radius:999px;background:#22d3ee;color:#0f172a;font-weight:900;padding:10px 16px}.pb-demo-button.ghost{background:white;color:#1d4ed8;border:1px solid #bfdbfe}.pb-feature-card{padding:22px;border-radius:18px;background:#f8fafc;border:1px solid #dbe4f0}.pb-feature-card h3,.pb-two-column-copy h3{margin-top:0}.pb-two-column-copy{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.pb-two-column-copy>div{padding:18px;border-radius:16px;background:#f8fafc;border:1px solid #dbe4f0}.pb-callout{padding:18px;border-radius:18px;background:#fffbeb;border:1px solid #fde68a;color:#78350f}.pb-button-row{display:flex;gap:12px;flex-wrap:wrap}",
       ".q-drag-ghost{position:fixed;z-index:99999;pointer-events:none;width:128px;min-height:82px;display:grid;place-items:center;border-radius:18px;border:2px solid #2563eb;background:white;color:#1d4ed8;font-size:13px;font-weight:950;text-align:center;padding:12px;box-shadow:0 22px 60px rgba(0,0,0,.38);opacity:.96}.q-drop-indicator{position:fixed;z-index:99998;pointer-events:none;border:3px solid #2563eb;border-radius:14px;background:rgba(37,99,235,.1);box-shadow:0 0 0 2px rgba(255,255,255,.72)}.q-drop-indicator.row-line{height:7px;border:0;border-radius:999px;background:#2563eb;box-shadow:0 0 0 2px rgba(255,255,255,.85)}.q-drop-indicator.col-line{width:7px;border:0;border-radius:999px;background:#2563eb;box-shadow:0 0 0 2px rgba(255,255,255,.85)}",
       ".pb-export-panel{min-height:0}.pb-export-panel q-editor{display:block;border-top:1px solid rgba(148,163,184,.28)}.pb-export-panel q-editor .qe{border:0;border-radius:0}.pb-export-panel q-editor .qe-editor-wrap,.pb-export-panel q-editor .qe-highlight,.pb-export-panel q-editor .qe-input,.pb-export-panel q-editor .qe-code,.pb-export-panel q-editor .qe-preview,.pb-export-panel q-editor .qe-cm-host,.pb-export-panel q-editor .qe-cm-host .cm-editor{min-height:174px}",
       ".pb-palette-editor{border:0;padding:0;background:transparent;max-width:min(980px,calc(100vw - 34px));width:980px}.pb-palette-editor::backdrop{background:rgba(15,23,42,.55);backdrop-filter:blur(5px)}.pb-palette-editor-card{background:#f8fafc;border:1px solid rgba(148,163,184,.45);border-radius:24px;box-shadow:0 36px 120px rgba(15,23,42,.38);overflow:hidden}.pb-palette-editor-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:20px 22px;background:white;border-bottom:1px solid #dbe4f0}.pb-palette-editor-head h2{margin:0;font-size:20px;letter-spacing:-.04em}.pb-palette-editor-head p{margin:6px 0 0;color:#64748b;font-size:13px}.pb-icon-button{width:34px;height:34px;border:0;border-radius:999px;background:#eef2ff;color:#1e293b;font-size:23px;line-height:1;cursor:pointer}.pb-editor-label{display:block;padding:16px 22px 8px;color:#334155;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}.pb-palette-editor q-editor{display:block;margin:0 22px 14px}.pb-palette-editor q-editor .qe{border-color:#cbd5e1;border-radius:16px}.pb-palette-editor q-editor .qe-editor-wrap,.pb-palette-editor q-editor .qe-highlight,.pb-palette-editor q-editor .qe-input,.pb-palette-editor q-editor .qe-code,.pb-palette-editor q-editor .qe-preview,.pb-palette-editor q-editor .qe-cm-host,.pb-palette-editor q-editor .qe-cm-host .cm-editor{min-height:340px}.pb-palette-editor-error{min-height:20px;margin:0 22px 10px;color:#be123c;font-size:13px;font-weight:800}.pb-palette-editor-actions{display:flex;justify-content:flex-end;gap:10px;padding:16px 22px 20px;border-top:1px solid #dbe4f0;background:#fff}",
+      ".pb-instance-editor{border:0;padding:0;background:transparent;width:min(90vw,1180px);max-width:90vw}.pb-instance-editor::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.pb-instance-editor-card{height:min(90vh,920px);display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;background:#f8fafc;border:1px solid rgba(148,163,184,.45);border-radius:24px;box-shadow:0 36px 120px rgba(15,23,42,.38);overflow:hidden}.pb-instance-editor-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:18px 22px;background:white;border-bottom:1px solid #dbe4f0}.pb-instance-editor-head h2{margin:0;font-size:20px;letter-spacing:-.04em}.pb-instance-editor-head p{margin:6px 0 0;color:#64748b;font-size:13px}.pb-instance-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px 22px;background:#f1f5f9;border-bottom:1px solid #dbe4f0}.pb-instance-controls label{display:grid;gap:6px;color:#334155;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}.pb-instance-controls select{min-width:0;border:1px solid #cbd5e1;border-radius:12px;background:white;color:#0f172a;padding:10px;font-size:14px}.pb-instance-editor-body{min-height:0;padding:16px 22px}.pb-instance-editor q-editor{display:block;height:100%;min-height:0}.pb-instance-editor q-editor .qe{height:100%;border-color:#cbd5e1;border-radius:16px}.pb-instance-editor q-editor .qe-editor-wrap,.pb-instance-editor q-editor .qe-highlight,.pb-instance-editor q-editor .qe-input,.pb-instance-editor q-editor .qe-code,.pb-instance-editor q-editor .qe-preview,.pb-instance-editor q-editor .qe-cm-host,.pb-instance-editor q-editor .qe-cm-host .cm-editor{min-height:calc(80vh - 190px);height:100%}.pb-instance-editor-error{min-height:20px;padding:0 22px 8px;color:#be123c;font-size:13px;font-weight:800}.pb-instance-editor-actions{display:flex;justify-content:flex-end;gap:10px;padding:14px 22px 18px;border-top:1px solid #dbe4f0;background:#fff}.pb-instance-editor-actions .primary{background:#0f172a;color:white}",
       "@media (max-width:980px){.pb-workspace{grid-template-columns:1fr}.pb-main{grid-template-rows:auto auto}.pb-toolbar{height:auto;align-items:flex-start;gap:14px;flex-direction:column;padding:16px}.pb-actions{width:100%}.pb-workspace{padding:12px}.pb-two-column-copy{grid-template-columns:1fr}}"
     ].join("\n");
 
@@ -349,7 +351,7 @@
 
   function componentDefinitionBlock(component, source) {
     var name = String(component || "").trim();
-    var body = String(source || "").trim();
+    var body = formatQHtmlSource(source);
     if (!name || !body) {
       return "";
     }
@@ -458,7 +460,7 @@
   }
 
   function wrapQHtmlEditorSource(source) {
-    return "<q-html>\n" + String(source || "").replace(/\r\n/g, "\n").trim() + "\n</q-html>";
+    return "<q-html>\n" + formatQHtmlSource(source) + "\n</q-html>";
   }
 
   function unwrapQHtmlEditorSource(source) {
@@ -490,6 +492,139 @@
       return unwrapQHtmlEditorSource(editor.getQhtmlSource());
     }
     return unwrapQHtmlEditorSource(editor.textContent || editor.innerHTML || "");
+  }
+
+  function trimRightWhitespace(text) {
+    return String(text || "").replace(/[ \t]+$/g, "");
+  }
+
+  function splitFormattedLine(line) {
+    var match;
+    var indentText;
+    var props;
+    var block;
+    var propMatches;
+    if (!line || line.indexOf(":") < 0) {
+      return [line];
+    }
+    if (line.indexOf("{") < 0) {
+      match = line.match(/^(\t*)(.*)$/);
+      indentText = match ? match[1] : "";
+      props = match ? match[2] : line;
+      propMatches = props.match(/[A-Za-z_][A-Za-z0-9_-]*\s*:\s*(?:"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^ \t]+)/g);
+      if (propMatches && propMatches.length > 1 && propMatches.join(" ").length === props.trim().length) {
+        return propMatches.map(function (prop) {
+          return indentText + prop.trim();
+        });
+      }
+      return [line];
+    }
+    match = line.match(/^(\t*)(.*\S)\s+([A-Za-z_][A-Za-z0-9_-]*(?:[.#][A-Za-z0-9_-]+)?(?:\s+[A-Za-z_][A-Za-z0-9_-]*)?\s*\{)$/);
+    if (!match) {
+      return [line];
+    }
+    indentText = match[1];
+    props = match[2];
+    block = match[3];
+    propMatches = props.match(/[A-Za-z_][A-Za-z0-9_-]*\s*:\s*(?:"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^ \t]+)/g);
+    if (!propMatches || propMatches.join(" ").length !== props.trim().length) {
+      return [indentText + props.trim(), indentText + block.trim()];
+    }
+    return propMatches.map(function (prop) {
+      return indentText + prop.trim();
+    }).concat(indentText + block.trim());
+  }
+
+  function normalizeFormattedLines(text) {
+    var lines = [];
+    String(text || "").replace(/[ \t]+\n/g, "\n").split(/\n+/).forEach(function (line) {
+      splitFormattedLine(line).forEach(function (splitLine) {
+        if (splitLine.trim()) {
+          lines.push(splitLine);
+        }
+      });
+    });
+    return lines.join("\n");
+  }
+
+  function formatQHtmlSource(source) {
+    var text = String(source || "").replace(/\r\n/g, "\n").trim();
+    var out = "";
+    var level = 0;
+    var quote = "";
+    var escaped = false;
+    var pendingSpace = false;
+    var i;
+    var ch;
+    function writeIndent() {
+      if (!out || out.charAt(out.length - 1) === "\n") {
+        out += indent(level).replace(/  /g, "\t");
+      }
+    }
+    function newline() {
+      out = trimRightWhitespace(out);
+      if (out && out.charAt(out.length - 1) !== "\n") {
+        out += "\n";
+      }
+    }
+    if (!text) {
+      return "";
+    }
+    for (i = 0; i < text.length; i += 1) {
+      ch = text.charAt(i);
+      if (quote) {
+        writeIndent();
+        out += ch;
+        if (escaped) {
+          escaped = false;
+        } else if (ch === "\\") {
+          escaped = true;
+        } else if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+      if (ch === "\"" || ch === "'") {
+        writeIndent();
+        if (pendingSpace && out && !/[\s{([]$/.test(out.charAt(out.length - 1))) {
+          out += " ";
+        }
+        pendingSpace = false;
+        quote = ch;
+        out += ch;
+        continue;
+      }
+      if (ch === "{") {
+        out = trimRightWhitespace(out);
+        out += " {\n";
+        level += 1;
+        pendingSpace = false;
+        continue;
+      }
+      if (ch === "}") {
+        newline();
+        level = Math.max(0, level - 1);
+        out += indent(level).replace(/  /g, "\t") + "}\n";
+        pendingSpace = false;
+        continue;
+      }
+      if (ch === ";") {
+        newline();
+        pendingSpace = false;
+        continue;
+      }
+      if (/\s/.test(ch)) {
+        pendingSpace = true;
+        continue;
+      }
+      writeIndent();
+      if (pendingSpace && out && !/[\s{([]$/.test(out.charAt(out.length - 1))) {
+        out += " ";
+      }
+      pendingSpace = false;
+      out += ch;
+    }
+    return normalizeFormattedLines(out).trim();
   }
 
   function componentName(el) {
@@ -874,6 +1009,223 @@
     return edit;
   }
 
+  function createInstanceEditButton(item) {
+    var edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "q-builder-instance-edit";
+    edit.setAttribute("aria-label", "Edit " + (item.getAttribute("name") || "palette instance"));
+    edit.innerHTML = pencilSvg();
+    edit.addEventListener("pointerdown", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    edit.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      InstanceEditor.open(item);
+    });
+    return edit;
+  }
+
+  function paletteButtonForComponent(component) {
+    var wanted = String(component || "").toLowerCase();
+    return arr(document.querySelectorAll(Q.button)).filter(function (button) {
+      return componentName(button) === wanted;
+    })[0] || null;
+  }
+
+  function paletteComponentNames() {
+    var names = Object.create(null);
+    arr(document.querySelectorAll(Q.button)).forEach(function (button) {
+      names[componentName(button)] = true;
+    });
+    return names;
+  }
+
+  function slotNamesForComponent(component) {
+    var button = paletteButtonForComponent(component);
+    var source = button ? qhtmlDefinitionSource(button) : "";
+    var seen = Object.create(null);
+    var slots = [];
+    var match;
+    var re = /\bslot\s*\{\s*([A-Za-z_][A-Za-z0-9_-]*)\s*\}/g;
+    while ((match = re.exec(source))) {
+      if (!seen[match[1]]) {
+        seen[match[1]] = true;
+        slots.push(match[1]);
+      }
+    }
+    return slots;
+  }
+
+  function readQHtmlBlocks(source, start, end) {
+    var text = String(source || "");
+    var limit = typeof end === "number" ? end : text.length;
+    var i = typeof start === "number" ? start : 0;
+    var out = [];
+    var nameStart;
+    var name;
+    var open;
+    var close;
+    while (i < limit) {
+      i = qhtmlSourceSkipWhitespace(text, i);
+      nameStart = i;
+      while (i < limit && qhtmlSourceNameChar(text.charAt(i))) {
+        i += 1;
+      }
+      if (i === nameStart) {
+        i += 1;
+        continue;
+      }
+      name = text.slice(nameStart, i);
+      i = qhtmlSourceSkipWhitespace(text, i);
+      if (text.charAt(i) !== "{") {
+        continue;
+      }
+      open = i;
+      close = qhtmlSourceMatchingBrace(text, open);
+      if (close < 0) {
+        break;
+      }
+      out.push({
+        name: name,
+        start: nameStart,
+        open: open,
+        end: close,
+        bodyStart: open + 1,
+        bodyEnd: close,
+        source: text.slice(nameStart, close + 1)
+      });
+      i = close + 1;
+    }
+    return out;
+  }
+
+  function findPaletteBlocksDeep(source, start, end, paletteSet) {
+    var found = [];
+    readQHtmlBlocks(source, start, end).forEach(function (block) {
+      if (paletteSet[String(block.name || "").toLowerCase()]) {
+        found.push(block);
+      } else {
+        found = found.concat(findPaletteBlocksDeep(source, block.bodyStart, block.bodyEnd, paletteSet));
+      }
+    });
+    return found;
+  }
+
+  function directBlockByName(source, start, end, wanted) {
+    var wantedLower = String(wanted || "").toLowerCase();
+    var blocks = readQHtmlBlocks(source, start, end);
+    var i;
+    for (i = 0; i < blocks.length; i += 1) {
+      if (String(blocks[i].name || "").toLowerCase() === wantedLower) {
+        return blocks[i];
+      }
+    }
+    return null;
+  }
+
+  function collectInstanceEntries(owner) {
+    var source = qhtmlInstanceSource(owner);
+    var paletteSet = paletteComponentNames();
+    var roots = readQHtmlBlocks(source, 0, source.length);
+    var ownerComponent = String(owner && owner.getAttribute ? owner.getAttribute("component") || "" : "").toLowerCase();
+    var root = null;
+    var entries = [];
+    var counts = Object.create(null);
+
+    roots.forEach(function (block) {
+      if (!root && (String(block.name || "").toLowerCase() === ownerComponent || paletteSet[String(block.name || "").toLowerCase()])) {
+        root = block;
+      }
+    });
+    root = root || roots[0] || null;
+    if (!root) {
+      return entries;
+    }
+
+    function uniquePath(base) {
+      counts[base] = (counts[base] || 0) + 1;
+      return counts[base] === 1 ? base : base + "[" + counts[base] + "]";
+    }
+
+    function addEntry(block, parentPath, viaSlot) {
+      var component = String(block.name || "").toLowerCase();
+      var slots = slotNamesForComponent(component);
+      var path = uniquePath(parentPath ? parentPath + "." + viaSlot + "." + component : component);
+      var label = component + (viaSlot ? " in " + viaSlot : " root");
+      var entry = {
+        path: path,
+        label: label,
+        component: component,
+        block: block,
+        slots: slots
+      };
+      entries.push(entry);
+      slots.forEach(function (slotName) {
+        var slotBlock = directBlockByName(source, block.bodyStart, block.bodyEnd, slotName);
+        if (!slotBlock) {
+          return;
+        }
+        findPaletteBlocksDeep(source, slotBlock.bodyStart, slotBlock.bodyEnd, paletteSet).forEach(function (childBlock) {
+          addEntry(childBlock, path, slotName);
+        });
+      });
+    }
+
+    if (paletteSet[String(root.name || "").toLowerCase()]) {
+      addEntry(root, "", "");
+    } else {
+      entries.push({
+        path: uniquePath(ownerComponent || String(root.name || "instance").toLowerCase()),
+        label: (owner && owner.getAttribute ? owner.getAttribute("name") : "") || root.name || "Instance",
+        component: ownerComponent || String(root.name || "").toLowerCase(),
+        block: root,
+        slots: slotNamesForComponent(ownerComponent || root.name)
+      });
+    }
+    return entries;
+  }
+
+  function entryByPath(entries, path) {
+    var wanted = String(path || "");
+    return arr(entries).filter(function (entry) {
+      return entry.path === wanted;
+    })[0] || entries[0] || null;
+  }
+
+  function slotBlockForEntry(source, entry, slotName) {
+    if (!entry || !slotName) {
+      return null;
+    }
+    return directBlockByName(source, entry.block.bodyStart, entry.block.bodyEnd, slotName);
+  }
+
+  function slotSourceForEntry(source, entry, slotName) {
+    var block = slotBlockForEntry(source, entry, slotName);
+    return block ? source.slice(block.bodyStart, block.bodyEnd).trim() : "";
+  }
+
+  function replaceSlotInEntrySource(instanceSource, entry, slotName, slotSource) {
+    var source = String(instanceSource || "");
+    var blockSource;
+    var nextBlock;
+    if (!entry || !slotName) {
+      return "";
+    }
+    blockSource = source.slice(entry.block.start, entry.block.end + 1);
+    nextBlock = replaceInstanceSlotSource(blockSource, slotName, slotSource);
+    return nextBlock ? source.slice(0, entry.block.start) + nextBlock + source.slice(entry.block.end + 1) : "";
+  }
+
+  function replaceEntryBlockSource(instanceSource, entry, nextBlockSource) {
+    var source = String(instanceSource || "");
+    if (!entry) {
+      return String(nextBlockSource || "");
+    }
+    return source.slice(0, entry.block.start) + String(nextBlockSource || "").trim() + source.slice(entry.block.end + 1);
+  }
+
   function createBuilderItem(opts) {
     var options = opts || {};
     var item = document.createElement(Q.item);
@@ -1044,11 +1396,20 @@
 
   class QBuilderItem extends HTMLElement {
     connectedCallback() {
-      if (this.__ready) { return; }
+      if (this.__ready) {
+        this.ensureInstanceEditButton();
+        return;
+      }
       this.__ready = true;
       this.renderChrome();
       this.addEventListener("pointerdown", this.onPointerDown.bind(this));
       this.addEventListener("click", this.onClick.bind(this));
+    }
+
+    ensureInstanceEditButton() {
+      if (!this.querySelector(":scope > .q-builder-instance-edit")) {
+        this.appendChild(createInstanceEditButton(this));
+      }
     }
 
     renderChrome() {
@@ -1056,35 +1417,16 @@
       var existing = arr(this.childNodes);
       var bar = document.createElement("div");
       var label = document.createElement("span");
-      var actions = document.createElement("span");
-      var duplicate = document.createElement("button");
-      var remove = document.createElement("button");
       var preview = document.createElement("div");
 
       if (this.querySelector(":scope > .q-builder-item-bar")) {
+        this.ensureInstanceEditButton();
         return;
       }
 
       label.textContent = name;
-      duplicate.type = "button";
-      duplicate.textContent = "Clone";
-      duplicate.addEventListener("click", function (event) {
-        event.stopPropagation();
-        this.duplicate();
-      }.bind(this));
-      remove.type = "button";
-      remove.className = "danger";
-      remove.textContent = "Delete";
-      remove.addEventListener("click", function (event) {
-        event.stopPropagation();
-        this.removeItem();
-      }.bind(this));
-      actions.className = "q-builder-item-actions";
-      actions.appendChild(duplicate);
-      actions.appendChild(remove);
       bar.className = "q-builder-item-bar";
       bar.appendChild(label);
-      bar.appendChild(actions);
       preview.className = "q-builder-item-preview";
       existing.forEach(function (node) {
         preview.appendChild(node);
@@ -1097,6 +1439,7 @@
       }
       this.appendChild(bar);
       this.appendChild(preview);
+      this.ensureInstanceEditButton();
     }
 
     appendPreview(fragment) {
@@ -1112,6 +1455,7 @@
       } else {
         preview.textContent = this.getAttribute("name") || "Item";
       }
+      this.ensureInstanceEditButton();
     }
 
     refreshSourcePreview() {
@@ -1605,7 +1949,7 @@
     var out = [];
     names.forEach(function (name) {
       out.push("q-component " + name + " {");
-      out.push(indentBlock(String(components[name] || ""), 1));
+      out.push(indentBlock(formatQHtmlSource(components[name] || ""), 1));
       out.push("}");
       out.push("");
     });
@@ -1632,7 +1976,7 @@
     attrs.forEach(function (line) { lines.push(indent(level + 1) + line.trim()); });
     children.forEach(function (child) {
       if (tag(child) === Q.item) {
-        lines.push(indentBlock(qhtmlInstanceSource(child), level + 1));
+        lines.push(indentBlock(formatQHtmlSource(qhtmlInstanceSource(child)), level + 1));
       } else {
         lines.push(emitLayoutNode(child, level + 1));
       }
@@ -1645,7 +1989,7 @@
     var root = layout || document.getElementById("pb-builder-layout") || document.querySelector(".pb-stage " + Q.layout);
     if (!root) { return ""; }
     reconcileRenderedSlotState(root);
-    return emitComponentDefinitions(root) + emitLayoutNode(root, 0) + "\n";
+    return formatQHtmlSource(emitComponentDefinitions(root) + emitLayoutNode(root, 0)) + "\n";
   }
 
   function setStatus(text) {
@@ -1732,6 +2076,274 @@
     }
   };
 
+  var InstanceEditor = {
+    currentItem: null,
+    currentPath: "",
+    currentSlot: "",
+    drafts: null,
+    draftOrder: null,
+    bound: false,
+    modal: function () { return document.getElementById("pb-instance-editor"); },
+    instanceSelect: function () { return document.getElementById("pb-instance-editor-instance"); },
+    slotSelect: function () { return document.getElementById("pb-instance-editor-slot"); },
+    sourceInput: function () { return document.getElementById("pb-instance-editor-source"); },
+    subtitle: function () { return document.getElementById("pb-instance-editor-subtitle"); },
+    error: function () { return document.getElementById("pb-instance-editor-error"); },
+    instanceRow: function () { return document.getElementById("pb-instance-editor-instance-row"); },
+    slotRow: function () { return document.getElementById("pb-instance-editor-slot-row"); },
+    bind: function () {
+      var editor;
+      if (this.bound) {
+        return;
+      }
+      this.bound = true;
+      editor = this.sourceInput();
+      if (editor) {
+        editor.addEventListener("q-editor-output", function () {
+          InstanceEditor.validateCurrentEditor();
+        });
+        editor.addEventListener("input", function () {
+          InstanceEditor.validateCurrentEditor();
+        });
+        editor.addEventListener("keyup", function () {
+          InstanceEditor.validateCurrentEditor();
+        });
+      }
+    },
+    open: function (item) {
+      var modal = this.modal();
+      this.currentItem = item;
+      this.currentPath = "";
+      this.currentSlot = "";
+      this.drafts = Object.create(null);
+      this.draftOrder = [];
+      reconcileRenderedSlotsForItem(item);
+      this.bind();
+      this.populateInstances();
+      if (this.subtitle()) {
+        this.subtitle().textContent = "Editing " + (item.getAttribute("name") || item.getAttribute("component") || "palette instance");
+      }
+      if (this.error()) {
+        this.error().textContent = "";
+      }
+      if (modal && typeof modal.showModal === "function") {
+        modal.showModal();
+      } else if (modal) {
+        modal.setAttribute("open", "open");
+      }
+    },
+    close: function () {
+      var modal = this.modal();
+      if (modal && typeof modal.close === "function") {
+        modal.close();
+      } else if (modal) {
+        modal.removeAttribute("open");
+      }
+      this.currentItem = null;
+      this.currentPath = "";
+      this.currentSlot = "";
+      this.drafts = null;
+      this.draftOrder = null;
+    },
+    entries: function () {
+      return this.currentItem ? collectInstanceEntries(this.currentItem) : [];
+    },
+    selectedEntry: function () {
+      return entryByPath(this.entries(), this.currentPath);
+    },
+    draftKey: function (path, slot) {
+      return String(path || "") + "\u0000" + String(slot || "");
+    },
+    rememberDraft: function (path, slot, source) {
+      var key = this.draftKey(path, slot);
+      if (!this.drafts) {
+        this.drafts = Object.create(null);
+        this.draftOrder = [];
+      }
+      if (!this.drafts[key]) {
+        this.draftOrder.push(key);
+      }
+      this.drafts[key] = {
+        path: String(path || ""),
+        slot: String(slot || ""),
+        source: String(source || "")
+      };
+    },
+    commitCurrentDraft: function () {
+      if (!this.currentItem || !this.currentPath) {
+        return;
+      }
+      this.rememberDraft(this.currentPath, this.currentSlot, readPaletteEditorSource(this.sourceInput()));
+    },
+    draftFor: function (path, slot) {
+      var key = this.draftKey(path, slot);
+      return this.drafts && this.drafts[key] ? this.drafts[key].source : null;
+    },
+    populateInstances: function () {
+      var select = this.instanceSelect();
+      var row = this.instanceRow();
+      var entries = this.entries();
+      if (!select) {
+        return;
+      }
+      select.innerHTML = "";
+      entries.forEach(function (entry) {
+        var option = document.createElement("option");
+        option.value = entry.path;
+        option.textContent = entry.label;
+        select.appendChild(option);
+      });
+      if (row) {
+        row.hidden = entries.length <= 1;
+      }
+      this.currentPath = entries[0] ? entries[0].path : "";
+      select.value = this.currentPath;
+      this.populateSlots();
+    },
+    populateSlots: function () {
+      var entry = this.selectedEntry();
+      var select = this.slotSelect();
+      var row = this.slotRow();
+      if (!select) {
+        return;
+      }
+      select.innerHTML = "";
+      if (entry && entry.slots && entry.slots.length) {
+        entry.slots.forEach(function (slotName) {
+          var option = document.createElement("option");
+          option.value = slotName;
+          option.textContent = slotName;
+          select.appendChild(option);
+        });
+        this.currentSlot = entry.slots[0];
+        select.value = this.currentSlot;
+        if (row) {
+          row.hidden = false;
+        }
+      } else {
+        this.currentSlot = "";
+        if (row) {
+          row.hidden = true;
+        }
+      }
+      this.loadEditor();
+    },
+    loadEditor: function () {
+      var item = this.currentItem;
+      var entry = this.selectedEntry();
+      var source = item ? qhtmlInstanceSource(item) : "";
+      var editorSource = "";
+      if (entry && this.currentSlot) {
+        editorSource = slotSourceForEntry(source, entry, this.currentSlot);
+      } else if (entry) {
+        editorSource = source.slice(entry.block.start, entry.block.end + 1).trim();
+      }
+      if (this.draftFor(this.currentPath, this.currentSlot) !== null) {
+        editorSource = this.draftFor(this.currentPath, this.currentSlot);
+      }
+      setPaletteEditorSource(this.sourceInput(), editorSource);
+    },
+    selectInstance: function (path) {
+      this.commitCurrentDraft();
+      this.currentPath = String(path || "");
+      if (this.instanceSelect()) {
+        this.instanceSelect().value = this.currentPath;
+      }
+      this.populateSlots();
+    },
+    selectSlot: function (slot) {
+      this.commitCurrentDraft();
+      this.currentSlot = String(slot || "");
+      if (this.slotSelect()) {
+        this.slotSelect().value = this.currentSlot;
+      }
+      this.loadEditor();
+    },
+    validate: function (source, finalSource) {
+      if (!String(source || "").trim()) {
+        if (this.error()) {
+          this.error().textContent = "";
+        }
+        return true;
+      }
+      try {
+        parseQHtmlSource(source);
+        if (finalSource !== undefined) {
+          parseQHtmlSource(finalSource);
+        }
+        if (this.error()) {
+          this.error().textContent = "";
+        }
+        return true;
+      } catch (error) {
+        if (this.error()) {
+          this.error().textContent = String(error && error.message ? error.message : error);
+        }
+        return false;
+      }
+    },
+    validateCurrentEditor: function () {
+      if (!this.currentItem) {
+        return false;
+      }
+      return this.validate(readPaletteEditorSource(this.sourceInput()));
+    },
+    apply: function () {
+      var item = this.currentItem;
+      var source;
+      var entries;
+      var entry;
+      var nextInstance;
+      var draftList;
+      var i;
+      var draft;
+      if (!item) {
+        return;
+      }
+      this.commitCurrentDraft();
+      source = qhtmlInstanceSource(item);
+      draftList = (this.draftOrder || []).map(function (key) {
+        return InstanceEditor.drafts[key];
+      }).filter(Boolean);
+      for (i = 0; i < draftList.length; i += 1) {
+        draft = draftList[i];
+        if (!this.validate(draft.source)) {
+          setStatus("Instance editor source has a QHTML error");
+          return;
+        }
+        entries = collectInstanceEntries({ getAttribute: function (name) {
+          return name === "instance" ? source : item.getAttribute(name);
+        } });
+        entry = entryByPath(entries, draft.path);
+        if (!entry) {
+          if (this.error()) {
+            this.error().textContent = "Could not find edited instance path: " + draft.path;
+          }
+          setStatus("Edited instance path no longer exists");
+          return;
+        }
+        if (draft.slot) {
+          nextInstance = replaceSlotInEntrySource(source, entry, draft.slot, draft.source);
+        } else {
+          nextInstance = replaceEntryBlockSource(source, entry, draft.source);
+        }
+        if (!nextInstance || !this.validate(draft.source, nextInstance)) {
+          setStatus("Recomposed instance has a QHTML error");
+          return;
+        }
+        source = nextInstance;
+      }
+      item.setAttribute("instance", formatQHtmlSource(source));
+      if (typeof item.refreshSourcePreview === "function") {
+        item.refreshSourcePreview();
+      }
+      relayout(rootOf(item));
+      BuilderStore.saveSoon();
+      setStatus("Updated instance QHTML");
+      this.close();
+    }
+  };
+
   function applyPaletteSource(button, source) {
     var component = componentName(button);
     var normalizedSource = String(source || "");
@@ -1772,6 +2384,10 @@
       } catch (error) {
         setStatus("Save unavailable");
       }
+    },
+    load: function () {
+      this.didRestore = false;
+      this.restore();
     },
     restoreSoon: function () {
       if (this.restoring || this.didRestore) { return; }
@@ -1856,6 +2472,14 @@
     return updateExportPanel(true);
   }
 
+  function saveLayout() {
+    BuilderStore.save();
+  }
+
+  function loadLayout() {
+    BuilderStore.load();
+  }
+
   function updateExportPanel(focusOutput) {
     var output = document.getElementById("pb-export-output");
     var source = exportQHtml();
@@ -1890,12 +2514,19 @@
     exportQHtml: exportQHtml,
     exportToPanel: exportToPanel,
     clearCanvas: clearCanvas,
+    saveLayout: saveLayout,
+    loadLayout: loadLayout,
     addRow: addRow,
     addColumn: addColumn,
     openPaletteEditor: function (button) { PaletteEditor.open(button); },
     closePaletteEditor: function () { PaletteEditor.close(); },
     savePaletteEdit: function () { PaletteEditor.save(); },
     previewPaletteEdit: function () { PaletteEditor.preview(); },
+    openInstanceEditor: function (item) { InstanceEditor.open(item); },
+    closeInstanceEditor: function () { InstanceEditor.close(); },
+    saveInstanceEdit: function () { InstanceEditor.apply(); },
+    selectInstanceEditTarget: function (path) { InstanceEditor.selectInstance(path); },
+    selectInstanceEditSlot: function (slot) { InstanceEditor.selectSlot(slot); },
     relayout: relayout
   };
 

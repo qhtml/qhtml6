@@ -26,12 +26,10 @@ wiki-shell {
       note: "Read it top to bottom: parent block, then child blocks."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-div {
+          <q-editor>div {
   h2 { text { Product } }
   p  { text { Lightweight UI syntax. } }
-}
-&lt;/q-html&gt;</q-editor>
+}</q-editor>
         }
       }
     }
@@ -42,9 +40,7 @@ div {
       note: "Use this when the nesting is simple and you want a compact form."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-div,section,h3 { text { Nested } }
-&lt;/q-html&gt;</q-editor>
+          <q-editor>div,section,h3 { text { Nested } }</q-editor>
         }
       }
     }
@@ -55,14 +51,12 @@ div,section,h3 { text { Nested } }
       note: "This works on normal elements and on component instances."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-div#main.card {
+          <q-editor>div#main.card {
   p { text { Card body } }
 }
 
 q-component my-card { div { text { Card } } }
-my-card#card-1.primary { }
-&lt;/q-html&gt;</q-editor>
+my-card#card-1.primary { }</q-editor>
         }
       }
     }
@@ -73,13 +67,11 @@ my-card#card-1.primary { }
       note: "Think of this as a cleaner attribute list."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-a {
+          <q-editor>a {
   href: "https://example.com"
   target: "_blank"
   text { Open Example }
-}
-&lt;/q-html&gt;</q-editor>
+}</q-editor>
         }
       }
     }
@@ -90,14 +82,12 @@ a {
       note: "Choose text unless you really need raw HTML."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-p {
+          <q-editor>p {
   style { font-size: 20px; margin: 0; }
   text { Plain text content }
 }
 
-div { html { &lt;strong&gt;Real HTML fragment&lt;/strong&gt; } }
-&lt;/q-html&gt;</q-editor>
+div { html { &lt;strong&gt;Real HTML fragment&lt;/strong&gt; } }</q-editor>
         }
       }
     }

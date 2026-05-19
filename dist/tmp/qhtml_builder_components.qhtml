@@ -1,0 +1,387 @@
+<q-html>
+  q-component q-builder-section {
+    q-property eyebrow: "Section"
+    q-property title: "Section title"
+    q-property subtitle: "Add supporting copy for this section."
+    q-property maxWidth: "1120px"
+    q-property padding: "72px 24px"
+
+    section.builder-section {
+      style {
+        box-sizing: border-box;
+        width: 100%;
+        padding: ${this.component.padding};
+      }
+      div.builder-section__inner {
+        style {
+          box-sizing: border-box;
+          width: 100%;
+          max-width: ${this.component.maxWidth};
+          margin: 0 auto;
+        }
+        p.builder-section__eyebrow {
+          style {
+            margin: 0 0 10px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #2563eb;
+          }
+          text { ${this.component.eyebrow} }
+        }
+        h2.builder-section__title {
+          style {
+            margin: 0;
+            font-size: clamp(2rem, 4vw, 3rem);
+            line-height: 1.08;
+            color: #0f172a;
+          }
+          text { ${this.component.title} }
+        }
+        p.builder-section__subtitle {
+          style {
+            max-width: 680px;
+            margin: 16px 0 32px;
+            font-size: 1.05rem;
+            line-height: 1.7;
+            color: #475569;
+          }
+          text { ${this.component.subtitle} }
+        }
+        div.builder-section__content {
+          slot { content }
+        }
+      }
+    }
+  }
+
+  q-component q-hero-block {
+    q-property eyebrow: "Launch faster"
+    q-property headline: "Build pages visually with QHTML components."
+    q-property subheadline: "Drop this hero into a page, edit the copy, and project any media or action controls into the named slots."
+    q-property primaryText: "Get started"
+    q-property secondaryText: "Learn more"
+    q-property primaryHref: "#"
+    q-property secondaryHref: "#"
+
+    section.q-hero-block {
+      style {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 96px 24px;
+        background: linear-gradient(135deg, #eff6ff 0%, #ffffff 52%, #f8fafc 100%);
+      }
+      div.q-hero-block__grid {
+        style {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          gap: 48px;
+          align-items: center;
+          max-width: 1180px;
+          margin: 0 auto;
+        }
+        div.q-hero-block__copy {
+          p.q-hero-block__eyebrow {
+            style { margin: 0 0 12px; font-weight: 700; color: #2563eb; letter-spacing: 0.1em; text-transform: uppercase; }
+            text { ${this.component.eyebrow} }
+          }
+          h1.q-hero-block__headline {
+            style { margin: 0; font-size: clamp(2.6rem, 7vw, 5.25rem); line-height: 0.95; color: #0f172a; letter-spacing: -0.06em; }
+            text { ${this.component.headline} }
+          }
+          p.q-hero-block__subheadline {
+            style { max-width: 680px; margin: 24px 0 32px; font-size: 1.15rem; line-height: 1.75; color: #475569; }
+            text { ${this.component.subheadline} }
+          }
+          div.q-hero-block__actions {
+            style { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+            a.q-hero-block__primary {
+              href: "${this.component.primaryHref}"
+              style { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 0 20px; border-radius: 999px; background: #2563eb; color: #fff; text-decoration: none; font-weight: 700; }
+              text { ${this.component.primaryText} }
+            }
+            a.q-hero-block__secondary {
+              href: "${this.component.secondaryHref}"
+              style { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 0 20px; border-radius: 999px; background: #e2e8f0; color: #0f172a; text-decoration: none; font-weight: 700; }
+              text { ${this.component.secondaryText} }
+            }
+            slot { actions }
+          }
+        }
+        div.q-hero-block__media {
+          style { min-height: 320px; border-radius: 32px; background: #dbeafe; box-shadow: 0 24px 80px rgba(15, 23, 42, 0.14); overflow: hidden; }
+          slot { media }
+        }
+      }
+    }
+  }
+
+  q-component q-two-column-layout {
+    q-property maxWidth: "1180px"
+    q-property gap: "32px"
+    q-property leftWidth: "1fr"
+    q-property rightWidth: "1fr"
+
+    section.q-two-column-layout {
+      style { box-sizing: border-box; width: 100%; padding: 48px 24px; }
+      div.q-two-column-layout__grid {
+        style {
+          display: grid;
+          grid-template-columns: ${this.component.leftWidth} ${this.component.rightWidth};
+          gap: ${this.component.gap};
+          max-width: ${this.component.maxWidth};
+          margin: 0 auto;
+          align-items: start;
+        }
+        div.q-two-column-layout__left {
+          style { min-width: 0; }
+          slot { left }
+        }
+        div.q-two-column-layout__right {
+          style { min-width: 0; }
+          slot { right }
+        }
+      }
+    }
+  }
+
+  q-component q-sidebar-layout {
+    q-property maxWidth: "1180px"
+    q-property sidebarWidth: "280px"
+    q-property gap: "28px"
+    q-property sticky: "true"
+
+    section.q-sidebar-layout {
+      style { box-sizing: border-box; width: 100%; padding: 40px 24px; }
+      div.q-sidebar-layout__grid {
+        style {
+          display: grid;
+          grid-template-columns: minmax(220px, ${this.component.sidebarWidth}) minmax(0, 1fr);
+          gap: ${this.component.gap};
+          max-width: ${this.component.maxWidth};
+          margin: 0 auto;
+          align-items: start;
+        }
+        aside.q-sidebar-layout__sidebar {
+          style {
+            position: sticky;
+            top: 24px;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 18px;
+            background: #ffffff;
+          }
+          slot { sidebar }
+        }
+        main.q-sidebar-layout__main {
+          style { min-width: 0; }
+          slot { main }
+        }
+      }
+    }
+  }
+
+  q-component q-html-block {
+    q-property label: "Custom HTML"
+    q-property markup: "<p>Edit this HTML fragment from the builder property panel.</p>"
+
+    div.q-html-block {
+      style {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 16px;
+        border: 1px dashed #94a3b8;
+        border-radius: 14px;
+        background: #f8fafc;
+      }
+      div.q-html-block__label {
+        style { margin-bottom: 10px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #64748b; }
+        text { ${this.component.label} }
+      }
+      div.q-html-block__content {
+        html { ${this.component.markup} }
+      }
+    }
+  }
+
+  q-component q-card-grid {
+    q-property title: "Cards"
+    q-property columns: "3"
+    q-property gap: "20px"
+
+    section.q-card-grid {
+      style { box-sizing: border-box; width: 100%; padding: 40px 24px; }
+      div.q-card-grid__inner {
+        style { max-width: 1180px; margin: 0 auto; }
+        h2.q-card-grid__title {
+          style { margin: 0 0 22px; color: #0f172a; font-size: 2rem; }
+          text { ${this.component.title} }
+        }
+        div.q-card-grid__items {
+          style {
+            display: grid;
+            grid-template-columns: repeat(${this.component.columns}, minmax(0, 1fr));
+            gap: ${this.component.gap};
+          }
+          slot { cards }
+        }
+      }
+    }
+  }
+
+  q-component q-feature-card {
+    q-property icon: "✦"
+    q-property title: "Feature title"
+    q-property body: "Describe the feature, benefit, or page section in a concise sentence."
+    q-property href: "#"
+    q-property linkText: "Read more"
+
+    article.q-feature-card {
+      style {
+        box-sizing: border-box;
+        height: 100%;
+        padding: 24px;
+        border: 1px solid #e2e8f0;
+        border-radius: 22px;
+        background: #ffffff;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
+      }
+      div.q-feature-card__icon {
+        style { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 14px; background: #eff6ff; color: #2563eb; font-weight: 800; }
+        text { ${this.component.icon} }
+      }
+      h3.q-feature-card__title {
+        style { margin: 18px 0 10px; color: #0f172a; font-size: 1.25rem; }
+        text { ${this.component.title} }
+      }
+      p.q-feature-card__body {
+        style { margin: 0 0 18px; color: #475569; line-height: 1.65; }
+        text { ${this.component.body} }
+      }
+      slot { extra }
+      a.q-feature-card__link {
+        href: "${this.component.href}"
+        style { color: #2563eb; font-weight: 700; text-decoration: none; }
+        text { ${this.component.linkText} }
+      }
+    }
+  }
+
+  q-component q-image-text-block {
+    q-property eyebrow: "Visual story"
+    q-property title: "Pair media with persuasive copy."
+    q-property body: "Use this component for product screenshots, testimonials, process explanations, or editorial content blocks."
+    q-property imageAlt: "Image placeholder"
+    q-property imageSrc: ""
+
+    section.q-image-text-block {
+      style { box-sizing: border-box; width: 100%; padding: 64px 24px; }
+      div.q-image-text-block__grid {
+        style { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 40px; align-items: center; max-width: 1180px; margin: 0 auto; }
+        div.q-image-text-block__media {
+          style { min-height: 320px; border-radius: 28px; overflow: hidden; background: #e2e8f0; }
+          img.q-image-text-block__image {
+            src: "${this.component.imageSrc}"
+            alt: "${this.component.imageAlt}"
+            style { width: 100%; height: 100%; min-height: 320px; object-fit: cover; display: block; }
+          }
+          slot { media }
+        }
+        div.q-image-text-block__copy {
+          p.q-image-text-block__eyebrow {
+            style { margin: 0 0 10px; color: #2563eb; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+            text { ${this.component.eyebrow} }
+          }
+          h2.q-image-text-block__title {
+            style { margin: 0; color: #0f172a; font-size: clamp(2rem, 4vw, 3.4rem); line-height: 1.05; }
+            text { ${this.component.title} }
+          }
+          p.q-image-text-block__body {
+            style { margin: 20px 0 0; color: #475569; font-size: 1.05rem; line-height: 1.75; }
+            text { ${this.component.body} }
+          }
+          slot { content }
+        }
+      }
+    }
+  }
+
+  q-component q-cta-band {
+    q-property title: "Ready to publish?"
+    q-property body: "Use this call-to-action band near the end of landing pages and content-heavy layouts."
+    q-property buttonText: "Start now"
+    q-property buttonHref: "#"
+
+    section.q-cta-band {
+      style { box-sizing: border-box; width: 100%; padding: 56px 24px; }
+      div.q-cta-band__inner {
+        style {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 24px;
+          align-items: center;
+          max-width: 1120px;
+          margin: 0 auto;
+          padding: 36px;
+          border-radius: 28px;
+          background: #0f172a;
+          color: #ffffff;
+        }
+        div.q-cta-band__copy {
+          h2.q-cta-band__title {
+            style { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); }
+            text { ${this.component.title} }
+          }
+          p.q-cta-band__body {
+            style { margin: 12px 0 0; color: #cbd5e1; line-height: 1.7; }
+            text { ${this.component.body} }
+          }
+        }
+        div.q-cta-band__actions {
+          style { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: flex-end; }
+          a.q-cta-band__button {
+            href: "${this.component.buttonHref}"
+            style { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 22px; border-radius: 999px; background: #ffffff; color: #0f172a; text-decoration: none; font-weight: 800; }
+            text { ${this.component.buttonText} }
+          }
+          slot { actions }
+        }
+      }
+    }
+  }
+
+  q-component q-form-block {
+    q-property title: "Contact us"
+    q-property body: "Drop fields into the form slot, or use the default starter fields."
+    q-property submitText: "Submit"
+    q-property action: "#"
+    q-property method: "post"
+
+    section.q-form-block {
+      style { box-sizing: border-box; width: 100%; padding: 56px 24px; background: #f8fafc; }
+      div.q-form-block__inner {
+        style { max-width: 760px; margin: 0 auto; padding: 32px; border-radius: 24px; background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08); }
+        h2.q-form-block__title {
+          style { margin: 0; color: #0f172a; font-size: 2rem; }
+          text { ${this.component.title} }
+        }
+        p.q-form-block__body {
+          style { margin: 10px 0 24px; color: #475569; line-height: 1.65; }
+          text { ${this.component.body} }
+        }
+        form.q-form-block__form {
+          action: "${this.component.action}"
+          method: "${this.component.method}"
+          style { display: grid; gap: 14px; }
+          slot { fields }
+          button.q-form-block__submit {
+            type: "submit"
+            style { min-height: 48px; border: 0; border-radius: 14px; background: #2563eb; color: #ffffff; font-weight: 800; cursor: pointer; }
+            text { ${this.component.submitText} }
+          }
+        }
+      }
+    }
+  }
+</q-html>

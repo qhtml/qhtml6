@@ -26,9 +26,7 @@ wiki-shell {
       note: "Use this first before adding extra debugging code."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-window.QHTML_RUNTIME_DEBUG = true;
-&lt;/q-html&gt;</q-editor>
+          <q-editor>window.QHTML_RUNTIME_DEBUG = true;</q-editor>
         }
       }
     }
@@ -39,10 +37,8 @@ window.QHTML_RUNTIME_DEBUG = true;
       note: "Prefer the smallest targeted call that matches the change you made."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-document.querySelector("q-html").update();
-document.querySelector("q-html").invalidate({ forceBindings: true });
-&lt;/q-html&gt;</q-editor>
+          <q-editor>document.querySelector("q-html").update();
+document.querySelector("q-html").invalidate({ forceBindings: true });</q-editor>
         }
       }
     }
@@ -53,13 +49,11 @@ document.querySelector("q-html").invalidate({ forceBindings: true });
       note: "It is lexical. Place it on the component definition or on a specific instance."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-q-component my-comp {
+          <q-editor>q-component my-comp {
   q-logger { q-signal q-property }
   q-property count: 0
   q-signal ping(value)
-}
-&lt;/q-html&gt;</q-editor>
+}</q-editor>
         }
       }
     }
@@ -70,8 +64,7 @@ q-component my-comp {
       note: "It is direct-child-only metadata. Descendants do not inherit it."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-q-component measured-counter {
+          <q-editor>q-component measured-counter {
   q-perf { q-timer q-property q-signal function }
   q-property count: 0
   q-signal changed(value)
@@ -94,8 +87,7 @@ q-component measured-counter {
   }
 }
 
-measured-counter counterA { }
-&lt;/q-html&gt;</q-editor>
+measured-counter counterA { }</q-editor>
         }
       }
     }

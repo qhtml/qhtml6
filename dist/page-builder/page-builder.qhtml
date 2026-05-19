@@ -23,6 +23,18 @@ q-component page-builder-toolbar {
     }
   }
 
+  function saveLayout() {
+    if (window.QPageBuilder && typeof window.QPageBuilder.saveLayout === "function") {
+      window.QPageBuilder.saveLayout();
+    }
+  }
+
+  function loadLayout() {
+    if (window.QPageBuilder && typeof window.QPageBuilder.loadLayout === "function") {
+      window.QPageBuilder.loadLayout();
+    }
+  }
+
   header.pb-toolbar {
     div.pb-brand {
       div.pb-logo { text { Q } }
@@ -34,6 +46,8 @@ q-component page-builder-toolbar {
     div.pb-actions {
       button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").addRow(); } text { Add Row } }
       button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").addColumn(); } text { Add Column } }
+      button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").saveLayout(); } text { Save } }
+      button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").loadLayout(); } text { Load } }
       button.pb-action.danger { type: "button" onclick { this.closest("page-builder-toolbar").clearLayout(); } text { Clear } }
       button.pb-action.primary { type: "button" onclick { this.closest("page-builder-toolbar").exportLayout(); } text { Export QHTML } }
     }
@@ -307,6 +321,68 @@ q-component page-builder-palette-editor {
   }
 }
 
+q-component page-builder-instance-editor {
+  dialog.pb-instance-editor {
+    id: "pb-instance-editor"
+    div.pb-instance-editor-card {
+      header.pb-instance-editor-head {
+        div {
+          h2 { text { Edit QHTML Instance } }
+          p { id: "pb-instance-editor-subtitle" text { Select an instance and edit one of its slots. } }
+        }
+        button.pb-icon-button {
+          type: "button"
+          aria-label: "Close instance editor"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.closeInstanceEditor(); } }
+          html { &times; }
+        }
+      }
+
+      div.pb-instance-controls {
+        label {
+          id: "pb-instance-editor-instance-row"
+          text { Instance }
+          select {
+            id: "pb-instance-editor-instance"
+            onchange { if (window.QPageBuilder) { window.QPageBuilder.selectInstanceEditTarget(this.value); } }
+          }
+        }
+        label {
+          id: "pb-instance-editor-slot-row"
+          text { Slot }
+          select {
+            id: "pb-instance-editor-slot"
+            onchange { if (window.QPageBuilder) { window.QPageBuilder.selectInstanceEditSlot(this.value); } }
+          }
+        }
+      }
+
+      div.pb-instance-editor-body {
+        q-editor {
+          id: "pb-instance-editor-source"
+        }
+      }
+
+      div.pb-instance-editor-error {
+        id: "pb-instance-editor-error"
+      }
+
+      footer.pb-instance-editor-actions {
+        button.pb-action.secondary {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.closeInstanceEditor(); } }
+          text { Close }
+        }
+        button.pb-action.primary {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.saveInstanceEdit(); } }
+          text { Save Instance }
+        }
+      }
+    }
+  }
+}
+
 q-component page-builder-app {
   div.pb-app {
     page-builder-toolbar { }
@@ -318,5 +394,6 @@ q-component page-builder-app {
       }
     }
     page-builder-palette-editor { }
+    page-builder-instance-editor { }
   }
 }

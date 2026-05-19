@@ -213,69 +213,16 @@ q-component wiki-shell {
 
   wiki-docs-theme {
     div.wiki-page-shell {
-      q-sidebar wikiSidebar {
-        sidebarWidth: "296"
-        content {
-          div.wiki-nav-pane {
-            h2.wiki-nav-title { text { QHTML Wiki } }
-            p.wiki-nav-copy { text { Read it like a guide and run the small examples as you go. } }
-            wiki-section-relay sectionRelay { }
-
-            wiki-nav-link navHome { prefix: "/doc/" suffix: "index.html" label: "Start here" navKey: "home" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navQuickStart { prefix: "/doc/" suffix: "01-quick-start/" label: "Quick Start" navKey: "quick-start" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navCoreSyntax { prefix: "/doc/" suffix: "02-core-syntax/" label: "Core Syntax" navKey: "core-syntax" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navComponents { prefix: "/doc/" suffix: "03-components/" label: "Components" navKey: "components" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navStyles { prefix: "/doc/" suffix: "04-styles-and-themes/" label: "Styles and Themes" navKey: "styles" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navStateQScript { prefix: "/doc/" suffix: "05-state-with-q-script/" label: "State with q-script" navKey: "state-q-script" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navQScript { prefix: "/doc/" suffix: "06-q-script/" label: "q-script" navKey: "q-script" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navInlineExpressions { prefix: "/doc/" suffix: "07-inline-expressions/" label: "Inline Expressions" navKey: "inline-expressions" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navSignals { prefix: "/doc/" suffix: "08-signals/" label: "Signals" navKey: "signals" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navStateMachines { prefix: "/doc/" suffix: "09-state-machines/" label: "State Machines" navKey: "state-machines" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navQdomApi { prefix: "/doc/" suffix: "10-qdom-api/" label: "QDOM API" navKey: "qdom-api" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navParticleEmitter { prefix: "/doc/" suffix: "11-particle-emitter/" label: "Particle Emitter" navKey: "particle-emitter" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navDebugTips { prefix: "/doc/" suffix: "12-debug-tips/" label: "Debug Tips" navKey: "debug-tips" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navOptionalTags { prefix: "/doc/" suffix: "13-optional-tag-libraries/" label: "Optional Tag Libraries" navKey: "optional-tags" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navModuleReadmes { prefix: "/doc/" suffix: "14-module-readmes/" label: "Module READMEs" navKey: "module-readmes" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navEscapeSequences { prefix: "/doc/" suffix: "15-escape-sequences/" label: "Escape Sequences" navKey: "escape-sequences" currentKey: "${this.component.sectionKey}" }
-            wiki-nav-link navTry { prefix: "/doc/" suffix: "try-it-yourself/" label: "Try It Yourself" navKey: "try" currentKey: "${this.component.sectionKey}" }
-
-            q-connect { sectionRelay.currentChanged navHome.currentChanged }
-            q-connect { sectionRelay.currentChanged navQuickStart.currentChanged }
-            q-connect { sectionRelay.currentChanged navCoreSyntax.currentChanged }
-            q-connect { sectionRelay.currentChanged navComponents.currentChanged }
-            q-connect { sectionRelay.currentChanged navStyles.currentChanged }
-            q-connect { sectionRelay.currentChanged navStateQScript.currentChanged }
-            q-connect { sectionRelay.currentChanged navQScript.currentChanged }
-            q-connect { sectionRelay.currentChanged navInlineExpressions.currentChanged }
-            q-connect { sectionRelay.currentChanged navSignals.currentChanged }
-            q-connect { sectionRelay.currentChanged navStateMachines.currentChanged }
-            q-connect { sectionRelay.currentChanged navQdomApi.currentChanged }
-            q-connect { sectionRelay.currentChanged navParticleEmitter.currentChanged }
-            q-connect { sectionRelay.currentChanged navDebugTips.currentChanged }
-            q-connect { sectionRelay.currentChanged navOptionalTags.currentChanged }
-            q-connect { sectionRelay.currentChanged navModuleReadmes.currentChanged }
-            q-connect { sectionRelay.currentChanged navEscapeSequences.currentChanged }
-            q-connect { sectionRelay.currentChanged navTry.currentChanged }
+      main {
+        div.wiki-main-wrap {
+          section.wiki-main-hero {
+            h1.wiki-title { text { ${this.component.pageTitle} } }
+            p.wiki-intro { text { ${this.component.pageIntro} } }
           }
-        }
-        main {
-          div.wiki-main-wrap {
-            section.wiki-main-hero {
-              h1.wiki-title { text { ${this.component.pageTitle} } }
-              p.wiki-intro { text { ${this.component.pageIntro} } }
-            }
-            div.wiki-stack { slot { main } }
-          }
+          div.wiki-stack { slot { main } }
         }
       }
     }
   }
-
-  onready {
-    sectionRelay.currentChanged(wiki-shell.sectionKey);
-  }
-
-  onsectionKeychanged(value) {
-    sectionRelay.currentChanged(value);
-  }
 }
+

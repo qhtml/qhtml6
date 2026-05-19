@@ -166,23 +166,10 @@
       return this.__qhtmlVarState ? String(this.__qhtmlVarState.uuid || "") : "";
     }
     get value() {
-      if (!this.__qhtmlVarState) {
-        return undefined;
-      }
-      return this.__qhtmlVarState.value;
+      return readQVarStateValue(this.__qhtmlVarState);
     }
     set value(next) {
-      if (!this.__qhtmlVarState) {
-        return;
-      }
-      const state = this.__qhtmlVarState;
-      const previous = this.value;
-      state.previousValue = previous;
-      state.value = next;
-      state.initialized = true;
-      if (!Object.is(previous, next) && state.changed && typeof state.changed.emit === "function") {
-        state.changed.emit(next, previous, true);
-      }
+      assignQVarStateValue(this.__qhtmlVarState, next);
     }
     get changed() {
       return this.__qhtmlVarState ? this.__qhtmlVarState.changed : null;
@@ -215,10 +202,45 @@
       return value;
     }
     try {
-      return value.value;
+      return readQVarStateValue(value.__qhtmlVarState);
     } catch (error) {
       return undefined;
     }
+  }
+
+  function readQVarStateValue(state) {
+    if (!state || typeof state !== "object") {
+      return undefined;
+    }
+    if (state.initialized) {
+      return state.value;
+    }
+    if (state.evaluating) {
+      return state.value;
+    }
+    state.evaluating = true;
+    try {
+      state.value = evaluateQVarBody(state.node, state.owner, state.context);
+      state.initialized = true;
+      return state.value;
+    } finally {
+      state.evaluating = false;
+    }
+  }
+
+  function assignQVarStateValue(state, next) {
+    if (!state || typeof state !== "object") {
+      return undefined;
+    }
+    const previous = state.initialized ? state.value : undefined;
+    state.previousValue = previous;
+    state.value = next;
+    state.initialized = true;
+    state.evaluating = false;
+    if (!Object.is(previous, next) && state.changed && typeof state.changed.emit === "function") {
+      state.changed.emit(next, previous, true);
+    }
+    return state.value;
   }
 
   function createQVarSignal(name, owner) {
@@ -267,7 +289,7 @@
 
   function createQVarHandle(state) {
     const base = function qVarCallableProxy() {
-      const value = state && state.handle ? state.handle.value : undefined;
+      const value = readQVarStateValue(state);
       if (typeof value === "function") {
         return value.apply(state && state.owner ? state.owner : null, arguments);
       }
@@ -291,10 +313,49 @@
           prop === "valueOf" ||
           prop === Symbol.toPrimitive
         ) {
+          if (prop === QHTML_QVAR_HANDLE_FLAG) {
+            return true;
+          }
+          if (prop === "__qhtmlVarState") {
+            return state;
+          }
+          if (prop === "name") {
+            return state ? String(state.name || "") : "";
+          }
+          if (prop === "uuid") {
+            return state ? String(state.uuid || "") : "";
+          }
+          if (prop === "value") {
+            return readQVarStateValue(state);
+          }
+          if (prop === "changed") {
+            return state ? state.changed || null : null;
+          }
+          if (prop === "get") {
+            return function getQVarProxyValue() {
+              return readQVarStateValue(state);
+            };
+          }
+          if (prop === "set") {
+            return function setQVarProxyValue(next) {
+              return assignQVarStateValue(state, next);
+            };
+          }
+          if (prop === "toString") {
+            return function qVarProxyToString() {
+              const value = readQVarStateValue(state);
+              return String(value == null ? "" : value);
+            };
+          }
+          if (prop === "valueOf" || prop === Symbol.toPrimitive) {
+            return function qVarProxyValueOf() {
+              return readQVarStateValue(state);
+            };
+          }
           const ownValue = target[prop];
           return typeof ownValue === "function" ? Function.prototype.bind.call(ownValue, target) : ownValue;
         }
-        const value = target.value;
+        const value = readQVarStateValue(state);
         if (value != null && (typeof value === "object" || typeof value === "function")) {
           const child = value[prop];
           return typeof child === "function" ? child.bind(value) : child;
@@ -303,10 +364,10 @@
       },
       set: function setQVarProperty(target, prop, next) {
         if (prop === "value") {
-          target.value = next;
+          assignQVarStateValue(state, next);
           return true;
         }
-        const value = target.value;
+        const value = readQVarStateValue(state);
         if (value != null && (typeof value === "object" || typeof value === "function")) {
           value[prop] = next;
         }
@@ -3048,9 +3109,10 @@
       "const __qhtmlLocalScriptScope = (this && this.__qhtmlScriptScope && typeof this.__qhtmlScriptScope === \"object\") ? this.__qhtmlScriptScope : null;\n" +
       "const __qhtmlNamedValues = (this && this.__qhtmlNamedRuntimeValues && typeof this.__qhtmlNamedRuntimeValues === \"object\") ? this.__qhtmlNamedRuntimeValues : null;\n" +
       "let __qhtmlScriptScope = null;\n" +
-      "if (__qhtmlRootNamedValues || __qhtmlNearestComponentScope || __qhtmlNamedValues || __qhtmlLocalScriptScope) {\n" +
+      "const __qhtmlResolveRuntimeSymbol = (this && typeof this.__qhtmlResolveSymbol === \"function\") ? function(name){ return this.__qhtmlResolveSymbol(name); }.bind(this) : null;\n" +
+      "if (__qhtmlRootNamedValues || __qhtmlNearestComponentScope || __qhtmlNamedValues || __qhtmlLocalScriptScope || __qhtmlResolveRuntimeSymbol) {\n" +
       "  __qhtmlScriptScope = Object.assign(Object.create(null), __qhtmlRootNamedValues || null, __qhtmlNearestComponentScope || null, __qhtmlNamedValues || null, __qhtmlLocalScriptScope || null);\n" +
-      "  __qhtmlScriptScope = new Proxy(__qhtmlScriptScope, { get: function(target, prop) { var current = target[prop]; if (current && current.__qhtmlVarHandle === true && typeof current.get === 'function') { return current.get(); } return current; }, set: function(target, prop, value) { var current = target[prop]; if (current && current.__qhtmlVarHandle === true && typeof current.set === 'function') { current.set(value); return true; } target[prop] = value; return true; } });\n" +
+      "  __qhtmlScriptScope = new Proxy(__qhtmlScriptScope, { has: function(target, prop) { if (prop in target) { return true; } if (__qhtmlResolveRuntimeSymbol) { return typeof __qhtmlResolveRuntimeSymbol(prop) !== 'undefined'; } return false; }, get: function(target, prop) { var current = prop in target ? target[prop] : (__qhtmlResolveRuntimeSymbol ? __qhtmlResolveRuntimeSymbol(prop) : undefined); if (current && current.__qhtmlVarHandle === true && typeof current.get === 'function') { return current.get(); } return current; }, set: function(target, prop, value) { var current = prop in target ? target[prop] : (__qhtmlResolveRuntimeSymbol ? __qhtmlResolveRuntimeSymbol(prop) : undefined); if (current && current.__qhtmlVarHandle === true && typeof current.set === 'function') { current.set(value); return true; } target[prop] = value; return true; } });\n" +
       "}\n" +
       "if (__qhtmlScriptScope) { with(__qhtmlScriptScope) {\n" +
       source +
@@ -7575,7 +7637,7 @@
         name: signalName,
         owner: hostElement,
         emitImpl: function emitComponentSignal() {
-          return signalFn.apply(hostElement, arguments);
+          return Function.prototype.apply.call(signalFn, hostElement, arguments);
         },
         connectImpl: null,
         disconnectImpl: null,
@@ -7787,7 +7849,7 @@
       signalMeta.disconnectImpl = signalFn.disconnect;
 
       signalFn.emit = function emitSignalProxy() {
-        return signalFn.apply(hostElement, arguments);
+        return Function.prototype.apply.call(signalFn, hostElement, arguments);
       };
       signalMeta.emitImpl = signalFn.emit;
 
@@ -9357,6 +9419,21 @@
   function buildInterpolationScope(context, fallbackNode) {
     const scope = {};
     mergeInstanceAliasesIntoScope(scope, context);
+    if (
+      context &&
+      context[QCONTEXT_RUNTIME_FRAME_KEY] &&
+      typeof context[QCONTEXT_RUNTIME_FRAME_KEY].toObject === "function"
+    ) {
+      const runtimeValues = context[QCONTEXT_RUNTIME_FRAME_KEY].toObject();
+      const runtimeNames = Object.keys(runtimeValues);
+      for (let i = 0; i < runtimeNames.length; i += 1) {
+        const name = String(runtimeNames[i] || "").trim();
+        if (!name) {
+          continue;
+        }
+        scope[name] = runtimeValues[name];
+      }
+    }
     if (context && context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
       const names = Object.keys(context.namedRuntimeValues);
       for (let i = 0; i < names.length; i += 1) {
@@ -9917,7 +9994,7 @@
       return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(String(name || ""));
     });
     const scopeValues = scopeNames.map(function mapQVarScopeParam(name) {
-      return interpolationScope[name];
+      return readQVarHandleValue(interpolationScope[name]);
     });
     try {
       const expressionExecutor = new Function(scopeNames.join(","), "return (" + body + ");");
@@ -9946,8 +10023,12 @@
         value: undefined,
         previousValue: undefined,
         initialized: false,
+        evaluating: false,
         changed: null,
         handle: null,
+        node: node,
+        context: context,
+        body: String(node && node.body || ""),
       };
       state.changed = createQVarSignal("changed", ownerHost || null);
       state.handle = createQVarHandle(state);
@@ -9955,9 +10036,15 @@
     }
     state.name = String(node && node.name || state.name || "").trim();
     state.owner = ownerHost && ownerHost.nodeType === 1 ? ownerHost : state.owner || null;
-    if (!state.initialized) {
-      state.value = evaluateQVarBody(node, state.owner, context);
-      state.initialized = true;
+    state.node = node;
+    state.context = context;
+    const nextBody = String(node && node.body || "");
+    if (state.body !== nextBody) {
+      state.body = nextBody;
+      state.value = undefined;
+      state.previousValue = undefined;
+      state.initialized = false;
+      state.evaluating = false;
     }
     return state;
   }
@@ -9978,6 +10065,9 @@
     }
     if (context[QCONTEXT_RUNTIME_FRAME_KEY] && typeof context[QCONTEXT_RUNTIME_FRAME_KEY].set === "function") {
       context[QCONTEXT_RUNTIME_FRAME_KEY].set(key, handle);
+    }
+    if (context && context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
+      context.namedRuntimeValues[key] = handle;
     }
     if (ownerHost && ownerHost.nodeType === 1) {
       exportNamedAliasToHost(ownerHost, key, handle);
@@ -10010,9 +10100,6 @@
         });
       } catch (error) {
         // If the host already has a fixed property, the scoped handle still works.
-      }
-      if (context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
-        context.namedRuntimeValues[key] = handle;
       }
     }
   }
@@ -10117,7 +10204,7 @@
       return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(String(name || ""));
     });
     const scopeValues = scopeNames.map(function mapQSwitchScopeParam(name) {
-      return interpolationScope[name];
+      return readQVarHandleValue(interpolationScope[name]);
     });
     try {
       const expressionExecutor = new Function(scopeNames.join(","), "return (" + source + ");");
@@ -10579,6 +10666,11 @@
 	      if (isLayoutKeywordElement) {
 	        installQLayoutDomApi(element);
 	      }
+      bindRuntimeContextToTarget(
+        element,
+        context[QCONTEXT_SCOPE_FRAME_KEY],
+        context[QCONTEXT_RUNTIME_FRAME_KEY]
+      );
       if (
         context &&
         typeof context.__applyModelViewMarker === "function"

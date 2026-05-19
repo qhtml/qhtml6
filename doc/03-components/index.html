@@ -24,11 +24,9 @@ wiki-shell {
       summary: "A q-component definition creates a reusable custom element type."
       note: "If you define q-component mycomponent, QHTML creates a <mycomponent> element you can use in the current scope."
       details {
-        html { <q-editor>&lt;q-html&gt;
-q-component mycomponent {
+        html { <q-editor>q-component mycomponent {
   div,span { text { hello world } }
-}
-&lt;/q-html&gt;</q-editor> }
+}</q-editor> }
       }
     }
 
@@ -37,13 +35,11 @@ q-component mycomponent {
       summary: "After defining a component, instantiate it like any other HTML element."
       note: "This creates a real custom element instance in the rendered output."
       details {
-        html { <q-editor>&lt;q-html&gt;
-q-component mycomponent {
+        html { <q-editor>q-component mycomponent {
   div,span { text { hello world } }
 }
 
-mycomponent { }
-&lt;/q-html&gt;</q-editor> }
+mycomponent { }</q-editor> }
       }
     }
 
@@ -52,13 +48,11 @@ mycomponent { }
       summary: "Give an instance a typed name when you want to reference it from other QHTML or JavaScript."
       note: "The typed name is the handle you use later, such as myCard.title or myCard.someMethod()."
       details {
-        html { <q-editor>&lt;q-html&gt;
-q-component mycard {
+        html { <q-editor>q-component mycard {
   div { text { hello from card } }
 }
 
-mycard card1 { }
-&lt;/q-html&gt;</q-editor> }
+mycard card1 { }</q-editor> }
       }
     }
 
@@ -67,14 +61,12 @@ mycard card1 { }
       summary: "Use q-property to store component state."
       note: "Properties are the normal place for labels, flags, counts, and other component-level values."
       details {
-        html { <q-editor>&lt;q-html&gt;
-q-component mycard {
+        html { <q-editor>q-component mycard {
   q-property title: "welcome"
   div { text { ${this.component.title} } }
 }
 
-mycard { }
-&lt;/q-html&gt;</q-editor> }
+mycard { }</q-editor> }
       }
     }
 
@@ -83,8 +75,7 @@ mycard { }
       summary: "Inside event handlers and methods, read component properties through this.component."
       note: "Use this.component inside JavaScript blocks. This version updates displayed state through oncountchanged instead of text interpolation."
       details {
-        html { <q-editor>&lt;q-html&gt;
-q-component mycounter {
+        html { <q-editor>q-component mycounter {
   q-property count: 0
   oncountchanged {
     $("#count-out").innerText = "count=" + String(this.component.count);
@@ -99,8 +90,7 @@ q-component mycounter {
   div#count-out { text { count=0 } }
 }
 
-mycounter { }
-&lt;/q-html&gt;</q-editor> }
+mycounter { }</q-editor> }
       }
     }
 
@@ -109,8 +99,7 @@ mycounter { }
       summary: "Named instances only resolve where their names are actually in scope."
       note: "This keeps references predictable instead of behaving like global lookups."
       details {
-        html { <q-editor>&lt;q-html&gt;
-q-component comp-a {
+        html { <q-editor>q-component comp-a {
   q-property value: "hello"
 }
 
@@ -121,8 +110,7 @@ q-component comp-b {
   div { text { ${this.component.fromRoot} } }
 }
 
-comp-b { }
-&lt;/q-html&gt;</q-editor> }
+comp-b { }</q-editor> }
       }
     }
 
@@ -131,8 +119,7 @@ comp-b { }
       summary: "A q-property can point at another named instance declaratively."
       note: "This is the simple binding form for sharing values between components."
       details {
-        html { <q-editor>&lt;q-html&gt;
-q-component source-box {
+        html { <q-editor>q-component source-box {
   q-property title: "shared title"
 }
 
@@ -143,8 +130,7 @@ q-component target-box {
   div { text { ${this.component.copiedTitle} } }
 }
 
-target-box { }
-&lt;/q-html&gt;</q-editor> }
+target-box { }</q-editor> }
       }
     }
 
@@ -153,16 +139,14 @@ target-box { }
       summary: "Use normal property paths when one named instance needs data from another named instance."
       note: "Dot walking is the standard component-to-component reference style in QHTML."
       details {
-        html { <q-editor>&lt;q-html&gt;
-q-component catalog-store {
+        html { <q-editor>q-component catalog-store {
   q-property title: "Main Catalog"
   q-property currency: "USD"
 }
 
 catalog-store store1 { }
 
-div { text { ${store1.title} (${store1.currency}) } }
-&lt;/q-html&gt;</q-editor> }
+div { text { ${store1.title} (${store1.currency}) } }</q-editor> }
       }
     }
 
@@ -171,8 +155,7 @@ div { text { ${store1.title} (${store1.currency}) } }
       summary: "A slot lets the caller place arbitrary content inside a reusable component shell."
       note: "This is the simplest way to make a component accept dynamic inner content."
       details {
-        html { <q-editor>&lt;q-html&gt;
-q-component panel-box {
+        html { <q-editor>q-component panel-box {
   div {
     h3 { text { Panel shell } }
     slot { body }
@@ -186,8 +169,7 @@ panel-box {
       li { text { can go here } }
     }
   }
-}
-&lt;/q-html&gt;</q-editor> }
+}</q-editor> }
       }
     }
 
@@ -196,8 +178,7 @@ panel-box {
       summary: "q-signal declares a signal that the component can emit."
       note: "Think of a signal as a component-level event with arguments."
       details {
-        html { <q-editor>&lt;q-html&gt;
-q-component sender-box {
+        html { <q-editor>q-component sender-box {
   q-signal sent(message)
   button {
     text { Send }
@@ -205,8 +186,7 @@ q-component sender-box {
   }
 }
 
-sender-box { }
-&lt;/q-html&gt;</q-editor> }
+sender-box { }</q-editor> }
       }
     }
 
@@ -215,8 +195,7 @@ sender-box { }
       summary: "A component can handle a signal with an on<signal> hook."
       note: "This is the direct way to react to emitted signal values."
       details {
-        html { <q-editor>&lt;q-html&gt;
-q-component sender-box {
+        html { <q-editor>q-component sender-box {
   q-signal sent(message)
   onsent(message) {
     alert("signal value: " + String(message));
@@ -235,8 +214,7 @@ q-component receiver-box {
   }
 }
 
-receiver-box { }
-&lt;/q-html&gt;</q-editor> }
+receiver-box { }</q-editor> }
       }
     }
 
@@ -245,8 +223,7 @@ receiver-box { }
       summary: "q-connect wires one signal to another component method declaratively."
       note: "Use it when both sender and receiver are already in scope and you want declarative-only wiring."
       details {
-        html { <q-editor>&lt;q-html&gt;
-q-component sender-box {
+        html { <q-editor>q-component sender-box {
   q-signal sent(message)
   function sendNow(message) {
     this.sent(message);
@@ -269,8 +246,7 @@ q-connect { sender1.sent receiver1.onMessage }
 button {
   text { send }
   onclick { sender1.sendNow("hello from q-connect"); }
-}
-&lt;/q-html&gt;</q-editor> }
+}</q-editor> }
       }
     }
 
@@ -279,8 +255,7 @@ button {
       summary: "Each q-property automatically gets a changed hook."
       note: "Use this when one property update should cause another update or side effect."
       details {
-        html { <q-editor>&lt;q-html&gt;
-q-component counter-box {
+        html { <q-editor>q-component counter-box {
   q-property count: 0
   oncountchanged(value) {
     this.querySelector("#out").textContent = "count=" + String(value);
@@ -294,8 +269,7 @@ q-component counter-box {
   }
 }
 
-counter-box { }
-&lt;/q-html&gt;</q-editor> }
+counter-box { }</q-editor> }
       }
     }
 
@@ -304,8 +278,7 @@ counter-box { }
       summary: "onready runs after the component has mounted."
       note: "Use it for startup work that needs the rendered DOM or connected child instances."
       details {
-        html { <q-editor>&lt;q-html&gt;
-q-component ready-box {
+        html { <q-editor>q-component ready-box {
   q-property label: "waiting"
   onready {
     this.component.label = "ready";
@@ -313,8 +286,7 @@ q-component ready-box {
   div { text { ${this.component.label} } }
 }
 
-ready-box { }
-&lt;/q-html&gt;</q-editor> }
+ready-box { }</q-editor> }
       }
     }
   }

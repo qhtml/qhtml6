@@ -26,33 +26,15 @@ wiki-shell {
       note: "It is string interpolation, not a standalone watcher."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-div {
-  title: "Current user: ${window.currentUser}"
-  text { Hello ${window.currentUser} }
+          <q-editor>div {
+  title: "Current user: &#36;{window.currentUser}"
+  text { Hello &#36;{window.currentUser} }
 }
 
 q-component user-card {
   q-property name: "Guest"
-  h3 { text { ${this.component.name} } }
-}
-&lt;/q-html&gt;</q-editor>
-        }
-      }
-    }
-
-    wiki-example-card {
-      title: "Macro slot placeholders"
-      summary: "Inside q-macro returns, placeholders can reference the incoming slot names."
-      note: "This is a scoped convenience. The name comes from the macro call."
-      details {
-        html {
-          <q-editor>&lt;q-html&gt;
-q-macro badge {
-  slot { label }
-  return { span { text { ${label} } } }
-}
-&lt;/q-html&gt;</q-editor>
+  h3 { text { &#36;{this.component.name} } }
+}</q-editor>
         }
       }
     }
@@ -63,8 +45,7 @@ q-macro badge {
       note: "Aliases are local to the block where you define them."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-q-keyword component { q-component }
+          <q-editor>q-keyword component { q-component }
 
 component card-box {
   div { text { hello } }
@@ -75,8 +56,7 @@ div {
   box { text { inside } }
 }
 
-box { text { outside } }  // unchanged outside the scope
-&lt;/q-html&gt;</q-editor>
+box { text { outside } }  // unchanged outside the scope</q-editor>
         }
       }
     }
@@ -87,15 +67,13 @@ box { text { outside } }  // unchanged outside the scope
       note: "Use q-property when you need component property binding. Use q-var for an in-scope value or helper."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-q-var names { ["ada", "grace", "katherine"] }
+          <q-editor>q-var names { ["ada", "grace", "katherine"] }
 q-var settings { ({ label: "engineers", count: names.length }) }
 
 div {
-  h3 { text { ${settings.label} } }
-  p { text { first=${names[0]} total=${settings.count} } }
-}
-&lt;/q-html&gt;</q-editor>
+  h3 { text { &#36;{settings.label} } }
+  p { text { first=&#36;{names[0]} total=&#36;{settings.count} } }
+}</q-editor>
         }
       }
     }
@@ -106,65 +84,58 @@ div {
       note: "The function is a normal JavaScript function value stored in the current QContext."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-q-var formatName { function(name) { return "Hello " + name.toUpperCase(); } }
+          <q-editor>q-var formatName { function(name) { return "Hello " + name.toUpperCase(); } }
 
 div#function-result {
-  text { ${formatName("qhtml")} }
+  text { &#36;{formatName("qhtml")} }
 }
 
 button {
   text { log formatted name }
   onclick { console.log(formatName("runtime")); }
-}
-&lt;/q-html&gt;</q-editor>
+}</q-editor>
         }
       }
     }
 
     wiki-example-card {
       title: "q-var assignment"
-      summary: "Update a q-var through the handle with .set(value) or by assigning .value."
-      note: "Assignment replaces the stored value. It does not create a q-property binding."
+      summary: "Update a q-var like a normal JavaScript variable."
+      note: "Assignment replaces the stored value. It does not create a q-property binding or watcher."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-q-var clickCount { 0 }
+          <q-editor>q-var clickCount { 0 }
 
 button {
   text { increment q-var }
   onclick {
-    clickCount.set(clickCount.value + 1);
-    this.textContent = "count=" + clickCount.value;
+    clickCount = clickCount + 1;
+    this.textContent = "count=" + clickCount;
   }
 }
 
 button {
-  text { replace value }
+  text { reset q-var }
   onclick {
-    clickCount.value = { replaced: true, previous: clickCount.value };
-    console.log(clickCount.value);
+    var previous = clickCount;
+    clickCount = 0;
+    console.log({ previous: previous, current: clickCount });
+    this.textContent = "reset from " + previous;
   }
-}
-&lt;/q-html&gt;</q-editor>
+}</q-editor>
         }
       }
     }
 
     wiki-example-card {
       title: "q-var as dynamic QHTML"
-      summary: "A q-var can store a QHTML fragment string and qhtml(varName) can render it declaratively."
-      note: "This is useful for passing a small render fragment through component scopes."
+      summary: "A q-var can store a complete QHTML string and qhtml(varName) can render it declaratively."
+      note: "The string must be valid, complete QHTML. Partial opening fragments are not supported."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-q-var cardHead { "div.dynamic-card,section.dynamic-body {" }
+          <q-editor>q-var cardMarkup { "div.dynamic-card { h3 { text { Card from q-var } } p { text { The q-var contains complete QHTML. } } }" }
 
-qhtml(cardHead) {
-  h3 { text { Fragment from q-var } }
-  p { text { The block body completes the stored fragment. } }
-}
-&lt;/q-html&gt;</q-editor>
+qhtml(cardMarkup)</q-editor>
         }
       }
     }
@@ -175,12 +146,11 @@ qhtml(cardHead) {
       note: "Outside callers can dot-walk through the named component reference to reach the q-var."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-q-var hostMessage { "host scope" }
+          <q-editor>q-var hostMessage { "host scope" }
 
 q-component scoped-card {
   q-var localMessage { "local scope" }
-  div { text { ${hostMessage} / ${localMessage} } }
+  div { text { &#36;{hostMessage} / &#36;{localMessage} } }
 }
 
 scoped-card cardOne { }
@@ -188,8 +158,7 @@ scoped-card cardOne { }
 button {
   text { read scoped value }
   onclick { alert(cardOne.localMessage); }
-}
-&lt;/q-html&gt;</q-editor>
+}</q-editor>
         }
       }
     }
@@ -200,8 +169,7 @@ button {
       note: "It is syntactic sugar for a small lookup function. It does not listen for property changes."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-q-switch labelFor {
+          <q-editor>q-switch labelFor {
   15: { "hello world" }
   "test": { 32 }
   "zero": { 0 }
@@ -209,9 +177,8 @@ q-switch labelFor {
 }
 
 div {
-  text { ${labelFor(15)} | ${labelFor("test")} | ${labelFor("zero")} | ${labelFor("missing")} }
-}
-&lt;/q-html&gt;</q-editor>
+  text { &#36;{labelFor(15)} | &#36;{labelFor("test")} | &#36;{labelFor("zero")} | &#36;{labelFor("missing")} }
+}</q-editor>
         }
       }
     }
@@ -222,15 +189,13 @@ div {
       note: "Use this for simple lookup-driven fragments. Use q-state-machine when state changes should re-render automatically."
       details {
         html {
-          <q-editor>&lt;q-html&gt;
-q-switch panelFor {
+          <q-editor>q-switch panelFor {
   "info": { "div.info-panel { text { Information panel } }" }
   "warn": { "div.warn-panel { text { Warning panel } }" }
   *: { "div.default-panel { text { Default panel } }" }
 }
 
-qhtml(panelFor("info"))
-&lt;/q-html&gt;</q-editor>
+qhtml(panelFor("info"))</q-editor>
         }
       }
     }
