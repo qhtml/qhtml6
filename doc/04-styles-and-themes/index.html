@@ -147,6 +147,22 @@ article-theme {
   }
 }</q-editor> } } }
 
+    wiki-example-card { title: "Anonymous q-style inside q-theme" summary: "Define one-off selector styles directly in a q-theme rule." note: "Use this when a style is only needed by one selector in one theme." details { html { <q-editor>q-style body-panel {
+  backgroundColor: #e2e8f0
+}
+
+q-theme article-theme {
+  h3 { q-style { color: #1d4ed8 } }
+  .summary { q-style { color: #334155 } body-panel }
+}
+
+article-theme {
+  div {
+    h3 { text { Theme heading } }
+    p.summary { text { This paragraph uses anonymous and named q-styles. } }
+  }
+}</q-editor> } } }
+
     wiki-example-card { title: "q-default-theme fallback layer" summary: "A default theme provides baseline styling that a later q-theme can replace." note: "Use it when you want sane defaults without forcing the last word." details { html { <q-editor>q-style panel-base {
   backgroundColor: #f8fafc
   border: 1px solid #cbd5e1

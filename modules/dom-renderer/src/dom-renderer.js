@@ -232,6 +232,15 @@
     if (!state || typeof state !== "object") {
       return undefined;
     }
+    if (isQVarHandle(next) && next.__qhtmlVarState === state) {
+      if (state.initialized && state.value === next) {
+        state.value = undefined;
+        state.previousValue = undefined;
+        state.initialized = false;
+        state.evaluating = false;
+      }
+      return readQVarStateValue(state);
+    }
     const previous = state.initialized ? state.value : undefined;
     state.previousValue = previous;
     state.value = next;
@@ -8749,10 +8758,12 @@
     }
     hostElement.__qhtmlNamedRuntimeValues[name] = value;
     hostElement.__qhtmlScriptScope[name] = value;
-    try {
-      hostElement[name] = value;
-    } catch (ignoredAssignNamedAlias) {
-      // no-op
+    if (!isQVarHandle(value)) {
+      try {
+        hostElement[name] = value;
+      } catch (ignoredAssignNamedAlias) {
+        // no-op
+      }
     }
   }
 

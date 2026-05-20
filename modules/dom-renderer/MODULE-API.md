@@ -77,6 +77,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - declaration bodies can reference earlier q-vars, q-switches, callbacks, and named references from the current inherited QContext
   - supported stored values are strings, numbers, objects, arrays, and functions
   - reads return the stored value and assignments replace the stored value
+  - named q-var handles are kept in runtime scope maps without writing the handle through the public host accessor, so function-valued q-vars remain callable from event handler script contexts after render synchronization
   - dynamic behavior should be expressed by storing a function and invoking it, for example `q-var current { function() { return source.value; } }`
   - q-vars are visible to following siblings and descendants, and are exported on the owning component or `<q-html>` host for dot-walk access
 - `q-switch` declarations register scoped callable functions in the existing QContext frames:

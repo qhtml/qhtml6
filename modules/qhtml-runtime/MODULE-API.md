@@ -306,6 +306,7 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - lookup coverage includes live QDOM nodes and component declaration entries (`q-property` / `q-signal`) when UUID metadata is present.
 - Maintains component-host property reference indexes (`propertyName -> Set<qdomUuid>`) derived from binding scripts that reference `this.component.<prop>` / `component.<prop>` for scoped refresh targeting APIs.
 - Property-reference indexing also tracks simple inline scoped expressions (for example `${myProp}`) and repeater model-source expressions (including `for (...)` sources) for targeted update routing.
+- Named runtime value synchronization preserves q-var handles in host/component scope maps without assigning those handles through q-var public accessors; this prevents q-var self-reference corruption during render propagation.
 - Custom-element registration (`customElements.define`) now applies parsed component `q-property` defaults per instance at construction/connection time (non-binding defaults only).
 - SDML helper component/template/signal definitions from remote blocks are scoped to their owning alias definition via internal prefixed ids, avoiding global definition collisions.
 - When parser metadata contains top-level named `q-model` definitions (`doc.meta.qModels`), mount syncs them onto host properties as `QModel` instances and subscribes host updates to model mutations.

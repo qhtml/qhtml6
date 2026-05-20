@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.9.2
+# QHTML.js v6.9.3
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,13 +12,12 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v6.9.2
+## Whats New in v6.9.3
 
-- Bumped the release line to `6.9.2` and refreshed the HUD documentation index assets.
-- Added `q-switch name { ... }` / `switch name { ... }` for scoped primitive lookup functions usable from handlers, interpolation, component code, and `qhtml(...)`.
-- Added `q-perf { ... }` for opt-in QDOM-backed performance aggregation on timers, signals, properties, workers, and component functions.
-- Refined `q-var name { ... }` documentation around stored primitive/object/array/function values, assignment through the q-var handle, scoped references, and dynamic QHTML fragments.
-- Refreshed the documentation runtime copies so doc pages can load their local QHTML bundle without parent-directory paths.
+- Bumped the release line to `6.9.3`.
+- Fixed q-var function handles so exporting named q-var values no longer writes the handle back into its own state, preventing maximum-call-stack recursion in inline expressions and event handlers.
+- Added anonymous `q-style { ... }` blocks inside `q-theme` selector rules so one-off theme styles can be declared inline beside named q-style references.
+- Updated the styles/themes documentation and test coverage for anonymous q-style usage in q-theme rules.
 
 ## 1. Quick Start
 
@@ -1291,6 +1290,17 @@ q-style body-muted   { backgroundColor: #64748b }
 q-theme article-theme {
   h3 { title-accent body-muted }
   p  { body-muted }
+}
+```
+
+Theme rules can also include anonymous `q-style { ... }` blocks when the style is only used by that selector:
+
+```qhtml
+q-style body-panel { backgroundColor: #e2e8f0 }
+
+q-theme article-theme {
+  h3 { q-style { color: #1d4ed8 } }
+  .summary { q-style { color: #334155 } body-panel }
 }
 ```
 

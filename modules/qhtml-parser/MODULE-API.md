@@ -118,6 +118,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - style declarations and application:
       - `q-style name { q-style-class { classA classB } prop: value }`
       - `q-style-class` stores class tokens in the style definition
+      - `q-theme name { selector { q-style { prop: value } named-style } }` supports anonymous q-style blocks inside selector rules; they are lowered to private generated q-style definitions in rule order
       - applying the style merges classes into `class` and declarations into `style`
     - repeater and iterable model support:
       - `q-repeater` and `q-foreach` blocks

@@ -1,5 +1,13 @@
 # QHTML.js Change Log
 
+## Whats New in v6.9.2
+
+- Bumped the release line to `6.9.2` and refreshed the HUD documentation index assets.
+- Added `q-switch name { ... }` / `switch name { ... }` for scoped primitive lookup functions usable from handlers, interpolation, component code, and `qhtml(...)`.
+- Added `q-perf { ... }` for opt-in QDOM-backed performance aggregation on timers, signals, properties, workers, and component functions.
+- Refined `q-var name { ... }` documentation around stored primitive/object/array/function values, assignment through the q-var handle, scoped references, and dynamic QHTML fragments.
+- Refreshed the documentation runtime copies so doc pages can load their local QHTML bundle without parent-directory paths.
+
 ## Whats New in v6.9.0
 
 - Bumped the public release version to `6.9.0`.

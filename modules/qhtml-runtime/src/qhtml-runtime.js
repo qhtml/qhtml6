@@ -13,7 +13,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.9.2";
+  const RUNTIME_VERSION = "6.9.3";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -1110,6 +1110,10 @@
       __qhtmlFragment: true,
       source: coerceQHtmlFragmentSource(source),
     };
+  }
+
+  function isQVarRuntimeHandle(value) {
+    return !!(value && (typeof value === "object" || typeof value === "function") && value.__qhtmlVarHandle === true);
   }
 
   function readCallbackHostUuid(hostElement) {
@@ -13761,10 +13765,12 @@
       const value = map[name];
       binding.host.__qhtmlNamedRuntimeValues[name] = value;
       binding.host.__qhtmlScriptScope[name] = value;
-      try {
-        binding.host[name] = value;
-      } catch (error) {
-        // no-op
+      if (!isQVarRuntimeHandle(value)) {
+        try {
+          binding.host[name] = value;
+        } catch (error) {
+          // no-op
+        }
       }
       tracked.add(name);
     }
@@ -13866,7 +13872,7 @@
         if (!Object.prototype.hasOwnProperty.call(componentHost.__qhtmlScriptScope, name)) {
           componentHost.__qhtmlScriptScope[name] = rootValues[name];
         }
-        if (!Object.prototype.hasOwnProperty.call(componentHost, name)) {
+        if (!isQVarRuntimeHandle(rootValues[name]) && !Object.prototype.hasOwnProperty.call(componentHost, name)) {
           try {
             componentHost[name] = rootValues[name];
           } catch (error) {

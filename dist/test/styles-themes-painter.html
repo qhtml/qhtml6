@@ -354,7 +354,7 @@ q-timer accRefreshTimer {
           <h2>q-style, q-theme, and q-painter</h2>
           <span class="badge pending">section</span>
         </div>
-        <div class="test-expected"><strong>Includes:</strong> tests 4, 14, 15, 18, 41, 42, 43, 115, 117</div>
+        <div class="test-expected"><strong>Includes:</strong> tests 4, 14, 15, 18, 41, 42, 43, 115, 117, 118</div>
         <div style="padding:10px; font-size:13px; color:#425b78;">Style blocks, q-style, q-theme, q-style-class, default themes, q-painter, and q-transition coverage. <a href="test.html">Back to test index</a>.</div>
       </article>
       <article class="test-card" id="card-4">
@@ -592,6 +592,56 @@ onReady {
       acc.resultReported(117, value);
     }
   }, 420);
+}
+</q-html>
+      </article>
+      <article class="test-card" id="card-118">
+        <div class="test-head">
+          <h2>118. q-theme anonymous q-style rule blocks</h2>
+          <span id="badge-118" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t118-ok | color: #1d4ed8 | color: #334155 | background-color: #e2e8f0</div>
+<q-html id="host-t118" data-test-no="118">
+q-style body-panel-118 {
+  backgroundColor: #e2e8f0
+}
+
+q-theme anon-theme-118 {
+  h3 { q-style { color: #1d4ed8 } }
+  .summary118 { q-style { color: #334155 } body-panel-118 }
+}
+
+anon-theme-118 {
+  div {
+    h3#t118-title { text { Theme heading } }
+    p#t118-summary.summary118 { text { This paragraph uses anonymous and named q-styles. } }
+  }
+}
+
+div#t118-out { text { waiting } }
+
+onReady {
+  var host = this;
+  setTimeout(function() {
+    var acc = document.querySelector("#acc-main");
+    var out = host.querySelector("#t118-out");
+    var title = host.querySelector("#t118-title");
+    var summary = host.querySelector("#t118-summary");
+    var titleStyle = title ? String(title.getAttribute("style") || "").trim() : "";
+    var summaryStyle = summary ? String(summary.getAttribute("style") || "").trim() : "";
+    var ok = titleStyle.indexOf("color: #1d4ed8") >= 0 &&
+             summaryStyle.indexOf("color: #334155") >= 0 &&
+             summaryStyle.indexOf("background-color: #e2e8f0") >= 0;
+    var value = (ok ? "t118-ok" : "t118-fail") + " | " + titleStyle + " | " + summaryStyle;
+    if (out) {
+      out.textContent = value;
+    }
+    if (acc && typeof acc.outcomeReported === "function") {
+      acc.outcomeReported(118, ok, value);
+    } else if (acc && typeof acc.resultReported === "function") {
+      acc.resultReported(118, value);
+    }
+  }, 180);
 }
 </q-html>
       </article>

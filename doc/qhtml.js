@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-19T06:56:29Z */
+/* generated: 2026-05-20T01:25:11Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -1419,6 +1419,7 @@
   const ITERATIVE_MODEL_KEYWORDS = new Set(["q-array", "q-object", "q-map"]);
   const LAYOUT_KEYWORDS = new Set(["q-layout", "q-row", "q-col"]);
   const DEPRECATED_FEATURE_WARNED = new Set();
+  let anonymousQThemeStyleCounter = 0;
   const CANONICAL_KEYWORD_TARGETS = new Set([
     "q-component",
     "q-worker",
@@ -3631,7 +3632,7 @@
     return out;
   }
 
-  function parseQThemeRules(rawBody) {
+  function parseQThemeRules(rawBody, keywordAliases) {
     const parser = parserFor(String(rawBody || ""));
     const out = [];
     while (!eof(parser)) {
@@ -3646,10 +3647,11 @@
       }
       consume(parser);
       const body = String(readBalancedBlockContent(parser) || "").trim();
-      const styleNames = parseQPropertyNames(body);
+      const parsedBody = parseQThemeRuleBody(body, keywordAliases);
       out.push({
         selector: selector,
-        styles: styleNames,
+        styles: parsedBody.styles,
+        anonymousStyles: parsedBody.anonymousStyles,
       });
       skipWhitespaceAndSemicolons(parser);
       if (peek(parser) === ",") {
@@ -3657,6 +3659,59 @@
       }
     }
     return out;
+  }
+
+  function createAnonymousQThemeStyleName() {
+    anonymousQThemeStyleCounter += 1;
+    return "__qhtmlAnonymousThemeStyle" + String(anonymousQThemeStyleCounter);
+  }
+
+  function parseQThemeRuleBody(rawBody, keywordAliases) {
+    const parser = parserFor(String(rawBody || ""));
+    const styles = [];
+    const anonymousStyles = [];
+    const qStyleKeywords = collectAliasesTargeting(keywordAliases, "q-style");
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+      if (peek(parser) === ",") {
+        consume(parser);
+        continue;
+      }
+      const styleName = parseQColorIdentifier(parser, "q-theme");
+      const styleLower = String(styleName || "").trim().toLowerCase();
+      skipWhitespace(parser);
+      if (qStyleKeywords.has(styleLower) && peek(parser) === "{") {
+        consume(parser);
+        const styleBody = String(readBalancedBlockContent(parser) || "");
+        const parsedStyle = parseQStyleDeclarations(styleBody, keywordAliases);
+        const generatedName = createAnonymousQThemeStyleName();
+        anonymousStyles.push({
+          name: generatedName,
+          declarations: parsedStyle.declarations,
+          classes: parsedStyle.classes,
+          painters: parsedStyle.painters,
+          transitions: parsedStyle.transitions,
+        });
+        styles.push(generatedName);
+      } else if (styleName) {
+        styles.push(styleName);
+        if (peek(parser) === "{") {
+          consume(parser);
+          readBalancedBlockContent(parser);
+        }
+      }
+      skipWhitespaceAndSemicolons(parser);
+      if (peek(parser) === ",") {
+        consume(parser);
+      }
+    }
+    return {
+      styles: styles,
+      anonymousStyles: anonymousStyles,
+    };
   }
 
   function readBalancedParenthesizedContent(parser) {
@@ -4718,7 +4773,7 @@
             type: "QThemeDefinition",
             name: themeName,
             defaultTheme: false,
-            rules: parseQThemeRules(themeBody),
+            rules: parseQThemeRules(themeBody, scopedKeywordAliases),
             keywords: keywordSnapshot,
             start: itemStart,
             end: parser.index,
@@ -4738,7 +4793,7 @@
             type: "QThemeDefinition",
             name: themeName,
             defaultTheme: true,
-            rules: parseQThemeRules(themeBody),
+            rules: parseQThemeRules(themeBody, scopedKeywordAliases),
             keywords: keywordSnapshot,
             start: itemStart,
             end: parser.index,
@@ -6117,7 +6172,7 @@
             type: "QThemeDefinition",
             name: themeName,
             defaultTheme: false,
-            rules: parseQThemeRules(themeBody),
+            rules: parseQThemeRules(themeBody, scopedKeywordAliases),
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -6137,7 +6192,7 @@
             type: "QThemeDefinition",
             name: themeName,
             defaultTheme: true,
-            rules: parseQThemeRules(themeBody),
+            rules: parseQThemeRules(themeBody, scopedKeywordAliases),
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -11975,6 +12030,25 @@
       const styles = Array.isArray(rule.styles)
         ? rule.styles.map(function normalizeStyleName(entry) { return String(entry || "").trim(); }).filter(Boolean)
         : [];
+      const anonymousStyles = Array.isArray(rule.anonymousStyles) ? rule.anonymousStyles : [];
+      for (let asi = 0; asi < anonymousStyles.length; asi += 1) {
+        const anonymousStyle = anonymousStyles[asi];
+        if (!anonymousStyle || typeof anonymousStyle !== "object") {
+          continue;
+        }
+        const anonymousStyleName = String(anonymousStyle.name || "").trim();
+        if (!anonymousStyleName) {
+          continue;
+        }
+        registerQStyleDefinition(
+          styleContext,
+          anonymousStyleName,
+          anonymousStyle.declarations,
+          anonymousStyle.classes,
+          anonymousStyle.painters,
+          anonymousStyle.transitions
+        );
+      }
       if (!selector) {
         continue;
       }
@@ -16071,6 +16145,15 @@
   function assignQVarStateValue(state, next) {
     if (!state || typeof state !== "object") {
       return undefined;
+    }
+    if (isQVarHandle(next) && next.__qhtmlVarState === state) {
+      if (state.initialized && state.value === next) {
+        state.value = undefined;
+        state.previousValue = undefined;
+        state.initialized = false;
+        state.evaluating = false;
+      }
+      return readQVarStateValue(state);
     }
     const previous = state.initialized ? state.value : undefined;
     state.previousValue = previous;
@@ -24589,10 +24672,12 @@
     }
     hostElement.__qhtmlNamedRuntimeValues[name] = value;
     hostElement.__qhtmlScriptScope[name] = value;
-    try {
-      hostElement[name] = value;
-    } catch (ignoredAssignNamedAlias) {
-      // no-op
+    if (!isQVarHandle(value)) {
+      try {
+        hostElement[name] = value;
+      } catch (ignoredAssignNamedAlias) {
+        // no-op
+      }
     }
   }
 
@@ -27579,7 +27664,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.9.2";
+  const RUNTIME_VERSION = "6.9.3";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -28676,6 +28761,10 @@
       __qhtmlFragment: true,
       source: coerceQHtmlFragmentSource(source),
     };
+  }
+
+  function isQVarRuntimeHandle(value) {
+    return !!(value && (typeof value === "object" || typeof value === "function") && value.__qhtmlVarHandle === true);
   }
 
   function readCallbackHostUuid(hostElement) {
@@ -41327,10 +41416,12 @@
       const value = map[name];
       binding.host.__qhtmlNamedRuntimeValues[name] = value;
       binding.host.__qhtmlScriptScope[name] = value;
-      try {
-        binding.host[name] = value;
-      } catch (error) {
-        // no-op
+      if (!isQVarRuntimeHandle(value)) {
+        try {
+          binding.host[name] = value;
+        } catch (error) {
+          // no-op
+        }
       }
       tracked.add(name);
     }
@@ -41432,7 +41523,7 @@
         if (!Object.prototype.hasOwnProperty.call(componentHost.__qhtmlScriptScope, name)) {
           componentHost.__qhtmlScriptScope[name] = rootValues[name];
         }
-        if (!Object.prototype.hasOwnProperty.call(componentHost, name)) {
+        if (!isQVarRuntimeHandle(rootValues[name]) && !Object.prototype.hasOwnProperty.call(componentHost, name)) {
           try {
             componentHost[name] = rootValues[name];
           } catch (error) {
@@ -46479,7 +46570,7 @@
   }
 
   const api = runtime;
-  api.version = "6.9.1";
+  api.version = "6.9.3";
   global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {
