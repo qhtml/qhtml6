@@ -100,6 +100,9 @@ Primary implementation lives in:
   - Local palette UI with draggable widget items (no `q-builder-palette` dependency).
 - `q-component page-builder-app`
   - App composition shell that mounts sidebar, sticky toolbar actions, canvas/dropzone, and runtime host.
+- Canvas item edit dialog (`#pb-instance-editor`)
+  - Opened by the pencil button on dropped `q-builder-item` instances.
+  - Keeps its embedded `q-editor` at a 60vh minimum height and lets the dialog scroll vertically when viewport height is constrained.
 
 ### `dist/page-builder/page-builder-starter.qhtml` integration components
 - `q-component q-page-builder-frame`
