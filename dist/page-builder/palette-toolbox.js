@@ -831,7 +831,25 @@
     return index;
   }
 
-  function replaceSlotInComponentOccurrence(instanceSource, componentName, ordinal, slotName, slotSource) {
+  function slotSourceInInstanceBlock(instanceSource, slotName) {
+    var source = String(instanceSource || "").trim();
+    var roots = readQHtmlBlocks(source, 0, source.length);
+    var root = roots[0] || null;
+    var block;
+    if (!root || !slotName) {
+      return "";
+    }
+    block = directBlockByName(source, root.bodyStart, root.bodyEnd, slotName);
+    return block ? source.slice(block.bodyStart, block.bodyEnd).trim() : "";
+  }
+
+  function transformSlotInInstanceBlock(instanceSource, slotName, transform) {
+    var current = slotSourceInInstanceBlock(instanceSource, slotName);
+    var next = typeof transform === "function" ? transform(current) : current;
+    return replaceInstanceSlotSource(instanceSource, slotName, next);
+  }
+
+  function transformSlotInComponentOccurrence(instanceSource, componentName, ordinal, slotName, transform) {
     var source = String(instanceSource || "").trim();
     var wanted = String(componentName || "").trim().toLowerCase();
     var occurrence = Math.max(0, Number(ordinal) || 0);
@@ -869,7 +887,7 @@
       if (name.toLowerCase() === wanted) {
         if (count === occurrence) {
           blockSource = source.slice(nameStart, blockClose + 1);
-          nextBlock = replaceInstanceSlotSource(blockSource, slotName, slotSource);
+          nextBlock = transformSlotInInstanceBlock(blockSource, slotName, transform);
           return nextBlock ? source.slice(0, nameStart) + nextBlock + source.slice(blockClose + 1) : "";
         }
         count += 1;
@@ -877,6 +895,55 @@
       i = blockOpen + 1;
     }
     return "";
+  }
+
+  function qhtmlColumnSource(source) {
+    var body = formatQHtmlSource(source);
+    return "q-col {\n  width: \"1fr\"\n" + (body ? indentBlock(body, 1) + "\n" : "") + "}";
+  }
+
+  function appendColumnToLayoutSlotSource(slotSource, layoutBlock, dropSource) {
+    var source = String(slotSource || "").trim();
+    var layout = layoutBlock;
+    var row = directBlockByName(source, layout.bodyStart, layout.bodyEnd, Q.row);
+    var insertion;
+    if (row) {
+      insertion = "\n" + indentBlock(qhtmlColumnSource(dropSource), 2) + "\n";
+      return source.slice(0, row.end).trimEnd() + insertion + source.slice(row.end);
+    }
+    insertion = "\n" + indentBlock(qhtmlColumnSource(dropSource), 1) + "\n";
+    return source.slice(0, layout.end).trimEnd() + insertion + source.slice(layout.end);
+  }
+
+  function appendRightColumnToSlotSource(slotSource, dropSource) {
+    var existing = String(slotSource || "").trim();
+    var dropped = String(dropSource || "").trim();
+    var blocks;
+    var layout;
+    if (!dropped) {
+      return existing;
+    }
+    if (!existing) {
+      return dropped;
+    }
+    blocks = readQHtmlBlocks(existing, 0, existing.length);
+    layout = blocks.filter(function (block) {
+      return String(block.name || "").toLowerCase() === Q.layout;
+    })[0] || null;
+    if (layout) {
+      return formatQHtmlSource(appendColumnToLayoutSlotSource(existing, layout, dropped));
+    }
+    return formatQHtmlSource([
+      "q-layout {",
+      "  width: \"100%\"",
+      "  gap: \"8px\"",
+      "  q-row {",
+      "    height: \"auto\"",
+      indentBlock(qhtmlColumnSource(existing), 2),
+      indentBlock(qhtmlColumnSource(dropped), 2),
+      "  }",
+      "}"
+    ].join("\n"));
   }
 
   function renderedComponentHostForSlot(surface, owner) {
@@ -904,30 +971,100 @@
     return 0;
   }
 
-  function applyPaletteItemToRenderedSlot(intent, source, moving) {
+  function horizontalDistanceToSlotEdge(surface, line) {
+    var r = surface.getBoundingClientRect();
+    return Math.min(Math.abs(Number(line) - r.left), Math.abs(Number(line) - r.right));
+  }
+
+  function verticalOverlap(a, b) {
+    return Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+  }
+
+  function closestRenderedSlotSurfaceForIntent(intent) {
     var target = intent && (intent.target || intent.container);
-    var surface = target && target.closest ? target.closest("[data-pb-slot]") : null;
+    var directSurface = target && target.closest ? target.closest("[data-pb-slot]") : null;
+    var owner = target && target.closest ? target.closest(Q.item) : null;
+    var preview = owner && owner.querySelector ? owner.querySelector(":scope > .q-builder-item-preview") : null;
+    var point = intent && intent.point ? intent.point : null;
+    var lineX = intent && intent.type === "insert-col" ? Number(intent.line) : point ? Number(point.x) : NaN;
+    var containerRect = intent && intent.container && intent.container.getBoundingClientRect
+      ? intent.container.getBoundingClientRect()
+      : null;
+    var directDistance = directSurface && Number.isFinite(lineX) ? horizontalDistanceToSlotEdge(directSurface, lineX) : Infinity;
+    var candidates;
+    if (!intent || !preview || !Number.isFinite(lineX)) {
+      return directSurface;
+    }
+    candidates = arr(preview.querySelectorAll("[data-pb-slot]")).filter(function (surface) {
+      var r = surface.getBoundingClientRect();
+      if (surface.closest(Q.toolbox)) {
+        return false;
+      }
+      if (point) {
+        if (point.y < r.top || point.y > r.bottom) {
+          return false;
+        }
+      } else if (containerRect && verticalOverlap(r, containerRect) <= 0) {
+        return false;
+      }
+      return horizontalDistanceToSlotEdge(surface, lineX) <= directDistance;
+    }).sort(function (a, b) {
+      var ar = a.getBoundingClientRect();
+      var br = b.getBoundingClientRect();
+      var ad = horizontalDistanceToSlotEdge(a, lineX);
+      var bd = horizontalDistanceToSlotEdge(b, lineX);
+      if (ad !== bd) {
+        return ad - bd;
+      }
+      return ar.width * ar.height - br.width * br.height;
+    });
+    return candidates[0] || directSurface;
+  }
+
+  function shouldAppendRightColumnToRenderedSlot(intent, surface) {
+    var r;
+    var x;
+    var edge;
+    if (!intent || !surface || !surface.getBoundingClientRect) {
+      return false;
+    }
+    r = surface.getBoundingClientRect();
+    x = intent.point ? Number(intent.point.x) : intent.type === "insert-col" ? Number(intent.line) : NaN;
+    if (!Number.isFinite(x)) {
+      return false;
+    }
+    edge = Math.min(48, Math.max(18, r.width * 0.25));
+    return x >= r.right - edge && x <= r.right + edge;
+  }
+
+  function applyPaletteItemToRenderedSlot(intent, source, moving) {
+    var surface = closestRenderedSlotSurfaceForIntent(intent);
     var owner = surface && surface.closest ? surface.closest(Q.item) : null;
     var componentHost = renderedComponentHostForSlot(surface, owner);
     var slotName = surface ? surface.getAttribute("data-pb-slot") : "";
+    var droppedSource = source ? qhtmlInstanceSource(source) : "";
+    var slotTransform;
     var nextInstance;
     if (!surface || !owner || !slotName || !source || owner === source || (source.contains && source.contains(owner))) {
       return false;
     }
+    slotTransform = shouldAppendRightColumnToRenderedSlot(intent, surface)
+      ? function appendColumnSlotTransform(slotSource) { return appendRightColumnToSlotSource(slotSource, droppedSource); }
+      : function replaceSlotTransform() { return droppedSource; };
     if (componentHost) {
-      nextInstance = replaceSlotInComponentOccurrence(
+      nextInstance = transformSlotInComponentOccurrence(
         qhtmlInstanceSource(owner),
         tag(componentHost),
         renderedComponentOrdinal(owner, componentHost),
         slotName,
-        qhtmlInstanceSource(source)
+        slotTransform
       );
     }
     if (!nextInstance) {
-      nextInstance = replaceInstanceSlotSource(
+      nextInstance = transformSlotInInstanceBlock(
         qhtmlInstanceSource(owner),
         slotName,
-        qhtmlInstanceSource(source)
+        slotTransform
       );
     }
     if (!nextInstance) {
@@ -1692,7 +1829,11 @@
   var Resolver = {
     resolve: function (point, movingItem) {
       var layout = this.bestLayout(point);
-      return layout ? this.container(layout, point, movingItem) : null;
+      var intent = layout ? this.container(layout, point, movingItem) : null;
+      if (intent && point) {
+        intent.point = { x: point.x, y: point.y };
+      }
+      return intent;
     },
     bestLayout: function (point) {
       var layouts = arr(document.querySelectorAll(Q.layout)).filter(function (layout) {

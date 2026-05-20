@@ -103,6 +103,10 @@ Primary implementation lives in:
 - Canvas item edit dialog (`#pb-instance-editor`)
   - Opened by the pencil button on dropped `q-builder-item` instances.
   - Keeps its embedded `q-editor` at a 60vh minimum height and lets the dialog scroll vertically when viewport height is constrained.
+- Nested rendered slot drops
+  - Right-edge drops near a rendered component slot are applied to the nearest slot edge during the final insertion step without changing the visible drag highlight behavior.
+  - If the slot does not already contain a `q-layout`, the original slot contents are wrapped into the first `q-col` of a new `q-layout > q-row`, and the dropped palette item is inserted into a right-side `q-col`.
+  - If the slot already contains a `q-layout`, the dropped item is added as another `q-col` on the existing row, or directly to the layout when no row exists.
 
 ### `dist/page-builder/page-builder-starter.qhtml` integration components
 - `q-component q-page-builder-frame`
