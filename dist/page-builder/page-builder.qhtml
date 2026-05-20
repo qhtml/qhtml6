@@ -189,8 +189,8 @@ q-component page-builder-palette {
       q-palette-toolbox-button {
         name: "Layout: 1 Column"
         component: "pb-layout-one-col"
-        qhtml: ""
-        instance: "q-layout { width: \"100%\" gap: \"14px\" q-row { height: \"auto\" q-col { width: \"auto\" } } }"
+        qhtml: "q-layout { width: \"100%\" gap: \"14px\" q-row { height: \"auto\" q-col { width: \"1fr\" q-layout { data-pb-slot: \"onecolumncontent\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { onecolumncontent } } } } } } }"
+        instance: "pb-layout-one-col { text { Add one-column layout content here. } }"
         div.pb-palette-preview.layout {
           h3 { text { 1 Column } }
           p { text { One row, one column } }
@@ -200,8 +200,8 @@ q-component page-builder-palette {
       q-palette-toolbox-button {
         name: "Layout: 2 Columns"
         component: "pb-layout-two-col"
-        qhtml: ""
-        instance: "q-layout { width: \"100%\" gap: \"14px\" q-row { height: \"auto\" q-col { width: \"1fr\" } q-col { width: \"1fr\" } } }"
+        qhtml: "q-layout { width: \"100%\" gap: \"14px\" q-row { height: \"auto\" q-col { width: \"1fr\" q-layout { data-pb-slot: \"leftcolumn\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { leftcolumn } } } } } q-col { width: \"1fr\" q-layout { data-pb-slot: \"rightcolumn\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { rightcolumn } } } } } } }"
+        instance: "pb-layout-two-col { leftcolumn { text { Add left column content here. } } rightcolumn { text { Add right column content here. } } }"
         div.pb-palette-preview.layout {
           h3 { text { 2 Columns } }
           p { text { Equal columns } }
@@ -211,8 +211,8 @@ q-component page-builder-palette {
       q-palette-toolbox-button {
         name: "Layout: 3 Columns"
         component: "pb-layout-three-col"
-        qhtml: ""
-        instance: "q-layout { width: \"100%\" gap: \"14px\" q-row { height: \"auto\" q-col { width: \"1fr\" } q-col { width: \"1fr\" } q-col { width: \"1fr\" } } }"
+        qhtml: "q-layout { width: \"100%\" gap: \"14px\" q-row { height: \"auto\" q-col { width: \"1fr\" q-layout { data-pb-slot: \"leftcolumn\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { leftcolumn } } } } } q-col { width: \"1fr\" q-layout { data-pb-slot: \"middlecolumn\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { middlecolumn } } } } } q-col { width: \"1fr\" q-layout { data-pb-slot: \"rightcolumn\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { rightcolumn } } } } } } }"
+        instance: "pb-layout-three-col { leftcolumn { text { Add left column content here. } } middlecolumn { text { Add middle column content here. } } rightcolumn { text { Add right column content here. } } }"
         div.pb-palette-preview.layout {
           h3 { text { 3 Columns } }
           p { text { Equal thirds } }
@@ -222,8 +222,8 @@ q-component page-builder-palette {
       q-palette-toolbox-button {
         name: "Layout: 2 Rows"
         component: "pb-layout-two-row"
-        qhtml: ""
-        instance: "q-layout { width: \"100%\" gap: \"14px\" q-row { height: \"auto\" q-col { width: \"auto\" } } q-row { height: \"auto\" q-col { width: \"auto\" } } }"
+        qhtml: "q-layout { width: \"100%\" gap: \"14px\" q-row { height: \"auto\" q-col { width: \"1fr\" q-layout { data-pb-slot: \"toprow\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { toprow } } } } } } q-row { height: \"auto\" q-col { width: \"1fr\" q-layout { data-pb-slot: \"bottomrow\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { bottomrow } } } } } } }"
+        instance: "pb-layout-two-row { toprow { text { Add top row content here. } } bottomrow { text { Add bottom row content here. } } }"
         div.pb-palette-preview.layout {
           h3 { text { 2 Rows } }
           p { text { Vertical sections } }
@@ -233,8 +233,8 @@ q-component page-builder-palette {
       q-palette-toolbox-button {
         name: "Layout: Nested 1+2"
         component: "pb-layout-nested-one-two"
-        qhtml: ""
-        instance: "q-layout { width: \"100%\" gap: \"14px\" q-row { height: \"auto\" q-col { width: \"auto\" } } q-row { height: \"auto\" q-col { width: \"1fr\" } q-col { width: \"1fr\" } } }"
+        qhtml: "q-layout { width: \"100%\" gap: \"14px\" q-row { height: \"auto\" q-col { width: \"1fr\" q-layout { data-pb-slot: \"topcontent\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { topcontent } } } } } } q-row { height: \"auto\" q-col { width: \"1fr\" q-layout { data-pb-slot: \"leftcolumn\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { leftcolumn } } } } } q-col { width: \"1fr\" q-layout { data-pb-slot: \"rightcolumn\" width: \"100%\" gap: \"8px\" q-row { q-col { slot { rightcolumn } } } } } } }"
+        instance: "pb-layout-nested-one-two { topcontent { text { Add full-width top content here. } } leftcolumn { text { Add lower left content here. } } rightcolumn { text { Add lower right content here. } } }"
         div.pb-palette-preview.layout {
           h3 { text { 1 + 2 } }
           p { text { Header plus split row } }

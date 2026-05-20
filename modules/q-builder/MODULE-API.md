@@ -98,15 +98,18 @@ Primary implementation lives in:
   - Declarative buttons for source/export and highlight reset.
 - `q-component page-builder-sidebar`
   - Local palette UI with draggable widget items (no `q-builder-palette` dependency).
+  - Layout palette entries are component-backed items with explicit editable slots and visible default placeholder text for every region.
 - `q-component page-builder-app`
   - App composition shell that mounts sidebar, sticky toolbar actions, canvas/dropzone, and runtime host.
 - Canvas item edit dialog (`#pb-instance-editor`)
   - Opened by the pencil button on dropped `q-builder-item` instances.
   - Keeps its embedded `q-editor` at a 60vh minimum height and lets the dialog scroll vertically when viewport height is constrained.
 - Nested rendered slot drops
-  - Right-edge drops near a rendered component slot are applied to the nearest slot edge during the final insertion step without changing the visible drag highlight behavior.
-  - If the slot does not already contain a `q-layout`, the original slot contents are wrapped into the first `q-col` of a new `q-layout > q-row`, and the dropped palette item is inserted into a right-side `q-col`.
-  - If the slot already contains a `q-layout`, the dropped item is added as another `q-col` on the existing row, or directly to the layout when no row exists.
+  - Edge drops near a rendered component slot are applied to the nearest slot edge during the final insertion step.
+  - Left/right slot edge drops create or reuse a `q-layout > q-row` and place content in adjacent `q-col` nodes.
+  - Top/bottom slot edge drops create or reuse a `q-layout` and place content in adjacent `q-row` nodes.
+  - Existing canvas items move without using a fresh QDom append, so moving an item preserves the export editor and current canvas state.
+  - Edge drops on existing canvas items wrap the original item and dropped item into a directional nested layout.
 
 ### `dist/page-builder/page-builder-starter.qhtml` integration components
 - `q-component q-page-builder-frame`

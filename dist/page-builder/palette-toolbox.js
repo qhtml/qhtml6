@@ -484,6 +484,21 @@
     }
   }
 
+  function setQEditorRawSource(editor, source) {
+    var raw = String(source || "");
+    if (!editor) {
+      return;
+    }
+    if (typeof editor.setQhtmlSource === "function" && editor.querySelector && editor.querySelector(".qe")) {
+      editor.setQhtmlSource(raw);
+      return;
+    }
+    editor.textContent = raw;
+    if (typeof editor.setQhtmlSource === "function") {
+      editor.setQhtmlSource(raw);
+    }
+  }
+
   function readPaletteEditorSource(editor) {
     if (!editor) {
       return "";
@@ -902,22 +917,39 @@
     return "q-col {\n  width: \"1fr\"\n" + (body ? indentBlock(body, 1) + "\n" : "") + "}";
   }
 
-  function appendColumnToLayoutSlotSource(slotSource, layoutBlock, dropSource) {
+  function qhtmlRowSource(source) {
+    var body = formatQHtmlSource(source);
+    return "q-row {\n  height: \"auto\"\n  q-col {\n    width: \"1fr\"\n" + (body ? indentBlock(body, 2) + "\n" : "") + "  }\n}";
+  }
+
+  function insertDirectionalIntoLayoutSlotSource(slotSource, layoutBlock, dropSource, direction) {
     var source = String(slotSource || "").trim();
     var layout = layoutBlock;
     var row = directBlockByName(source, layout.bodyStart, layout.bodyEnd, Q.row);
     var insertion;
-    if (row) {
-      insertion = "\n" + indentBlock(qhtmlColumnSource(dropSource), 2) + "\n";
-      return source.slice(0, row.end).trimEnd() + insertion + source.slice(row.end);
+    var dir = String(direction || "right").toLowerCase();
+    if (dir === "left" || dir === "right") {
+      if (row) {
+        insertion = "\n" + indentBlock(qhtmlColumnSource(dropSource), 2) + "\n";
+        return dir === "left"
+          ? source.slice(0, row.bodyStart) + insertion + source.slice(row.bodyStart)
+          : source.slice(0, row.end).trimEnd() + insertion + source.slice(row.end);
+      }
+      insertion = "\n" + indentBlock(qhtmlColumnSource(dropSource), 1) + "\n";
+      return dir === "left"
+        ? source.slice(0, layout.bodyStart) + insertion + source.slice(layout.bodyStart)
+        : source.slice(0, layout.end).trimEnd() + insertion + source.slice(layout.end);
     }
-    insertion = "\n" + indentBlock(qhtmlColumnSource(dropSource), 1) + "\n";
-    return source.slice(0, layout.end).trimEnd() + insertion + source.slice(layout.end);
+    insertion = "\n" + indentBlock(qhtmlRowSource(dropSource), 1) + "\n";
+    return dir === "top"
+      ? source.slice(0, layout.bodyStart) + insertion + source.slice(layout.bodyStart)
+      : source.slice(0, layout.end).trimEnd() + insertion + source.slice(layout.end);
   }
 
-  function appendRightColumnToSlotSource(slotSource, dropSource) {
+  function appendDirectionalToSlotSource(slotSource, dropSource, direction) {
     var existing = String(slotSource || "").trim();
     var dropped = String(dropSource || "").trim();
+    var dir = String(direction || "right").toLowerCase();
     var blocks;
     var layout;
     if (!dropped) {
@@ -931,7 +963,17 @@
       return String(block.name || "").toLowerCase() === Q.layout;
     })[0] || null;
     if (layout) {
-      return formatQHtmlSource(appendColumnToLayoutSlotSource(existing, layout, dropped));
+      return formatQHtmlSource(insertDirectionalIntoLayoutSlotSource(existing, layout, dropped, dir));
+    }
+    if (dir === "top" || dir === "bottom") {
+      return formatQHtmlSource([
+        "q-layout {",
+        "  width: \"100%\"",
+        "  gap: \"8px\"",
+        dir === "top" ? indentBlock(qhtmlRowSource(dropped), 1) : indentBlock(qhtmlRowSource(existing), 1),
+        dir === "top" ? indentBlock(qhtmlRowSource(existing), 1) : indentBlock(qhtmlRowSource(dropped), 1),
+        "}"
+      ].join("\n"));
     }
     return formatQHtmlSource([
       "q-layout {",
@@ -939,8 +981,8 @@
       "  gap: \"8px\"",
       "  q-row {",
       "    height: \"auto\"",
-      indentBlock(qhtmlColumnSource(existing), 2),
-      indentBlock(qhtmlColumnSource(dropped), 2),
+      dir === "left" ? indentBlock(qhtmlColumnSource(dropped), 2) : indentBlock(qhtmlColumnSource(existing), 2),
+      dir === "left" ? indentBlock(qhtmlColumnSource(existing), 2) : indentBlock(qhtmlColumnSource(dropped), 2),
       "  }",
       "}"
     ].join("\n"));
@@ -976,6 +1018,40 @@
     return Math.min(Math.abs(Number(line) - r.left), Math.abs(Number(line) - r.right));
   }
 
+  function edgeDistanceForPoint(rect, point) {
+    if (!rect || !point) {
+      return Infinity;
+    }
+    return Math.min(
+      Math.abs(Number(point.x) - rect.left),
+      Math.abs(Number(point.x) - rect.right),
+      Math.abs(Number(point.y) - rect.top),
+      Math.abs(Number(point.y) - rect.bottom)
+    );
+  }
+
+  function edgeDirectionForPoint(rect, point, fallback) {
+    var distances;
+    var ordered;
+    if (!rect || !point) {
+      return fallback || "right";
+    }
+    distances = {
+      left: Math.abs(Number(point.x) - rect.left),
+      right: Math.abs(Number(point.x) - rect.right),
+      top: Math.abs(Number(point.y) - rect.top),
+      bottom: Math.abs(Number(point.y) - rect.bottom)
+    };
+    ordered = Object.keys(distances).sort(function (a, b) {
+      return distances[a] - distances[b];
+    });
+    return ordered[0] || fallback || "right";
+  }
+
+  function pointInRect(point, rect) {
+    return !!(point && rect && point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom);
+  }
+
   function verticalOverlap(a, b) {
     return Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
   }
@@ -1007,12 +1083,12 @@
       } else if (containerRect && verticalOverlap(r, containerRect) <= 0) {
         return false;
       }
-      return horizontalDistanceToSlotEdge(surface, lineX) <= directDistance;
+      return point ? edgeDistanceForPoint(r, point) <= directDistance : horizontalDistanceToSlotEdge(surface, lineX) <= directDistance;
     }).sort(function (a, b) {
       var ar = a.getBoundingClientRect();
       var br = b.getBoundingClientRect();
-      var ad = horizontalDistanceToSlotEdge(a, lineX);
-      var bd = horizontalDistanceToSlotEdge(b, lineX);
+      var ad = point ? edgeDistanceForPoint(ar, point) : horizontalDistanceToSlotEdge(a, lineX);
+      var bd = point ? edgeDistanceForPoint(br, point) : horizontalDistanceToSlotEdge(b, lineX);
       if (ad !== bd) {
         return ad - bd;
       }
@@ -1021,20 +1097,27 @@
     return candidates[0] || directSurface;
   }
 
-  function shouldAppendRightColumnToRenderedSlot(intent, surface) {
+  function directionalRenderedSlotDrop(intent, surface) {
     var r;
-    var x;
     var edge;
+    var point;
     if (!intent || !surface || !surface.getBoundingClientRect) {
-      return false;
+      return "";
     }
     r = surface.getBoundingClientRect();
-    x = intent.point ? Number(intent.point.x) : intent.type === "insert-col" ? Number(intent.line) : NaN;
-    if (!Number.isFinite(x)) {
-      return false;
+    point = intent.point || null;
+    if (!point) {
+      if (intent.type === "insert-col") {
+        point = { x: Number(intent.line), y: r.top + r.height / 2 };
+      } else if (intent.type === "insert-row") {
+        point = { x: r.left + r.width / 2, y: Number(intent.line) };
+      }
     }
-    edge = Math.min(48, Math.max(18, r.width * 0.25));
-    return x >= r.right - edge && x <= r.right + edge;
+    if (!point || !Number.isFinite(Number(point.x)) || !Number.isFinite(Number(point.y))) {
+      return "";
+    }
+    edge = Math.min(48, Math.max(18, Math.min(r.width, r.height) * 0.25));
+    return edgeDistanceForPoint(r, point) <= edge ? edgeDirectionForPoint(r, point, "right") : "";
   }
 
   function applyPaletteItemToRenderedSlot(intent, source, moving) {
@@ -1043,13 +1126,14 @@
     var componentHost = renderedComponentHostForSlot(surface, owner);
     var slotName = surface ? surface.getAttribute("data-pb-slot") : "";
     var droppedSource = source ? qhtmlInstanceSource(source) : "";
+    var direction = directionalRenderedSlotDrop(intent, surface);
     var slotTransform;
     var nextInstance;
     if (!surface || !owner || !slotName || !source || owner === source || (source.contains && source.contains(owner))) {
       return false;
     }
-    slotTransform = shouldAppendRightColumnToRenderedSlot(intent, surface)
-      ? function appendColumnSlotTransform(slotSource) { return appendRightColumnToSlotSource(slotSource, droppedSource); }
+    slotTransform = direction
+      ? function appendDirectionalSlotTransform(slotSource) { return appendDirectionalToSlotSource(slotSource, droppedSource, direction); }
       : function replaceSlotTransform() { return droppedSource; };
     if (componentHost) {
       nextInstance = transformSlotInComponentOccurrence(
@@ -1816,6 +1900,25 @@
         this.el.style.top = r.top + "px";
         this.el.style.width = "7px";
         this.el.style.height = r.height + "px";
+        return;
+      }
+      if (intent.type === "item-edge") {
+        r = intent.target.getBoundingClientRect();
+        if (intent.direction === "top" || intent.direction === "bottom") {
+          y = intent.direction === "top" ? r.top : r.bottom;
+          this.el.classList.add("row-line");
+          this.el.style.left = r.left + "px";
+          this.el.style.top = y - 3.5 + "px";
+          this.el.style.width = r.width + "px";
+          this.el.style.height = "7px";
+          return;
+        }
+        x = intent.direction === "left" ? r.left : r.right;
+        this.el.classList.add("col-line");
+        this.el.style.left = x - 3.5 + "px";
+        this.el.style.top = r.top + "px";
+        this.el.style.width = "7px";
+        this.el.style.height = r.height + "px";
       }
     },
     hide: function () {
@@ -1829,11 +1932,39 @@
   var Resolver = {
     resolve: function (point, movingItem) {
       var layout = this.bestLayout(point);
-      var intent = layout ? this.container(layout, point, movingItem) : null;
+      var intent = this.itemEdge(point, movingItem) || (layout ? this.container(layout, point, movingItem) : null);
       if (intent && point) {
         intent.point = { x: point.x, y: point.y };
       }
       return intent;
+    },
+    itemEdge: function (point, movingItem) {
+      var candidates;
+      if (!point) {
+        return null;
+      }
+      candidates = arr(document.querySelectorAll(Q.item)).filter(function (item) {
+        var r;
+        var edge;
+        if (item.closest(Q.toolbox)) { return false; }
+        if (movingItem && (item === movingItem || movingItem.contains(item) || item.contains(movingItem))) { return false; }
+        r = item.getBoundingClientRect();
+        if (!pointInRect(point, r)) { return false; }
+        edge = Math.min(54, Math.max(18, Math.min(r.width, r.height) * 0.28));
+        return edgeDistanceForPoint(r, point) <= edge;
+      }).sort(function (a, b) {
+        var ar = a.getBoundingClientRect();
+        var br = b.getBoundingClientRect();
+        return ar.width * ar.height - br.width * br.height;
+      });
+      if (!candidates.length) {
+        return null;
+      }
+      return {
+        type: "item-edge",
+        target: candidates[0],
+        direction: edgeDirectionForPoint(candidates[0].getBoundingClientRect(), point, "right")
+      };
     },
     bestLayout: function (point) {
       var layouts = arr(document.querySelectorAll(Q.layout)).filter(function (layout) {
@@ -1921,6 +2052,95 @@
     }
   };
 
+  function appendItemToCol(col, item) {
+    if (!col || !item) {
+      return;
+    }
+    col.appendChild(item);
+    if (typeof item.ensureInstanceEditButton === "function") {
+      item.ensureInstanceEditButton();
+    }
+  }
+
+  function cleanupMovedFromCell(cell, root) {
+    var row;
+    if (!cell || !cell.isConnected || cell.querySelector(Q.item) || direct(cell, Q.layout).length || direct(cell, Q.row).length) {
+      return;
+    }
+    row = cell.closest ? cell.closest(Q.row) : null;
+    cell.remove();
+    if (row && row.isConnected && direct(row, Q.col).length === 0) {
+      row.remove();
+    }
+    if (root) {
+      ensureCanvasPlaceholder(root);
+    }
+  }
+
+  function createDirectionalItemLayout(target, payload, direction) {
+    var layout = make(Q.layout, { width: "100%", gap: "8px" });
+    var firstRow;
+    var secondRow;
+    var firstCol;
+    var secondCol;
+    var dir = String(direction || "right").toLowerCase();
+    if (dir === "top" || dir === "bottom") {
+      firstRow = make(Q.row, { height: "auto" });
+      secondRow = make(Q.row, { height: "auto" });
+      firstCol = make(Q.col, { width: "1fr" });
+      secondCol = make(Q.col, { width: "1fr" });
+      firstRow.appendChild(firstCol);
+      secondRow.appendChild(secondCol);
+      layout.appendChild(firstRow);
+      layout.appendChild(secondRow);
+      appendItemToCol(dir === "top" ? firstCol : secondCol, payload);
+      appendItemToCol(dir === "top" ? secondCol : firstCol, target);
+      return layout;
+    }
+    firstRow = make(Q.row, { height: "auto" });
+    firstCol = make(Q.col, { width: "1fr" });
+    secondCol = make(Q.col, { width: "1fr" });
+    firstRow.appendChild(firstCol);
+    firstRow.appendChild(secondCol);
+    layout.appendChild(firstRow);
+    appendItemToCol(dir === "left" ? firstCol : secondCol, payload);
+    appendItemToCol(dir === "left" ? secondCol : firstCol, target);
+    return layout;
+  }
+
+  function applyItemEdgeDrop(intent, source, moving) {
+    var target = intent && intent.target;
+    var payload;
+    var parent;
+    var oldCell;
+    var root;
+    var wrapper;
+    var marker;
+    if (!target || !source || target === source || (source.contains && source.contains(target)) || (target.contains && target.contains(source))) {
+      return false;
+    }
+    payload = moving ? source.createPayload() : source.createPayload();
+    if (!payload) {
+      return false;
+    }
+    parent = target.parentNode;
+    if (!parent) {
+      return false;
+    }
+    oldCell = moving && source.closest ? source.closest(Q.col) : null;
+    root = rootOf(target) || rootOf(source);
+    marker = document.createTextNode("");
+    parent.insertBefore(marker, target);
+    wrapper = createDirectionalItemLayout(target, payload, intent.direction);
+    parent.replaceChild(wrapper, marker);
+    schedule(wrapper);
+    cleanupMovedFromCell(oldCell, root);
+    relayout(root || wrapper);
+    BuilderStore.saveSoon();
+    renderLayoutSoon("Canvas item moved");
+    return true;
+  }
+
   var Applier = {
     apply: function (intent, source, moving) {
       var row;
@@ -1929,7 +2149,11 @@
       var payloadSource;
       var qrow;
       var qcol;
+      var oldCell;
       if (!intent || !source) { return; }
+      if (intent.type === "item-edge" && applyItemEdgeDrop(intent, source, moving)) {
+        return;
+      }
       if (applyPaletteItemToRenderedSlot(intent, source, moving)) {
         return;
       }
@@ -1940,10 +2164,11 @@
       payloadSource = typeof source.sourceQHtml === "function" ? source.sourceQHtml() : payloadQHtmlFromSource(source);
       payload = moving ? source.createPayload() : source.createPayload();
       if (!payload && !payloadSource) { return; }
+      oldCell = moving && source.closest ? source.closest(Q.col) : null;
 
       if (intent.type === "replace") {
         if (moving && (intent.target === payload || payload.contains(intent.target))) { return; }
-        if (payloadSource && replaceQDomWithQHtml(intent.target, "q-col { width: \"auto\"\n" + indentBlock(payloadSource, 1) + "\n}")) {
+        if (!moving && payloadSource && replaceQDomWithQHtml(intent.target, "q-col { width: \"auto\"\n" + indentBlock(payloadSource, 1) + "\n}")) {
           if (moving && source && typeof source.remove === "function") {
             source.remove();
           }
@@ -1952,20 +2177,18 @@
         }
         intent.target.innerHTML = "";
         intent.target.appendChild(payload);
+        cleanupMovedFromCell(oldCell, rootOf(intent.target));
         schedule(intent.target);
         BuilderStore.saveSoon();
         return;
       }
 
       if (intent.type === "insert-row") {
-        qrow = insertQDomRow(intent.container, intent.index, { height: "auto" });
+        qrow = moving ? null : insertQDomRow(intent.container, intent.index, { height: "auto" });
         if (qrow && typeof qrow.addCol === "function" && payloadSource) {
           qcol = qrow.addCol(Infinity, { width: "auto" });
           if (qcol && typeof qcol.appendNode === "function") {
             qcol.appendNode(payloadSource);
-            if (moving && source && typeof source.remove === "function") {
-              source.remove();
-            }
             BuilderStore.saveSoon();
             renderLayoutSoon("Canvas updated");
             return;
@@ -1974,24 +2197,23 @@
         row = intent.container.addRow(intent.index, { height: "auto" });
         col = row.addCol(Infinity, { width: "auto" });
         col.appendChild(payload);
+        cleanupMovedFromCell(oldCell, rootOf(intent.container));
         schedule(intent.container);
         BuilderStore.saveSoon();
         return;
       }
 
       if (intent.type === "insert-col") {
-        qcol = insertQDomCol(intent.container, intent.index, { width: "auto" });
+        qcol = moving ? null : insertQDomCol(intent.container, intent.index, { width: "auto" });
         if (qcol && typeof qcol.appendNode === "function" && payloadSource) {
           qcol.appendNode(payloadSource);
-          if (moving && source && typeof source.remove === "function") {
-            source.remove();
-          }
           BuilderStore.saveSoon();
           renderLayoutSoon("Canvas updated");
           return;
         }
         col = intent.container.addCol(intent.index, { width: "auto" });
         col.appendChild(payload);
+        cleanupMovedFromCell(oldCell, rootOf(intent.container));
         schedule(intent.container);
         BuilderStore.saveSoon();
       }
@@ -2554,15 +2776,7 @@
 
   function clearCanvas() {
     var layout = document.getElementById("pb-builder-layout");
-    var qdom;
     if (!layout) { return; }
-    qdom = qdomOf(layout);
-    if (qdom && typeof qdom.replaceWithQHTML === "function") {
-      qdom.replaceWithQHTML("q-layout#pb-builder-layout { width: \"100%\" gap: \"14px\" }", rootQDom());
-      renderLayoutSoon("Canvas cleared");
-      BuilderStore.saveSoon();
-      return;
-    }
     layout.innerHTML = "";
     relayout(layout);
     BuilderStore.saveSoon();
@@ -2625,7 +2839,7 @@
     var output = document.getElementById("pb-export-output");
     var source = exportQHtml();
     if (output) {
-      setPaletteEditorSource(output, source);
+      setQEditorRawSource(output, source);
       if (focusOutput && typeof output.focus === "function") {
         output.focus();
       }
