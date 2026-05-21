@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.9.3
+# QHTML.js v6.9.4
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,9 +12,10 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v6.9.3
+## Whats New in v6.9.4
 
-- Bumped the release line to `6.9.3`.
+- Bumped the release line to `6.9.4`.
+- Fixed `<particle-emitter>` / `<q-particle-emitter>` sprite composition so loaded `src` images remain visible while `color` applies as an optional transparent overlay or masked backdrop through `colorOpacity` / `color-opacity`.
 - Fixed q-var function handles so exporting named q-var values no longer writes the handle back into its own state, preventing maximum-call-stack recursion in inline expressions and event handlers.
 - Added anonymous `q-style { ... }` blocks inside `q-theme` selector rules so one-off theme styles can be declared inline beside named q-style references.
 - Updated the styles/themes documentation and test coverage for anonymous q-style usage in q-theme rules.
@@ -746,7 +747,7 @@ Useful attributes:
 - `startSize`, `endSize`, `startOpacity`, `endOpacity`: interpolation values over each particle lifetime.
 - `maxActiveParticles`: maximum simultaneous particles.
 - `maxParticles` or `stopAfter`: optional total particle limit before auto-stopping.
-- `src`, `mask`, `color`: sprite source, optional per-particle alpha mask, and fallback/tint color. Changing `mask` at runtime reloads and recomposes the particle sprite.
+- `src`, `mask`, `color`, `colorOpacity` / `color-opacity`: sprite source, optional per-particle alpha mask, and fallback/tint color. When `src` is present, the source image remains visible; `color` is applied as a transparent overlay or masked backdrop instead of replacing the image pixels. Set `colorOpacity` / `color-opacity` to `0` to disable the color effect.
 - `emitterMask` / `emitter-mask`: optional emitter-area alpha mask. Particles whose centers fall outside non-transparent mask pixels are skipped during rendering.
 
 Useful methods:

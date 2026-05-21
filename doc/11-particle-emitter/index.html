@@ -216,7 +216,7 @@ button { text { Clear } onclick { document.querySelector("#fx").clear(); } }</q-
     wiki-example-card {
       title: "7. Sprite attributes"
       summary: "Particles draw either a composed sprite canvas or a fallback colored circle."
-      note: "The mask attribute is applied to each particle sprite's alpha, not to the whole emitter canvas. The emitterMask attribute is different: it is an emitter-area alpha mask, and particles whose centers fall on transparent mask pixels are skipped during rendering. Images are loaded with crossOrigin=\"anonymous\"."
+      note: "The mask attribute is applied to each particle sprite's alpha, not to the whole emitter canvas. The color attribute never replaces a loaded src image: with src plus mask it is drawn behind the image and clipped by the mask, and with src alone it is drawn as a transparent overlay. Set colorOpacity to 0 to disable the color effect. The emitterMask attribute is different: it is an emitter-area alpha mask, and particles whose centers fall on transparent mask pixels are skipped during rendering. Images are loaded with crossOrigin=\"anonymous\"."
       details {
         html { <q-editor>div#sprite-demo {
   style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #330d12; }

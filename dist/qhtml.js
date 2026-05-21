@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-20T01:25:11Z */
+/* generated: 2026-05-21T03:36:18Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -27664,7 +27664,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.9.3";
+  const RUNTIME_VERSION = "6.9.4";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -46570,7 +46570,7 @@
   }
 
   const api = runtime;
-  api.version = "6.9.3";
+  api.version = "6.9.4";
   global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {
@@ -46644,6 +46644,8 @@
     "running",
     "interval",
     "color",
+    "color-opacity",
+    "coloropacity",
     "src",
     "mask",
     "emitter-mask",
@@ -46694,6 +46696,7 @@
         src: this._config.src,
         mask: this._config.mask,
         color: this._config.color,
+        colorOpacity: this._config.colorOpacity,
       });
       this._emitterMask.configure(this._config.emitterMask);
       this._startLoop();
@@ -46722,6 +46725,7 @@
         src: this._config.src,
         mask: this._config.mask,
         color: this._config.color,
+        colorOpacity: this._config.colorOpacity,
       });
       this._emitterMask.configure(this._config.emitterMask);
 
@@ -47042,6 +47046,7 @@
         running: readBool(el, "running", false),
         interval: Math.max(1, number("interval", 16.666)),
         color: text("color", ""),
+        colorOpacity: readAttr(el, "colorOpacity") == null ? null : clamp(number("colorOpacity", 1), 0, 1),
         src: text("src", ""),
         mask: text("mask", ""),
         emitterMask: text("emitterMask", ""),
@@ -47239,13 +47244,19 @@
       this.src = "";
       this.mask = "";
       this.color = "";
+      this.colorOpacity = null;
       this.srcImage = null;
       this.maskImage = null;
       this.ready = false;
     }
 
-    configure({ src, mask, color }) {
-      const changed = src !== this.src || mask !== this.mask || color !== this.color;
+    configure({ src, mask, color, colorOpacity }) {
+      const normalizedColorOpacity = colorOpacity == null ? null : clamp(Number(colorOpacity), 0, 1);
+      const changed =
+        src !== this.src ||
+        mask !== this.mask ||
+        color !== this.color ||
+        normalizedColorOpacity !== this.colorOpacity;
 
       if (!changed) {
         return;
@@ -47254,6 +47265,7 @@
       this.src = src;
       this.mask = mask;
       this.color = color;
+      this.colorOpacity = normalizedColorOpacity;
       this.ready = false;
       this.srcImage = null;
       this.maskImage = null;
@@ -47288,8 +47300,17 @@
       const hasSrc = Boolean(this.srcImage);
       const hasMask = Boolean(this.maskImage);
       const hasColor = Boolean(this.color);
+      const colorOpacity = this.colorOpacity == null
+        ? hasSrc && !hasMask ? 0.28 : 1
+        : clamp(this.colorOpacity, 0, 1);
 
-      if (hasSrc) {
+      if (hasSrc && hasMask && hasColor && colorOpacity > 0) {
+        ctx.globalAlpha = colorOpacity;
+        ctx.fillStyle = this.color;
+        ctx.fillRect(0, 0, baseSize, baseSize);
+        ctx.globalAlpha = 1;
+        ctx.drawImage(this.srcImage, 0, 0, baseSize, baseSize);
+      } else if (hasSrc) {
         ctx.drawImage(this.srcImage, 0, 0, baseSize, baseSize);
       } else if (hasMask) {
         ctx.drawImage(this.maskImage, 0, 0, baseSize, baseSize);
@@ -47306,7 +47327,14 @@
         ctx.globalCompositeOperation = "source-over";
       }
 
-      if (hasColor) {
+      if (hasSrc && !hasMask && hasColor && colorOpacity > 0) {
+        ctx.globalCompositeOperation = "source-atop";
+        ctx.globalAlpha = colorOpacity;
+        ctx.fillStyle = this.color;
+        ctx.fillRect(0, 0, baseSize, baseSize);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "source-over";
+      } else if (hasColor && !hasSrc && colorOpacity > 0) {
         ctx.globalCompositeOperation = "source-in";
         ctx.fillStyle = this.color;
         ctx.fillRect(0, 0, baseSize, baseSize);

@@ -556,7 +556,7 @@
       const DEFAULT_PARTICLE_SRC="/packages/qhtml6/dist/assets/particle.png";
       const FIELD_GROUPS=[
         {title:"Identity",className:"field-group",fields:[{attr:"emitter-name",label:"Name",type:"text",value:"Emitter"},{attr:"id",label:"Element ID",type:"text",value:""},{attr:"running",label:"Running",type:"checkbox",value:"true"},{attr:"qhtml-unsynced",label:"QHTML Unsynced",type:"text",value:"1"}]},
-        {title:"Sprite / Image",className:"field-group double",fields:[{attr:"src",label:"Image src",type:"src",value:DEFAULT_PARTICLE_SRC},{attr:"mask",label:"Sprite mask",type:"src",value:""},{attr:"emitter-mask",label:"Emitter mask",type:"src",value:""},{attr:"color",label:"Tint Color",type:"color",value:"#08c473"}]},
+        {title:"Sprite / Image",className:"field-group double",fields:[{attr:"src",label:"Image src",type:"src",value:DEFAULT_PARTICLE_SRC},{attr:"mask",label:"Sprite mask",type:"src",value:""},{attr:"emitter-mask",label:"Emitter mask",type:"src",value:""},{attr:"color",label:"Tint Color",type:"color",value:"#08c473"},{attr:"color-opacity",label:"Tint Opacity",type:"number",value:"0.28",step:"0.01",min:"0",max:"1"}]},
         {title:"Emission",className:"field-group",fields:[{attr:"emitrate",label:"Emit Rate",type:"number",value:"74",step:"1"},{attr:"interval",label:"Interval",type:"number",value:"10",step:"1"},{attr:"maxactiveparticles",label:"Max Active",type:"number",value:"166",step:"1"},{attr:"maxactiveparticlesvariation",label:"Max Active Variation",type:"number",value:"18",step:"1"}]},
         {title:"Lifetime",className:"field-group",fields:[{attr:"lifetime",label:"Lifetime",type:"number",value:"700",step:"1"},{attr:"lifetimevariation",label:"Lifetime Variation",type:"number",value:"90",step:"1"}]},
         {title:"Position",className:"field-group",fields:[{attr:"x",label:"X",type:"number",value:"110",step:"1"},{attr:"y",label:"Y",type:"number",value:"114",step:"1"},{attr:"xvariation",label:"X Variation",type:"number",value:"845",step:"1"},{attr:"yvariation",label:"Y Variation",type:"number",value:"20",step:"1"}]},
@@ -567,7 +567,7 @@
         {title:"Element Style",className:"field-group full",fields:[{attr:"style",label:"Style",type:"textarea",value:"position: absolute; inset: 0px; display: block; pointer-events: none; overflow: hidden; z-index: 1;"}]}
       ];
       const EXPORT_ATTR_NAMES={
-        id:"id",running:"running",src:"src",mask:"mask","emitter-mask":"emitterMask",color:"color",style:"style",
+        id:"id",running:"running",src:"src",mask:"mask","emitter-mask":"emitterMask",color:"color","color-opacity":"colorOpacity",style:"style",
         emitrate:"emitRate",interval:"interval",maxactiveparticles:"maxActiveParticles",maxactiveparticlesvariation:"maxActiveParticlesVariation",
         lifetime:"lifetime",lifetimevariation:"lifetimeVariation",
         x:"x",y:"y",xvariation:"xVariation",yvariation:"yVariation",

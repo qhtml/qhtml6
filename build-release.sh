@@ -5,6 +5,7 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd -- "$SCRIPT_DIR" && pwd)
 DIST_DIR="$PROJECT_ROOT/dist"
 OUT_FILE="$DIST_DIR/qhtml.js"
+DOC_OUT_FILE="$PROJECT_ROOT/doc/qhtml.js"
 
 mkdir -p "$DIST_DIR"
 
@@ -41,3 +42,8 @@ done
 } > "$OUT_FILE"
 
 echo "Wrote $OUT_FILE"
+
+if [[ -d "$PROJECT_ROOT/doc" ]]; then
+  cp "$OUT_FILE" "$DOC_OUT_FILE"
+  echo "Wrote $DOC_OUT_FILE"
+fi
