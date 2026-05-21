@@ -2539,6 +2539,56 @@ onReady {
 }
 </q-html>
       </article>
+      <article class="test-card" id="card-129">
+        <div class="test-head">
+          <h2>129. q-layout q-row stacks columns responsively</h2>
+          <span id="badge-129" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> stacked | wide</div>
+<q-html id="host-t129" data-test-no="129">
+div#t129-box {
+  style { width: 260px; maxWidth: 100%; border: 1px solid #cbd5e1; padding: 6px; }
+
+  q-layout#t129-layout {
+    width: "100%"
+    gap: "8px"
+    q-row#t129-row {
+      stackAt: "360px"
+      gap: "8px"
+      q-col { width: "1fr" div { text { Left } } }
+      q-col { width: "1fr" div { text { Right } } }
+    }
+  }
+}
+
+div#t129-out { text { waiting } }
+
+onReady {
+  var host = this;
+  setTimeout(function() {
+    var box = host.querySelector("#t129-box");
+    var row = host.querySelector("#t129-row");
+    var acc = document.querySelector("#acc-main");
+    var first = row && row.__qhtmlLayoutResponsiveStacked ? "stacked" : "not-stacked";
+    if (box) {
+      box.style.width = "520px";
+    }
+    if (row && typeof row.relayout === "function") {
+      row.relayout();
+    }
+    setTimeout(function() {
+      var second = row && !row.__qhtmlLayoutResponsiveStacked ? "wide" : "still-stacked";
+      var actual = first + " | " + second;
+      var out = host.querySelector("#t129-out");
+      if (out) { out.textContent = actual; }
+      if (acc && typeof acc.outcomeReported === "function") {
+        acc.outcomeReported(129, actual === "stacked | wide", actual);
+      }
+    }, 80);
+  }, 140);
+}
+</q-html>
+      </article>
     </section>
   </div>
 </body>

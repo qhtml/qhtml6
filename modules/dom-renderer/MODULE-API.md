@@ -107,6 +107,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - they render as lightweight layout DOM tags with built-in grid/table-like CSS behavior
   - `q-layout` defaults to row stacking; `q-row` defaults to column stacking; `q-col` can host nested rows, columns, or layouts
   - `width`, `height`, and `gap` accept normal CSS values; bare numbers are treated as pixels
+  - `q-row` automatically stacks direct `q-col` children vertically when its inline size is too narrow for the configured columns, and restores the normal columns when space is available; tune with `stackAt` / `stack-at` or `minColWidth` / `min-col-width`, or disable with `responsive="false"` / `stack="never"`
   - child context is pass-through, so layout wrappers do not create lexical QContext scopes and named references remain visible through nested layouts and projected slots
   - rendered layout elements expose `rows()`, `row(index)`, `cols()`, `col(index)`, `addRow(...)`, `addCol(...)`, `addLayout(...)`, `removeRow(...)`, `removeCol(...)`, and `relayout()`
 

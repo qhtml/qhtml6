@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-21T03:36:18Z */
+/* generated: 2026-05-21T04:31:15Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -25412,6 +25412,8 @@
 
   const QHTML_LAYOUT_TAGS = new Set(["q-layout", "q-row", "q-col"]);
   const QHTML_LAYOUT_DEFAULT_GAP = "12px";
+  const QHTML_LAYOUT_DEFAULT_MIN_COL_WIDTH = "240px";
+  const qLayoutResponsiveRows = new WeakMap();
 
   function isQLayoutTagName(tagName) {
     return QHTML_LAYOUT_TAGS.has(String(tagName || "").trim().toLowerCase());
@@ -25492,6 +25494,143 @@
     return normalizeLayoutSizeValue(child.getAttribute(attrName), "auto");
   }
 
+  function readLayoutAttr(element, names) {
+    if (!element || element.nodeType !== 1) {
+      return "";
+    }
+    for (let i = 0; i < names.length; i += 1) {
+      const value = element.getAttribute(names[i]);
+      if (value != null && String(value).trim() !== "") {
+        return String(value).trim();
+      }
+    }
+    return "";
+  }
+
+  function isLayoutResponsiveStackDisabled(element) {
+    const responsive = readLayoutAttr(element, ["responsive", "responsiveStack", "responsivestack", "responsive-stack"]);
+    if (/^(0|false|off|no)$/i.test(responsive)) {
+      return true;
+    }
+    const stack = readLayoutAttr(element, ["stack", "stackCols", "stackcols", "stack-cols"]);
+    return /^(0|false|off|no|never)$/i.test(stack);
+  }
+
+  function parseLayoutLengthToPx(value, element, basis) {
+    if (value == null || value === "") {
+      return null;
+    }
+    const text = String(value).trim().toLowerCase();
+    if (!text || text === "auto" || text === "normal" || text.indexOf("fr") !== -1) {
+      return null;
+    }
+    const numeric = Number(text);
+    if (Number.isFinite(numeric)) {
+      return numeric;
+    }
+    const match = text.match(/^(-?\d+(?:\.\d+)?)(px|rem|em|vw|vh|%)$/);
+    if (!match) {
+      return null;
+    }
+    const amount = Number(match[1]);
+    if (!Number.isFinite(amount)) {
+      return null;
+    }
+    const unit = match[2];
+    if (unit === "px") {
+      return amount;
+    }
+    if (unit === "vw" && global && global.innerWidth) {
+      return global.innerWidth * amount / 100;
+    }
+    if (unit === "vh" && global && global.innerHeight) {
+      return global.innerHeight * amount / 100;
+    }
+    if (unit === "%" && Number.isFinite(basis)) {
+      return basis * amount / 100;
+    }
+    if ((unit === "rem" || unit === "em") && global && global.getComputedStyle) {
+      const doc = element && element.ownerDocument ? element.ownerDocument : global.document;
+      const target = unit === "rem" ? doc && doc.documentElement : element;
+      const fontSize = target ? parseFloat(global.getComputedStyle(target).fontSize || "16") : 16;
+      return amount * (Number.isFinite(fontSize) ? fontSize : 16);
+    }
+    return null;
+  }
+
+  function readLayoutGapPx(element) {
+    if (!element || !global || typeof global.getComputedStyle !== "function") {
+      return 0;
+    }
+    const computed = global.getComputedStyle(element);
+    const gap = computed.columnGap || computed.gap || element.style.gap || QHTML_LAYOUT_DEFAULT_GAP;
+    const px = parseLayoutLengthToPx(gap, element, element.getBoundingClientRect().width);
+    return Number.isFinite(px) ? Math.max(0, px) : 0;
+  }
+
+  function readLayoutResponsiveMinColWidth(element, child, availableWidth) {
+    const childMin = readLayoutAttr(child, ["minWidth", "minwidth", "min-width", "minColWidth", "mincolwidth", "min-col-width"]);
+    const childWidth = readLayoutAttr(child, ["width"]);
+    const rowMin = readLayoutAttr(element, ["minColWidth", "mincolwidth", "min-col-width", "responsiveMinColWidth", "responsivemincolwidth", "responsive-min-col-width"]);
+    const candidates = [childMin, childWidth, rowMin, QHTML_LAYOUT_DEFAULT_MIN_COL_WIDTH];
+    for (let i = 0; i < candidates.length; i += 1) {
+      const px = parseLayoutLengthToPx(normalizeLayoutSizeValue(candidates[i], ""), child || element, availableWidth);
+      if (Number.isFinite(px) && px > 0) {
+        return px;
+      }
+    }
+    return 240;
+  }
+
+  function shouldStackResponsiveQRow(element, children) {
+    if (!element || String(element.tagName || "").trim().toLowerCase() !== "q-row" || !Array.isArray(children) || children.length < 2) {
+      return false;
+    }
+    if (isLayoutResponsiveStackDisabled(element)) {
+      return false;
+    }
+    const rect = typeof element.getBoundingClientRect === "function" ? element.getBoundingClientRect() : null;
+    const availableWidth = rect && Number.isFinite(rect.width) && rect.width > 0 ? rect.width : element.clientWidth || 0;
+    if (!availableWidth) {
+      return false;
+    }
+    const stackAt = readLayoutAttr(element, ["stackAt", "stackat", "stack-at", "stackWidth", "stackwidth", "stack-width"]);
+    if (stackAt) {
+      const threshold = parseLayoutLengthToPx(stackAt, element, availableWidth);
+      return Number.isFinite(threshold) && threshold > 0 && availableWidth < threshold;
+    }
+    const gap = readLayoutGapPx(element);
+    let requiredWidth = gap * Math.max(0, children.length - 1);
+    for (let i = 0; i < children.length; i += 1) {
+      requiredWidth += readLayoutResponsiveMinColWidth(element, children[i], availableWidth);
+    }
+    return requiredWidth > availableWidth + 0.5;
+  }
+
+  function ensureQLayoutResponsiveObserver(element) {
+    if (!element || String(element.tagName || "").trim().toLowerCase() !== "q-row") {
+      return;
+    }
+    if (qLayoutResponsiveRows.has(element)) {
+      return;
+    }
+    if (global && typeof global.ResizeObserver === "function") {
+      const observer = new global.ResizeObserver(function onQLayoutResize() {
+        applyQLayoutKeywordStyles(element);
+      });
+      observer.observe(element);
+      qLayoutResponsiveRows.set(element, observer);
+      return;
+    }
+    qLayoutResponsiveRows.set(element, true);
+    if (global && typeof global.addEventListener === "function" && !global.__qhtmlLayoutResponsiveResizeListener) {
+      global.__qhtmlLayoutResponsiveResizeListener = true;
+      global.addEventListener("resize", function onQLayoutWindowResize() {
+        relayoutQLayoutTree(global.document && global.document.documentElement);
+      });
+    }
+  }
+
   function applyQLayoutKeywordStyles(element) {
     if (!element || element.nodeType !== 1 || !isQLayoutTagName(element.tagName)) {
       return;
@@ -25528,7 +25667,12 @@
         : "";
       style.gridTemplateColumns = "";
     } else {
-      style.gridTemplateColumns = children.length > 0
+      ensureQLayoutResponsiveObserver(element);
+      const stacked = shouldStackResponsiveQRow(element, children);
+      element.__qhtmlLayoutResponsiveStacked = stacked;
+      style.gridTemplateColumns = stacked
+        ? "minmax(0, 1fr)"
+        : children.length > 0
         ? children.map(function mapColTrack(child) { return readLayoutTrackValue(child, "cols"); }).join(" ")
         : "";
       style.gridTemplateRows = "";
