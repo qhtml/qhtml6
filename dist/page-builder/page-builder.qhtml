@@ -11,15 +11,9 @@ q-component page-builder-toolbar {
     }
   }
 
-  function addRow() {
-    if (window.QPageBuilder && typeof window.QPageBuilder.addRow === "function") {
-      window.QPageBuilder.addRow();
-    }
-  }
-
-  function addColumn() {
-    if (window.QPageBuilder && typeof window.QPageBuilder.addColumn === "function") {
-      window.QPageBuilder.addColumn();
+  function newFile() {
+    if (window.QPageBuilder && typeof window.QPageBuilder.newLayoutFile === "function") {
+      window.QPageBuilder.newLayoutFile();
     }
   }
 
@@ -35,6 +29,12 @@ q-component page-builder-toolbar {
     }
   }
 
+  function exportFolder() {
+    if (window.QPageBuilder && typeof window.QPageBuilder.exportFolder === "function") {
+      window.QPageBuilder.exportFolder();
+    }
+  }
+
   header.pb-toolbar {
     div.pb-brand {
       div.pb-logo { text { Q } }
@@ -44,12 +44,12 @@ q-component page-builder-toolbar {
       }
     }
     div.pb-actions {
-      button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").addRow(); } text { Add Row } }
-      button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").addColumn(); } text { Add Column } }
+      button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").newFile(); } text { New } }
       button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").saveLayout(); } text { Save } }
       button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").loadLayout(); } text { Load } }
       button.pb-action.danger { type: "button" onclick { this.closest("page-builder-toolbar").clearLayout(); } text { Clear } }
       button.pb-action.primary { type: "button" onclick { this.closest("page-builder-toolbar").exportLayout(); } text { Export QHTML } }
+      button.pb-action.primary { type: "button" onclick { this.closest("page-builder-toolbar").exportFolder(); } text { Export Folder } }
     }
   }
 }
@@ -383,6 +383,112 @@ q-component page-builder-instance-editor {
   }
 }
 
+q-component page-builder-file-dialog {
+  dialog.pb-file-dialog {
+    id: "pb-file-dialog"
+    div.pb-file-card {
+      header.pb-file-head {
+        div {
+          h2 { text { Site Files } }
+          p { id: "pb-file-dialog-subtitle" text { Select a file to load, or organize pages into folders. } }
+        }
+        button.pb-icon-button {
+          type: "button"
+          aria-label: "Close files"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.closeFileDialog(); } }
+          html { &times; }
+        }
+      }
+
+      div.pb-file-toolbar {
+        button.pb-action.secondary {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.newFileFolder(); } }
+          text { New folder }
+        }
+        button.pb-action.secondary {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.newFile(); } }
+          text { New file }
+        }
+      }
+
+      div.pb-file-body {
+        q-tree-view {
+          id: "pb-file-tree-probe"
+        }
+        div.pb-file-tree {
+          id: "pb-file-tree"
+        }
+      }
+
+      footer.pb-file-actions {
+        div.pb-file-selected {
+          id: "pb-file-selected"
+          text { / }
+        }
+        button.pb-action.secondary {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.closeFileDialog(); } }
+          text { Close }
+        }
+      }
+    }
+  }
+}
+
+q-component page-builder-folder-picker {
+  dialog.pb-file-dialog {
+    id: "pb-folder-picker"
+    div.pb-file-card {
+      header.pb-file-head {
+        div {
+          h2 {
+            id: "pb-folder-picker-title"
+            text { Select Folder }
+          }
+          p {
+            id: "pb-folder-picker-subtitle"
+            text { Choose a destination folder. }
+          }
+        }
+        button.pb-icon-button {
+          type: "button"
+          aria-label: "Close folder picker"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.closeFolderPicker(); } }
+          html { &times; }
+        }
+      }
+
+      div.pb-file-body {
+        q-tree-view {
+          id: "pb-folder-tree-probe"
+        }
+        div.pb-file-tree {
+          id: "pb-folder-tree"
+        }
+      }
+
+      footer.pb-file-actions {
+        div.pb-file-selected {
+          id: "pb-folder-selected"
+          text { / }
+        }
+        button.pb-action.secondary {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.closeFolderPicker(); } }
+          text { Cancel }
+        }
+        button.pb-action.primary {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.confirmFolderPicker(); } }
+          text { Choose Folder }
+        }
+      }
+    }
+  }
+}
+
 q-component page-builder-app {
   div.pb-app {
     page-builder-toolbar { }
@@ -395,5 +501,15 @@ q-component page-builder-app {
     }
     page-builder-palette-editor { }
     page-builder-instance-editor { }
+    page-builder-file-dialog { }
+    page-builder-folder-picker { }
+    q-popup-menu {
+      id: "pb-file-context-menu"
+      popup-contents {
+        div.pb-file-context-menu {
+          id: "pb-file-context-menu-contents"
+        }
+      }
+    }
   }
 }

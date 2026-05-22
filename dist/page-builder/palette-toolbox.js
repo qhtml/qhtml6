@@ -314,6 +314,7 @@
       ".pb-export-panel{min-height:0}.pb-export-panel q-editor{display:block;border-top:1px solid rgba(148,163,184,.28)}.pb-export-panel q-editor .qe{border:0;border-radius:0}.pb-export-panel q-editor .qe-editor-wrap,.pb-export-panel q-editor .qe-highlight,.pb-export-panel q-editor .qe-input,.pb-export-panel q-editor .qe-code,.pb-export-panel q-editor .qe-preview,.pb-export-panel q-editor .qe-cm-host,.pb-export-panel q-editor .qe-cm-host .cm-editor{min-height:174px}",
       ".pb-palette-editor{border:0;padding:0;background:transparent;max-width:min(980px,calc(100vw - 34px));width:980px}.pb-palette-editor::backdrop{background:rgba(15,23,42,.55);backdrop-filter:blur(5px)}.pb-palette-editor-card{background:#f8fafc;border:1px solid rgba(148,163,184,.45);border-radius:24px;box-shadow:0 36px 120px rgba(15,23,42,.38);overflow:hidden}.pb-palette-editor-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:20px 22px;background:white;border-bottom:1px solid #dbe4f0}.pb-palette-editor-head h2{margin:0;font-size:20px;letter-spacing:-.04em}.pb-palette-editor-head p{margin:6px 0 0;color:#64748b;font-size:13px}.pb-icon-button{width:34px;height:34px;border:0;border-radius:999px;background:#eef2ff;color:#1e293b;font-size:23px;line-height:1;cursor:pointer}.pb-editor-label{display:block;padding:16px 22px 8px;color:#334155;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}.pb-palette-editor q-editor{display:block;margin:0 22px 14px}.pb-palette-editor q-editor .qe{border-color:#cbd5e1;border-radius:16px}.pb-palette-editor q-editor .qe-editor-wrap,.pb-palette-editor q-editor .qe-highlight,.pb-palette-editor q-editor .qe-input,.pb-palette-editor q-editor .qe-code,.pb-palette-editor q-editor .qe-preview,.pb-palette-editor q-editor .qe-cm-host,.pb-palette-editor q-editor .qe-cm-host .cm-editor{min-height:340px}.pb-palette-editor-error{min-height:20px;margin:0 22px 10px;color:#be123c;font-size:13px;font-weight:800}.pb-palette-editor-actions{display:flex;justify-content:flex-end;gap:10px;padding:16px 22px 20px;border-top:1px solid #dbe4f0;background:#fff}",
       ".pb-instance-editor{border:0;padding:0;background:transparent;width:min(90vw,1180px);max-width:90vw;max-height:calc(100vh - 32px);overflow-y:auto}.pb-instance-editor::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.pb-instance-editor-card{background:#f8fafc;border:1px solid rgba(148,163,184,.45);border-radius:24px;box-shadow:0 36px 120px rgba(15,23,42,.38);overflow:hidden}.pb-instance-editor-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:18px 22px;background:white;border-bottom:1px solid #dbe4f0}.pb-instance-editor-head h2{margin:0;font-size:20px;letter-spacing:-.04em}.pb-instance-editor-head p{margin:6px 0 0;color:#64748b;font-size:13px}.pb-instance-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px 22px;background:#f1f5f9;border-bottom:1px solid #dbe4f0}.pb-instance-controls label{display:grid;gap:6px;color:#334155;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}.pb-instance-controls select{min-width:0;border:1px solid #cbd5e1;border-radius:12px;background:white;color:#0f172a;padding:10px;font-size:14px}.pb-instance-editor-body{padding:16px 22px}.pb-instance-editor q-editor{display:block;min-height:60vh}.pb-instance-editor q-editor .qe{min-height:60vh;border-color:#cbd5e1;border-radius:16px}.pb-instance-editor q-editor .qe-editor-wrap,.pb-instance-editor q-editor .qe-highlight,.pb-instance-editor q-editor .qe-input,.pb-instance-editor q-editor .qe-code,.pb-instance-editor q-editor .qe-preview,.pb-instance-editor q-editor .qe-cm-host,.pb-instance-editor q-editor .qe-cm-host .cm-editor{min-height:60vh}.pb-instance-editor-error{min-height:20px;padding:0 22px 8px;color:#be123c;font-size:13px;font-weight:800}.pb-instance-editor-actions{display:flex;justify-content:flex-end;gap:10px;padding:14px 22px 18px;border-top:1px solid #dbe4f0;background:#fff}.pb-instance-editor-actions .primary{background:#0f172a;color:white}",
+      ".pb-file-dialog{border:0;padding:0;background:transparent;width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto}.pb-file-dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.pb-file-card{background:#f8fafc;border:1px solid rgba(148,163,184,.45);border-radius:24px;box-shadow:0 36px 120px rgba(15,23,42,.38);overflow:hidden}.pb-file-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:18px 22px;background:white;border-bottom:1px solid #dbe4f0}.pb-file-head h2{margin:0;font-size:20px;letter-spacing:-.04em}.pb-file-head p{margin:6px 0 0;color:#64748b;font-size:13px}.pb-file-toolbar{display:flex;gap:10px;flex-wrap:wrap;padding:14px 22px;background:#f1f5f9;border-bottom:1px solid #dbe4f0}.pb-file-body{padding:14px 18px 18px;min-height:360px}.pb-file-body q-tree-view{display:none}.pb-file-tree{min-height:340px;max-height:54vh;overflow:auto;border:1px solid #dbe4f0;border-radius:16px;background:white;padding:8px}.pb-file-list{list-style:none;margin:0;padding:0}.pb-file-node{width:100%;display:flex;align-items:center;gap:8px;border:0;background:transparent;color:#0f172a;text-align:left;border-radius:10px;padding:8px 10px;font-size:14px;cursor:pointer}.pb-file-node:hover{background:#eff6ff}.pb-file-node.selected{background:#dbeafe;color:#1d4ed8;font-weight:900}.pb-file-node.folder{font-weight:850}.pb-file-glyph{width:18px;color:#64748b}.pb-file-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 22px 18px;border-top:1px solid #dbe4f0;background:#fff}.pb-file-selected{margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#475569;font-size:13px;font-weight:800}.pb-file-context-menu{min-width:150px;background:white;border:1px solid #cbd5e1;border-radius:14px;box-shadow:0 22px 70px rgba(15,23,42,.24);padding:6px}.pb-file-context-menu button{display:block;width:100%;border:0;background:transparent;text-align:left;border-radius:10px;padding:9px 10px;color:#0f172a;font-weight:800;cursor:pointer}.pb-file-context-menu button:hover{background:#eff6ff;color:#1d4ed8}#pb-file-context-menu{display:none;width:auto!important;height:auto!important;z-index:7000}#pb-file-context-menu .q-popup-container{width:auto;height:auto}",
       "@media (max-width:980px){.pb-workspace{grid-template-columns:1fr}.pb-main{grid-template-rows:auto auto}.pb-toolbar{height:auto;align-items:flex-start;gap:14px;flex-direction:column;padding:16px}.pb-actions{width:100%}.pb-workspace{padding:12px}.pb-two-column-copy{grid-template-columns:1fr}}"
     ].join("\n");
 
@@ -2725,52 +2726,694 @@
     setStatus("Updated " + component);
   }
 
+  function timestampId(prefix) {
+    return String(prefix || "node") + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function normalizeFileName(name, extension) {
+    var ext = String(extension || ".qhtml");
+    var value = String(name || "").trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ");
+    if (!value) {
+      value = "untitled" + ext;
+    }
+    if (ext && value.toLowerCase().slice(-ext.length) !== ext.toLowerCase()) {
+      value += ext;
+    }
+    return value;
+  }
+
+  function normalizeFolderName(name) {
+    return String(name || "").trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ") || "Folder";
+  }
+
+  function htmlFileName(name) {
+    var value = String(name || "index.qhtml").trim().replace(/[\\/:*?"<>|]+/g, "-");
+    value = value.replace(/\.qhtml$/i, ".html");
+    if (!/\.html?$/i.test(value)) {
+      value += ".html";
+    }
+    return value;
+  }
+
+  function escapeHtmlAttribute(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function htmlPageForQHtml(source, title) {
+    return [
+      "<!doctype html>",
+      "<html lang=\"en\">",
+      "<head>",
+      "  <meta charset=\"utf-8\" />",
+      "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />",
+      "  <title>" + escapeHtmlAttribute(String(title || "QHTML Page").replace(/\.qhtml$/i, "")) + "</title>",
+      "  <script src=\"qhtml.js\"></script>",
+      "</head>",
+      "<body>",
+      "  <q-html>",
+      String(source || "").replace(/<\/q-html/gi, "<\\/q-html"),
+      "  </q-html>",
+      "</body>",
+      "</html>"
+    ].join("\n");
+  }
+
+  function showDialog(dialog) {
+    if (dialog && typeof dialog.showModal === "function") {
+      dialog.showModal();
+    } else if (dialog) {
+      dialog.setAttribute("open", "open");
+    }
+  }
+
+  function closeDialog(dialog) {
+    if (dialog && typeof dialog.close === "function") {
+      dialog.close();
+    } else if (dialog) {
+      dialog.removeAttribute("open");
+    }
+  }
+
+  function triggerDownload(name, contents, type) {
+    var blob = new Blob([String(contents || "")], { type: type || "text/html;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
   var BuilderStore = {
-    key: "qhtml6.pageBuilder.wysiwyg.dom",
     saveTimer: 0,
     restoring: false,
+    dirty: false,
     saveSoon: function () {
       if (this.restoring) { return; }
+      this.dirty = true;
       clearTimeout(this.saveTimer);
       updateExportPanel(false);
       this.saveTimer = setTimeout(function () {
-        BuilderStore.save();
+        updateExportPanel(false);
+        setStatus(FileStore.currentLabel() ? "Unsaved changes in " + FileStore.currentLabel() : "Unsaved changes");
       }, 80);
     },
     save: function () {
-      var layout = document.getElementById("pb-builder-layout");
-      if (!layout) { return; }
-      try {
-        localStorage.setItem(this.key, layout.innerHTML);
-        updateExportPanel(false);
-        setStatus("Saved");
-      } catch (error) {
-        setStatus("Save unavailable");
-      }
+      FileStore.saveCurrent();
     },
     load: function () {
-      this.didRestore = false;
-      this.restore();
+      FileStore.openDialog();
     },
     restoreSoon: function () {
-      if (this.restoring || this.didRestore) { return; }
-      this.didRestore = true;
-      setTimeout(function () { BuilderStore.restore(); }, 40);
+      FileStore.restoreCurrentSoon();
+    }
+  };
+
+  var FileStore = {
+    key: "qhtml6.pageBuilder.files.v1",
+    legacyKey: "qhtml6.pageBuilder.wysiwyg.dom",
+    cache: null,
+    selectedId: "root",
+    pickerMode: "",
+    pickerTargetId: "",
+    pickerSelectedFolderId: "root",
+    restoreQueued: false,
+    defaultState: function () {
+      return {
+        version: 1,
+        currentFileId: "",
+        root: {
+          id: "root",
+          type: "folder",
+          name: "/",
+          children: []
+        }
+      };
     },
-    restore: function () {
+    read: function () {
+      var parsed;
+      if (this.cache) {
+        return this.cache;
+      }
+      try {
+        parsed = JSON.parse(localStorage.getItem(this.key) || "");
+      } catch (error) {
+        parsed = null;
+      }
+      if (!parsed || !parsed.root || parsed.root.type !== "folder") {
+        parsed = this.defaultState();
+      }
+      parsed.root.id = "root";
+      parsed.root.type = "folder";
+      parsed.root.name = "/";
+      if (!Array.isArray(parsed.root.children)) {
+        parsed.root.children = [];
+      }
+      this.cache = parsed;
+      this.migrateLegacy();
+      return this.cache;
+    },
+    write: function () {
+      try {
+        localStorage.setItem(this.key, JSON.stringify(this.read()));
+      } catch (error) {
+        setStatus("File storage unavailable");
+      }
+    },
+    migrateLegacy: function () {
+      var state = this.cache;
+      var html = "";
+      if (!state || !state.root || state.root.children.length) {
+        return;
+      }
+      try {
+        html = localStorage.getItem(this.legacyKey) || "";
+      } catch (error) {
+        html = "";
+      }
+      if (!html) {
+        return;
+      }
+      var file = this.makeNode("file", "Recovered layout.qhtml");
+      file.html = html;
+      file.source = "";
+      state.root.children.push(file);
+      state.currentFileId = file.id;
+      this.write();
+    },
+    makeNode: function (type, name) {
+      var node = {
+        id: timestampId(type),
+        type: type,
+        name: type === "folder" ? normalizeFolderName(name) : normalizeFileName(name),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      if (type === "folder") {
+        node.children = [];
+      } else {
+        node.source = "";
+        node.html = "";
+      }
+      return node;
+    },
+    walk: function (fn, node, parent) {
+      var current = node || this.read().root;
+      var result = fn(current, parent || null);
+      if (result) {
+        return result;
+      }
+      if (current.type === "folder") {
+        for (var i = 0; i < current.children.length; i += 1) {
+          result = this.walk(fn, current.children[i], current);
+          if (result) {
+            return result;
+          }
+        }
+      }
+      return null;
+    },
+    find: function (id) {
+      var wanted = String(id || "root");
+      return this.walk(function (node, parent) {
+        return node.id === wanted ? { node: node, parent: parent } : null;
+      });
+    },
+    folderForCreate: function () {
+      var found = this.find(this.selectedId);
+      if (found && found.node.type === "folder") {
+        return found.node;
+      }
+      if (found && found.parent) {
+        return found.parent;
+      }
+      return this.read().root;
+    },
+    pathOf: function (id) {
+      var parts = [];
+      var target = String(id || "root");
+      function visit(node, stack) {
+        var next = node.id === "root" ? ["/"] : stack.concat(node.name);
+        if (node.id === target) {
+          parts = next;
+          return true;
+        }
+        if (node.type === "folder") {
+          for (var i = 0; i < node.children.length; i += 1) {
+            if (visit(node.children[i], next)) {
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+      visit(this.read().root, []);
+      return parts.length ? parts.join("/").replace(/^\/\//, "/") : "/";
+    },
+    currentLabel: function () {
+      var id = this.read().currentFileId;
+      var found = id ? this.find(id) : null;
+      return found && found.node && found.node.type === "file" ? this.pathOf(found.node.id) : "";
+    },
+    uniqueName: function (folder, name, type, ignoreId) {
+      var base = type === "folder" ? normalizeFolderName(name) : normalizeFileName(name);
+      var ext = "";
+      var stem = base;
+      var n = 2;
+      var match;
+      if (type !== "folder") {
+        match = base.match(/^(.*?)(\.[^.]+)$/);
+        if (match) {
+          stem = match[1];
+          ext = match[2];
+        }
+      }
+      function exists(candidate) {
+        return (folder.children || []).some(function (child) {
+          if (ignoreId && child.id === ignoreId) {
+            return false;
+          }
+          return child.name.toLowerCase() === candidate.toLowerCase();
+        });
+      }
+      while (exists(base)) {
+        base = stem + " " + n + ext;
+        n += 1;
+      }
+      return base;
+    },
+    createChild: function (type, name, folder) {
+      var parent = folder && folder.type === "folder" ? folder : this.folderForCreate();
+      var node = this.makeNode(type, this.uniqueName(parent, name, type));
+      parent.children.push(node);
+      this.selectedId = node.id;
+      this.write();
+      this.renderOpenDialogs();
+      return node;
+    },
+    newFolder: function () {
+      var name = prompt("Folder name", "New Folder");
+      if (name === null) { return null; }
+      return this.createChild("folder", name || "New Folder");
+    },
+    newFile: function () {
+      var name = prompt("File name", "index.qhtml");
+      if (name === null) { return null; }
+      return this.createChild("file", name || "index.qhtml");
+    },
+    startNewFile: function () {
+      var state = this.read();
       var layout = document.getElementById("pb-builder-layout");
-      var html;
+      var name = prompt("File name", "index.qhtml");
+      var file;
+      if (name === null) {
+        setStatus("New file cancelled");
+        return null;
+      }
+      file = this.createChild("file", name || "index.qhtml", state.root);
+      file.html = "";
+      file.source = "";
+      file.updatedAt = new Date().toISOString();
+      state.currentFileId = file.id;
+      this.selectedId = file.id;
+      if (layout) {
+        BuilderStore.restoring = true;
+        layout.innerHTML = "";
+        relayout(layout);
+        BuilderStore.restoring = false;
+      }
+      BuilderStore.dirty = false;
+      this.write();
+      this.renderOpenDialogs();
+      updateExportPanel(false);
+      setStatus("New file " + this.pathOf(file.id));
+      return file;
+    },
+    saveCurrent: function () {
+      var state = this.read();
+      var layout = document.getElementById("pb-builder-layout");
+      var file = state.currentFileId ? this.find(state.currentFileId) : null;
       if (!layout) { return; }
-      try { html = localStorage.getItem(this.key); } catch (error) { html = ""; }
-      if (!html) { return; }
-      this.restoring = true;
-      layout.innerHTML = html;
+      if (!file || !file.node || file.node.type !== "file") {
+        var name = prompt("Save file as", "index.qhtml");
+        if (name === null) {
+          setStatus("Save cancelled");
+          return;
+        }
+        file = { node: this.createChild("file", name || "index.qhtml", state.root) };
+      }
+      file.node.html = layout.innerHTML;
+      file.node.source = exportQHtml(layout);
+      file.node.updatedAt = new Date().toISOString();
+      state.currentFileId = file.node.id;
+      this.selectedId = file.node.id;
+      BuilderStore.dirty = false;
+      this.write();
+      this.renderOpenDialogs();
+      updateExportPanel(false);
+      setStatus("Saved " + this.pathOf(file.node.id));
+    },
+    loadFile: function (id) {
+      var found = this.find(id);
+      var layout = document.getElementById("pb-builder-layout");
+      if (!found || found.node.type !== "file" || !layout) {
+        return;
+      }
+      BuilderStore.restoring = true;
+      layout.innerHTML = found.node.html || "";
       arr(layout.querySelectorAll(".pb-empty-drop")).forEach(function (node) { node.remove(); });
       arr(layout.querySelectorAll(Q.row + "," + Q.col)).forEach(installApi);
       relayout(layout);
+      this.read().currentFileId = found.node.id;
+      this.selectedId = found.node.id;
+      BuilderStore.dirty = false;
+      this.write();
       updateExportPanel(false);
-      this.restoring = false;
-      setStatus("Restored saved layout");
+      BuilderStore.restoring = false;
+      this.closeDialog();
+      setStatus("Loaded " + this.pathOf(found.node.id));
+    },
+    restoreCurrentSoon: function () {
+      var self = this;
+      if (this.restoreQueued) { return; }
+      this.restoreQueued = true;
+      setTimeout(function () {
+        var currentId = self.read().currentFileId;
+        if (currentId && self.find(currentId)) {
+          self.loadFile(currentId);
+        }
+      }, 40);
+    },
+    removeNode: function (id) {
+      var found = this.find(id);
+      var siblings;
+      var index;
+      if (!found || !found.parent || found.node.id === "root") {
+        return;
+      }
+      if (!confirm("Delete " + found.node.name + "?")) {
+        return;
+      }
+      siblings = found.parent.children || [];
+      index = siblings.indexOf(found.node);
+      if (index >= 0) {
+        siblings.splice(index, 1);
+      }
+      if (this.read().currentFileId === found.node.id) {
+        this.read().currentFileId = "";
+      }
+      this.selectedId = found.parent.id || "root";
+      this.write();
+      this.renderOpenDialogs();
+    },
+    renameNode: function (id) {
+      var found = this.find(id);
+      var name;
+      if (!found || found.node.id === "root") {
+        return;
+      }
+      name = prompt("Rename", found.node.name);
+      if (name === null) { return; }
+      found.node.name = this.uniqueName(found.parent || this.read().root, found.node.type === "folder" ? normalizeFolderName(name) : normalizeFileName(name), found.node.type, found.node.id);
+      found.node.updatedAt = new Date().toISOString();
+      this.write();
+      this.renderOpenDialogs();
+    },
+    isDescendant: function (node, folderId) {
+      var found = false;
+      if (!node || node.type !== "folder") { return false; }
+      function visit(item) {
+        if (item.id === folderId) {
+          found = true;
+          return;
+        }
+        if (item.type === "folder") {
+          (item.children || []).forEach(visit);
+        }
+      }
+      visit(node);
+      return found;
+    },
+    moveNode: function (id, folderId) {
+      var found = this.find(id);
+      var dest = this.find(folderId);
+      var index;
+      if (!found || !found.parent || !dest || dest.node.type !== "folder" || found.node.id === "root") {
+        return false;
+      }
+      if (found.node.id === dest.node.id || this.isDescendant(found.node, dest.node.id)) {
+        setStatus("Cannot move a folder into itself");
+        return false;
+      }
+      index = found.parent.children.indexOf(found.node);
+      if (index >= 0) {
+        found.parent.children.splice(index, 1);
+      }
+      found.node.name = this.uniqueName(dest.node, found.node.name, found.node.type);
+      dest.node.children.push(found.node);
+      this.selectedId = found.node.id;
+      this.write();
+      this.renderOpenDialogs();
+      return true;
+    },
+    toTreeModel: function (foldersOnly) {
+      function convert(node) {
+        var label = node.id === "root" ? "/" : node.name;
+        var out = {};
+        if (node.type === "folder") {
+          out[label] = {};
+          (node.children || []).forEach(function (child) {
+            if (foldersOnly && child.type !== "folder") { return; }
+            Object.assign(out[label], convert(child));
+          });
+          return out;
+        }
+        out[label] = "file";
+        return out;
+      }
+      return convert(this.read().root);
+    },
+    renderTree: function (containerId, foldersOnly, selectedId) {
+      var container = document.getElementById(containerId);
+      var probe = document.getElementById(containerId === "pb-file-tree" ? "pb-file-tree-probe" : "pb-folder-tree-probe");
+      var self = this;
+      if (!container) { return; }
+      if (probe && typeof probe.setModel === "function") {
+        probe.setModel(this.toTreeModel(foldersOnly));
+      }
+      container.innerHTML = "";
+      function renderNode(node, parentEl, depth) {
+        var item = document.createElement("li");
+        var button = document.createElement("button");
+        var list;
+        item.className = "pb-file-item";
+        button.type = "button";
+        button.className = "pb-file-node " + (node.type === "folder" ? "folder" : "file");
+        if (node.id === (selectedId || self.selectedId)) {
+          button.className += " selected";
+        }
+        button.style.paddingLeft = String(12 + depth * 18) + "px";
+        button.dataset.nodeId = node.id;
+        button.innerHTML = "<span class=\"pb-file-glyph\">" + (node.type === "folder" ? "▸" : "•") + "</span><span>" + escapeHtmlText(node.name) + "</span>";
+        button.addEventListener("click", function () {
+          if (foldersOnly && node.type !== "folder") { return; }
+          if (containerId === "pb-folder-tree") {
+            self.pickerSelectedFolderId = node.id;
+          } else {
+            self.selectedId = node.id;
+          }
+          self.renderOpenDialogs();
+        });
+        button.addEventListener("dblclick", function () {
+          if (!foldersOnly && node.type === "file") {
+            self.loadFile(node.id);
+          }
+        });
+        button.addEventListener("contextmenu", function (event) {
+          if (foldersOnly) { return; }
+          event.preventDefault();
+          self.selectedId = node.id;
+          self.renderOpenDialogs();
+          self.showContextMenu(node.id, event.clientX, event.clientY);
+        });
+        item.appendChild(button);
+        if (node.type === "folder") {
+          list = document.createElement("ul");
+          list.className = "pb-file-list";
+          (node.children || []).forEach(function (child) {
+            if (!foldersOnly || child.type === "folder") {
+              renderNode(child, list, depth + 1);
+            }
+          });
+          item.appendChild(list);
+        }
+        parentEl.appendChild(item);
+      }
+      var rootList = document.createElement("ul");
+      rootList.className = "pb-file-list q-tree q-tree-list";
+      renderNode(this.read().root, rootList, 0);
+      container.appendChild(rootList);
+      this.updateSelectedLabels();
+    },
+    renderOpenDialogs: function () {
+      if (document.getElementById("pb-file-dialog") && document.getElementById("pb-file-dialog").open) {
+        this.renderTree("pb-file-tree", false, this.selectedId);
+      }
+      if (document.getElementById("pb-folder-picker") && document.getElementById("pb-folder-picker").open) {
+        this.renderTree("pb-folder-tree", true, this.pickerSelectedFolderId);
+      }
+    },
+    updateSelectedLabels: function () {
+      var fileLabel = document.getElementById("pb-file-selected");
+      var folderLabel = document.getElementById("pb-folder-selected");
+      if (fileLabel) { fileLabel.textContent = this.pathOf(this.selectedId); }
+      if (folderLabel) { folderLabel.textContent = this.pathOf(this.pickerSelectedFolderId); }
+    },
+    openDialog: function () {
+      this.read();
+      this.selectedId = this.selectedId || "root";
+      this.renderTree("pb-file-tree", false, this.selectedId);
+      showDialog(document.getElementById("pb-file-dialog"));
+    },
+    closeDialog: function () {
+      this.hideContextMenu();
+      closeDialog(document.getElementById("pb-file-dialog"));
+    },
+    showContextMenu: function (id, x, y) {
+      var found = this.find(id);
+      var menu = document.getElementById("pb-file-context-menu");
+      var contents = document.getElementById("pb-file-context-menu-contents");
+      var self = this;
+      var actions = [];
+      if (!found || !contents) { return; }
+      if (found.node.type === "file") {
+        actions.push(["load", "Load"]);
+      }
+      actions.push(["new-file", "New file"]);
+      if (found.node.type === "folder") {
+        actions.push(["new-folder", "New folder"]);
+      }
+      if (found.node.id !== "root") {
+        actions.push(["rename", "Rename"], ["move", "Move"], ["delete", "Delete"]);
+      }
+      contents.innerHTML = actions.map(function (action) {
+        return "<button type=\"button\" data-action=\"" + action[0] + "\">" + escapeHtmlText(action[1]) + "</button>";
+      }).join("");
+      contents.onclick = function (event) {
+        var button = event.target && event.target.closest ? event.target.closest("button[data-action]") : null;
+        var action = button ? button.getAttribute("data-action") : "";
+        if (!action) { return; }
+        self.hideContextMenu();
+        if (action === "load") { self.loadFile(id); }
+        if (action === "new-file") { self.newFile(); }
+        if (action === "new-folder") { self.newFolder(); }
+        if (action === "rename") { self.renameNode(id); }
+        if (action === "move") { self.openFolderPicker("move", id); }
+        if (action === "delete") { self.removeNode(id); }
+      };
+      if (menu && typeof menu.show === "function") {
+        menu.show(String(x) + "px", String(y) + "px");
+      } else if (menu) {
+        menu.style.display = "block";
+        menu.style.left = String(x) + "px";
+        menu.style.top = String(y) + "px";
+      }
+    },
+    hideContextMenu: function () {
+      var menu = document.getElementById("pb-file-context-menu");
+      if (menu && typeof menu.hide === "function") {
+        menu.hide();
+      } else if (menu) {
+        menu.style.display = "none";
+      }
+    },
+    openFolderPicker: function (mode, targetId) {
+      var title = document.getElementById("pb-folder-picker-title");
+      var subtitle = document.getElementById("pb-folder-picker-subtitle");
+      this.pickerMode = mode || "move";
+      this.pickerTargetId = targetId || "";
+      this.pickerSelectedFolderId = "root";
+      if (title) { title.textContent = this.pickerMode === "export" ? "Export Folder" : "Move To Folder"; }
+      if (subtitle) { subtitle.textContent = this.pickerMode === "export" ? "Choose a folder to export as HTML pages." : "Choose the destination folder."; }
+      this.renderTree("pb-folder-tree", true, this.pickerSelectedFolderId);
+      showDialog(document.getElementById("pb-folder-picker"));
+    },
+    closeFolderPicker: function () {
+      closeDialog(document.getElementById("pb-folder-picker"));
+    },
+    confirmFolderPicker: function () {
+      if (this.pickerMode === "export") {
+        this.exportFolderById(this.pickerSelectedFolderId);
+      } else if (this.pickerMode === "move") {
+        this.moveNode(this.pickerTargetId, this.pickerSelectedFolderId);
+      }
+      this.closeFolderPicker();
+    },
+    collectExportFiles: function (folder, prefix, out) {
+      var path = prefix || "";
+      var list = out || [];
+      (folder.children || []).forEach(function (child) {
+        if (child.type === "folder") {
+          FileStore.collectExportFiles(child, path + child.name + "/", list);
+        } else {
+          list.push({
+            path: path + htmlFileName(child.name),
+            name: child.name,
+            contents: htmlPageForQHtml(child.source || "", child.name)
+          });
+        }
+      });
+      return list;
+    },
+    exportFolderById: function (folderId) {
+      var found = this.find(folderId || "root");
+      var files;
+      if (!found || found.node.type !== "folder") { return; }
+      files = this.collectExportFiles(found.node, "", []);
+      if (!files.length) {
+        setStatus("Folder has no files to export");
+        return;
+      }
+      if (window.showDirectoryPicker) {
+        this.exportToDirectory(found.node, files);
+        return;
+      }
+      files.forEach(function (file) {
+        triggerDownload(file.path.replace(/[\\/]+/g, "__"), file.contents, "text/html;charset=utf-8");
+      });
+      setStatus("Exported " + files.length + " HTML file download" + (files.length === 1 ? "" : "s"));
+    },
+    exportToDirectory: function (folder, files) {
+      window.showDirectoryPicker().then(function (dirHandle) {
+        function writeFile(parts, contents, handle) {
+          var name = parts.shift();
+          if (!parts.length) {
+            return handle.getFileHandle(name, { create: true }).then(function (fileHandle) {
+              return fileHandle.createWritable();
+            }).then(function (writable) {
+              return writable.write(contents).then(function () { return writable.close(); });
+            });
+          }
+          return handle.getDirectoryHandle(name, { create: true }).then(function (nextHandle) {
+            return writeFile(parts, contents, nextHandle);
+          });
+        }
+        return Promise.all(files.map(function (file) {
+          return writeFile(file.path.split("/").filter(Boolean), file.contents, dirHandle);
+        }));
+      }).then(function () {
+        setStatus("Exported folder " + (folder && folder.name || "/"));
+      }).catch(function (error) {
+        if (error && error.name !== "AbortError") {
+          setStatus("Export folder failed");
+        }
+      });
     }
   };
 
@@ -2835,6 +3478,14 @@
     BuilderStore.load();
   }
 
+  function newLayoutFile() {
+    FileStore.startNewFile();
+  }
+
+  function exportFolder() {
+    FileStore.openFolderPicker("export", "");
+  }
+
   function updateExportPanel(focusOutput) {
     var output = document.getElementById("pb-export-output");
     var source = exportQHtml();
@@ -2868,9 +3519,16 @@
   window.QPageBuilder = {
     exportQHtml: exportQHtml,
     exportToPanel: exportToPanel,
+    exportFolder: exportFolder,
+    newLayoutFile: newLayoutFile,
     clearCanvas: clearCanvas,
     saveLayout: saveLayout,
     loadLayout: loadLayout,
+    closeFileDialog: function () { FileStore.closeDialog(); },
+    newFileFolder: function () { FileStore.newFolder(); },
+    newFile: function () { FileStore.newFile(); },
+    closeFolderPicker: function () { FileStore.closeFolderPicker(); },
+    confirmFolderPicker: function () { FileStore.confirmFolderPicker(); },
     addRow: addRow,
     addColumn: addColumn,
     openPaletteEditor: function (button) { PaletteEditor.open(button); },
