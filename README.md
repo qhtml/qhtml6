@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.9.4
+# QHTML.js v6.9.5
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,13 +12,14 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v6.9.4
+## Whats New in v6.9.5
 
-- Bumped the release line to `6.9.4`.
-- Fixed `<particle-emitter>` / `<q-particle-emitter>` sprite composition so loaded `src` images remain visible while `color` applies as an optional transparent overlay or masked backdrop through `colorOpacity` / `color-opacity`.
-- Fixed q-var function handles so exporting named q-var values no longer writes the handle back into its own state, preventing maximum-call-stack recursion in inline expressions and event handlers.
-- Added anonymous `q-style { ... }` blocks inside `q-theme` selector rules so one-off theme styles can be declared inline beside named q-style references.
-- Updated the styles/themes documentation and test coverage for anonymous q-style usage in q-theme rules.
+- Bumped the release line to `6.9.5`.
+- Expanded `dist/page-builder.html` with page-local QHTML import support, per-file palette records, a multi-file local-storage workflow, and a dedicated File Manager dialog for renaming, moving, and deleting files.
+- Added the q-component builder flow for creating new palette components, including General/Structure/Handlers/Preview tabs, direct q-editor editing, cursor-aware snippet insertion, and immediate palette insertion below the New item.
+- Improved page-builder drag/drop behavior for nested component slots, including dialog-based Insert into slot vs Replace Target choices and a slot combobox for selecting the destination.
+- Improved the instance editor so slot selection defaults to `none`, letting the full instance block be edited and saved as a different instance shape while slot-specific editing remains available.
+- Updated page-builder layout/editing ergonomics: larger edit q-editors, nested instance edit buttons, layout palette items as real q-components with slots/placeholders, responsive canvas body styling, and a dark page-builder body background.
 
 ## 1. Quick Start
 

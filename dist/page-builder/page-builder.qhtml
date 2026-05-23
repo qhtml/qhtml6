@@ -29,6 +29,18 @@ q-component page-builder-toolbar {
     }
   }
 
+  function fileManager() {
+    if (window.QPageBuilder && typeof window.QPageBuilder.openFileManager === "function") {
+      window.QPageBuilder.openFileManager();
+    }
+  }
+
+  function importQHtml() {
+    if (window.QPageBuilder && typeof window.QPageBuilder.importQHtmlFile === "function") {
+      window.QPageBuilder.importQHtmlFile();
+    }
+  }
+
   function exportFolder() {
     if (window.QPageBuilder && typeof window.QPageBuilder.exportFolder === "function") {
       window.QPageBuilder.exportFolder();
@@ -47,6 +59,8 @@ q-component page-builder-toolbar {
       button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").newFile(); } text { New } }
       button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").saveLayout(); } text { Save } }
       button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").loadLayout(); } text { Load } }
+      button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").fileManager(); } text { File Manager } }
+      button.pb-action.secondary { type: "button" onclick { this.closest("page-builder-toolbar").importQHtml(); } text { Import QHTML } }
       button.pb-action.danger { type: "button" onclick { this.closest("page-builder-toolbar").clearLayout(); } text { Clear } }
       button.pb-action.primary { type: "button" onclick { this.closest("page-builder-toolbar").exportLayout(); } text { Export QHTML } }
       button.pb-action.primary { type: "button" onclick { this.closest("page-builder-toolbar").exportFolder(); } text { Export Folder } }
@@ -64,6 +78,16 @@ q-component page-builder-palette {
     q-palette-toolbox {
       docked: "true"
       title: "Blocks"
+
+      q-palette-toolbox-button {
+        name: "New"
+        component: "pb-new-component"
+        data-pb-create-component: "true"
+        div.pb-palette-preview.new-component {
+          h3 { text { New } }
+          p { text { q-component } }
+        }
+      }
 
       q-palette-toolbox-button {
         name: "Heading"
@@ -276,6 +300,153 @@ q-component page-builder-export-panel {
   }
 }
 
+q-component page-builder-component-builder {
+  dialog.pb-component-builder {
+    id: "pb-component-builder"
+    div.pb-component-builder-card {
+      header.pb-component-builder-head {
+        div {
+          h2 { text { New q-component } }
+          p { id: "pb-component-builder-subtitle" text { Create a palette component for this page. } }
+        }
+        button.pb-icon-button {
+          type: "button"
+          aria-label: "Close component builder"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.closeComponentBuilder(); } }
+          html { &times; }
+        }
+      }
+
+      nav.pb-component-builder-tabs {
+        button.active {
+          type: "button"
+          data-pb-builder-tab: "general"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.switchComponentBuilderTab("general"); } }
+          text { General }
+        }
+        button {
+          type: "button"
+          data-pb-builder-tab: "structure"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.switchComponentBuilderTab("structure"); } }
+          text { Structure }
+        }
+        button {
+          type: "button"
+          data-pb-builder-tab: "handlers"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.switchComponentBuilderTab("handlers"); } }
+          text { Handlers }
+        }
+        button {
+          type: "button"
+          data-pb-builder-tab: "preview"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.switchComponentBuilderTab("preview"); } }
+          text { Preview }
+        }
+      }
+
+      section.pb-component-builder-panel {
+        data-pb-builder-panel: "general"
+        div.pb-component-general-grid {
+          label {
+            text { q-component name }
+            input {
+              id: "pb-component-builder-name"
+              type: "text"
+              value: "my-component"
+              inputmode: "text"
+              onchange { if (window.QPageBuilder) { window.QPageBuilder.updateComponentBuilderGeneral(); } }
+              oninput { if (window.QPageBuilder) { window.QPageBuilder.updateComponentBuilderGeneral(); } }
+            }
+          }
+          label {
+            text { extends }
+            input {
+              id: "pb-component-builder-extends"
+              type: "text"
+              placeholder: "base-card base-panel"
+              inputmode: "text"
+              onchange { if (window.QPageBuilder) { window.QPageBuilder.updateComponentBuilderGeneral(); } }
+              oninput { if (window.QPageBuilder) { window.QPageBuilder.updateComponentBuilderGeneral(); } }
+            }
+          }
+        }
+      }
+
+      section.pb-component-builder-panel {
+        data-pb-builder-panel: "structure"
+        hidden: "hidden"
+        div.pb-component-builder-workbench {
+          div.pb-component-builder-tools {
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("tag"); } } text { tag } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("q-signal"); } } text { q-signal } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("slot"); } } html { slot } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("function"); } } text { function } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("q-property"); } } text { q-property } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("q-var"); } } text { q-var } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("q-layout"); } } text { q-layout } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("q-row"); } } text { q-row } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("q-col"); } } text { q-col } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("q-connect"); } } text { q-connect } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("html"); } } text { HTML } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("text"); } } text { text } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.indentComponentBuilderEditor(); } } text { Indent } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.outdentComponentBuilderEditor(); } } text { Outdent } }
+          }
+          q-editor {
+            id: "pb-component-builder-structure"
+          }
+        }
+      }
+
+      section.pb-component-builder-panel {
+        data-pb-builder-panel: "handlers"
+        hidden: "hidden"
+        div.pb-component-builder-workbench {
+          div.pb-component-builder-tools {
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("onclick"); } } text { onclick } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("onready"); } } text { onready } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("onpaint"); } } text { onpaint } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("on-signal"); } } text { on<signal> } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.insertComponentBuilderSnippet("on-property-changed"); } } text { on<property>changed } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.indentComponentBuilderEditor(); } } text { Indent } }
+            button { type: "button" onclick { if (window.QPageBuilder) { window.QPageBuilder.outdentComponentBuilderEditor(); } } text { Outdent } }
+          }
+          q-editor {
+            id: "pb-component-builder-handlers"
+          }
+        }
+      }
+
+      section.pb-component-builder-panel {
+        data-pb-builder-panel: "preview"
+        hidden: "hidden"
+        div.pb-component-builder-preview {
+          q-editor {
+            id: "pb-component-builder-preview"
+          }
+        }
+      }
+
+      div.pb-component-builder-error {
+        id: "pb-component-builder-error"
+      }
+
+      footer.pb-component-builder-actions {
+        button.pb-action.secondary {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.closeComponentBuilder(); } }
+          text { Cancel }
+        }
+        button.pb-action.primary {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.createComponentBuilderItem(); } }
+          text { Create }
+        }
+      }
+    }
+  }
+}
+
 q-component page-builder-palette-editor {
   dialog.pb-palette-editor {
     id: "pb-palette-editor"
@@ -437,6 +608,62 @@ q-component page-builder-file-dialog {
   }
 }
 
+q-component page-builder-file-manager {
+  dialog.pb-file-dialog {
+    id: "pb-file-manager"
+    div.pb-file-card {
+      header.pb-file-head {
+        div {
+          h2 { text { File Manager } }
+          p { id: "pb-file-manager-subtitle" text { Select a file to rename, delete, or move. } }
+        }
+        button.pb-icon-button {
+          type: "button"
+          aria-label: "Close file manager"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.closeFileManager(); } }
+          html { &times; }
+        }
+      }
+
+      div.pb-file-body {
+        q-tree-view {
+          id: "pb-file-manager-tree-probe"
+        }
+        div.pb-file-tree {
+          id: "pb-file-manager-tree"
+        }
+      }
+
+      footer.pb-file-actions {
+        div.pb-file-selected {
+          id: "pb-file-manager-selected"
+          text { / }
+        }
+        button.pb-action.secondary {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.renameManagedFile(); } }
+          text { Rename }
+        }
+        button.pb-action.secondary {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.moveManagedFile(); } }
+          text { Move }
+        }
+        button.pb-action.danger {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.deleteManagedFile(); } }
+          text { Delete }
+        }
+        button.pb-action.secondary {
+          type: "button"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.closeFileManager(); } }
+          text { Close }
+        }
+      }
+    }
+  }
+}
+
 q-component page-builder-folder-picker {
   dialog.pb-file-dialog {
     id: "pb-folder-picker"
@@ -500,8 +727,10 @@ q-component page-builder-app {
       }
     }
     page-builder-palette-editor { }
+    page-builder-component-builder { }
     page-builder-instance-editor { }
     page-builder-file-dialog { }
+    page-builder-file-manager { }
     page-builder-folder-picker { }
     q-popup-menu {
       id: "pb-file-context-menu"

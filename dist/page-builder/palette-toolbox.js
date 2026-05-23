@@ -292,7 +292,7 @@
     style.id = "q-layout-toolbox-style";
     style.textContent = [
       ":root{--pb-ink:#172033;--pb-muted:#607089;--pb-panel:#ffffff;--pb-line:#d8e0ec;--pb-blue:#2563eb;--pb-cyan:#06b6d4;--pb-red:#dc2626;--pb-bg:#ecf2f9}",
-      "body{margin:0;background:radial-gradient(circle at 10% 0%,#dbeafe 0,#eef5ff 34%,#e7edf5 100%);font-family:'Aptos','Segoe UI',sans-serif;color:var(--pb-ink)}",
+      "body{margin:0;background:rgba(15,23,42,.92);font-family:'Aptos','Segoe UI',sans-serif;color:var(--pb-ink)}",
       ".pb-app{min-height:100vh;display:grid;grid-template-rows:auto minmax(0,1fr)}",
       ".pb-toolbar{height:78px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:rgba(255,255,255,.86);backdrop-filter:blur(18px);border-bottom:1px solid rgba(148,163,184,.38);box-shadow:0 14px 48px rgba(15,23,42,.08);position:sticky;top:0;z-index:50}",
       ".pb-brand{display:flex;align-items:center;gap:14px}.pb-logo{width:44px;height:44px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(135deg,#0f172a,#2563eb);color:white;font-weight:950;font-size:22px;box-shadow:0 12px 28px rgba(37,99,235,.28)}",
@@ -309,10 +309,12 @@
       "q-palette-toolbox-button{display:block;position:relative;min-height:76px;padding:0;border-radius:18px;background:white;border:1px solid rgba(148,163,184,.3);box-shadow:0 12px 26px rgba(0,0,0,.18);cursor:grab;overflow:hidden}q-palette-toolbox-button:active{cursor:grabbing}.pb-palette-preview{min-height:76px;padding:14px;background:linear-gradient(135deg,#ffffff,#eef6ff);border-left:5px solid #2563eb}.pb-palette-preview h3{margin:0;font-size:14px}.pb-palette-preview p{margin:4px 0 0;font-size:12px;color:#64748b}.pb-palette-preview.hero{border-color:#06b6d4}.pb-palette-preview.card{border-color:#6366f1}.pb-palette-preview.columns{border-color:#14b8a6}.pb-palette-preview.callout{border-color:#f59e0b}.pb-palette-preview.buttons{border-color:#ec4899}.pb-palette-preview.layout{border-color:#10b981}.pb-palette-preview.heading{border-color:#8b5cf6}.pb-palette-preview.price{border-color:#0ea5e9}.pb-palette-preview.edited{border-color:#2563eb}.pb-palette-edit-button{position:absolute;top:8px;right:8px;z-index:4;width:30px;height:30px;display:grid;place-items:center;border:1px solid rgba(37,99,235,.22);border-radius:999px;background:rgba(255,255,255,.92);color:#1d4ed8;box-shadow:0 8px 20px rgba(15,23,42,.16);cursor:pointer}.pb-palette-edit-button:hover{background:#eff6ff;color:#0f172a}.pb-palette-edit-button svg{width:15px;height:15px;display:block}",
       "q-builder-item{display:block;position:relative;margin:0;border-radius:18px;border:1px solid rgba(37,99,235,.28);background:white;box-shadow:0 14px 34px rgba(15,23,42,.1);overflow:hidden;cursor:grab}q-builder-item:active{cursor:grabbing}q-builder-item.pb-selected{outline:3px solid rgba(37,99,235,.32)}.q-builder-item-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;background:#eff6ff;border-bottom:1px solid #bfdbfe;color:#1d4ed8;font-size:11px;font-weight:950;letter-spacing:.04em;text-transform:uppercase}.q-builder-item-preview{padding:14px}",
       ".q-builder-instance-edit{position:absolute;top:10px;right:10px;z-index:30;width:34px;height:34px;display:grid;place-items:center;border:1px solid rgba(37,99,235,.28);border-radius:999px;background:rgba(255,255,255,.97);color:#1d4ed8;box-shadow:0 10px 24px rgba(15,23,42,.2);cursor:pointer;opacity:0;pointer-events:none;transform:translateY(-4px);transition:opacity .14s ease,transform .14s ease,color .14s ease,background .14s ease}q-builder-item:hover>.q-builder-instance-edit,q-builder-item.pb-selected>.q-builder-instance-edit,q-builder-item:focus-within>.q-builder-instance-edit{opacity:1;pointer-events:auto;transform:translateY(0)}.q-builder-instance-edit:hover{background:#eff6ff;color:#0f172a}.q-builder-instance-edit svg{width:15px;height:15px;display:block}",
+      ".pb-rendered-component-editable{position:relative}.pb-rendered-instance-edit{position:absolute;top:6px;right:6px;z-index:28;width:28px;height:28px;display:grid;place-items:center;border:1px solid rgba(37,99,235,.3);border-radius:999px;background:rgba(255,255,255,.95);color:#1d4ed8;box-shadow:0 8px 20px rgba(15,23,42,.18);cursor:pointer;opacity:0;pointer-events:none;transform:translateY(-3px);transition:opacity .14s ease,transform .14s ease}.pb-rendered-component-editable:hover>.pb-rendered-instance-edit,.pb-rendered-component-editable:focus-within>.pb-rendered-instance-edit{opacity:1;pointer-events:auto;transform:translateY(0)}.pb-rendered-instance-edit:hover{background:#eff6ff;color:#0f172a}.pb-rendered-instance-edit svg{width:13px;height:13px;display:block}",
       ".pb-hero-block{padding:32px;border-radius:20px;background:linear-gradient(135deg,#0f172a,#1d4ed8);color:white}.pb-hero-block h1{margin:0;font-size:38px;letter-spacing:-.06em}.pb-hero-block p{max-width:560px;color:#dbeafe}.pb-demo-button{border:0;border-radius:999px;background:#22d3ee;color:#0f172a;font-weight:900;padding:10px 16px}.pb-demo-button.ghost{background:white;color:#1d4ed8;border:1px solid #bfdbfe}.pb-feature-card{padding:22px;border-radius:18px;background:#f8fafc;border:1px solid #dbe4f0}.pb-feature-card h3,.pb-two-column-copy h3{margin-top:0}.pb-two-column-copy{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.pb-two-column-copy>div{padding:18px;border-radius:16px;background:#f8fafc;border:1px solid #dbe4f0}.pb-callout{padding:18px;border-radius:18px;background:#fffbeb;border:1px solid #fde68a;color:#78350f}.pb-button-row{display:flex;gap:12px;flex-wrap:wrap}",
       ".q-drag-ghost{position:fixed;z-index:99999;pointer-events:none;width:128px;min-height:82px;display:grid;place-items:center;border-radius:18px;border:2px solid #2563eb;background:white;color:#1d4ed8;font-size:13px;font-weight:950;text-align:center;padding:12px;box-shadow:0 22px 60px rgba(0,0,0,.38);opacity:.96}.q-drop-indicator{position:fixed;z-index:99998;pointer-events:none;border:3px solid #2563eb;border-radius:14px;background:rgba(37,99,235,.1);box-shadow:0 0 0 2px rgba(255,255,255,.72)}.q-drop-indicator.row-line{height:7px;border:0;border-radius:999px;background:#2563eb;box-shadow:0 0 0 2px rgba(255,255,255,.85)}.q-drop-indicator.col-line{width:7px;border:0;border-radius:999px;background:#2563eb;box-shadow:0 0 0 2px rgba(255,255,255,.85)}",
       ".pb-export-panel{min-height:0}.pb-export-panel q-editor{display:block;border-top:1px solid rgba(148,163,184,.28)}.pb-export-panel q-editor .qe{border:0;border-radius:0}.pb-export-panel q-editor .qe-editor-wrap,.pb-export-panel q-editor .qe-highlight,.pb-export-panel q-editor .qe-input,.pb-export-panel q-editor .qe-code,.pb-export-panel q-editor .qe-preview,.pb-export-panel q-editor .qe-cm-host,.pb-export-panel q-editor .qe-cm-host .cm-editor{min-height:174px}",
       ".pb-palette-editor{border:0;padding:0;background:transparent;max-width:min(980px,calc(100vw - 34px));width:980px}.pb-palette-editor::backdrop{background:rgba(15,23,42,.55);backdrop-filter:blur(5px)}.pb-palette-editor-card{background:#f8fafc;border:1px solid rgba(148,163,184,.45);border-radius:24px;box-shadow:0 36px 120px rgba(15,23,42,.38);overflow:hidden}.pb-palette-editor-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:20px 22px;background:white;border-bottom:1px solid #dbe4f0}.pb-palette-editor-head h2{margin:0;font-size:20px;letter-spacing:-.04em}.pb-palette-editor-head p{margin:6px 0 0;color:#64748b;font-size:13px}.pb-icon-button{width:34px;height:34px;border:0;border-radius:999px;background:#eef2ff;color:#1e293b;font-size:23px;line-height:1;cursor:pointer}.pb-editor-label{display:block;padding:16px 22px 8px;color:#334155;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}.pb-palette-editor q-editor{display:block;margin:0 22px 14px}.pb-palette-editor q-editor .qe{border-color:#cbd5e1;border-radius:16px}.pb-palette-editor q-editor .qe-editor-wrap,.pb-palette-editor q-editor .qe-highlight,.pb-palette-editor q-editor .qe-input,.pb-palette-editor q-editor .qe-code,.pb-palette-editor q-editor .qe-preview,.pb-palette-editor q-editor .qe-cm-host,.pb-palette-editor q-editor .qe-cm-host .cm-editor{min-height:340px}.pb-palette-editor-error{min-height:20px;margin:0 22px 10px;color:#be123c;font-size:13px;font-weight:800}.pb-palette-editor-actions{display:flex;justify-content:flex-end;gap:10px;padding:16px 22px 20px;border-top:1px solid #dbe4f0;background:#fff}",
+      ".pb-palette-preview.new-component{border-color:#111827;background:linear-gradient(135deg,#ffffff,#e0f2fe)}q-palette-toolbox-button[data-pb-create-component='true']{cursor:pointer}.pb-component-builder{border:0;padding:0;background:transparent;width:min(1120px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto}.pb-component-builder::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.pb-component-builder-card{background:#f8fafc;border:1px solid rgba(148,163,184,.45);border-radius:24px;box-shadow:0 36px 120px rgba(15,23,42,.38);overflow:hidden}.pb-component-builder-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:18px 22px;background:white;border-bottom:1px solid #dbe4f0}.pb-component-builder-head h2{margin:0;font-size:20px;letter-spacing:-.04em}.pb-component-builder-head p{margin:6px 0 0;color:#64748b;font-size:13px}.pb-component-builder-tabs{display:flex;gap:8px;flex-wrap:wrap;padding:12px 22px;background:#f1f5f9;border-bottom:1px solid #dbe4f0}.pb-component-builder-tabs button{border:1px solid #cbd5e1;background:white;color:#334155;border-radius:999px;padding:9px 13px;font-weight:900;cursor:pointer}.pb-component-builder-tabs button.active{background:#0f172a;border-color:#0f172a;color:white}.pb-component-builder-panel{padding:16px 22px}.pb-component-builder-panel[hidden]{display:none!important}.pb-component-general-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.pb-component-general-grid label{display:grid;gap:7px;color:#334155;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}.pb-component-general-grid input{min-width:0;border:1px solid #cbd5e1;border-radius:12px;background:white;color:#0f172a;padding:11px 12px;font-size:14px}.pb-component-builder-workbench{display:grid;grid-template-columns:170px minmax(0,1fr);gap:14px;align-items:start}.pb-component-builder-tools{display:grid;gap:8px;max-height:60vh;overflow:auto}.pb-component-builder-tools button{border:1px solid #cbd5e1;border-radius:12px;background:white;color:#1d4ed8;font-weight:900;text-align:left;padding:9px 10px;cursor:pointer}.pb-component-builder-tools button:hover{background:#eff6ff;color:#0f172a}.pb-component-builder q-editor{display:block;min-height:58vh}.pb-component-builder q-editor .qe{min-height:58vh;border-color:#cbd5e1;border-radius:16px}.pb-component-builder q-editor .qe-editor-wrap,.pb-component-builder q-editor .qe-highlight,.pb-component-builder q-editor .qe-input,.pb-component-builder q-editor .qe-code,.pb-component-builder q-editor .qe-preview,.pb-component-builder q-editor .qe-cm-host,.pb-component-builder q-editor .qe-cm-host .cm-editor{min-height:58vh}.pb-component-builder-error{min-height:20px;padding:0 22px 8px;color:#be123c;font-size:13px;font-weight:800}.pb-component-builder-actions{display:flex;justify-content:flex-end;gap:10px;padding:14px 22px 18px;border-top:1px solid #dbe4f0;background:#fff}.pb-mini-dialog{border:0;border-radius:18px;padding:0;background:white;box-shadow:0 28px 90px rgba(15,23,42,.38);width:min(420px,calc(100vw - 32px))}.pb-mini-dialog::backdrop{background:rgba(15,23,42,.45)}.pb-mini-card{display:grid;gap:14px;padding:18px}.pb-mini-card h3{margin:0;font-size:16px}.pb-mini-card select{width:100%;border:1px solid #cbd5e1;border-radius:12px;padding:10px;background:white}.pb-mini-actions{display:flex;justify-content:flex-end;gap:9px}",
       ".pb-instance-editor{border:0;padding:0;background:transparent;width:min(90vw,1180px);max-width:90vw;max-height:calc(100vh - 32px);overflow-y:auto}.pb-instance-editor::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.pb-instance-editor-card{background:#f8fafc;border:1px solid rgba(148,163,184,.45);border-radius:24px;box-shadow:0 36px 120px rgba(15,23,42,.38);overflow:hidden}.pb-instance-editor-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:18px 22px;background:white;border-bottom:1px solid #dbe4f0}.pb-instance-editor-head h2{margin:0;font-size:20px;letter-spacing:-.04em}.pb-instance-editor-head p{margin:6px 0 0;color:#64748b;font-size:13px}.pb-instance-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px 22px;background:#f1f5f9;border-bottom:1px solid #dbe4f0}.pb-instance-controls label{display:grid;gap:6px;color:#334155;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.08em}.pb-instance-controls select{min-width:0;border:1px solid #cbd5e1;border-radius:12px;background:white;color:#0f172a;padding:10px;font-size:14px}.pb-instance-editor-body{padding:16px 22px}.pb-instance-editor q-editor{display:block;min-height:60vh}.pb-instance-editor q-editor .qe{min-height:60vh;border-color:#cbd5e1;border-radius:16px}.pb-instance-editor q-editor .qe-editor-wrap,.pb-instance-editor q-editor .qe-highlight,.pb-instance-editor q-editor .qe-input,.pb-instance-editor q-editor .qe-code,.pb-instance-editor q-editor .qe-preview,.pb-instance-editor q-editor .qe-cm-host,.pb-instance-editor q-editor .qe-cm-host .cm-editor{min-height:60vh}.pb-instance-editor-error{min-height:20px;padding:0 22px 8px;color:#be123c;font-size:13px;font-weight:800}.pb-instance-editor-actions{display:flex;justify-content:flex-end;gap:10px;padding:14px 22px 18px;border-top:1px solid #dbe4f0;background:#fff}.pb-instance-editor-actions .primary{background:#0f172a;color:white}",
       ".pb-file-dialog{border:0;padding:0;background:transparent;width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto}.pb-file-dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.pb-file-card{background:#f8fafc;border:1px solid rgba(148,163,184,.45);border-radius:24px;box-shadow:0 36px 120px rgba(15,23,42,.38);overflow:hidden}.pb-file-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:18px 22px;background:white;border-bottom:1px solid #dbe4f0}.pb-file-head h2{margin:0;font-size:20px;letter-spacing:-.04em}.pb-file-head p{margin:6px 0 0;color:#64748b;font-size:13px}.pb-file-toolbar{display:flex;gap:10px;flex-wrap:wrap;padding:14px 22px;background:#f1f5f9;border-bottom:1px solid #dbe4f0}.pb-file-body{padding:14px 18px 18px;min-height:360px}.pb-file-body q-tree-view{display:none}.pb-file-tree{min-height:340px;max-height:54vh;overflow:auto;border:1px solid #dbe4f0;border-radius:16px;background:white;padding:8px}.pb-file-list{list-style:none;margin:0;padding:0}.pb-file-node{width:100%;display:flex;align-items:center;gap:8px;border:0;background:transparent;color:#0f172a;text-align:left;border-radius:10px;padding:8px 10px;font-size:14px;cursor:pointer}.pb-file-node:hover{background:#eff6ff}.pb-file-node.selected{background:#dbeafe;color:#1d4ed8;font-weight:900}.pb-file-node.folder{font-weight:850}.pb-file-glyph{width:18px;color:#64748b}.pb-file-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 22px 18px;border-top:1px solid #dbe4f0;background:#fff}.pb-file-selected{margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#475569;font-size:13px;font-weight:800}.pb-file-context-menu{min-width:150px;background:white;border:1px solid #cbd5e1;border-radius:14px;box-shadow:0 22px 70px rgba(15,23,42,.24);padding:6px}.pb-file-context-menu button{display:block;width:100%;border:0;background:transparent;text-align:left;border-radius:10px;padding:9px 10px;color:#0f172a;font-weight:800;cursor:pointer}.pb-file-context-menu button:hover{background:#eff6ff;color:#1d4ed8}#pb-file-context-menu{display:none;width:auto!important;height:auto!important;z-index:7000}#pb-file-context-menu .q-popup-container{width:auto;height:auto}",
       "@media (max-width:980px){.pb-workspace{grid-template-columns:1fr}.pb-main{grid-template-rows:auto auto}.pb-toolbar{height:auto;align-items:flex-start;gap:14px;flex-direction:column;padding:16px}.pb-actions{width:100%}.pb-workspace{padding:12px}.pb-two-column-copy{grid-template-columns:1fr}}"
@@ -329,6 +331,10 @@
     return rawAttr(el, "qhtml");
   }
 
+  function qhtmlSupportSource(el) {
+    return rawAttr(el, "support");
+  }
+
   function qhtmlInstanceSource(el) {
     return safeAttr(el, "instance", qhtmlAttrSource(el));
   }
@@ -337,17 +343,21 @@
     return JSON.stringify(String(value == null ? "" : value));
   }
 
-  function builderItemQHtml(name, component, source, instance) {
+  function builderItemQHtml(name, component, source, instance, support) {
     var definition = source == null ? "" : String(source);
     var instantiation = instance == null || instance === "" ? (definition || "div { text { Empty component } }") : String(instance);
-    return [
+    var lines = [
       "q-builder-item {",
       "  name: " + qhtmlStringLiteral(name || "Item"),
       "  component: " + qhtmlStringLiteral(component || "pb-item"),
-      "  qhtml: " + qhtmlStringLiteral(definition),
-      "  instance: " + qhtmlStringLiteral(instantiation),
-      "}"
-    ].join("\n");
+      "  qhtml: " + qhtmlStringLiteral(definition)
+    ];
+    if (support) {
+      lines.push("  support: " + qhtmlStringLiteral(support));
+    }
+    lines.push("  instance: " + qhtmlStringLiteral(instantiation));
+    lines.push("}");
+    return lines.join("\n");
   }
 
   function componentDefinitionBlock(component, source) {
@@ -359,22 +369,33 @@
     return "q-component " + name + " {\n" + indentBlock(body, 1) + "\n}";
   }
 
-  function collectPaletteDefinitions(primaryComponent, primaryDefinition) {
+  function collectPaletteDefinitions(primaryComponent, primaryDefinition, primarySupport) {
     var map = Object.create(null);
+    var support = [];
+    var seenSupport = Object.create(null);
     var primaryName = String(primaryComponent || "").trim();
+    function addSupport(source) {
+      var text = String(source || "").trim();
+      if (text && !seenSupport[text]) {
+        seenSupport[text] = true;
+        support.push(text);
+      }
+    }
+    addSupport(primarySupport);
     if (primaryName && String(primaryDefinition || "").trim()) {
       map[primaryName] = String(primaryDefinition || "");
     }
     arr(document.querySelectorAll(Q.button)).forEach(function (button) {
       var name = componentName(button);
       var source = qhtmlDefinitionSource(button);
+      addSupport(qhtmlSupportSource(button));
       if (name && source && !map[name]) {
         map[name] = source;
       }
     });
-    return Object.keys(map).sort().map(function (name) {
+    return support.concat(Object.keys(map).sort().map(function (name) {
       return componentDefinitionBlock(name, map[name]);
-    }).filter(Boolean).join("\n\n");
+    }).filter(Boolean)).join("\n\n");
   }
 
   function qdomOf(el) {
@@ -498,6 +519,16 @@
     if (typeof editor.setQhtmlSource === "function") {
       editor.setQhtmlSource(raw);
     }
+  }
+
+  function readQEditorRawSource(editor) {
+    if (!editor) {
+      return "";
+    }
+    if (typeof editor.getQhtmlSource === "function") {
+      return String(editor.getQhtmlSource() || "");
+    }
+    return String(editor.textContent || editor.innerHTML || "");
   }
 
   function readPaletteEditorSource(editor) {
@@ -696,9 +727,10 @@
   function previewSourceForElement(el) {
     var component = componentName(el);
     var definition = qhtmlDefinitionSource(el);
+    var support = qhtmlSupportSource(el);
     var instance = qhtmlInstanceSource(el);
     if (definition) {
-      return collectPaletteDefinitions(component, definition) + "\n\n" + instance;
+      return collectPaletteDefinitions(component, definition, support) + "\n\n" + instance;
     }
     return instance;
   }
@@ -1167,6 +1199,271 @@
     return true;
   }
 
+  function dropTargetBuilderItem(intent, source) {
+    var target = intent && (intent.target || intent.container);
+    var item = target && target.closest ? target.closest(Q.item) : null;
+    var point = intent && intent.point ? intent.point : null;
+    var pointed;
+    if (!item && intent && intent.type === "item-edge" && intent.target) {
+      item = intent.target;
+    }
+    if (!item && point && document.elementFromPoint) {
+      pointed = document.elementFromPoint(Number(point.x), Number(point.y));
+      item = pointed && pointed.closest ? pointed.closest(Q.item) : null;
+    }
+    if (!item || item.closest(Q.toolbox) || item === source || (source && source.contains && source.contains(item)) || (item.contains && item.contains(source))) {
+      return null;
+    }
+    return item;
+  }
+
+  function entryLabelForSlotChoice(entry, slotName) {
+    return (entry && entry.label ? entry.label : entry && entry.component ? entry.component : "component") + " / " + slotName;
+  }
+
+  function slotChoicesForBuilderItem(owner) {
+    var source = qhtmlInstanceSource(owner);
+    var choices = [];
+    collectInstanceEntries(owner).forEach(function (entry) {
+      (entry.slots || []).forEach(function (slotName) {
+        choices.push({
+          entry: entry,
+          slotName: slotName,
+          label: entryLabelForSlotChoice(entry, slotName),
+          current: slotSourceForEntry(source, entry, slotName)
+        });
+      });
+    });
+    return choices;
+  }
+
+  function closestSlotChoiceForSurface(owner, surface) {
+    var componentHost = renderedComponentHostForSlot(surface, owner);
+    var entry = componentHost ? entryForRenderedComponentHost(owner, componentHost) : collectInstanceEntries(owner)[0] || null;
+    var slotName = surface && surface.getAttribute ? surface.getAttribute("data-pb-slot") : "";
+    if (!entry || !slotName) {
+      return null;
+    }
+    return {
+      entry: entry,
+      slotName: slotName,
+      label: entryLabelForSlotChoice(entry, slotName),
+      current: slotSourceForEntry(qhtmlInstanceSource(owner), entry, slotName)
+    };
+  }
+
+  function slotChoiceForHoveredInstance(owner, intent) {
+    var point = intent && intent.point ? intent.point : null;
+    var preview = owner && owner.querySelector ? owner.querySelector(":scope > .q-builder-item-preview") : null;
+    var node = point && document.elementFromPoint ? document.elementFromPoint(Number(point.x), Number(point.y)) : null;
+    var host = node && node.closest ? node.closest("[q-component]") : null;
+    var entries;
+    var entry;
+    var parts;
+    var slotName;
+    var parentPath;
+    var parentEntry;
+    if (!host || !preview || !preview.contains(host) || host === owner) {
+      return null;
+    }
+    entries = collectInstanceEntries(owner);
+    entry = entryForRenderedComponentHost(owner, host);
+    parts = entry && entry.path ? String(entry.path).split(".") : [];
+    if (parts.length < 3) {
+      return null;
+    }
+    slotName = parts[parts.length - 2];
+    parentPath = parts.slice(0, -2).join(".");
+    parentEntry = entryByPath(entries, parentPath);
+    if (!parentEntry || !slotName) {
+      return null;
+    }
+    return {
+      entry: parentEntry,
+      slotName: slotName,
+      label: entryLabelForSlotChoice(parentEntry, slotName),
+      current: slotSourceForEntry(qhtmlInstanceSource(owner), parentEntry, slotName)
+    };
+  }
+
+  function directSlotChoiceForIntent(owner, intent) {
+    var surface = closestRenderedSlotSurfaceForIntent(intent);
+    var directChoice = surface && owner && surface.closest && surface.closest(Q.item) === owner
+      ? closestSlotChoiceForSurface(owner, surface)
+      : null;
+    return directChoice || slotChoiceForHoveredInstance(owner, intent);
+  }
+
+  function createBuilderDialog(title, body) {
+    var dialog = document.createElement("dialog");
+    var card = document.createElement("div");
+    var heading = document.createElement("h3");
+    dialog.className = "pb-mini-dialog";
+    card.className = "pb-mini-card";
+    heading.textContent = title;
+    card.appendChild(heading);
+    if (body) {
+      card.appendChild(body);
+    }
+    dialog.appendChild(card);
+    document.body.appendChild(dialog);
+    return dialog;
+  }
+
+  function closeBuilderDialog(dialog) {
+    closeDialog(dialog);
+    setTimeout(function () {
+      if (dialog && dialog.parentNode) {
+        dialog.remove();
+      }
+    }, 0);
+  }
+
+  function showSlotDropActionDialog(onInsert, onReplace) {
+    var body = document.createElement("div");
+    var message = document.createElement("p");
+    var actions = document.createElement("div");
+    var replace = document.createElement("button");
+    var insert = document.createElement("button");
+    var dialog;
+    message.textContent = "Do you want to insert this item into a component slot or replace the target?";
+    actions.className = "pb-mini-actions";
+    insert.className = "pb-action primary";
+    insert.type = "button";
+    insert.textContent = "Insert into slot";
+    replace.className = "pb-action secondary";
+    replace.type = "button";
+    replace.textContent = "Replace Target";
+    actions.appendChild(replace);
+    actions.appendChild(insert);
+    body.appendChild(message);
+    body.appendChild(actions);
+    dialog = createBuilderDialog("Choose drop action", body);
+    insert.addEventListener("click", function () {
+      closeBuilderDialog(dialog);
+      onInsert();
+    });
+    replace.addEventListener("click", function () {
+      closeBuilderDialog(dialog);
+      onReplace();
+    });
+    dialog.addEventListener("cancel", function (event) {
+      event.preventDefault();
+      closeBuilderDialog(dialog);
+    });
+    showDialog(dialog);
+  }
+
+  function showSlotChoiceDialog(choices, preferredChoice, onChoose) {
+    var body = document.createElement("div");
+    var label = document.createElement("label");
+    var select = document.createElement("select");
+    var actions = document.createElement("div");
+    var cancel = document.createElement("button");
+    var ok = document.createElement("button");
+    var dialog;
+    var preferredIndex = choices.reduce(function (found, choice, index) {
+      if (found >= 0 || !preferredChoice) {
+        return found;
+      }
+      return choice.slotName === preferredChoice.slotName && choice.label === preferredChoice.label ? index : found;
+    }, -1);
+    preferredIndex = Math.max(0, preferredIndex);
+    label.textContent = "Slot";
+    choices.forEach(function (choice, index) {
+      var option = document.createElement("option");
+      option.value = String(index);
+      option.textContent = choice.label;
+      select.appendChild(option);
+    });
+    select.value = String(preferredIndex);
+    actions.className = "pb-mini-actions";
+    cancel.className = "pb-action secondary";
+    cancel.type = "button";
+    cancel.textContent = "Cancel";
+    ok.className = "pb-action primary";
+    ok.type = "button";
+    ok.textContent = "Insert";
+    label.appendChild(select);
+    actions.appendChild(cancel);
+    actions.appendChild(ok);
+    body.appendChild(label);
+    body.appendChild(actions);
+    dialog = createBuilderDialog("Choose slot", body);
+    cancel.addEventListener("click", function () {
+      closeBuilderDialog(dialog);
+    });
+    ok.addEventListener("click", function () {
+      var choice = choices[Number(select.value)] || choices[0];
+      closeBuilderDialog(dialog);
+      onChoose(Object.assign({}, choice, { mode: "replace" }));
+    });
+    dialog.addEventListener("cancel", function (event) {
+      event.preventDefault();
+      closeBuilderDialog(dialog);
+    });
+    showDialog(dialog);
+  }
+
+  function applyPaletteItemToSlotChoice(owner, source, moving, choice) {
+    var droppedSource = source ? qhtmlInstanceSource(source) : "";
+    var nextInstance;
+    var slotTransform;
+    if (!owner || !source || !droppedSource || !choice || !choice.entry || !choice.slotName) {
+      return false;
+    }
+    slotTransform = choice.mode === "append"
+      ? function appendPromptedSlot(current) {
+        return String(current || "").trim() ? String(current || "").trim() + "\n" + droppedSource : droppedSource;
+      }
+      : function replacePromptedSlot() { return droppedSource; };
+    nextInstance = replaceSlotInEntrySource(
+      qhtmlInstanceSource(owner),
+      choice.entry,
+      choice.slotName,
+      slotTransform(slotSourceForEntry(qhtmlInstanceSource(owner), choice.entry, choice.slotName))
+    );
+    if (!nextInstance) {
+      return false;
+    }
+    owner.setAttribute("instance", nextInstance);
+    if (typeof owner.refreshSourcePreview === "function") {
+      owner.refreshSourcePreview();
+    }
+    if (moving && source && typeof source.removeItem === "function") {
+      source.removeItem();
+    }
+    BuilderStore.saveSoon();
+    renderLayoutSoon("Updated " + choice.slotName);
+    return true;
+  }
+
+  function openSlotDropDialog(owner, intent, source, moving, choices, preferredChoice) {
+    showSlotDropActionDialog(function insertIntoSlot() {
+      showSlotChoiceDialog(choices, preferredChoice, function chooseSlot(choice) {
+        applyPaletteItemToSlotChoice(owner, source, moving, choice);
+      });
+    }, function replaceTarget() {
+      Applier.apply(Object.assign({}, intent, { __pbSkipSlotDialog: true }), source, moving);
+    });
+  }
+
+  function applyPaletteItemToPromptedSlot(intent, source, moving) {
+    var owner = dropTargetBuilderItem(intent, source);
+    var choices;
+    var directChoice;
+    if (!owner || !source || !qhtmlInstanceSource(source)) {
+      return false;
+    }
+    choices = slotChoicesForBuilderItem(owner);
+    if (!choices.length) {
+      return false;
+    }
+    directChoice = directSlotChoiceForIntent(owner, intent);
+    openSlotDropDialog(owner, intent, source, moving, choices, directChoice);
+    return true;
+  }
+
   function directRenderedBuilderItemsIn(surface, owner) {
     return arr(surface ? surface.querySelectorAll(Q.item) : []).filter(function (item) {
       var parentOwner = item.parentElement && item.parentElement.closest
@@ -1245,6 +1542,24 @@
       event.preventDefault();
       event.stopPropagation();
       InstanceEditor.open(item);
+    });
+    return edit;
+  }
+
+  function createRenderedInstanceEditButton(owner, path) {
+    var edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "pb-rendered-instance-edit";
+    edit.setAttribute("aria-label", "Edit nested instance");
+    edit.innerHTML = pencilSvg();
+    edit.addEventListener("pointerdown", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    edit.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      InstanceEditor.open(owner, path);
     });
     return edit;
   }
@@ -1448,12 +1763,43 @@
     return source.slice(0, entry.block.start) + String(nextBlockSource || "").trim() + source.slice(entry.block.end + 1);
   }
 
+  function entryForRenderedComponentHost(owner, componentHost) {
+    var component = tag(componentHost);
+    var ordinal = renderedComponentOrdinal(owner, componentHost);
+    var matches = collectInstanceEntries(owner).filter(function (entry) {
+      return String(entry.component || "").toLowerCase() === component;
+    });
+    return matches[ordinal] || matches[0] || null;
+  }
+
+  function enhanceRenderedInstanceEditors(owner) {
+    var preview = owner && owner.querySelector ? owner.querySelector(":scope > .q-builder-item-preview") : null;
+    if (!preview || owner.closest(Q.toolbox)) {
+      return;
+    }
+    arr(preview.querySelectorAll("[q-component]")).forEach(function (host) {
+      var entry;
+      if (host === owner || host.querySelector(":scope > .pb-rendered-instance-edit")) {
+        return;
+      }
+      entry = entryForRenderedComponentHost(owner, host);
+      if (!entry) {
+        return;
+      }
+      host.classList.add("pb-rendered-component-editable");
+      host.appendChild(createRenderedInstanceEditButton(owner, entry.path));
+    });
+  }
+
   function createBuilderItem(opts) {
     var options = opts || {};
     var item = document.createElement(Q.item);
     item.setAttribute("name", options.name || "Item");
     item.setAttribute("component", options.component || "pb-item");
     item.setAttribute("qhtml", options.qhtml || "");
+    if (options.support) {
+      item.setAttribute("support", options.support);
+    }
     item.setAttribute("instance", options.instance || options.qhtml || "div { text { Empty component } }");
     item.appendPreview(options.preview || null);
     return item;
@@ -1467,7 +1813,8 @@
       source.getAttribute("name") || "Item",
       source.getAttribute("component") || componentName(source),
       qhtmlDefinitionSource(source),
-      qhtmlInstanceSource(source)
+      qhtmlInstanceSource(source),
+      qhtmlSupportSource(source)
     );
   }
 
@@ -1511,6 +1858,392 @@
       }
     }
   };
+
+  function paletteToolboxBody() {
+    var toolbox = document.querySelector(Q.toolbox + "[docked='true']") || document.querySelector(Q.toolbox);
+    return toolbox ? toolbox.querySelector(".q-palette-body") || toolbox : null;
+  }
+
+  function paletteRecordFromButton(button) {
+    return {
+      name: button.getAttribute("name") || componentName(button),
+      component: componentName(button),
+      qhtml: qhtmlDefinitionSource(button),
+      instance: qhtmlInstanceSource(button),
+      support: qhtmlSupportSource(button)
+    };
+  }
+
+  function importedPaletteButtons() {
+    return arr(document.querySelectorAll(Q.button + "[data-pb-imported='page']"));
+  }
+
+  function collectImportedPaletteRecords() {
+    return importedPaletteButtons().map(paletteRecordFromButton);
+  }
+
+  function clearImportedPaletteButtons() {
+    importedPaletteButtons().forEach(function (button) {
+      button.remove();
+    });
+  }
+
+  function importedPaletteInsertBefore(body) {
+    var launcher = body && body.querySelector ? body.querySelector(Q.button + "[data-pb-create-component='true']") : null;
+    var node = launcher ? launcher.nextSibling : null;
+    if (!launcher) {
+      return null;
+    }
+    while (node && node.nodeType === 1 && node.matches && node.matches(Q.button + "[data-pb-imported='page']")) {
+      node = node.nextSibling;
+    }
+    return node;
+  }
+
+  function revealPaletteComponent(component) {
+    var button = paletteButtonForComponent(component);
+    if (button && typeof button.scrollIntoView === "function") {
+      button.scrollIntoView({ block: "nearest" });
+    }
+    return button;
+  }
+
+  function addPaletteButtonRecord(record) {
+    var data = record || {};
+    var component = String(data.component || "").trim().toLowerCase();
+    var existing;
+    var button;
+    var preview;
+    var body;
+    if (!component) {
+      return null;
+    }
+    existing = paletteButtonForComponent(component);
+    if (existing) {
+      existing.setAttribute("name", data.name || existing.getAttribute("name") || component);
+      existing.setAttribute("qhtml", data.qhtml || data.definition || qhtmlDefinitionSource(existing));
+      existing.setAttribute("instance", data.instance || qhtmlInstanceSource(existing));
+      existing.setAttribute("data-pb-imported", "page");
+      if (data.support) {
+        existing.setAttribute("support", data.support);
+      } else {
+        existing.removeAttribute("support");
+      }
+      existing.__sourceEdited = true;
+      if (typeof existing.renderLabel === "function") {
+        existing.renderLabel();
+      }
+      return existing;
+    }
+    body = paletteToolboxBody();
+    if (!body) {
+      return null;
+    }
+    button = document.createElement(Q.button);
+    button.setAttribute("name", data.name || component);
+    button.setAttribute("component", component);
+    button.setAttribute("qhtml", data.qhtml || data.definition || "");
+    button.setAttribute("instance", data.instance || component + " { }");
+    button.setAttribute("data-pb-imported", "page");
+    if (data.support) {
+      button.setAttribute("support", data.support);
+    }
+    preview = document.createElement("div");
+    preview.className = "pb-palette-preview edited";
+    preview.innerHTML = "<h3>" + escapeHtmlText(data.name || component) + "</h3><p>Imported component</p>";
+    button.appendChild(preview);
+    body.insertBefore(button, importedPaletteInsertBefore(body));
+    return button;
+  }
+
+  function applyImportedPaletteRecords(records) {
+    clearImportedPaletteButtons();
+    (Array.isArray(records) ? records : []).forEach(function (record) {
+      addPaletteButtonRecord(record);
+    });
+  }
+
+  function isTokenBoundary(text, index, length) {
+    var before = index <= 0 ? "" : text.charAt(index - 1);
+    var after = index + length >= text.length ? "" : text.charAt(index + length);
+    return !qhtmlSourceNameChar(before) && !qhtmlSourceNameChar(after);
+  }
+
+  function readIdentifierAt(text, index) {
+    var i = qhtmlSourceSkipWhitespace(text, index);
+    var start = i;
+    while (i < text.length && qhtmlSourceNameChar(text.charAt(i))) {
+      i += 1;
+    }
+    return { value: text.slice(start, i), end: i };
+  }
+
+  function scanTopLevelDefinitionBlocks(source, keywords) {
+    var text = String(source || "");
+    var wanted = keywords || [];
+    var blocks = [];
+    var quote = "";
+    var escaped = false;
+    var depth = 0;
+    var i;
+    var k;
+    var keyword;
+    var nameInfo;
+    var open;
+    var close;
+    var name;
+    for (i = 0; i < text.length; i += 1) {
+      var ch = text.charAt(i);
+      if (quote) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch === "\\") {
+          escaped = true;
+        } else if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+      if (ch === "\"" || ch === "'") {
+        quote = ch;
+        continue;
+      }
+      if (ch === "{") {
+        depth += 1;
+        continue;
+      }
+      if (ch === "}") {
+        depth = Math.max(0, depth - 1);
+        continue;
+      }
+      if (depth !== 0) {
+        continue;
+      }
+      for (k = 0; k < wanted.length; k += 1) {
+        keyword = wanted[k];
+        if (text.slice(i, i + keyword.length).toLowerCase() !== keyword || !isTokenBoundary(text, i, keyword.length)) {
+          continue;
+        }
+        nameInfo = keyword === "q-import" ? { value: "", end: i + keyword.length } : readIdentifierAt(text, i + keyword.length);
+        name = nameInfo.value;
+        open = text.indexOf("{", nameInfo.end);
+        if (open < 0) {
+          continue;
+        }
+        close = qhtmlSourceMatchingBrace(text, open);
+        if (close < 0) {
+          continue;
+        }
+        blocks.push({
+          keyword: keyword,
+          name: name,
+          start: i,
+          open: open,
+          end: close,
+          bodyStart: open + 1,
+          bodyEnd: close,
+          source: text.slice(i, close + 1),
+          body: text.slice(open + 1, close)
+        });
+        i = close;
+        break;
+      }
+    }
+    return blocks;
+  }
+
+  function removeSourceRanges(source, ranges) {
+    var text = String(source || "");
+    var sorted = (ranges || []).slice().sort(function (a, b) { return a[0] - b[0]; });
+    var out = "";
+    var cursor = 0;
+    sorted.forEach(function (range) {
+      out += text.slice(cursor, range[0]);
+      cursor = Math.max(cursor, range[1] + 1);
+    });
+    out += text.slice(cursor);
+    return out;
+  }
+
+  function analyzeImportedQHtmlSource(source) {
+    var definitions = scanTopLevelDefinitionBlocks(source, ["q-component"]);
+    var components = Object.create(null);
+    var ranges = [];
+    definitions.forEach(function (block) {
+      ranges.push([block.start, block.end]);
+      components[String(block.name || "").toLowerCase()] = {
+        component: String(block.name || "").toLowerCase(),
+        name: block.name || "Imported",
+        qhtml: block.body.trim()
+      };
+    });
+    return {
+      components: components,
+      remainder: removeSourceRanges(source, ranges).trim()
+    };
+  }
+
+  function findFirstImportedInstance(source, componentSet, componentNameValue) {
+    var wanted = String(componentNameValue || "").toLowerCase();
+    var found = "";
+    function visit(rangeSource, start, end) {
+      readQHtmlBlocks(rangeSource, start, end).some(function (block) {
+        var name = String(block.name || "").toLowerCase();
+        if (name === wanted) {
+          found = block.source;
+          return true;
+        }
+        if (!componentSet[name]) {
+          visit(rangeSource, block.bodyStart, block.bodyEnd);
+        }
+        return !!found;
+      });
+    }
+    visit(String(source || ""), 0, String(source || "").length);
+    return found;
+  }
+
+  function transformImportedInstancesToBuilderItems(source, componentMap, supportSource) {
+    var text = String(source || "");
+    var rawBlocks = { html: true, text: true, style: true, onclick: true, onchange: true, oninput: true, onmount: true, onpaint: true };
+    function transformRange(start, end) {
+      var blocks = readQHtmlBlocks(text, start, end);
+      var out = "";
+      var cursor = start;
+      blocks.forEach(function (block) {
+        var name = String(block.name || "").toLowerCase();
+        var component = componentMap[name];
+        out += text.slice(cursor, block.start);
+        if (component) {
+          out += builderItemQHtml(component.name || name, name, component.qhtml || "", block.source, component.support || supportSource || "");
+        } else if (rawBlocks[name]) {
+          out += text.slice(block.start, block.end + 1);
+        } else {
+          out += text.slice(block.start, block.bodyStart) + transformRange(block.bodyStart, block.bodyEnd) + text.slice(block.bodyEnd, block.end + 1);
+        }
+        cursor = block.end + 1;
+      });
+      out += text.slice(cursor, end);
+      return out;
+    }
+    return transformRange(0, text.length).trim();
+  }
+
+  function importedLayoutSourceFromPieces(pieces) {
+    var rows = (pieces || []).map(function (piece) {
+      return indentBlock(qhtmlRowSource(piece), 1);
+    }).join("\n");
+    return "q-layout {\n  width: \"100%\"\n  gap: \"14px\"\n" + rows + "\n}";
+  }
+
+  function renderImportedLayoutToCanvas(source) {
+    var layout = document.getElementById("pb-builder-layout");
+    var temp = document.createElement("div");
+    var imported;
+    if (!layout || !String(source || "").trim()) {
+      return false;
+    }
+    if (!renderQHtmlSourceInto(temp, source, "Imported layout")) {
+      return false;
+    }
+    imported = temp.querySelector(Q.layout);
+    arr(imported ? imported.childNodes : temp.childNodes).forEach(function (node) {
+      layout.appendChild(node.cloneNode(true));
+    });
+    arr(layout.querySelectorAll(Q.row + "," + Q.col)).forEach(installApi);
+    arr(layout.querySelectorAll(Q.item)).forEach(function (item) {
+      if (typeof item.refreshSourcePreview === "function") {
+        item.refreshSourcePreview();
+      }
+    });
+    relayout(layout);
+    BuilderStore.dirty = true;
+    BuilderStore.saveSoon();
+    updateExportPanel(false);
+    return true;
+  }
+
+  function mergePaletteRecords(existing, imported) {
+    var map = Object.create(null);
+    var out = [];
+    function add(record) {
+      var component = String(record && record.component || "").toLowerCase();
+      if (!component) {
+        return;
+      }
+      if (!map[component]) {
+        map[component] = Object.assign({}, record);
+        out.push(map[component]);
+      } else {
+        Object.keys(record).forEach(function (key) {
+          map[component][key] = record[key];
+        });
+      }
+    }
+    (Array.isArray(existing) ? existing : []).forEach(add);
+    (Array.isArray(imported) ? imported : []).forEach(add);
+    return out;
+  }
+
+  function importQHtmlSource(qhtmlSource, filename) {
+    var analysis = analyzeImportedQHtmlSource(qhtmlSource);
+    var componentSet = Object.create(null);
+    var records = [];
+    var pieces = [];
+    var importedCount = 0;
+    if (!FileStore.ensureCurrentFile(filename || "imported.qhtml")) {
+      setStatus("Import cancelled");
+      return false;
+    }
+    Object.keys(analysis.components).forEach(function (name) {
+      componentSet[name] = true;
+    });
+    Object.keys(analysis.components).forEach(function (name) {
+      var component = analysis.components[name];
+      component.instance = findFirstImportedInstance(analysis.remainder, componentSet, name) || name + " { }";
+      addPaletteButtonRecord(component);
+      records.push(component);
+      importedCount += 1;
+    });
+    if (analysis.remainder) {
+      pieces.push(transformImportedInstancesToBuilderItems(analysis.remainder, analysis.components, ""));
+    }
+    pieces = pieces.map(function (piece) { return String(piece || "").trim(); }).filter(Boolean);
+    if (!pieces.length && !records.length) {
+      setStatus("No importable QHTML found");
+      return false;
+    }
+    FileStore.setCurrentPalette(mergePaletteRecords(collectImportedPaletteRecords(), records));
+    if (pieces.length && !renderImportedLayoutToCanvas(importedLayoutSourceFromPieces(pieces))) {
+      setStatus("Imported QHTML could not be rendered");
+      return false;
+    }
+    FileStore.saveCurrent({ silent: true });
+    setStatus("Imported " + (filename || "QHTML") + " with " + importedCount + " component" + (importedCount === 1 ? "" : "s"));
+    return true;
+  }
+
+  function importQHtmlFile() {
+    var input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".qhtml,text/plain";
+    input.addEventListener("change", function () {
+      var file = input.files && input.files[0];
+      var reader;
+      if (!file) {
+        return;
+      }
+      reader = new FileReader();
+      reader.onload = function () {
+        importQHtmlSource(String(reader.result || ""), file.name);
+      };
+      reader.onerror = function () {
+        setStatus("Import failed");
+      };
+      reader.readAsText(file);
+    });
+    input.click();
+  }
 
   function updatePaletteQDomSource(component, source) {
     var host = document.getElementById("page-builder-host");
@@ -1620,6 +2353,7 @@
     connectedCallback() {
       if (this.__ready) {
         this.ensureInstanceEditButton();
+        enhanceRenderedInstanceEditors(this);
         return;
       }
       this.__ready = true;
@@ -1643,6 +2377,7 @@
 
       if (this.querySelector(":scope > .q-builder-item-bar")) {
         this.ensureInstanceEditButton();
+        enhanceRenderedInstanceEditors(this);
         return;
       }
 
@@ -1678,6 +2413,7 @@
         preview.textContent = this.getAttribute("name") || "Item";
       }
       this.ensureInstanceEditButton();
+      enhanceRenderedInstanceEditors(this);
     }
 
     refreshSourcePreview() {
@@ -1701,6 +2437,7 @@
         component: this.getAttribute("component") || "pb-item",
         qhtml: qhtmlDefinitionSource(this),
         instance: qhtmlInstanceSource(this),
+        support: qhtmlSupportSource(this),
         preview: previewFragmentFromSource(
           previewSourceForElement(this),
           this.getAttribute("name") || "Item"
@@ -1759,6 +2496,16 @@
       PaletteStore.applyToButton(this);
       this.capturePayload();
       this.renderLabel();
+      if (this.isComponentBuilderLauncher()) {
+        this.addEventListener("click", function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (window.QPageBuilder && typeof window.QPageBuilder.openComponentBuilder === "function") {
+            window.QPageBuilder.openComponentBuilder();
+          }
+        });
+        return;
+      }
       this.addEventListener("pointerdown", function (event) {
         if (event.target.closest(".pb-palette-edit-button")) { return; }
         if (event.button !== 0) { return; }
@@ -1766,6 +2513,10 @@
         event.stopPropagation();
         Drag.start(event, this, false);
       });
+    }
+
+    isComponentBuilderLauncher() {
+      return this.getAttribute("data-pb-create-component") === "true";
     }
 
     capturePayload() {
@@ -1780,6 +2531,10 @@
       var preview = this.__sourceEdited ? previewFragmentFromSource(previewSourceForElement(this), this.getAttribute("name") || "Item") : previewFragmentFromButton(this);
       this.innerHTML = "";
       this.appendChild(preview);
+      if (this.isComponentBuilderLauncher()) {
+        this.setAttribute("title", "Create a new q-component palette item");
+        return;
+      }
       this.appendChild(createPaletteEditButton(this));
       this.setAttribute("title", "Drag " + (this.getAttribute("name") || "Item") + " onto the canvas");
     }
@@ -1791,17 +2546,24 @@
     }
 
     createPayload() {
+      if (this.isComponentBuilderLauncher()) {
+        return null;
+      }
       return createBuilderItem({
         name: this.getAttribute("name") || "Item",
         component: componentName(this),
         qhtml: qhtmlDefinitionSource(this),
         instance: qhtmlInstanceSource(this),
+        support: qhtmlSupportSource(this),
         preview: previewFragmentFromSource(previewSourceForElement(this), this.getAttribute("name") || "Item")
       });
     }
 
     sourceQHtml() {
-      return builderItemQHtml(this.getAttribute("name") || "Item", componentName(this), qhtmlDefinitionSource(this), qhtmlInstanceSource(this));
+      if (this.isComponentBuilderLauncher()) {
+        return "";
+      }
+      return builderItemQHtml(this.getAttribute("name") || "Item", componentName(this), qhtmlDefinitionSource(this), qhtmlInstanceSource(this), qhtmlSupportSource(this));
     }
   }
 
@@ -1810,6 +2572,7 @@
       if (this.__ready) { return; }
       this.__ready = true;
       this.render();
+      FileStore.applyCurrentPalette();
       this.enableMove();
     }
 
@@ -2152,10 +2915,13 @@
       var qcol;
       var oldCell;
       if (!intent || !source) { return; }
-      if (intent.type === "item-edge" && applyItemEdgeDrop(intent, source, moving)) {
+      if (!intent.__pbSkipSlotDialog && applyPaletteItemToRenderedSlot(intent, source, moving)) {
         return;
       }
-      if (applyPaletteItemToRenderedSlot(intent, source, moving)) {
+      if (!intent.__pbSkipSlotDialog && applyPaletteItemToPromptedSlot(intent, source, moving)) {
+        return;
+      }
+      if (intent.type === "item-edge" && applyItemEdgeDrop(intent, source, moving)) {
         return;
       }
       if (intentTouchesEditorPreview(intent)) {
@@ -2290,9 +3056,19 @@
 
   function collectUsedComponents(layout) {
     var map = Object.create(null);
+    var support = [];
+    var seenSupport = Object.create(null);
+    function addSupport(source) {
+      var text = String(source || "").trim();
+      if (text && !seenSupport[text]) {
+        seenSupport[text] = true;
+        support.push(text);
+      }
+    }
     arr(document.querySelectorAll(Q.button)).forEach(function (button) {
       var name = componentName(button);
       var definition = qhtmlDefinitionSource(button);
+      addSupport(qhtmlSupportSource(button));
       if (name && definition && !map[name]) {
         map[name] = definition;
       }
@@ -2300,17 +3076,19 @@
     arr(layout.querySelectorAll(Q.item)).forEach(function (item) {
       var name = item.getAttribute("component") || "pb-item";
       var definition = qhtmlDefinitionSource(item);
+      addSupport(qhtmlSupportSource(item));
       if (definition && !map[name]) {
         map[name] = definition;
       }
     });
-    return map;
+    return { components: map, support: support };
   }
 
   function emitComponentDefinitions(layout) {
-    var components = collectUsedComponents(layout);
+    var collected = collectUsedComponents(layout);
+    var components = collected.components || {};
     var names = Object.keys(components).sort();
-    var out = [];
+    var out = (collected.support || []).slice();
     names.forEach(function (name) {
       out.push("q-component " + name + " {");
       out.push(indentBlock(formatQHtmlSource(components[name] || ""), 1));
@@ -2360,6 +3138,686 @@
     var status = document.getElementById("pb-builder-status");
     if (status) { status.textContent = String(text || "Ready"); }
   }
+
+  function componentBuilderNameInputSafe(value) {
+    var text = String(value || "");
+    var out = "";
+    var i;
+    var ch;
+    for (i = 0; i < text.length; i += 1) {
+      ch = text.charAt(i);
+      if (/[A-Za-z0-9-]/.test(ch) || ch.charCodeAt(0) > 127) {
+        out += ch;
+      }
+    }
+    out = out.replace(/^-+|-+$/g, "");
+    return out || "my-component";
+  }
+
+  function componentBuilderExtendsInputSafe(value) {
+    return String(value || "")
+      .split(/\s+/)
+      .map(function (item) {
+        return item ? componentBuilderNameInputSafe(item) : "";
+      })
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  function componentBuilderHeader(name, extendsText) {
+    var parts = ["q-component", componentBuilderNameInputSafe(name)];
+    componentBuilderExtendsInputSafe(extendsText).split(/\s+/).filter(Boolean).forEach(function (item) {
+      parts.push("extends");
+      parts.push(item);
+    });
+    return parts.join(" ");
+  }
+
+  function componentBuilderBlockInfo(source) {
+    var blocks = scanTopLevelDefinitionBlocks(source, ["q-component"]);
+    return blocks[0] || null;
+  }
+
+  function componentBuilderBodySource(source) {
+    var block = componentBuilderBlockInfo(source);
+    return block ? block.body : "";
+  }
+
+  function componentBuilderParseHeader(source) {
+    var block = componentBuilderBlockInfo(source);
+    var head;
+    var parts;
+    if (!block) {
+      return null;
+    }
+    head = String(source || "").slice(block.start, block.open).trim();
+    parts = head.split(/\s+/);
+    return {
+      name: parts[1] || block.name || "my-component",
+      extendsText: parts.filter(function (part, index) {
+        return index > 1 && part !== "extends";
+      }).join(" ")
+    };
+  }
+
+  function componentBuilderReplaceHeader(source, name, extendsText) {
+    var block = componentBuilderBlockInfo(source);
+    var header = componentBuilderHeader(name, extendsText);
+    if (!block) {
+      return header + " {\n}\n";
+    }
+    return String(source || "").slice(0, block.start) + header + " " + String(source || "").slice(block.open);
+  }
+
+  function componentBuilderExtractPreview(source) {
+    var text = String(source || "");
+    var block = componentBuilderBlockInfo(text);
+    if (!block) {
+      return { componentSource: text.trim(), instanceSource: "" };
+    }
+    return {
+      componentSource: text.slice(block.start, block.end + 1).trim(),
+      instanceSource: text.slice(block.end + 1).trim()
+    };
+  }
+
+  function componentBuilderSnippet(kind) {
+    var tagName;
+    var name;
+    var expr;
+    switch (kind) {
+      case "tag":
+        tagName = prompt("Tag or selector chain", "div");
+        if (tagName === null) { return null; }
+        tagName = String(tagName || "div").replace(/[^\w.#,: -]+/g, "").trim() || "div";
+        return { text: tagName + " {\n  \n}\n", offset: tagName.length + 5 };
+      case "q-signal":
+        name = prompt("Signal name and params", "saved(value)");
+        if (name === null) { return null; }
+        return { text: "q-signal " + String(name || "saved(value)").trim() + "\n" };
+      case "slot":
+        name = prompt("Slot name", "content");
+        if (name === null) { return null; }
+        name = String(name || "content").replace(/[^\w-]+/g, "") || "content";
+        return { text: "slot { " + name + " }\n" };
+      case "function":
+        name = prompt("Function name", "run");
+        if (name === null) { return null; }
+        name = String(name || "run").replace(/[^\w$]+/g, "") || "run";
+        return { text: "function " + name + "() {\n  \n}\n", offset: ("function " + name + "() {\n  ").length };
+      case "q-property":
+        name = prompt("Property name", "label");
+        if (name === null) { return null; }
+        name = String(name || "label").replace(/[^\w-]+/g, "") || "label";
+        return { text: "q-property " + name + ": \"\"\n", offset: ("q-property " + name + ": \"").length };
+      case "q-var":
+        name = prompt("q-var name", "value");
+        if (name === null) { return null; }
+        name = String(name || "value").replace(/[^\w-]+/g, "") || "value";
+        return { text: "q-var " + name + " { \"\" }\n", offset: ("q-var " + name + " { \"").length };
+      case "q-layout":
+        return { text: "q-layout {\n  width: \"100%\"\n  gap: \"12px\"\n  q-row {\n    q-col {\n      \n    }\n  }\n}\n", offset: 66 };
+      case "q-row":
+        return { text: "q-row {\n  q-col {\n    \n  }\n}\n", offset: 20 };
+      case "q-col":
+        return { text: "q-col {\n  \n}\n", offset: 10 };
+      case "q-connect":
+        expr = prompt("q-connect expression", "sender.signal receiver.handler");
+        if (expr === null) { return null; }
+        return { text: "q-connect { " + String(expr || "sender.signal receiver.handler").trim() + " }\n" };
+      case "html":
+        return { text: "html {\n  \n}\n", offset: 9 };
+      case "text":
+        return { text: "text {  }\n", offset: 7 };
+      case "onclick":
+        return { text: "onclick {\n  \n}\n", offset: 12 };
+      case "onready":
+        return { text: "onReady {\n  \n}\n", offset: 12 };
+      case "onpaint":
+        return { text: "onpaint {\n  \n}\n", offset: 12 };
+      default:
+        return null;
+    }
+  }
+
+  function componentBuilderFindTextInput(editor) {
+    return editor && editor.querySelector ? editor.querySelector(".qe-input,textarea") : null;
+  }
+
+  function componentBuilderCursorRange(editor, source) {
+    var text = String(source || "");
+    var view = editor && editor._cmView;
+    var input;
+    var sel;
+    var start;
+    var end;
+    if (view && view.state && view.state.selection && view.state.selection.main) {
+      sel = view.state.selection.main;
+      start = Math.max(0, Math.min(text.length, Math.min(Number(sel.anchor), Number(sel.head))));
+      end = Math.max(0, Math.min(text.length, Math.max(Number(sel.anchor), Number(sel.head))));
+      editor.__pbComponentBuilderCursor = { start: start, end: end };
+      return { start: start, end: end };
+    }
+    input = componentBuilderFindTextInput(editor);
+    if (input && typeof input.selectionStart === "number") {
+      start = Math.max(0, Math.min(text.length, input.selectionStart));
+      end = Math.max(0, Math.min(text.length, typeof input.selectionEnd === "number" ? input.selectionEnd : start));
+      editor.__pbComponentBuilderCursor = { start: start, end: end };
+      return { start: start, end: end };
+    }
+    if (editor && editor.__pbComponentBuilderCursor) {
+      return {
+        start: Math.max(0, Math.min(text.length, editor.__pbComponentBuilderCursor.start || 0)),
+        end: Math.max(0, Math.min(text.length, editor.__pbComponentBuilderCursor.end || editor.__pbComponentBuilderCursor.start || 0))
+      };
+    }
+    start = Math.max(0, text.lastIndexOf("}"));
+    return { start: start, end: start };
+  }
+
+  function componentBuilderRememberCursor(editor) {
+    if (!editor) {
+      return;
+    }
+    componentBuilderCursorRange(editor, readQEditorRawSource(editor));
+  }
+
+  function componentBuilderSetCursor(editor, pos) {
+    var next = Math.max(0, Number(pos) || 0);
+    var view = editor && editor._cmView;
+    var input;
+    if (view && view.state && view.state.doc && typeof view.dispatch === "function") {
+      next = Math.min(view.state.doc.length, next);
+      view.dispatch({ selection: { anchor: next, head: next } });
+      if (typeof view.focus === "function") {
+        view.focus();
+      }
+      editor.__pbComponentBuilderCursor = { start: next, end: next };
+      return;
+    }
+    input = componentBuilderFindTextInput(editor);
+    if (input && typeof input.focus === "function") {
+      next = Math.min(String(readQEditorRawSource(editor) || "").length, next);
+      input.focus();
+      if (typeof input.setSelectionRange === "function") {
+        input.setSelectionRange(next, next);
+      }
+      editor.__pbComponentBuilderCursor = { start: next, end: next };
+    }
+  }
+
+  function componentBuilderInsertText(editor, insertion) {
+    var source = readQEditorRawSource(editor);
+    var range = componentBuilderCursorRange(editor, source);
+    var start = range.start;
+    var end = range.end;
+    var text = insertion && insertion.text != null ? String(insertion.text) : "";
+    var block = componentBuilderBlockInfo(source);
+    var prefix;
+    if (block && (start <= block.open || start > block.end || end > block.end)) {
+      start = block.end;
+      end = block.end;
+      prefix = source.charAt(start - 1) === "\n" ? "" : "\n";
+      text = prefix + indentBlock(text.replace(/\n$/, ""), 1) + "\n";
+    }
+    var next = source.slice(0, start) + text + source.slice(end);
+    setQEditorRawSource(editor, next);
+    setTimeout(function () {
+      componentBuilderSetCursor(editor, start + (insertion && typeof insertion.offset === "number" ? insertion.offset : text.length));
+    }, 0);
+    return next;
+  }
+
+  function componentBuilderIndentSelection(editor, outdent) {
+    var input = componentBuilderFindTextInput(editor);
+    var source = readQEditorRawSource(editor);
+    var start = input && typeof input.selectionStart === "number" ? input.selectionStart : 0;
+    var end = input && typeof input.selectionEnd === "number" ? input.selectionEnd : source.length;
+    var lineStart = source.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+    var before = source.slice(0, lineStart);
+    var selected = source.slice(lineStart, end);
+    var after = source.slice(end);
+    var nextSelected = selected.split("\n").map(function (line) {
+      return outdent ? line.replace(/^ {1,2}/, "") : "  " + line;
+    }).join("\n");
+    setQEditorRawSource(editor, before + nextSelected + after);
+  }
+
+  function componentBuilderSignalList(source) {
+    var list = [];
+    String(source || "").replace(/q-signal\s+([A-Za-z0-9_-]+)(?:\s*\(([^)]*)\))?/g, function (_, name, params) {
+      list.push({ name: name, params: String(params || "").trim() });
+      return _;
+    });
+    return list;
+  }
+
+  function componentBuilderPropertyList(source) {
+    var list = [];
+    String(source || "").replace(/q-property\s+([A-Za-z0-9_-]+)/g, function (_, name) {
+      list.push({ name: name });
+      return _;
+    });
+    return list;
+  }
+
+  function componentBuilderHandlerName(name, suffix) {
+    var base = String(name || "").split(/[^A-Za-z0-9]+/).filter(Boolean).map(function (part) {
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    }).join("");
+    return "on" + (base || "Signal") + (suffix || "");
+  }
+
+  function componentBuilderParamName(name) {
+    var parts = String(name || "value").split(/[^A-Za-z0-9]+/).filter(Boolean);
+    if (!parts.length) {
+      return "value";
+    }
+    return parts[0].toLowerCase() + parts.slice(1).map(function (part) {
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    }).join("");
+  }
+
+  function chooseComponentBuilderItem(title, options, callback) {
+    var dialog = document.createElement("dialog");
+    var card = document.createElement("div");
+    var heading = document.createElement("h3");
+    var select = document.createElement("select");
+    var actions = document.createElement("div");
+    var cancel = document.createElement("button");
+    var ok = document.createElement("button");
+    dialog.className = "pb-mini-dialog";
+    card.className = "pb-mini-card";
+    actions.className = "pb-mini-actions";
+    heading.textContent = title;
+    (options || []).forEach(function (item, index) {
+      var option = document.createElement("option");
+      option.value = String(index);
+      option.textContent = item.label || item.name || String(item);
+      select.appendChild(option);
+    });
+    cancel.className = "pb-action secondary";
+    cancel.type = "button";
+    cancel.textContent = "Cancel";
+    ok.className = "pb-action primary";
+    ok.type = "button";
+    ok.textContent = "OK";
+    cancel.addEventListener("click", function () {
+      closeDialog(dialog);
+      dialog.remove();
+    });
+    ok.addEventListener("click", function () {
+      var item = options[Number(select.value)] || options[0];
+      closeDialog(dialog);
+      dialog.remove();
+      callback(item);
+    });
+    actions.appendChild(cancel);
+    actions.appendChild(ok);
+    card.appendChild(heading);
+    card.appendChild(select);
+    card.appendChild(actions);
+    dialog.appendChild(card);
+    document.body.appendChild(dialog);
+    showDialog(dialog);
+  }
+
+  var ComponentBuilder = {
+    activeTab: "general",
+    componentSource: "",
+    instanceSource: "",
+    syncing: false,
+    bound: false,
+    syncTimer: 0,
+    syncDelay: 120,
+    modal: function () { return document.getElementById("pb-component-builder"); },
+    nameInput: function () { return document.getElementById("pb-component-builder-name"); },
+    extendsInput: function () { return document.getElementById("pb-component-builder-extends"); },
+    structureEditor: function () { return document.getElementById("pb-component-builder-structure"); },
+    handlersEditor: function () { return document.getElementById("pb-component-builder-handlers"); },
+    previewEditor: function () { return document.getElementById("pb-component-builder-preview"); },
+    error: function () { return document.getElementById("pb-component-builder-error"); },
+    bind: function () {
+      var modal;
+      if (this.bound) {
+        return;
+      }
+      this.bound = true;
+      modal = this.modal();
+      [this.structureEditor(), this.handlersEditor()].forEach(function (editor) {
+        if (!editor) { return; }
+        ["q-editor-output", "input", "keyup"].forEach(function (eventName) {
+          editor.addEventListener(eventName, function () {
+            componentBuilderRememberCursor(editor);
+            ComponentBuilder.queueEditorChanged(editor, false);
+          });
+        });
+        ["click", "mouseup", "pointerup"].forEach(function (eventName) {
+          editor.addEventListener(eventName, function () {
+            setTimeout(function () { componentBuilderRememberCursor(editor); }, 0);
+          });
+        });
+      });
+      if (this.previewEditor()) {
+        ["q-editor-output", "input", "keyup"].forEach(function (eventName) {
+          ComponentBuilder.previewChangedBound = true;
+          ComponentBuilder.previewEditor().addEventListener(eventName, function () {
+            componentBuilderRememberCursor(ComponentBuilder.previewEditor());
+            ComponentBuilder.queueEditorChanged(ComponentBuilder.previewEditor(), true);
+          });
+        });
+        ["click", "mouseup", "pointerup"].forEach(function (eventName) {
+          ComponentBuilder.previewEditor().addEventListener(eventName, function () {
+            setTimeout(function () { componentBuilderRememberCursor(ComponentBuilder.previewEditor()); }, 0);
+          });
+        });
+      }
+      if (modal) {
+        modal.addEventListener("click", function (event) {
+          if (event.target === modal) {
+            ComponentBuilder.close();
+          }
+        });
+      }
+    },
+    shouldIgnoreEditorEvent: function (editor) {
+      return !!(this.syncing || !editor || editor.__pbComponentBuilderSyncing || (editor.__pbComponentBuilderSuppressUntil && Date.now() < editor.__pbComponentBuilderSuppressUntil));
+    },
+    setSyncedEditorSource: function (editor, source) {
+      if (!editor) {
+        return;
+      }
+      if (readQEditorRawSource(editor) === String(source || "")) {
+        return;
+      }
+      editor.__pbComponentBuilderSyncing = true;
+      editor.__pbComponentBuilderSuppressUntil = Date.now() + 500;
+      setQEditorRawSource(editor, source);
+      setTimeout(function () {
+        editor.__pbComponentBuilderSyncing = false;
+      }, 0);
+      setTimeout(function () {
+        if (Date.now() >= (editor.__pbComponentBuilderSuppressUntil || 0)) {
+          editor.__pbComponentBuilderSuppressUntil = 0;
+        }
+      }, 520);
+    },
+    queueEditorChanged: function (editor, isPreview) {
+      if (this.shouldIgnoreEditorEvent(editor)) {
+        return;
+      }
+      clearTimeout(this.syncTimer);
+      this.syncTimer = setTimeout(function () {
+        if (ComponentBuilder.shouldIgnoreEditorEvent(editor)) {
+          return;
+        }
+        if (isPreview) {
+          ComponentBuilder.previewChanged();
+        } else {
+          ComponentBuilder.editorChanged(editor);
+        }
+      }, this.syncDelay);
+    },
+    open: function () {
+      var modal = this.modal();
+      this.bind();
+      this.activeTab = "general";
+      if (!this.componentSource) {
+        this.componentSource = "q-component my-component {\n  text { New component }\n}\n";
+        this.instanceSource = "my-component { }\n";
+      }
+      if (this.nameInput()) {
+        this.nameInput().value = (componentBuilderParseHeader(this.componentSource) || {}).name || "my-component";
+      }
+      if (this.extendsInput()) {
+        this.extendsInput().value = (componentBuilderParseHeader(this.componentSource) || {}).extendsText || "";
+      }
+      this.renderAll();
+      this.switchTab("general");
+      showDialog(modal);
+    },
+    close: function () {
+      this.commitVisibleEditor();
+      closeDialog(this.modal());
+    },
+    currentEditor: function () {
+      if (this.activeTab === "handlers") {
+        return this.handlersEditor();
+      }
+      if (this.activeTab === "preview") {
+        return this.previewEditor();
+      }
+      return this.structureEditor();
+    },
+    switchTab: function (tab) {
+      this.commitVisibleEditor();
+      this.activeTab = String(tab || "general");
+      arr(document.querySelectorAll("[data-pb-builder-tab]")).forEach(function (button) {
+        button.classList.toggle("active", button.getAttribute("data-pb-builder-tab") === ComponentBuilder.activeTab);
+      });
+      arr(document.querySelectorAll("[data-pb-builder-panel]")).forEach(function (panel) {
+        if (panel.getAttribute("data-pb-builder-panel") === ComponentBuilder.activeTab) {
+          panel.removeAttribute("hidden");
+        } else {
+          panel.setAttribute("hidden", "hidden");
+        }
+      });
+      this.renderAll();
+    },
+    updateGeneral: function () {
+      var name = componentBuilderNameInputSafe(this.nameInput() ? this.nameInput().value : "my-component");
+      var ext = componentBuilderExtendsInputSafe(this.extendsInput() ? this.extendsInput().value : "");
+      if (this.nameInput() && this.nameInput().value !== name) {
+        this.nameInput().value = name;
+      }
+      if (this.extendsInput() && this.extendsInput().value !== ext) {
+        this.extendsInput().value = ext;
+      }
+      this.componentSource = componentBuilderReplaceHeader(this.componentSource, name, ext);
+      this.instanceSource = name + " { }\n";
+      this.renderAll();
+    },
+    renderAll: function (skipEditor) {
+      var preview = formatQHtmlSource(this.componentSource) + "\n\n" + formatQHtmlSource(this.instanceSource || componentBuilderNameInputSafe(this.nameInput() ? this.nameInput().value : "my-component") + " { }") + "\n";
+      this.syncing = true;
+      if (this.structureEditor() !== skipEditor) {
+        this.setSyncedEditorSource(this.structureEditor(), formatQHtmlSource(this.componentSource) + "\n");
+      }
+      if (this.handlersEditor() !== skipEditor) {
+        this.setSyncedEditorSource(this.handlersEditor(), formatQHtmlSource(this.componentSource) + "\n");
+      }
+      if (this.previewEditor() !== skipEditor) {
+        this.setSyncedEditorSource(this.previewEditor(), preview);
+      }
+      this.syncing = false;
+      this.validate();
+    },
+    commitVisibleEditor: function (force) {
+      if (this.activeTab === "preview") {
+        this.previewChanged(force);
+      } else if (this.activeTab === "structure") {
+        this.editorChanged(this.structureEditor(), force);
+      } else if (this.activeTab === "handlers") {
+        this.editorChanged(this.handlersEditor(), force);
+      }
+    },
+    editorChanged: function (editor, force) {
+      var header;
+      if (!force && this.shouldIgnoreEditorEvent(editor)) {
+        return;
+      }
+      this.componentSource = readQEditorRawSource(editor);
+      header = componentBuilderParseHeader(this.componentSource);
+      if (header) {
+        if (this.nameInput()) {
+          this.nameInput().value = header.name;
+        }
+        if (this.extendsInput()) {
+          this.extendsInput().value = header.extendsText;
+        }
+        this.instanceSource = header.name + " { }\n";
+      }
+      this.renderAll(editor);
+    },
+    previewChanged: function (force) {
+      var extracted;
+      var header;
+      if (!force && this.shouldIgnoreEditorEvent(this.previewEditor())) {
+        return;
+      }
+      extracted = componentBuilderExtractPreview(readQEditorRawSource(this.previewEditor()));
+      if (extracted.componentSource) {
+        this.componentSource = extracted.componentSource;
+      }
+      if (extracted.instanceSource) {
+        this.instanceSource = extracted.instanceSource;
+      }
+      header = componentBuilderParseHeader(this.componentSource);
+      if (header) {
+        if (this.nameInput()) {
+          this.nameInput().value = header.name;
+        }
+        if (this.extendsInput()) {
+          this.extendsInput().value = header.extendsText;
+        }
+      }
+      this.renderAll(this.previewEditor());
+    },
+    insertSnippet: function (kind) {
+      var editor = this.currentEditor();
+      var snippet;
+      if (kind === "on-signal") {
+        this.insertSignalHandler();
+        return;
+      }
+      if (kind === "on-property-changed") {
+        this.insertPropertyChangedHandler();
+        return;
+      }
+      if (this.activeTab === "preview") {
+        editor = this.structureEditor();
+        this.switchTab("structure");
+      }
+      snippet = componentBuilderSnippet(kind);
+      if (!snippet) {
+        return;
+      }
+      this.componentSource = componentBuilderInsertText(editor, snippet);
+      this.renderAll(editor);
+    },
+    insertSignalHandler: function () {
+      var signals = componentBuilderSignalList(this.componentSource);
+      if (!signals.length) {
+        var raw = prompt("Signal name and params", "saved(value)");
+        var match;
+        if (raw === null) { return; }
+        match = String(raw || "saved(value)").match(/^([A-Za-z0-9_-]+)(?:\(([^)]*)\))?/);
+        signals = [{ name: match ? match[1] : "saved", params: match && match[2] ? match[2] : "value" }];
+      }
+      chooseComponentBuilderItem("Choose signal", signals.map(function (sig) {
+        return { label: sig.name + (sig.params ? "(" + sig.params + ")" : ""), value: sig };
+      }), function (choice) {
+        var sig = choice.value;
+        var handler = componentBuilderHandlerName(sig.name, "");
+        var params = sig.params || "";
+        ComponentBuilder.componentSource = componentBuilderInsertText(ComponentBuilder.handlersEditor(), {
+          text: handler + "(" + params + ") {\n  \n}\n",
+          offset: (handler + "(" + params + ") {\n  ").length
+        });
+        ComponentBuilder.renderAll(ComponentBuilder.handlersEditor());
+      });
+    },
+    insertPropertyChangedHandler: function () {
+      var props = componentBuilderPropertyList(this.componentSource);
+      if (!props.length) {
+        var raw = prompt("Property name", "value");
+        if (raw === null) { return; }
+        props = [{ name: String(raw || "value").replace(/[^\w-]+/g, "") || "value" }];
+      }
+      chooseComponentBuilderItem("Choose property", props.map(function (prop) {
+        return { label: prop.name, value: prop };
+      }), function (choice) {
+        var prop = choice.value;
+        var handler = componentBuilderHandlerName(prop.name, "Changed");
+        var param = componentBuilderParamName(prop.name);
+        ComponentBuilder.componentSource = componentBuilderInsertText(ComponentBuilder.handlersEditor(), {
+          text: handler + "(" + param + ") {\n  \n}\n",
+          offset: (handler + "(" + param + ") {\n  ").length
+        });
+        ComponentBuilder.renderAll(ComponentBuilder.handlersEditor());
+      });
+    },
+    indent: function (outdent) {
+      var editor = this.currentEditor();
+      if (this.activeTab === "preview") {
+        return;
+      }
+      componentBuilderIndentSelection(editor, outdent);
+      this.componentSource = readQEditorRawSource(editor);
+      this.renderAll(editor);
+    },
+    validate: function () {
+      var source = formatQHtmlSource(this.componentSource) + "\n\n" + formatQHtmlSource(this.instanceSource || "");
+      try {
+        parseQHtmlSource(source);
+        if (this.error()) {
+          this.error().textContent = "";
+        }
+        return true;
+      } catch (error) {
+        if (this.error()) {
+          this.error().textContent = String(error && error.message ? error.message : error);
+        }
+        return false;
+      }
+    },
+    create: function () {
+      this.commitVisibleEditor(true);
+      if (this.activeTab === "general" && this.structureEditor()) {
+        this.editorChanged(this.structureEditor(), true);
+      }
+      var header = componentBuilderParseHeader(this.componentSource);
+      var name = header ? componentBuilderNameInputSafe(header.name) : componentBuilderNameInputSafe(this.nameInput() ? this.nameInput().value : "my-component");
+      var body = componentBuilderBodySource(this.componentSource);
+      var record;
+      var button;
+      if (!this.validate()) {
+        setStatus("Component builder source has a QHTML error");
+        return;
+      }
+      if (!String(body || "").trim()) {
+        body = "text { }";
+      }
+      record = {
+        name: name,
+        component: name.toLowerCase(),
+        qhtml: formatQHtmlSource(body),
+        instance: formatQHtmlSource(this.instanceSource || name + " { }")
+      };
+      button = addPaletteButtonRecord(record);
+      if (!button) {
+        if (this.error()) {
+          this.error().textContent = "Could not add the palette item. Make sure the palette is loaded.";
+        }
+        setStatus("Could not add palette component " + name);
+        return;
+      }
+      if (FileStore.currentFile()) {
+        FileStore.setCurrentPalette(mergePaletteRecords(collectImportedPaletteRecords(), [record]));
+        button = revealPaletteComponent(record.component) || button;
+      } else {
+        BuilderStore.saveSoon();
+        revealPaletteComponent(record.component);
+      }
+      setStatus("Created palette component " + name);
+      setTimeout(function () {
+        setStatus("Created palette component " + name);
+      }, 120);
+      this.close();
+      this.componentSource = "";
+      this.instanceSource = "";
+    }
+  };
 
   var PaletteEditor = {
     currentButton: null,
@@ -2474,16 +3932,16 @@
         });
       }
     },
-    open: function (item) {
+    open: function (item, path) {
       var modal = this.modal();
       this.currentItem = item;
-      this.currentPath = "";
+      this.currentPath = String(path || "");
       this.currentSlot = "";
       this.drafts = Object.create(null);
       this.draftOrder = [];
       reconcileRenderedSlotsForItem(item);
       this.bind();
-      this.populateInstances();
+      this.populateInstances(this.currentPath);
       if (this.subtitle()) {
         this.subtitle().textContent = "Editing " + (item.getAttribute("name") || item.getAttribute("component") || "palette instance");
       }
@@ -2543,10 +4001,12 @@
       var key = this.draftKey(path, slot);
       return this.drafts && this.drafts[key] ? this.drafts[key].source : null;
     },
-    populateInstances: function () {
+    populateInstances: function (preferredPath) {
       var select = this.instanceSelect();
       var row = this.instanceRow();
       var entries = this.entries();
+      var preferred = String(preferredPath || "");
+      var selected;
       if (!select) {
         return;
       }
@@ -2560,7 +4020,8 @@
       if (row) {
         row.hidden = entries.length <= 1;
       }
-      this.currentPath = entries[0] ? entries[0].path : "";
+      selected = preferred ? entryByPath(entries, preferred) : entries[0] || null;
+      this.currentPath = selected ? selected.path : "";
       select.value = this.currentPath;
       this.populateSlots();
     },
@@ -2568,10 +4029,15 @@
       var entry = this.selectedEntry();
       var select = this.slotSelect();
       var row = this.slotRow();
+      var noneOption;
       if (!select) {
         return;
       }
       select.innerHTML = "";
+      noneOption = document.createElement("option");
+      noneOption.value = "";
+      noneOption.textContent = "none";
+      select.appendChild(noneOption);
       if (entry && entry.slots && entry.slots.length) {
         entry.slots.forEach(function (slotName) {
           var option = document.createElement("option");
@@ -2579,15 +4045,16 @@
           option.textContent = slotName;
           select.appendChild(option);
         });
-        this.currentSlot = entry.slots[0];
+        this.currentSlot = "";
         select.value = this.currentSlot;
         if (row) {
           row.hidden = false;
         }
       } else {
         this.currentSlot = "";
+        select.value = "";
         if (row) {
-          row.hidden = true;
+          row.hidden = false;
         }
       }
       this.loadEditor();
@@ -2920,6 +4387,7 @@
       } else {
         node.source = "";
         node.html = "";
+        node.palette = [];
       }
       return node;
     },
@@ -2981,6 +4449,43 @@
       var found = id ? this.find(id) : null;
       return found && found.node && found.node.type === "file" ? this.pathOf(found.node.id) : "";
     },
+    currentFile: function () {
+      var id = this.read().currentFileId;
+      var found = id ? this.find(id) : null;
+      return found && found.node && found.node.type === "file" ? found.node : null;
+    },
+    ensureCurrentFile: function (defaultName) {
+      var state = this.read();
+      var file = this.currentFile();
+      var name;
+      if (file) {
+        return file;
+      }
+      name = prompt("Save file as", normalizeFileName(defaultName || "index.qhtml"));
+      if (name === null) {
+        return null;
+      }
+      file = this.createChild("file", name || defaultName || "index.qhtml", state.root);
+      file.palette = [];
+      state.currentFileId = file.id;
+      this.selectedId = file.id;
+      this.write();
+      return file;
+    },
+    applyCurrentPalette: function () {
+      var file = this.currentFile();
+      applyImportedPaletteRecords(file && Array.isArray(file.palette) ? file.palette : []);
+    },
+    setCurrentPalette: function (records) {
+      var file = this.currentFile();
+      if (!file) {
+        return;
+      }
+      file.palette = Array.isArray(records) ? records.slice() : [];
+      applyImportedPaletteRecords(file.palette);
+      file.updatedAt = new Date().toISOString();
+      this.write();
+    },
     uniqueName: function (folder, name, type, ignoreId) {
       var base = type === "folder" ? normalizeFolderName(name) : normalizeFileName(name);
       var ext = "";
@@ -3039,9 +4544,11 @@
       file = this.createChild("file", name || "index.qhtml", state.root);
       file.html = "";
       file.source = "";
+      file.palette = [];
       file.updatedAt = new Date().toISOString();
       state.currentFileId = file.id;
       this.selectedId = file.id;
+      applyImportedPaletteRecords([]);
       if (layout) {
         BuilderStore.restoring = true;
         layout.innerHTML = "";
@@ -3055,7 +4562,8 @@
       setStatus("New file " + this.pathOf(file.id));
       return file;
     },
-    saveCurrent: function () {
+    saveCurrent: function (options) {
+      var opts = options || {};
       var state = this.read();
       var layout = document.getElementById("pb-builder-layout");
       var file = state.currentFileId ? this.find(state.currentFileId) : null;
@@ -3070,6 +4578,7 @@
       }
       file.node.html = layout.innerHTML;
       file.node.source = exportQHtml(layout);
+      file.node.palette = collectImportedPaletteRecords();
       file.node.updatedAt = new Date().toISOString();
       state.currentFileId = file.node.id;
       this.selectedId = file.node.id;
@@ -3077,7 +4586,9 @@
       this.write();
       this.renderOpenDialogs();
       updateExportPanel(false);
-      setStatus("Saved " + this.pathOf(file.node.id));
+      if (!opts.silent) {
+        setStatus("Saved " + this.pathOf(file.node.id));
+      }
     },
     loadFile: function (id) {
       var found = this.find(id);
@@ -3086,6 +4597,7 @@
         return;
       }
       BuilderStore.restoring = true;
+      applyImportedPaletteRecords(Array.isArray(found.node.palette) ? found.node.palette : []);
       layout.innerHTML = found.node.html || "";
       arr(layout.querySelectorAll(".pb-empty-drop")).forEach(function (node) { node.remove(); });
       arr(layout.querySelectorAll(Q.row + "," + Q.col)).forEach(installApi);
@@ -3201,7 +4713,7 @@
     },
     renderTree: function (containerId, foldersOnly, selectedId) {
       var container = document.getElementById(containerId);
-      var probe = document.getElementById(containerId === "pb-file-tree" ? "pb-file-tree-probe" : "pb-folder-tree-probe");
+      var probe = document.getElementById(containerId + "-probe");
       var self = this;
       if (!container) { return; }
       if (probe && typeof probe.setModel === "function") {
@@ -3231,7 +4743,7 @@
           self.renderOpenDialogs();
         });
         button.addEventListener("dblclick", function () {
-          if (!foldersOnly && node.type === "file") {
+          if (containerId === "pb-file-tree" && !foldersOnly && node.type === "file") {
             self.loadFile(node.id);
           }
         });
@@ -3265,14 +4777,19 @@
       if (document.getElementById("pb-file-dialog") && document.getElementById("pb-file-dialog").open) {
         this.renderTree("pb-file-tree", false, this.selectedId);
       }
+      if (document.getElementById("pb-file-manager") && document.getElementById("pb-file-manager").open) {
+        this.renderTree("pb-file-manager-tree", false, this.selectedId);
+      }
       if (document.getElementById("pb-folder-picker") && document.getElementById("pb-folder-picker").open) {
         this.renderTree("pb-folder-tree", true, this.pickerSelectedFolderId);
       }
     },
     updateSelectedLabels: function () {
       var fileLabel = document.getElementById("pb-file-selected");
+      var managerLabel = document.getElementById("pb-file-manager-selected");
       var folderLabel = document.getElementById("pb-folder-selected");
       if (fileLabel) { fileLabel.textContent = this.pathOf(this.selectedId); }
+      if (managerLabel) { managerLabel.textContent = this.pathOf(this.selectedId); }
       if (folderLabel) { folderLabel.textContent = this.pathOf(this.pickerSelectedFolderId); }
     },
     openDialog: function () {
@@ -3284,6 +4801,42 @@
     closeDialog: function () {
       this.hideContextMenu();
       closeDialog(document.getElementById("pb-file-dialog"));
+    },
+    openManager: function () {
+      this.read();
+      this.selectedId = this.selectedId || "root";
+      this.renderTree("pb-file-manager-tree", false, this.selectedId);
+      showDialog(document.getElementById("pb-file-manager"));
+    },
+    closeManager: function () {
+      this.hideContextMenu();
+      closeDialog(document.getElementById("pb-file-manager"));
+    },
+    selectedManagedFile: function () {
+      var found = this.find(this.selectedId);
+      if (!found || !found.node || found.node.type !== "file") {
+        setStatus("Select a file first");
+        return null;
+      }
+      return found.node;
+    },
+    renameManagedFile: function () {
+      var file = this.selectedManagedFile();
+      if (file) {
+        this.renameNode(file.id);
+      }
+    },
+    deleteManagedFile: function () {
+      var file = this.selectedManagedFile();
+      if (file) {
+        this.removeNode(file.id);
+      }
+    },
+    moveManagedFile: function () {
+      var file = this.selectedManagedFile();
+      if (file) {
+        this.openFolderPicker("move", file.id);
+      }
     },
     showContextMenu: function (id, x, y) {
       var found = this.find(id);
@@ -3524,13 +5077,28 @@
     clearCanvas: clearCanvas,
     saveLayout: saveLayout,
     loadLayout: loadLayout,
+    importQHtmlFile: importQHtmlFile,
+    importQHtmlSource: importQHtmlSource,
     closeFileDialog: function () { FileStore.closeDialog(); },
+    openFileManager: function () { FileStore.openManager(); },
+    closeFileManager: function () { FileStore.closeManager(); },
+    renameManagedFile: function () { FileStore.renameManagedFile(); },
+    deleteManagedFile: function () { FileStore.deleteManagedFile(); },
+    moveManagedFile: function () { FileStore.moveManagedFile(); },
     newFileFolder: function () { FileStore.newFolder(); },
     newFile: function () { FileStore.newFile(); },
     closeFolderPicker: function () { FileStore.closeFolderPicker(); },
     confirmFolderPicker: function () { FileStore.confirmFolderPicker(); },
     addRow: addRow,
     addColumn: addColumn,
+    openComponentBuilder: function () { ComponentBuilder.open(); },
+    closeComponentBuilder: function () { ComponentBuilder.close(); },
+    switchComponentBuilderTab: function (tab) { ComponentBuilder.switchTab(tab); },
+    updateComponentBuilderGeneral: function () { ComponentBuilder.updateGeneral(); },
+    insertComponentBuilderSnippet: function (kind) { ComponentBuilder.insertSnippet(kind); },
+    indentComponentBuilderEditor: function () { ComponentBuilder.indent(false); },
+    outdentComponentBuilderEditor: function () { ComponentBuilder.indent(true); },
+    createComponentBuilderItem: function () { ComponentBuilder.create(); },
     openPaletteEditor: function (button) { PaletteEditor.open(button); },
     closePaletteEditor: function () { PaletteEditor.close(); },
     savePaletteEdit: function () { PaletteEditor.save(); },
