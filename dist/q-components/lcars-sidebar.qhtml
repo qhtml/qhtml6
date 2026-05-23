@@ -1,0 +1,230 @@
+q-style lcars-sidebar-host-style {
+  display: block
+  width: 100%
+  min-height: 320px
+  backgroundColor: #08090d
+  color: #f8fafc
+  fontFamily: "Arial, Helvetica, sans-serif"
+}
+
+q-style lcars-sidebar-shell-style {
+  display: block
+  width: 100%
+  min-height: 320px
+  backgroundColor: #08090d
+  overflow: hidden
+}
+
+q-style lcars-sidebar-cap-style {
+  position: relative
+  width: 100%
+  height: 92px
+  min-height: 92px
+  backgroundColor: #f59a38
+  backgroundImage: paint(lcars-sidebar-cap)
+  overflow: hidden
+}
+
+q-style lcars-sidebar-cap-cutout-style {
+  position: absolute
+  left: "clamp(140px, 24vw, 260px)"
+  right: 0
+  bottom: 0
+  height: 66px
+  backgroundColor: #08090d
+  border-top-left-radius: 44px
+  pointer-events: none
+}
+
+q-style lcars-sidebar-grid-style {
+  display: grid
+  grid-template-columns: minmax(152px, 220px) minmax(0, 1fr)
+  min-height: 228px
+  backgroundColor: #08090d
+}
+
+q-style lcars-sidebar-rail-style {
+  display: grid
+  align-content: start
+  gap: 8px
+  min-width: 0
+  padding: 8px 8px 12px 0
+  backgroundColor: #08090d
+}
+
+q-style lcars-sidebar-main-style {
+  min-width: 0
+  min-height: 228px
+  padding: 18px
+  backgroundColor: #10131a
+  border-left: 8px solid #08090d
+  overflow: auto
+}
+
+q-style lcars-sidebar-buttons-host-style {
+  display: block
+  width: 100%
+}
+
+q-style lcars-sidebar-buttons-layout-style {
+  width: 100%
+  min-height: 1px
+  gap: 8px
+  backgroundColor: transparent
+}
+
+q-style lcars-sidebar-buttons-column-style {
+  display: grid
+  align-content: start
+  gap: 8px
+  width: 100%
+  min-width: 0
+}
+
+q-style lcars-sidebar-button-host-style {
+  display: block
+  width: 100%
+}
+
+q-style lcars-sidebar-button-surface-style {
+  display: grid
+  place-items: center
+  width: 100%
+  height: 72px
+  min-height: 72px
+  box-sizing: border-box
+  padding: 8px 12px
+  border: 0
+  border-radius: 0 18px 18px 0
+  backgroundColor: "var(--lcars-button-color, #f59a38)"
+  color: #08090d
+  font-size: 15px
+  font-weight: 800
+  letter-spacing: 0
+  text-align: center
+  text-transform: uppercase
+  overflow: hidden
+}
+
+q-default-theme lcars-sidebar-theme {
+  lcars-sidebar { lcars-sidebar-host-style }
+  .lcars-sidebar-shell { lcars-sidebar-shell-style }
+  .lcars-sidebar-cap { lcars-sidebar-cap-style }
+  .lcars-sidebar-cap-cutout { lcars-sidebar-cap-cutout-style }
+  .lcars-sidebar-grid { lcars-sidebar-grid-style }
+  .lcars-sidebar-rail { lcars-sidebar-rail-style }
+  .lcars-sidebar-main { lcars-sidebar-main-style }
+  lcars-sidebar-buttons { lcars-sidebar-buttons-host-style }
+  .lcars-sidebar-buttons-layout { lcars-sidebar-buttons-layout-style }
+  .lcars-sidebar-buttons-column { lcars-sidebar-buttons-column-style }
+  lcars-sidebar-button { lcars-sidebar-button-host-style }
+  .lcars-sidebar-button-surface { lcars-sidebar-button-surface-style }
+}
+
+q-component lcars-sidebar {
+  function ensureLcarsPaint() {
+    if (typeof window === "undefined" || !window.CSS || !CSS.paintWorklet || window.__lcarsSidebarPaintLoaded) {
+      return;
+    }
+    window.__lcarsSidebarPaintLoaded = true;
+    var source = [
+      "class LcarsSidebarCapPainter {",
+      "  static get inputProperties() { return ['--lcars-cap-color', '--lcars-cap-void', '--lcars-cap-notch']; }",
+      "  paint(ctx, geom, props) {",
+      "    var w = geom.width;",
+      "    var h = geom.height;",
+      "    var color = String(props.get('--lcars-cap-color') || '#f59a38').trim() || '#f59a38';",
+      "    var voidColor = String(props.get('--lcars-cap-void') || '#08090d').trim() || '#08090d';",
+      "    var notch = parseFloat(String(props.get('--lcars-cap-notch') || '180')) || 180;",
+      "    notch = Math.max(104, Math.min(w - 72, notch));",
+      "    ctx.fillStyle = color;",
+      "    ctx.beginPath();",
+      "    ctx.moveTo(0, h);",
+      "    ctx.lineTo(0, h * 0.74);",
+      "    ctx.bezierCurveTo(0, h * 0.22, 34, 0, 86, 0);",
+      "    ctx.lineTo(w, 0);",
+      "    ctx.lineTo(w, h);",
+      "    ctx.closePath();",
+      "    ctx.fill();",
+      "    ctx.fillStyle = voidColor;",
+      "    ctx.beginPath();",
+      "    ctx.moveTo(notch, h);",
+      "    ctx.lineTo(notch, h * 0.62);",
+      "    ctx.bezierCurveTo(notch, h * 0.28, notch + 28, h * 0.2, notch + 62, h * 0.2);",
+      "    ctx.lineTo(w, h * 0.2);",
+      "    ctx.lineTo(w, h);",
+      "    ctx.closePath();",
+      "    ctx.fill();",
+      "  }",
+      "}",
+      "registerPaint('lcars-sidebar-cap', LcarsSidebarCapPainter);"
+    ].join("\n");
+
+    CSS.paintWorklet.addModule(URL.createObjectURL(new Blob([source], { type: "application/javascript" }))).catch(function ignoreLcarsPaintError() {});
+  }
+
+  onReady {
+    this.ensureLcarsPaint();
+  }
+
+  lcars-sidebar-theme {
+    div.lcars-sidebar-shell {
+      div.lcars-sidebar-cap {
+        style {
+          --lcars-cap-color: #f59a38;
+          --lcars-cap-void: #08090d;
+          --lcars-cap-notch: 180;
+        }
+        div.lcars-sidebar-cap-cutout { }
+      }
+
+      div.lcars-sidebar-grid {
+        aside.lcars-sidebar-rail {
+          slot { sidebar }
+        }
+
+        main.lcars-sidebar-main {
+          slot { main }
+        }
+      }
+    }
+  }
+}
+
+q-component lcars-sidebar-buttons {
+  lcars-sidebar-theme {
+    q-layout.lcars-sidebar-buttons-layout {
+      q-row {
+        q-col.lcars-sidebar-buttons-column {
+          slot { buttons }
+        }
+      }
+    }
+  }
+}
+
+q-component lcars-sidebar-button {
+  q-property buttonColor: "#f59a38"
+
+  function applyButtonColor() {
+    var value = String(this.buttonColor || "#f59a38").trim();
+    if (!value) {
+      value = "#f59a38";
+    }
+    this.style.setProperty("--lcars-button-color", value);
+  }
+
+  onReady {
+    this.applyButtonColor();
+  }
+
+  onButtonColorChanged {
+    this.applyButtonColor();
+  }
+
+  lcars-sidebar-theme {
+    div.lcars-sidebar-button-surface {
+      slot { buttonText }
+    }
+  }
+}

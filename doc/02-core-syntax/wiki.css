@@ -5,6 +5,8 @@ html, body {
   background-color: transparent !important;
   color: #10243d;
   font-family: "Avenir Next", "Segoe UI", sans-serif;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 body {
@@ -19,6 +21,9 @@ main.doc-root {
   max-width: 1400px;
   margin: 0 auto;
   padding: 1rem;
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
 }
 
 .doc-hero {
@@ -47,6 +52,8 @@ main.doc-root {
   padding: 1rem 1.1rem;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
   margin-bottom: 1rem;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .doc-link-grid {
@@ -84,12 +91,37 @@ main.doc-root {
   color: #e2e8f0;
   border-radius: 14px;
   overflow: auto;
+  max-width: 100%;
+  box-sizing: border-box;
   font-family: "Fira Code", monospace;
   font-size: 0.92rem;
   line-height: 1.45;
 }
 
 .wiki-code code {
+  white-space: pre;
+}
+
+q-html,
+q-editor {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+q-editor {
+  overflow-x: auto;
+}
+
+pre,
+code {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+pre {
+  overflow-x: auto;
   white-space: pre;
 }
 
@@ -101,10 +133,31 @@ main.doc-root {
 
 @media (max-width: 860px) {
   main.doc-root {
-    padding: 0.8rem;
+    padding: 0.7rem;
   }
 
   .doc-hero {
     padding: 1.1rem;
+  }
+
+  .doc-plain-panel {
+    padding: 0.85rem;
+  }
+}
+
+@media (max-width: 560px) {
+  main.doc-root {
+    padding: 0.5rem;
+  }
+
+  .doc-hero,
+  .doc-plain-panel {
+    border-radius: 12px;
+  }
+
+  .wiki-code {
+    border-radius: 10px;
+    font-size: 0.82rem;
+    padding: 0.75rem;
   }
 }

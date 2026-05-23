@@ -1,0 +1,299 @@
+q-painter lcars-linked-panel-painter {
+  q-property bg: "#090909"
+  q-property orange: "#f39737"
+  q-property peach: "#eb946c"
+  q-property mauve: "#bd7eaa"
+  q-property rust: "#bf7867"
+  q-property panel: "#07080d"
+  q-property panel2: "#101127"
+  q-property line: "rgba(235, 148, 108, 0.48)"
+  q-property soft: "rgba(182, 165, 209, 0.13)"
+
+  onpaint {
+    const w = this.width;
+    const h = this.height;
+
+    const C = {
+      bg: this.bg,
+      orange: this.orange,
+      peach: this.peach,
+      mauve: this.mauve,
+      rust: this.rust,
+      panel: this.panel,
+      panel2: this.panel2,
+      line: this.line,
+      soft: this.soft
+    };
+
+    const R = {
+      sideX: w * 0.043,
+      sideW: w * 0.326,
+      topY: h * 0.014,
+      topH: h * 0.242,
+      gap: h * 0.017,
+      rowH: h * 0.230,
+      panelX: w * 0.369,
+      panelY: h * 0.068,
+      panelW: w * 0.631,
+      panelH: h * 0.925
+    };
+
+    const roundRect = (x, y, width, height, radius, fill) => {
+      this.beginPath();
+      this.moveTo(x + radius, y);
+      this.lineTo(x + width, y);
+      this.lineTo(x + width, y + height);
+      this.lineTo(x, y + height);
+      this.lineTo(x, y + radius);
+      this.quadraticCurveTo(x, y, x + radius, y);
+      this.closePath();
+      this.fillStyle = fill;
+      this.fill();
+    };
+
+    const rect = (x, y, width, height, fill) => {
+      this.fillStyle = fill;
+      this.fillRect(x, y, width, height);
+    };
+
+    const blob = (points, fill) => {
+      this.beginPath();
+      this.moveTo(points[0][0] * w, points[0][1] * h);
+      for (let i = 1; i < points.length; i += 1) {
+        const p = points[i];
+        this.quadraticCurveTo(p[0] * w, p[1] * h, p[2] * w, p[3] * h);
+      }
+      this.closePath();
+      this.fillStyle = fill;
+      this.fill();
+    };
+
+    rect(0, 0, w, h, "transparent");
+
+    /* LCARS left/top orange chassis */
+    roundRect(R.sideX, R.topY, w - R.sideX, R.topH, h * 0.17, C.orange);
+
+    const y1 = R.topY + R.topH + R.gap;
+    const y2 = y1 + R.rowH + R.gap;
+    const y3 = y2 + R.rowH + R.gap;
+
+    rect(R.sideX, y1, R.sideW, R.rowH, C.peach);
+    rect(R.sideX, y2, R.sideW, R.rowH, C.mauve);
+    rect(R.sideX, y3, R.sideW, h - y3 - R.gap, C.rust);
+
+    /* dark content surface */
+    roundRect(R.panelX, R.panelY, R.panelW, R.panelH, h * 0.095, C.panel);
+
+    /* subtle internal LCARS chart texture */
+    blob([
+      [0.525, 0.170],
+      [0.635, 0.260, 0.668, 0.365],
+      [0.762, 0.555, 0.920, 0.500],
+      [1.030, 0.475, 1.025, 0.720],
+      [0.850, 0.760, 0.720, 0.640],
+      [0.575, 0.515, 0.485, 0.440],
+      [0.420, 0.360, 0.525, 0.170]
+    ], C.soft);
+
+    blob([
+      [0.560, 0.170],
+      [0.685, 0.260, 0.708, 0.405],
+      [0.805, 0.625, 1.010, 0.435],
+      [1.015, 0.710, 0.860, 0.780],
+      [0.700, 0.775, 0.580, 0.625],
+      [0.480, 0.505, 0.560, 0.170]
+    ], "rgba(27, 24, 82, 0.42)");
+
+    this.strokeStyle = C.line;
+    this.lineWidth = Math.max(1, w * 0.002);
+    this.beginPath();
+    this.moveTo(w * 0.662, R.panelY);
+    this.lineTo(w * 0.662, h - h * 0.010);
+    this.moveTo(R.panelX, h * 0.850);
+    this.lineTo(w, h * 0.850);
+    this.stroke();
+
+    this.fillStyle = C.orange;
+    [ [0.594, 0.295], [0.586, 0.404], [0.750, 0.753] ].forEach(([x, y]) => {
+      this.beginPath();
+      this.arc(x * w, y * h, Math.max(2, w * 0.0045), 0, Math.PI * 2);
+      this.fill();
+    });
+  }
+}
+
+q-style lcars-linked-panel-style {
+  .lcars-linked-panel {
+    position: relative;
+    width: min(100%, 920px);
+    aspect-ratio: 463 / 292;
+    q-style-painter { background { lcars-linked-panel-painter } }
+    background-size: 100% 100%;
+    overflow: hidden;
+    color: #cdb9e8;
+    font-family: "lcars", "Antonio", "Arial Narrow", sans-serif;
+  }
+
+  .lcars-linked-panel .side-link {
+    position: absolute;
+    left: 4.3%;
+    width: 32.6%;
+    height: 22.9%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 4.4%;
+    color: #050505;
+    text-decoration: none;
+    font-size: clamp(16px, 3.1vw, 31px);
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    text-transform: uppercase;
+    z-index: 2;
+  }
+
+  .lcars-linked-panel .side-link:hover {
+    filter: brightness(1.18);
+    text-shadow: 0 0 1px rgba(0, 0, 0, 0.2);
+  }
+
+  .lcars-linked-panel .side-link.one { top: 1.4%; }
+  .lcars-linked-panel .side-link.two { top: 26.7%; }
+  .lcars-linked-panel .side-link.three { top: 51.4%; }
+  .lcars-linked-panel .side-link.four { top: 76.0%; }
+
+  .lcars-linked-panel .main-slot {
+    position: absolute;
+    left: 42.5%;
+    top: 16.8%;
+    right: 3.5%;
+    bottom: 5.5%;
+    z-index: 3;
+    overflow: hidden;
+  }
+
+  .lcars-linked-panel .panel-title-row {
+    position: absolute;
+    left: 48.7%;
+    bottom: 12.4%;
+    display: flex;
+    align-items: center;
+    gap: 1.7%;
+    z-index: 4;
+    color: #cdb9e8;
+    pointer-events: none;
+  }
+
+  .lcars-linked-panel .panel-glyph {
+    color: #ffbd63;
+    font-size: clamp(22px, 5vw, 52px);
+    line-height: 1;
+    font-weight: 900;
+  }
+
+  .lcars-linked-panel .panel-title {
+    color: #cdb9e8;
+    font-size: clamp(26px, 5.6vw, 58px);
+    line-height: 0.84;
+    text-transform: uppercase;
+    letter-spacing: -0.06em;
+    font-weight: 900;
+  }
+
+  .lcars-linked-panel .panel-subtitle {
+    position: absolute;
+    left: 68.8%;
+    bottom: 4.3%;
+    z-index: 4;
+    color: #bc7a66;
+    font-size: clamp(14px, 2.8vw, 28px);
+    line-height: 1;
+    font-weight: 900;
+  }
+
+  .lcars-linked-panel .main-slot button,
+  .lcars-linked-panel .main-slot a.action {
+    border: 0;
+    border-radius: 999px;
+    background: #f39737;
+    color: #050505;
+    padding: 0.35em 1.1em 0.18em;
+    font: inherit;
+    font-size: clamp(14px, 1.8vw, 24px);
+    text-decoration: none;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .lcars-linked-panel .main-slot p {
+    margin: 0;
+    max-width: 38ch;
+    color: rgba(205, 185, 232, 0.86);
+    font-size: clamp(13px, 1.8vw, 23px);
+    line-height: 1.05;
+    text-transform: uppercase;
+  }
+
+  .lcars-linked-panel .main-slot .content-stack {
+    display: grid;
+    gap: 0.75rem;
+    align-content: end;
+    height: 100%;
+  }
+}
+
+q-component lcars-linked-panel {
+  q-property label1: "40-993643"
+  q-property label2: "24-001466"
+  q-property label3: "18-773389"
+  q-property label4: "18-910800"
+
+  q-property href1: "#"
+  q-property href2: "#"
+  q-property href3: "#"
+  q-property href4: "#"
+
+  q-property title: "KLAESTRON"
+  q-property subtitle: "6403"
+
+  div.lcars-linked-panel {
+    a.side-link.one {
+      href: "${this.component.href1}"
+      text { ${this.component.label1} }
+    }
+
+    a.side-link.two {
+      href: "${this.component.href2}"
+      text { ${this.component.label2} }
+    }
+
+    a.side-link.three {
+      href: "${this.component.href3}"
+      text { ${this.component.label3} }
+    }
+
+    a.side-link.four {
+      href: "${this.component.href4}"
+      text { ${this.component.label4} }
+    }
+
+    div.main-slot {
+      slot { content }
+    }
+
+    div.panel-title-row {
+      span.panel-glyph {
+        text { [•] }
+      }
+
+      span.panel-title {
+        text { ${this.component.title} }
+      }
+    }
+
+    div.panel-subtitle {
+      text { ${this.component.subtitle} }
+    }
+  }
+}

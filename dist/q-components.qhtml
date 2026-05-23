@@ -11,5 +11,6 @@ q-import { q-components/q-estore.qhtml cache }
 q-import { q-components/q-spritesheet.qhtml cache }
 q-import { q-components/q-factory.qhtml cache }
 q-import { q-components/q-sidebar.qhtml cache }
+q-import { q-components/lcars-sidebar.qhtml cache }
 q-import { q-components/q-popup-menu.qhtml cache }
 q-import { q-components/sdml-object.qhtml cache }

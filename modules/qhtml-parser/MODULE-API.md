@@ -103,6 +103,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - layout nodes store `meta.__qhtmlLayoutKeyword = true` and `meta.__qhtmlLayoutRole`
       - matching component definitions named `q-layout`, `q-row`, or `q-col` do not override these keyword nodes during definition normalization
       - layout keyword nodes keep normal child QDom content so slots, nested layouts, and named component references remain available to renderer/runtime context handling
+      - component slot discovery walks through layout keyword descendants; named slot shorthand in an invocation is recognized before single-slot fallback, so `q-layout { q-row { q-col { slot { name } } } }` accepts `component { name { ... } }`
     - q-timer declarations:
       - top-level `q-timer name { ... }` emitted in `document.meta.qTimers`
       - component-local `q-timer name { ... }` emitted in `component.qTimerDefinitions`

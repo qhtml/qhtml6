@@ -1897,13 +1897,44 @@ q-transition hudPanelDentTransition {
 }
 
 q-style hudRootStyle {
-  minHeight: 200vh
+  width: 100%
+  minHeight: 100vh
   background: #000000
   color: #e6fbff
   fontFamily: monospace
-  display: grid
-  gridTemplateColumns: 300px 44px 1fr
+  display: block
+  overflowX: hidden
+  overflowY: auto
+}
+
+q-style hudResponsiveLayoutStyle {
+  width: 100%
+  minHeight: 100vh
+  gap: 0
+}
+
+q-style hudResponsiveRowStyle {
+  width: 100%
+  minHeight: 100vh
+  gap: 0
+}
+
+q-style hudNavColumnStyle {
+  width: 300px
+  minWidth: 0
+  overflow: visible
+}
+
+q-style hudSpineColumnStyle {
+  width: 44px
+  minWidth: 0
   overflow: hidden
+}
+
+q-style hudPanelColumnStyle {
+  width: "minmax(320px, 1fr)"
+  minWidth: 0
+  overflow: visible
 }
 
 q-style hudButtonStackStyle {
@@ -2013,8 +2044,8 @@ q-style hudFrameStyle {
   position: absolute
   left: 34px
   top: 34px
-  width: calc(100% - 68px)
-  height: calc(100% - 94px)
+  width: calc(100% - 68px);
+  height: calc(100% - 94px);
   border: 0
   background: transparent
   opacity: 0.92
@@ -2022,6 +2053,11 @@ q-style hudFrameStyle {
 
 q-theme hudTheme {
   .hud-root { hudRootStyle }
+  .hud-responsive-layout { hudResponsiveLayoutStyle }
+  .hud-responsive-row { hudResponsiveRowStyle }
+  .hud-nav-col { hudNavColumnStyle }
+  .hud-spine-col { hudSpineColumnStyle }
+  .hud-panel-col { hudPanelColumnStyle }
   .hud-button-stack { hudButtonStackStyle }
   .hud-button { hudButtonStyle }
   .hud-button-label { hudButtonLabelStyle }
@@ -2126,6 +2162,85 @@ q-component hud-system {
     }));
   }
 
+  function isCompactLayout() {
+    const rect = this.getBoundingClientRect ? this.getBoundingClientRect() : null;
+    const width = rect && Number.isFinite(rect.width) && rect.width > 0 ? rect.width : window.innerWidth || 0;
+    return width > 0 && width < 760;
+  }
+
+  function panelTargetWidth() {
+    return this.isCompactLayout() ? "100%" : this.component.panelWidth || "78vw";
+  }
+
+  function syncResponsiveLayout() {
+    const compact = this.isCompactLayout();
+    this.setAttribute("data-compact", compact ? "1" : "0");
+
+    const row = this.querySelector(".hud-responsive-row");
+    const navCol = this.querySelector(".hud-nav-col");
+    const spineCol = this.querySelector(".hud-spine-col");
+    const panelCol = this.querySelector(".hud-panel-col");
+    const stack = this.querySelector(".hud-button-stack");
+    const spine = this.spine();
+    const panelSlot = this.querySelector(".hud-panel-slot");
+    const panel = this.panel();
+    const frame = this.iframe();
+
+    if (row && row.relayout) {
+      row.relayout();
+    }
+
+    if (navCol) {
+      navCol.style.width = compact ? "100%" : "300px";
+    }
+    if (spineCol) {
+      spineCol.style.width = compact ? "100%" : "44px";
+    }
+    if (panelCol) {
+      panelCol.style.width = compact ? "100%" : "";
+    }
+
+    if (stack) {
+      stack.style.paddingTop = compact ? "16px" : "140px";
+      stack.style.paddingRight = compact ? "10px" : "";
+      stack.style.display = compact ? "grid" : "flex";
+      stack.style.gridTemplateColumns = compact ? "repeat(auto-fit, minmax(138px, 1fr))" : "";
+      stack.style.gap = compact ? "8px" : "10px";
+    }
+
+    this.querySelectorAll(".hud-button").forEach(btn => {
+      btn.style.width = compact ? "100%" : "298px";
+      btn.style.height = compact ? "52px" : "56px";
+    });
+
+    if (spine) {
+      spine.style.width = compact ? "100%" : "44px";
+      spine.style.height = compact ? "18px" : "200vh";
+    }
+
+    if (panelSlot) {
+      panelSlot.style.width = "100%";
+      panelSlot.style.height = compact ? "78vh" : "200vh";
+      panelSlot.style.overflow = compact ? "visible" : "hidden";
+    }
+
+    if (panel) {
+      panel.style.height = compact ? "78vh" : "200vh";
+      panel.style.minHeight = compact ? "420px" : "520px";
+      panel.style.maxWidth = compact ? "100%" : "980px";
+      if (panel.style.opacity === "1") {
+        panel.style.width = this.panelTargetWidth();
+      }
+    }
+
+    if (frame) {
+      frame.style.left = compact ? "18px" : "34px";
+      frame.style.top = compact ? "20px" : "34px";
+      frame.style.width = compact ? "calc(100% - 36px)" : "calc(100% - 68px)";
+      frame.style.height = compact ? "calc(100% - 56px)" : "calc(100% - 94px)";
+    }
+  }
+
   function previewButton(button) {
     const accent = button.getAttribute("data-accent") || "#6ea8ff";
     const warn = button.getAttribute("data-warn") || "#ff7a18";
@@ -2199,7 +2314,7 @@ q-component hud-system {
     this.setPainterProp(p, "hudDent", "1");
     this.setPainterProp(p, "hudPanel", "1");
 
-    p.style.width = this.component.panelWidth || "78vw";
+    p.style.width = this.panelTargetWidth();
     p.style.opacity = "1";
 
     const frame = this.iframe();
@@ -2212,20 +2327,59 @@ q-component hud-system {
       url: url,
       label: label
     });
+
+    this.syncResponsiveLayout();
+  }
+
+  onReady {
+    this.syncResponsiveLayout();
+
+    const selectedButton = this.querySelector(".hud-button[data-active='1']") || this.querySelector(".hud-button");
+    if (selectedButton) {
+      this.selectButton(selectedButton);
+    }
+
+    if (this.__hudResponsiveObserver) {
+      this.__hudResponsiveObserver.disconnect();
+    }
+
+    if (window.ResizeObserver) {
+      this.__hudResponsiveObserver = new ResizeObserver(() => this.syncResponsiveLayout());
+      this.__hudResponsiveObserver.observe(this);
+    } else if (!this.__hudResponsiveResizeHandler) {
+      this.__hudResponsiveResizeHandler = () => this.syncResponsiveLayout();
+      window.addEventListener("resize", this.__hudResponsiveResizeHandler);
+    }
   }
 
   hudTheme {
     div.hud-root {
-      aside.hud-button-stack {
-        slot { buttons }
-      }
-
-      div.hud-spine { }
-
-      div.hud-panel-slot {
-        div.hud-metal-panel {
-          iframe.hud-frame {
-            src: "${this.component.defaultUrl}"
+      q-layout.hud-responsive-layout {
+        width: "100%"
+        gap: "0"
+        q-row.hud-responsive-row {
+          stackAt: "760px"
+          minColWidth: "320px"
+          gap: "0"
+          q-col.hud-nav-col {
+            width: "300px"
+            aside.hud-button-stack {
+              slot { buttons }
+            }
+          }
+          q-col.hud-spine-col {
+            width: "44px"
+            div.hud-spine { }
+          }
+          q-col.hud-panel-col {
+            width: "minmax(320px, 1fr)"
+            div.hud-panel-slot {
+              div.hud-metal-panel {
+                iframe.hud-frame {
+                  src: "${this.component.defaultUrl}"
+                }
+              }
+            }
           }
         }
       }
@@ -2557,12 +2711,14 @@ q-painter hudContainerRightLinePainter {
 }
 
 q-style hudContainerRootStyle {
-  display: inline-grid
-  gridTemplateColumns: var(--hud-left-overhang) auto var(--hud-right-overhang)
-  gridTemplateRows: var(--hud-top-height) auto var(--hud-bottom-height)
+  display: grid
+  gridTemplateColumns: "var(--hud-left-overhang) minmax(0, 1fr) var(--hud-right-overhang)"
+  gridTemplateRows: var(--hud-top-height) auto var(--hud-bottom-height);
   position: relative
-  width: fit-content
+  width: 100%
+  minWidth: 0
   height: fit-content
+  boxSizing: border-box
   background: transparent
   isolation: isolate
 
@@ -2578,7 +2734,7 @@ q-style hudContainerRootStyle {
 }
 
 q-style hudContainerTopStyle {
-  gridColumn: 1 / 4
+  gridColumn: 1 / 4;
   gridRow: 1
   position: relative
   zIndex: 3
@@ -2591,7 +2747,7 @@ q-style hudContainerTopStyle {
 }
 
 q-style hudContainerBottomStyle {
-  gridColumn: 1 / 4
+  gridColumn: 1 / 4;
   gridRow: 3
   position: relative
   zIndex: 3
@@ -2605,7 +2761,7 @@ q-style hudContainerBottomStyle {
 
 q-style hudContainerRightHookStyle {
   gridColumn: 3
-  gridRow: 1 / 3
+  gridRow: 1 / 3;
   position: relative
   zIndex: 4
   pointerEvents: none
@@ -2621,6 +2777,7 @@ q-style hudContainerBodyStyle {
   gridRow: 2
   position: relative
   zIndex: 2
+  width: 100%
   minWidth: 1px
   minHeight: 1px
   overflow: visible
@@ -2630,7 +2787,8 @@ q-style hudContainerBodyStyle {
 q-style hudContainerInnerStyle {
   position: relative
   zIndex: 2
-  width: fit-content
+  width: 100%
+  minWidth: 0
   height: fit-content
   background: transparent
 }
@@ -5979,4 +6137,3 @@ q-component sdml-object {
     this.ensureComponentBridge();
   }
 }
-

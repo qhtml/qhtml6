@@ -16,6 +16,9 @@ wiki/*
 /package-lock.json
 /tmp-page-builder*.spec.js
 /dist/Text File.txt
+/dist/tmp/
+/test/
+/test-results/
 
 *.backup
 *.conf

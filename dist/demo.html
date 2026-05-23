@@ -452,6 +452,72 @@ sidebar-demo-theme {
         </div>
       </section>
 
+      <section class="example-class" id="lcars-sidebar" data-title="lcars-sidebar.qhtml usage">
+        <div class="example-head">
+          <h3>lcars-sidebar.qhtml usage</h3>
+          <p>LCARS-style sidebar shell with a Houdini-painted curved top, vertical rail buttons, and slotted main content.</p>
+        </div>
+        <div class="example-body">
+          <q-editor>
+q-import { q-components/lcars-sidebar.qhtml }
+
+lcars-sidebar {
+  sidebar {
+    lcars-sidebar-buttons {
+      buttons {
+        lcars-sidebar-button {
+          buttonColor: "#f59a38"
+          buttonText { text { Ops } }
+          onclick { alert("Ops channel selected"); }
+        }
+
+        lcars-sidebar-button {
+          buttonColor: "#d97706"
+          buttonText { text { Sensors } }
+          onclick { alert("Sensors selected"); }
+        }
+
+        lcars-sidebar-button {
+          buttonColor: "#ef4444"
+          buttonText {
+            a {
+              href: "https://www.google.com"
+              target: "_blank"
+              text { Google }
+            }
+          }
+          onclick { console.log("LCARS external link button"); }
+        }
+      }
+    }
+  }
+
+  main {
+    div {
+      style {
+        display: grid;
+        gap: 12px;
+        color: #f8fafc;
+      }
+      h3 { text { LCARS Command Surface } }
+      p { text { The left rail is projected through the sidebar slot. Main content remains arbitrary QHTML. } }
+      div {
+        style {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+        }
+        div { style { background: #172033; padding: 12px; } text { Navigation } }
+        div { style { background: #172033; padding: 12px; } text { Telemetry } }
+        div { style { background: #172033; padding: 12px; } text { Actions } }
+      }
+    }
+  }
+}
+          </q-editor>
+        </div>
+      </section>
+
       <section class="example-class" id="q-popup-menu" data-title="q-popup-menu.qhtml usage">
         <div class="example-head">
           <h3>q-popup-menu.qhtml usage</h3>

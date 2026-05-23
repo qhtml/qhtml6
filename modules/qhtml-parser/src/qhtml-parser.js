@@ -9519,6 +9519,29 @@
   function splitInvocationSlotFills(elementNode, definitionNode) {
     const fills = new Map();
     const singleSlotName = resolveSingleSlotNameForDefinition(definitionNode);
+    const knownSlotNames = definitionNode && Array.isArray(definitionNode.templateNodes)
+      ? collectSlotNamesFromNodes(definitionNode.templateNodes)
+      : new Set();
+
+    function hasKnownSlotName(name) {
+      const slotName = String(name || "").trim();
+      if (!slotName) {
+        return false;
+      }
+      if (knownSlotNames.has(slotName)) {
+        return true;
+      }
+      const lowerSlotName = slotName.toLowerCase();
+      const entries = knownSlotNames.values();
+      let next = entries.next();
+      while (!next.done) {
+        if (String(next.value || "").trim().toLowerCase() === lowerSlotName) {
+          return true;
+        }
+        next = entries.next();
+      }
+      return false;
+    }
 
     function pushFill(slotName, value) {
       if (!value) {
@@ -9528,6 +9551,23 @@
       const bucket = fills.get(key) || [];
       bucket.push(value);
       fills.set(key, bucket);
+    }
+
+    function pushElementAsSlotFill(slotName, child) {
+      if (Array.isArray(child.children) && child.children.length > 0) {
+        for (let j = 0; j < child.children.length; j += 1) {
+          pushFill(slotName, child.children[j]);
+        }
+      } else if (typeof child.textContent === "string" && child.textContent.length > 0) {
+        const textNode = createTextSlotNode(child.textContent, {
+          originalSource: child.meta && child.meta.originalSource ? child.meta.originalSource : null,
+        });
+        if (textNode) {
+          pushFill(slotName, textNode);
+        }
+      } else {
+        pushFill(slotName, child);
+      }
     }
 
     if (typeof elementNode.textContent === "string" && elementNode.textContent.length > 0) {
@@ -9554,27 +9594,19 @@
           continue;
         }
 
+        const shorthandSlot = String(child.tagName || "").trim();
+        if (shorthandSlot && hasKnownSlotName(shorthandSlot)) {
+          pushElementAsSlotFill(shorthandSlot, child);
+          continue;
+        }
+
         if (singleSlotName) {
           pushFill(singleSlotName, child);
           continue;
         }
 
-        const shorthandSlot = String(child.tagName || "").trim();
         if (shorthandSlot) {
-          if (Array.isArray(child.children) && child.children.length > 0) {
-            for (let j = 0; j < child.children.length; j += 1) {
-              pushFill(shorthandSlot, child.children[j]);
-            }
-          } else if (typeof child.textContent === "string" && child.textContent.length > 0) {
-            const textNode = createTextSlotNode(child.textContent, {
-              originalSource: child.meta && child.meta.originalSource ? child.meta.originalSource : null,
-            });
-            if (textNode) {
-              pushFill(shorthandSlot, textNode);
-            }
-          } else {
-            pushFill(shorthandSlot, child);
-          }
+          pushElementAsSlotFill(shorthandSlot, child);
           continue;
         }
       }
