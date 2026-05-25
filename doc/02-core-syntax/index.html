@@ -91,6 +91,27 @@ div { html { &lt;strong&gt;Real HTML fragment&lt;/strong&gt; } }</q-editor>
         }
       }
     }
+
+    wiki-example-card {
+      title: "Anchor positioning"
+      summary: "Use q-anchor-left, q-anchor-top, and related directives to position one rendered node relative to another."
+      note: "Named instance side references such as menu.right resolve from rendered DOM geometry."
+      details {
+        html {
+          <q-editor>q-component marker {
+  div { text { ${this.component.label} } }
+}
+
+marker menu { label: "Menu" }
+
+div {
+  q-anchor-left { menu.right }
+  q-anchor-top { menu.bottom }
+  text { Anchored content }
+}</q-editor>
+        }
+      }
+    }
   }
 }
     </q-html>

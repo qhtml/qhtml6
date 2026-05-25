@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-24T21:50:23Z */
+/* generated: 2026-05-25T22:16:32Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -2982,6 +2982,14 @@
     return "";
   }
 
+  function normalizeQAnchorDirectiveName(rawName) {
+    const tag = String(rawName || "").trim().toLowerCase();
+    if (!tag || tag.indexOf("q-anchor-") !== 0) {
+      return "";
+    }
+    return normalizeQAnchorRuleKey(tag.slice("q-anchor-".length));
+  }
+
   function parseQAnchorDefinitionBody(bodyText) {
     const parser = parserFor(String(bodyText || ""));
     const entries = [];
@@ -3045,6 +3053,60 @@
     return entries;
   }
 
+  function collectQAnchorDirectiveBodyText(items) {
+    const list = Array.isArray(items) ? items : [];
+    let bodyText = "";
+    for (let i = 0; i < list.length; i += 1) {
+      const part = list[i];
+      if (!part || typeof part !== "object") {
+        continue;
+      }
+      if (part.type === "TextBlock" || part.type === "RawTextLine") {
+        bodyText += String(part.text || "");
+      } else if (part.type === "BareWord") {
+        bodyText += String(part.name || "");
+      } else if (part.type === "Property") {
+        const propName = String(part.name || "").trim();
+        const propValue = String(coercePropertyValue(part.value) || "").trim();
+        bodyText += (bodyText ? "\n" : "") + propName + ": " + propValue;
+      }
+      if (i < list.length - 1) {
+        bodyText += "\n";
+      }
+    }
+    return String(bodyText || "").trim();
+  }
+
+  function mergeQAnchorRuleLists(existingRules, incomingRules) {
+    const out = Array.isArray(existingRules) ? existingRules.slice() : [];
+    const list = Array.isArray(incomingRules) ? incomingRules : [];
+    const seen = new Map();
+    for (let i = 0; i < out.length; i += 1) {
+      const key = normalizeQAnchorRuleKey(out[i] && out[i].key);
+      if (key) {
+        seen.set(key, i);
+      }
+    }
+    for (let i = 0; i < list.length; i += 1) {
+      const rule = list[i] && typeof list[i] === "object" ? list[i] : {};
+      const key = normalizeQAnchorRuleKey(rule.key);
+      if (!key) {
+        continue;
+      }
+      const normalizedRule = {
+        key: key,
+        value: String(rule.value == null ? "" : rule.value).trim(),
+      };
+      if (seen.has(key)) {
+        out[seen.get(key)] = normalizedRule;
+      } else {
+        seen.set(key, out.length);
+        out.push(normalizedRule);
+      }
+    }
+    return out;
+  }
+
   function extractQAnchorRulesFromElement(item) {
     if (!item || item.type !== "Element") {
       return null;
@@ -3055,26 +3117,18 @@
     }
     const token = parseTagToken(selectors[0]);
     const tagLower = String(token && token.tag || "").trim().toLowerCase();
-    if (tagLower !== "q-anchor") {
+    const directionalKey = normalizeQAnchorDirectiveName(tagLower);
+    if (tagLower !== "q-anchor" && !directionalKey) {
       return null;
     }
-    let bodyText = "";
-    const list = Array.isArray(item.items) ? item.items : [];
-    for (let i = 0; i < list.length; i += 1) {
-      const part = list[i];
-      if (!part || typeof part !== "object") {
-        continue;
-      }
-      if (part.type === "TextBlock" || part.type === "RawTextLine") {
-        bodyText += String(part.text || "");
-      } else if (part.type === "Property") {
-        const propName = String(part.name || "").trim();
-        const propValue = String(coercePropertyValue(part.value) || "").trim();
-        bodyText += (bodyText ? "\n" : "") + propName + ": " + propValue;
-      }
-      if (i < list.length - 1) {
-        bodyText += "\n";
-      }
+    const bodyText = collectQAnchorDirectiveBodyText(item.items);
+    if (directionalKey) {
+      return [
+        {
+          key: directionalKey,
+          value: bodyText,
+        },
+      ];
     }
     return parseQAnchorDefinitionBody(bodyText);
   }
@@ -13463,7 +13517,10 @@
           if (!targetElement.meta || typeof targetElement.meta !== "object") {
             targetElement.meta = {};
           }
-          targetElement.meta.__qhtmlAnchorRules = anchorRules.slice();
+          targetElement.meta.__qhtmlAnchorRules = mergeQAnchorRuleLists(
+            targetElement.meta.__qhtmlAnchorRules,
+            anchorRules
+          );
           continue;
         }
       }
@@ -13938,7 +13995,7 @@
         }
         const anchorRules = extractQAnchorRulesFromElement(item);
         if (anchorRules !== null) {
-          componentAnchorRules = anchorRules.slice();
+          componentAnchorRules = mergeQAnchorRuleLists(componentAnchorRules, anchorRules);
           continue;
         }
       }
@@ -16388,6 +16445,10 @@
   let qWorkerFallbackRuntimeCounter = 0;
   let wasmCallSequence = 0;
   const qVarRuntimeStateByUuid = new Map();
+  const qAnchorBindings = typeof WeakMap === "function" ? new WeakMap() : null;
+  const qAnchorBindingList = [];
+  const qAnchorListenerDocuments = typeof WeakSet === "function" ? new WeakSet() : null;
+  let qAnchorApplyScheduled = false;
 
   class QSignal {
     connect(handler) {
@@ -20422,6 +20483,319 @@
     }
 
     return out;
+  }
+
+  function readQAnchorRulesFromNode(node) {
+    const meta = node && node.meta && typeof node.meta === "object" ? node.meta : null;
+    const rules = meta && Array.isArray(meta.__qhtmlAnchorRules) ? meta.__qhtmlAnchorRules : [];
+    const out = [];
+    for (let i = 0; i < rules.length; i += 1) {
+      const rule = rules[i] && typeof rules[i] === "object" ? rules[i] : {};
+      const key = String(rule.key || "").trim().toLowerCase();
+      if (!key) {
+        continue;
+      }
+      out.push({
+        key: key,
+        value: String(rule.value == null ? "" : rule.value).trim(),
+      });
+    }
+    return out;
+  }
+
+  function readQAnchorRulesFromNodes(nodes) {
+    const list = Array.isArray(nodes) ? nodes : [nodes];
+    const out = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const rules = readQAnchorRulesFromNode(list[i]);
+      for (let j = 0; j < rules.length; j += 1) {
+        out.push(rules[j]);
+      }
+    }
+    return out;
+  }
+
+  function resolveQAnchorHandleTarget(value) {
+    if (isContextSymbolHandle(value)) {
+      return readHandleResolutionTarget(value);
+    }
+    return value && typeof value === "object" ? value : null;
+  }
+
+  function normalizeQAnchorCssValue(value) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return String(value) + "px";
+    }
+    return String(value == null ? "" : value).trim();
+  }
+
+  function qAnchorOffsetParentForElement(element) {
+    if (!element || !element.ownerDocument) {
+      return null;
+    }
+    return element.offsetParent || element.parentElement || element.ownerDocument.documentElement || null;
+  }
+
+  function qAnchorCoordinateFrame(element) {
+    const ownerDocument = element && element.ownerDocument ? element.ownerDocument : null;
+    const parent = qAnchorOffsetParentForElement(element);
+    const rect =
+      parent && typeof parent.getBoundingClientRect === "function"
+        ? parent.getBoundingClientRect()
+        : { left: 0, top: 0 };
+    return {
+      element: parent,
+      left: Number(rect && rect.left) || 0,
+      top: Number(rect && rect.top) || 0,
+      scrollLeft: parent && typeof parent.scrollLeft === "number" ? parent.scrollLeft : 0,
+      scrollTop: parent && typeof parent.scrollTop === "number" ? parent.scrollTop : 0,
+      document: ownerDocument,
+    };
+  }
+
+  function qAnchorSideValue(target, side, frame) {
+    const element = resolveQAnchorHandleTarget(target);
+    if (!element || typeof element.getBoundingClientRect !== "function") {
+      return null;
+    }
+    const rect = element.getBoundingClientRect();
+    const relativeLeft = Number(rect.left || 0) - frame.left + frame.scrollLeft;
+    const relativeTop = Number(rect.top || 0) - frame.top + frame.scrollTop;
+    const width = Number(rect.width || 0);
+    const height = Number(rect.height || 0);
+    if (side === "left") {
+      return relativeLeft;
+    }
+    if (side === "right") {
+      return relativeLeft + width;
+    }
+    if (side === "top") {
+      return relativeTop;
+    }
+    if (side === "bottom") {
+      return relativeTop + height;
+    }
+    if (side === "hcenter") {
+      return relativeLeft + width / 2;
+    }
+    if (side === "vcenter") {
+      return relativeTop + height / 2;
+    }
+    if (side === "center") {
+      return {
+        x: relativeLeft + width / 2,
+        y: relativeTop + height / 2,
+      };
+    }
+    return null;
+  }
+
+  function resolveQAnchorSideReference(expression, context, element, frame) {
+    const source = String(expression || "").trim();
+    const match = source.match(/^(.+)\.(left|right|top|bottom|center|hcenter|vcenter)$/);
+    if (!match) {
+      return { matched: false, value: null };
+    }
+    const baseExpression = String(match[1] || "").trim();
+    if (!/^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(baseExpression)) {
+      return { matched: false, value: null };
+    }
+    const side = String(match[2] || "").trim().toLowerCase();
+    const resolution = tryResolveDirectSymbolValue(baseExpression, context, element, createPathResolutionContext());
+    if (!resolution || !resolution.matched || !resolution.found) {
+      return { matched: true, value: null };
+    }
+    return {
+      matched: true,
+      value: qAnchorSideValue(resolution.value, side, frame),
+    };
+  }
+
+  function evaluateQAnchorExpression(expression, context, element) {
+    const source = String(expression || "").trim();
+    if (!source) {
+      return "";
+    }
+    const direct = tryResolveDirectSymbolValue(source, context, element, createPathResolutionContext());
+    if (direct && direct.matched && direct.found) {
+      return direct.value;
+    }
+
+    const scope = buildInterpolationScope(context, element);
+    const ownerDocument = element && element.ownerDocument ? element.ownerDocument : global.document || null;
+    const ownerWindow = ownerDocument && ownerDocument.defaultView ? ownerDocument.defaultView : global.window || global;
+    const names = Object.keys(scope || {}).filter(function filterScopeName(name) {
+      return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name);
+    });
+    const values = names.map(function mapScopeValue(name) {
+      return scope[name];
+    });
+    names.push("document");
+    values.push(ownerDocument);
+    names.push("window");
+    values.push(ownerWindow);
+    try {
+      const fn = Function.apply(null, names.concat(["return (" + source + ");"]));
+      return fn.apply(element, values);
+    } catch (error) {
+      return source;
+    }
+  }
+
+  function assignQAnchorAxis(element, axis, targetCoordinate) {
+    if (!element || !element.style || targetCoordinate == null || targetCoordinate === "") {
+      return;
+    }
+    const coordinate = Number(targetCoordinate);
+    if (!Number.isFinite(coordinate)) {
+      const cssValue = normalizeQAnchorCssValue(targetCoordinate);
+      if (!cssValue) {
+        return;
+      }
+      if (axis === "left" || axis === "right") {
+        element.style.left = cssValue;
+      } else {
+        element.style.top = cssValue;
+      }
+      return;
+    }
+    const rect =
+      typeof element.getBoundingClientRect === "function"
+        ? element.getBoundingClientRect()
+        : { width: 0, height: 0 };
+    if (axis === "left") {
+      element.style.left = String(coordinate) + "px";
+    } else if (axis === "right") {
+      element.style.left = String(coordinate - (Number(rect.width) || 0)) + "px";
+    } else if (axis === "top") {
+      element.style.top = String(coordinate) + "px";
+    } else if (axis === "bottom") {
+      element.style.top = String(coordinate - (Number(rect.height) || 0)) + "px";
+    } else if (axis === "hcenter") {
+      element.style.left = String(coordinate - (Number(rect.width) || 0) / 2) + "px";
+    } else if (axis === "vcenter") {
+      element.style.top = String(coordinate - (Number(rect.height) || 0) / 2) + "px";
+    }
+  }
+
+  function applyQAnchorRule(element, rule, context, frame) {
+    const key = String(rule && rule.key || "").trim().toLowerCase();
+    const expression = String(rule && rule.value || "").trim();
+    if (!key || !expression) {
+      return;
+    }
+    const sideReference = resolveQAnchorSideReference(expression, context, element, frame);
+    const resolved = sideReference.matched
+      ? sideReference.value
+      : evaluateQAnchorExpression(expression, context, element);
+    if (resolved == null || resolved === "") {
+      return;
+    }
+    if (key === "center") {
+      if (typeof resolved === "object") {
+        const x = Object.prototype.hasOwnProperty.call(resolved, "x") ? resolved.x : resolved.hcenter;
+        const y = Object.prototype.hasOwnProperty.call(resolved, "y") ? resolved.y : resolved.vcenter;
+        assignQAnchorAxis(element, "hcenter", x);
+        assignQAnchorAxis(element, "vcenter", y);
+      } else {
+        assignQAnchorAxis(element, "hcenter", resolved);
+        assignQAnchorAxis(element, "vcenter", resolved);
+      }
+      return;
+    }
+    assignQAnchorAxis(element, key, resolved);
+  }
+
+  function applyQAnchorBinding(binding) {
+    const element = binding && binding.element ? binding.element : null;
+    if (!element || !element.style || (typeof element.isConnected === "boolean" && !element.isConnected)) {
+      return;
+    }
+    const rules = Array.isArray(binding.rules) ? binding.rules : [];
+    if (rules.length === 0) {
+      return;
+    }
+    const currentPosition = String(element.style.position || "").trim().toLowerCase();
+    if (!currentPosition || currentPosition === "static") {
+      element.style.position = "absolute";
+    }
+    const frame = qAnchorCoordinateFrame(element);
+    for (let i = 0; i < rules.length; i += 1) {
+      applyQAnchorRule(element, rules[i], binding.context || {}, frame);
+    }
+  }
+
+  function applyRegisteredQAnchors() {
+    qAnchorApplyScheduled = false;
+    for (let i = 0; i < qAnchorBindingList.length; i += 1) {
+      applyQAnchorBinding(qAnchorBindingList[i]);
+    }
+  }
+
+  function scheduleQAnchorApplication() {
+    if (qAnchorApplyScheduled) {
+      return;
+    }
+    qAnchorApplyScheduled = true;
+    const schedule =
+      global && typeof global.requestAnimationFrame === "function"
+        ? global.requestAnimationFrame
+        : typeof global.setTimeout === "function"
+          ? function qAnchorTimeout(cb) { global.setTimeout(cb, 0); }
+          : null;
+    if (schedule) {
+      schedule(applyRegisteredQAnchors);
+    } else {
+      applyRegisteredQAnchors();
+    }
+  }
+
+  function installQAnchorDocumentListeners(doc) {
+    if (!doc || !doc.defaultView) {
+      return;
+    }
+    if (qAnchorListenerDocuments && qAnchorListenerDocuments.has(doc)) {
+      return;
+    }
+    if (qAnchorListenerDocuments) {
+      qAnchorListenerDocuments.add(doc);
+    } else if (doc.__qhtmlAnchorListenersInstalled) {
+      return;
+    } else {
+      doc.__qhtmlAnchorListenersInstalled = true;
+    }
+    const win = doc.defaultView;
+    if (win && typeof win.addEventListener === "function") {
+      win.addEventListener("resize", scheduleQAnchorApplication);
+      win.addEventListener("scroll", scheduleQAnchorApplication, true);
+    }
+  }
+
+  function registerQAnchorTarget(element, nodes, context) {
+    if (!element || !element.ownerDocument) {
+      return;
+    }
+    const rules = readQAnchorRulesFromNodes(nodes);
+    if (rules.length === 0) {
+      return;
+    }
+    let binding = qAnchorBindings ? qAnchorBindings.get(element) : null;
+    if (!binding) {
+      binding = {
+        element: element,
+        rules: [],
+        context: context || {},
+      };
+      if (qAnchorBindings) {
+        qAnchorBindings.set(element, binding);
+      }
+      qAnchorBindingList.push(binding);
+    }
+    binding.rules = rules;
+    binding.context = context || binding.context || {};
+    installQAnchorDocumentListeners(element.ownerDocument);
+    applyQAnchorBinding(binding);
+    scheduleQAnchorApplication();
   }
 
   function appendRawHtml(parent, html, targetDocument) {
@@ -27272,6 +27646,7 @@
 	        }
 	      }
 	      applyRuntimeThemeRulesToHost(element, node);
+	      registerQAnchorTarget(element, node, context);
 	      if (isLayoutKeywordElement) {
 	        relayoutQLayoutTree(element);
 	      }
@@ -27745,6 +28120,7 @@
     }
     stripRenderedSlotElements(hostElement);
     applyRuntimeThemeRulesToHost(hostElement, instanceNode);
+    registerQAnchorTarget(hostElement, [componentNode, instanceNode], context);
     bindDeclaredComponentPropertyNodes(componentNode, hostElement, context);
 
     if (!context.disableLifecycleHooks) {

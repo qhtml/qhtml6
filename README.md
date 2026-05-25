@@ -1225,6 +1225,37 @@ q-style quick-fade-style {
 quick-fade-style,div#boxA { text { transition-ready } }
 ```
 
+### `q-anchor` positioning
+
+`q-anchor` positions an element or component host relative to another rendered element. The legacy block form and directional shorthand both map to the same anchor rules.
+
+```qhtml
+q-component label-box {
+  div { text { ${this.component.label} } }
+}
+
+label-box sourceBox { label: "Source" }
+
+div {
+  q-anchor-left { sourceBox.right }
+  q-anchor-top { sourceBox.bottom }
+  text { Anchored below the source box }
+}
+```
+
+Legacy block form remains supported:
+
+```qhtml
+div {
+  q-anchor {
+    left: sourceBox.right;
+    top: sourceBox.bottom
+  }
+}
+```
+
+Supported shorthands are `q-anchor-left`, `q-anchor-right`, `q-anchor-top`, `q-anchor-bottom`, `q-anchor-center`, `q-anchor-hcenter`, and `q-anchor-vcenter`. Named side references support `.left`, `.right`, `.top`, `.bottom`, `.center`, `.hcenter`, and `.vcenter`; non-side expressions are evaluated as CSS values.
+
 ### `q-painter` + `q-style-painter` (Paint Worklet)
 
 `q-painter` defines a named paint worklet body using declarative `q-property` defaults plus an `onpaint { ... }` block.

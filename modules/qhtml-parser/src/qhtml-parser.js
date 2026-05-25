@@ -1510,6 +1510,14 @@
     return "";
   }
 
+  function normalizeQAnchorDirectiveName(rawName) {
+    const tag = String(rawName || "").trim().toLowerCase();
+    if (!tag || tag.indexOf("q-anchor-") !== 0) {
+      return "";
+    }
+    return normalizeQAnchorRuleKey(tag.slice("q-anchor-".length));
+  }
+
   function parseQAnchorDefinitionBody(bodyText) {
     const parser = parserFor(String(bodyText || ""));
     const entries = [];
@@ -1573,6 +1581,60 @@
     return entries;
   }
 
+  function collectQAnchorDirectiveBodyText(items) {
+    const list = Array.isArray(items) ? items : [];
+    let bodyText = "";
+    for (let i = 0; i < list.length; i += 1) {
+      const part = list[i];
+      if (!part || typeof part !== "object") {
+        continue;
+      }
+      if (part.type === "TextBlock" || part.type === "RawTextLine") {
+        bodyText += String(part.text || "");
+      } else if (part.type === "BareWord") {
+        bodyText += String(part.name || "");
+      } else if (part.type === "Property") {
+        const propName = String(part.name || "").trim();
+        const propValue = String(coercePropertyValue(part.value) || "").trim();
+        bodyText += (bodyText ? "\n" : "") + propName + ": " + propValue;
+      }
+      if (i < list.length - 1) {
+        bodyText += "\n";
+      }
+    }
+    return String(bodyText || "").trim();
+  }
+
+  function mergeQAnchorRuleLists(existingRules, incomingRules) {
+    const out = Array.isArray(existingRules) ? existingRules.slice() : [];
+    const list = Array.isArray(incomingRules) ? incomingRules : [];
+    const seen = new Map();
+    for (let i = 0; i < out.length; i += 1) {
+      const key = normalizeQAnchorRuleKey(out[i] && out[i].key);
+      if (key) {
+        seen.set(key, i);
+      }
+    }
+    for (let i = 0; i < list.length; i += 1) {
+      const rule = list[i] && typeof list[i] === "object" ? list[i] : {};
+      const key = normalizeQAnchorRuleKey(rule.key);
+      if (!key) {
+        continue;
+      }
+      const normalizedRule = {
+        key: key,
+        value: String(rule.value == null ? "" : rule.value).trim(),
+      };
+      if (seen.has(key)) {
+        out[seen.get(key)] = normalizedRule;
+      } else {
+        seen.set(key, out.length);
+        out.push(normalizedRule);
+      }
+    }
+    return out;
+  }
+
   function extractQAnchorRulesFromElement(item) {
     if (!item || item.type !== "Element") {
       return null;
@@ -1583,26 +1645,18 @@
     }
     const token = parseTagToken(selectors[0]);
     const tagLower = String(token && token.tag || "").trim().toLowerCase();
-    if (tagLower !== "q-anchor") {
+    const directionalKey = normalizeQAnchorDirectiveName(tagLower);
+    if (tagLower !== "q-anchor" && !directionalKey) {
       return null;
     }
-    let bodyText = "";
-    const list = Array.isArray(item.items) ? item.items : [];
-    for (let i = 0; i < list.length; i += 1) {
-      const part = list[i];
-      if (!part || typeof part !== "object") {
-        continue;
-      }
-      if (part.type === "TextBlock" || part.type === "RawTextLine") {
-        bodyText += String(part.text || "");
-      } else if (part.type === "Property") {
-        const propName = String(part.name || "").trim();
-        const propValue = String(coercePropertyValue(part.value) || "").trim();
-        bodyText += (bodyText ? "\n" : "") + propName + ": " + propValue;
-      }
-      if (i < list.length - 1) {
-        bodyText += "\n";
-      }
+    const bodyText = collectQAnchorDirectiveBodyText(item.items);
+    if (directionalKey) {
+      return [
+        {
+          key: directionalKey,
+          value: bodyText,
+        },
+      ];
     }
     return parseQAnchorDefinitionBody(bodyText);
   }
@@ -11991,7 +12045,10 @@
           if (!targetElement.meta || typeof targetElement.meta !== "object") {
             targetElement.meta = {};
           }
-          targetElement.meta.__qhtmlAnchorRules = anchorRules.slice();
+          targetElement.meta.__qhtmlAnchorRules = mergeQAnchorRuleLists(
+            targetElement.meta.__qhtmlAnchorRules,
+            anchorRules
+          );
           continue;
         }
       }
@@ -12466,7 +12523,7 @@
         }
         const anchorRules = extractQAnchorRulesFromElement(item);
         if (anchorRules !== null) {
-          componentAnchorRules = anchorRules.slice();
+          componentAnchorRules = mergeQAnchorRuleLists(componentAnchorRules, anchorRules);
           continue;
         }
       }

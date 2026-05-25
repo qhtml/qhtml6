@@ -98,10 +98,11 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - flags are not inherited by descendants; each measured node needs its own direct `q-perf` child
     - q-anchor directives:
       - `q-anchor { ... }` is direct-child metadata only and does not render a DOM node
+      - directional shorthand directives are also direct-child metadata: `q-anchor-left`, `q-anchor-right`, `q-anchor-top`, `q-anchor-bottom`, `q-anchor-center`, `q-anchor-hcenter`, and `q-anchor-vcenter`
       - normal element children store rules in `node.meta.__qhtmlAnchorRules`
       - component/worker definition children store rules in `component.meta.__qhtmlAnchorRules`
       - supported keys: `left`, `right`, `top`, `bottom`, `hcenter`, `vcenter`, `center`
-      - value syntaxes: `key: value` and `key { value }`
+      - value syntaxes: legacy `key: value` / `key { value }` inside `q-anchor { ... }`, plus shorthand `q-anchor-left { value }`
       - separators supported in the block: newline, `;`, `,`
     - layout keywords:
       - `q-layout`, `q-row`, and `q-col` parse as framework layout element nodes, not component invocations

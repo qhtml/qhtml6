@@ -109,9 +109,9 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - `logQPerfData()` prints `{ uuid, canonicalName, referenceName, perf_data }` for measured nodes.
 - `q-anchor` positioning is opt-in per direct owner node through `meta.__qhtmlAnchorRules`.
   - Supported rule keys: `left`, `right`, `top`, `bottom`, `hcenter`, `vcenter`, `center`.
-  - Rule values can be reference expressions with sides (`someRef.right`, `someRef.center`) or literal CSS values.
-  - Renderer prefers CSS Anchor Positioning (`anchor-name` + `anchor(...)`) when supported.
-  - When CSS anchor positioning is unavailable, renderer falls back to runtime geometry updates (resize/scroll aware) and applies pixel offsets.
+  - Rule values can be named DOM side references (`someRef.right`, `someRef.center`) or JavaScript/CSS literal expressions.
+  - Renderer resolves named instance handles to rendered DOM geometry and applies absolute pixel offsets relative to the anchored element's offset parent.
+  - Positions are recalculated after render, resize, and scroll.
 - `q-layout`, `q-row`, and `q-col` are renderer-owned layout keywords:
   - they render as lightweight layout DOM tags with built-in grid/table-like CSS behavior
   - `q-layout` defaults to row stacking; `q-row` defaults to column stacking; `q-col` can host nested rows, columns, or layouts
