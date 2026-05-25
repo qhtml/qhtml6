@@ -2,8 +2,8 @@ q-style qUiBarHost {
   display: block
   width: 100%
   min-width: 0
-  height: 48px
-  min-height: 48px
+  height: auto
+  min-height: 100%
   margin: 0
   padding: 0
   box-sizing: border-box
@@ -32,7 +32,7 @@ q-default-theme qUiBarDefaultTheme {
 }
 
 q-component q-ui-bar {
-  q-property height: "48px"
+  q-property height: "100%"
   q-property background: "#0f0f0f"
 
   function cssValue(value, fallback) {
@@ -44,8 +44,8 @@ q-component q-ui-bar {
     this.style.display = "block";
     this.style.width = "100%";
     this.style.minWidth = "0";
-    this.style.height = this.cssValue(this.height, "48px");
-    this.style.minHeight = this.cssValue(this.height, "48px");
+    this.style.height = "auto";
+    this.style.minHeight = this.cssValue(this.height, "100%");
     this.style.margin = "0";
     this.style.padding = "0";
     this.style.boxSizing = "border-box";
@@ -69,6 +69,95 @@ q-component q-ui-bar {
   qUiBarDefaultTheme {
     div.q-ui-bar-contents {
       slot { barContents }
+    }
+  }
+}
+
+q-style qUiNavButtonHost {
+  display: inline-block
+  margin: 0
+  padding: 0
+  box-sizing: border-box
+}
+
+q-style qUiNavButtonSurface {
+  display: flex
+  align-items: center
+  justify-content: center
+  min-height: 2.25rem
+  min-width: 0
+  margin: 0
+  padding: 0.55rem 0.9rem
+  box-sizing: border-box
+  border-radius: 0.35rem
+  background: #1d4ed8
+  color: #ffffff
+  font-weight: 700
+  line-height: 1.2
+  text-decoration: none
+  cursor: pointer
+  user-select: none
+}
+
+q-default-theme qUiNavButtonDefaultTheme {
+  q-ui-navbutton { qUiNavButtonHost }
+  .q-ui-navbutton-surface { qUiNavButtonSurface }
+}
+
+q-component q-ui-navbutton {
+  q-property background: "#1d4ed8"
+  q-property url: "#"
+
+  function cssValue(value, fallback) {
+    var text = String(value == null ? "" : value).trim();
+    return text || fallback;
+  }
+
+  function surface() {
+    return this.querySelector(".q-ui-navbutton-surface");
+  }
+
+  function applyNavButtonStyle() {
+    var surface = this.surface();
+    this.style.display = "inline-block";
+    this.style.margin = "0";
+    this.style.padding = "0";
+    this.style.boxSizing = "border-box";
+    if (!surface) {
+      return;
+    }
+    surface.style.background = this.cssValue(this.background, "#1d4ed8");
+  }
+
+  function navigate() {
+    var target = this.cssValue(this.url, "#");
+    if (!target || target === "#") {
+      return;
+    }
+    window.location.href = target;
+  }
+
+  onReady {
+    this.applyNavButtonStyle();
+  }
+
+  onbackgroundChanged(background) {
+    this.applyNavButtonStyle();
+  }
+
+  qUiNavButtonDefaultTheme {
+    div.q-ui-navbutton-surface {
+      role: "button"
+      tabindex: "0"
+      onclick {
+        var root = this.closest("q-ui-navbutton");
+        if (root && root.navigate) {
+          root.navigate();
+        }
+      }
+
+      slot { navButtonText }
+      slot { default }
     }
   }
 }
