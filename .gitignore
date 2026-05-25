@@ -19,6 +19,9 @@ wiki/*
 /dist/tmp/
 /test/
 /test-results/
+/qhtml-roller.js
+/seo-optimize
+/seo-optimize.sh
 
 *.backup
 *.conf
