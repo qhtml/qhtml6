@@ -32,12 +32,17 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - typed named instance invocation syntax:
       - `my-component myInstance { ... }`
       - parsed as component invocation with instance alias metadata (`meta.__qhtmlInstanceAlias`)
-      - valid for known instantiable definitions in the current parse registry (`q-component`, `q-template`, `q-signal`, `q-worker`)
+      - valid for known instantiable definitions in the current parse registry (`q-component`, `q-template`, `q-signal`, `q-worker`, `q-struct`)
       - keyword-backed typed canvas invocation is also supported:
         - `q-canvas myCanvas { ... }`
         - normalized into a concrete `canvas` element node with `q-canvas="1"` and `q-canvas-name="myCanvas"`
         - avoids unknown-instantiable normalization errors while preserving named-canvas runtime export semantics
       - unknown typed targets with an instance alias throw a parse-time normalization error
+    - q-struct data definitions:
+      - `q-struct Name { field { defaultValue } ... }` emits QDom `kind: "struct"` with `structId` and field descriptors
+      - `Name instanceName { field { overrideValue } ... }` emits QDom `kind: "struct-instance"` with alias metadata and override fields
+      - struct fields accept literal strings/numbers/booleans/null, bare dot-walk bindings, and function values (`field { function() { ... } }`)
+      - q-struct definitions and instances are data-only; they do not parse slots, signals, lifecycle hooks, or component runtime methods
     - named state-machine syntax:
       - `q-state-machine machineName { stateName { ... } }`
       - emitted as a `component-instance` for component id `q-state-machine` with `q-state-machine="1"`, `q-state-machine-name`, and `meta.__qhtmlInstanceAlias`
@@ -162,6 +167,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
   - `preserveOriginal` defaults to true.
   - Serializes array/object assignment values using typed container syntax (`q-array { ... }` / `q-map { ... }`) instead of stringifying them.
   - Serializes dirty `q-state-machine` component-instance nodes back to named state-machine block syntax using stored state metadata.
+  - Serializes `struct` and `struct-instance` QDom nodes back to `q-struct` and typed instance syntax.
 - `parseQScript(source)`
   - Parses q-script rules of form `selector.on("event"): { ... }`.
 - `serializeQScript(rules)`

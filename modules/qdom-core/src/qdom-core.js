@@ -11,6 +11,8 @@
     component: "component",
     componentInstance: "component-instance",
     templateInstance: "template-instance",
+    struct: "struct",
+    structInstance: "struct-instance",
     slot: "slot",
     scriptRule: "script-rule",
     color: "color",
@@ -214,6 +216,44 @@
       super(NODE_TYPES.slot, opts.meta);
       this.name = String(opts.name || "default").trim() || "default";
       this.children = Array.isArray(opts.children) ? opts.children : [];
+    }
+  }
+
+  class QStructNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      super(NODE_TYPES.struct, opts.meta);
+      this.structId = String(opts.structId || "").trim();
+      this.componentId = this.structId;
+      this.definitionType = "struct";
+      this.fields = Array.isArray(opts.fields) ? opts.fields : [];
+    }
+  }
+
+  class QStructInstanceNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      const id = String(opts.structId || opts.componentId || opts.tagName || "").trim().toLowerCase();
+      super(NODE_TYPES.structInstance, opts.meta);
+      this.structId = id;
+      this.componentId = id;
+      this.tagName = id;
+      this.fields = Array.isArray(opts.fields) ? opts.fields : [];
+      this.props = Object.assign({}, opts.props || {});
+      this.selectorMode = opts.selectorMode || "single";
+      this.selectorChain = Array.isArray(opts.selectorChain) ? opts.selectorChain.slice() : [id];
+    }
+
+    properties() {
+      return Object.assign({}, this.props || {});
+    }
+
+    getProperty(key) {
+      const name = String(key || "").trim();
+      if (!name || !this.props || typeof this.props !== "object") {
+        return undefined;
+      }
+      return Object.prototype.hasOwnProperty.call(this.props, name) ? this.props[name] : undefined;
     }
   }
 
@@ -484,6 +524,14 @@
     return new QSlotNode(opts);
   }
 
+  function createStructNode(options) {
+    return new QStructNode(options || {});
+  }
+
+  function createStructInstanceNode(options) {
+    return new QStructInstanceNode(options || {});
+  }
+
   function normalizeInstanceKind(kind) {
     const value = String(kind || "").trim().toLowerCase();
     if (value === NODE_TYPES.templateInstance || value === "template") {
@@ -567,6 +615,15 @@
       }
       if (node.kind === NODE_TYPES.component && Array.isArray(node.templateNodes)) {
         walkNodes(node.templateNodes, visitor, node, path.concat("templateNodes"));
+      }
+      if ((node.kind === NODE_TYPES.struct || node.kind === NODE_TYPES.structInstance) && Array.isArray(node.fields)) {
+        for (let j = 0; j < node.fields.length; j += 1) {
+          const field = node.fields[j];
+          if (!field || typeof field !== "object" || !Array.isArray(field.nodes)) {
+            continue;
+          }
+          walkNodes(field.nodes, visitor, node, path.concat("fields", j, "nodes"));
+        }
       }
       if (node.kind === NODE_TYPES.model && Array.isArray(node.entries)) {
         for (let j = 0; j < node.entries.length; j += 1) {
@@ -977,6 +1034,25 @@
         meta: reviveQDomTree(value.meta || {}),
       });
     }
+    if (kind === NODE_TYPES.struct) {
+      return createStructNode({
+        structId: value.structId || value.componentId,
+        fields: reviveQDomTree(Array.isArray(value.fields) ? value.fields : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
+    if (kind === NODE_TYPES.structInstance) {
+      return createStructInstanceNode({
+        structId: value.structId || value.componentId || value.tagName,
+        componentId: value.componentId,
+        tagName: value.tagName,
+        fields: reviveQDomTree(Array.isArray(value.fields) ? value.fields : []),
+        props: reviveQDomTree(value.props || {}),
+        selectorMode: value.selectorMode,
+        selectorChain: reviveQDomTree(Array.isArray(value.selectorChain) ? value.selectorChain : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
     if (kind === NODE_TYPES.componentInstance || kind === NODE_TYPES.templateInstance) {
       return createComponentInstanceNode({
         kind: kind,
@@ -1217,6 +1293,7 @@
       NODE_TYPES.document,
       NODE_TYPES.componentInstance,
       NODE_TYPES.templateInstance,
+      NODE_TYPES.structInstance,
       NODE_TYPES.slot,
     ]);
 
@@ -1341,6 +1418,8 @@
     QDomModel: QDomModel,
     QRepeaterNode: QRepeaterNode,
     QComponentNode: QComponentNode,
+    QStructNode: QStructNode,
+    QStructInstanceNode: QStructInstanceNode,
     QComponentInstanceNode: QComponentInstanceNode,
     QTemplateInstanceNode: QTemplateInstanceNode,
     QSlotNode: QSlotNode,
@@ -1356,6 +1435,8 @@
     createRepeaterNode: createRepeaterNode,
     createComponentNode: createComponentNode,
     createComponentInstanceNode: createComponentInstanceNode,
+    createStructNode: createStructNode,
+    createStructInstanceNode: createStructInstanceNode,
     createSlotNode: createSlotNode,
     createScriptRule: createScriptRule,
     createQColorNode: createQColorNode,

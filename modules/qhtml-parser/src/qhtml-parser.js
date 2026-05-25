@@ -31,6 +31,7 @@
   let anonymousQThemeStyleCounter = 0;
   const CANONICAL_KEYWORD_TARGETS = new Set([
     "q-component",
+    "q-struct",
     "q-worker",
     "q-template",
     "q-macro",
@@ -9839,6 +9840,230 @@
     });
   }
 
+  function isStructDefinitionNode(node) {
+    return !!(
+      node &&
+      typeof node === "object" &&
+      core.NODE_TYPES &&
+      core.NODE_TYPES.struct &&
+      node.kind === core.NODE_TYPES.struct
+    );
+  }
+
+  function normalizeStructFieldName(value) {
+    const source = String(value || "").trim();
+    if (!source) {
+      return "";
+    }
+    const token = parseTagToken(source);
+    return String((token && token.tag) || source).trim();
+  }
+
+  function isStructBindingExpression(value) {
+    const source = String(value || "").trim();
+    if (!source) {
+      return false;
+    }
+    if (/^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+$/.test(source)) {
+      return true;
+    }
+    if (/^(?:this\.|this\.component\.|component\.)[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(source)) {
+      return true;
+    }
+    return false;
+  }
+
+  function coerceStructLiteralValue(source) {
+    const text = String(source || "").trim();
+    if (!text) {
+      return "";
+    }
+    if (
+      (text.charAt(0) === '"' && text.charAt(text.length - 1) === '"') ||
+      (text.charAt(0) === "'" && text.charAt(text.length - 1) === "'")
+    ) {
+      try {
+        return text.charAt(0) === '"' ? JSON.parse(text) : text.slice(1, -1);
+      } catch (error) {
+        return text.slice(1, -1);
+      }
+    }
+    if (/^-?(?:\d+|\d*\.\d+)$/.test(text)) {
+      const numberValue = Number(text);
+      return Number.isFinite(numberValue) ? numberValue : text;
+    }
+    if (text === "true") {
+      return true;
+    }
+    if (text === "false") {
+      return false;
+    }
+    if (text === "null") {
+      return null;
+    }
+    return text;
+  }
+
+  function readStructFieldValue(items, rawSource) {
+    const list = Array.isArray(items) ? items : [];
+    if (list.length === 1 && list[0] && list[0].type === "FunctionBlock") {
+      const fn = list[0];
+      return {
+        kind: "function",
+        parameters: String(fn.parameters || "").trim(),
+        body: compactScriptBody(fn.body || ""),
+        source: String(fn.raw || rawSource || "").trim(),
+      };
+    }
+    const chunks = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const item = list[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type === "TextBlock" || item.type === "RawTextLine") {
+        chunks.push(String(item.text || item.raw || ""));
+        continue;
+      }
+      if (item.type === "BareWord") {
+        chunks.push(String(item.name || item.word || item.raw || ""));
+        continue;
+      }
+      if (typeof item.raw === "string") {
+        chunks.push(item.raw);
+      }
+    }
+    const source = chunks.join(" ").trim();
+    if (isStructBindingExpression(source)) {
+      return {
+        kind: "binding",
+        source: source,
+      };
+    }
+    return {
+      kind: "literal",
+      value: coerceStructLiteralValue(source),
+      source: source,
+    };
+  }
+
+  function readStructFieldsFromAstItems(items, ownerLabel) {
+    const fields = [];
+    const seen = new Set();
+    const list = Array.isArray(items) ? items : [];
+    for (let i = 0; i < list.length; i += 1) {
+      const item = list[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type === "Element") {
+        const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+        if (selectors.length !== 1 || String(item.instanceAlias || "").trim()) {
+          throw new Error("q-struct fields must be simple named blocks in " + ownerLabel + ".");
+        }
+        const fieldName = normalizeStructFieldName(selectors[0]);
+        if (!fieldName) {
+          continue;
+        }
+        const key = fieldName.toLowerCase();
+        if (seen.has(key)) {
+          throw new Error("Duplicate q-struct field '" + fieldName + "' in " + ownerLabel + ".");
+        }
+        seen.add(key);
+        fields.push(Object.assign({ name: fieldName }, readStructFieldValue(item.items, item.raw)));
+        continue;
+      }
+      if (item.type === "Property") {
+        const fieldName = normalizeStructFieldName(item.name);
+        if (!fieldName) {
+          continue;
+        }
+        const key = fieldName.toLowerCase();
+        if (seen.has(key)) {
+          throw new Error("Duplicate q-struct field '" + fieldName + "' in " + ownerLabel + ".");
+        }
+        seen.add(key);
+        const propertySource = String(item.value || "").trim();
+        const propertyIsBinding = isStructBindingExpression(propertySource);
+        fields.push(
+          propertyIsBinding
+            ? {
+                name: fieldName,
+                kind: "binding",
+                source: propertySource,
+              }
+            : {
+                name: fieldName,
+                kind: "literal",
+                value: coerceStructLiteralValue(propertySource),
+                source: propertySource,
+              }
+        );
+        continue;
+      }
+      const typeName = String(item.type || "").trim() || "item";
+      throw new Error("q-struct does not allow " + typeName + " entries in " + ownerLabel + ".");
+    }
+    return fields;
+  }
+
+  function tryReadStructFieldsFromAstItems(items) {
+    try {
+      return readStructFieldsFromAstItems(items, "potential q-struct instance");
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function buildStructNodeFromAst(astElement) {
+    const structId = String(astElement && astElement.instanceAlias || "").trim();
+    if (!structId) {
+      throw new Error("q-struct definition requires a name.");
+    }
+    const structNode = core.createStructNode({
+      structId: structId,
+      fields: readStructFieldsFromAstItems(astElement.items, "q-struct '" + structId + "'"),
+      meta: {
+        originalSource: astElement.raw || "",
+        sourceRange:
+          typeof astElement.start === "number" && typeof astElement.end === "number"
+            ? [astElement.start, astElement.end]
+            : null,
+      },
+    });
+    applyKeywordAliasesToNode(structNode, astElement.keywords);
+    return structNode;
+  }
+
+  function convertElementInvocationToStructInstance(elementNode, definitionNode) {
+    const instanceMeta = Object.assign({}, elementNode.meta || {});
+    const instanceAlias =
+      elementNode &&
+      elementNode.meta &&
+      typeof elementNode.meta === "object" &&
+      typeof elementNode.meta.__qhtmlInstanceAlias === "string"
+        ? String(elementNode.meta.__qhtmlInstanceAlias || "").trim()
+        : "";
+    if (!instanceAlias) {
+      throw new Error("q-struct instance requires a typed name: '" + String(elementNode.tagName || "").trim() + "'.");
+    }
+    instanceMeta.__qhtmlInstanceAlias = instanceAlias;
+    return core.createStructInstanceNode({
+      structId: String(definitionNode.structId || definitionNode.componentId || elementNode.tagName || "").trim().toLowerCase(),
+      componentId: String(definitionNode.structId || definitionNode.componentId || elementNode.tagName || "").trim().toLowerCase(),
+      tagName: String(elementNode.tagName || definitionNode.structId || definitionNode.componentId || "").trim().toLowerCase(),
+      fields:
+        elementNode.meta && Array.isArray(elementNode.meta.__qhtmlStructFieldOverrides)
+          ? elementNode.meta.__qhtmlStructFieldOverrides.slice()
+          : [],
+      selectorMode: elementNode.selectorMode || "single",
+      selectorChain: Array.isArray(elementNode.selectorChain)
+        ? elementNode.selectorChain.slice()
+        : [String(elementNode.tagName || definitionNode.structId || "").trim().toLowerCase()],
+      meta: instanceMeta,
+    });
+  }
+
   function buildDefinitionRegistry(nodes) {
     const registry = new Map();
     const list = Array.isArray(nodes) ? nodes : [];
@@ -9850,6 +10075,11 @@
       }
       if (node.kind === core.NODE_TYPES.component) {
         const key = String(node.componentId || "").trim().toLowerCase();
+        if (key) {
+          registry.set(key, node);
+        }
+      } else if (isStructDefinitionNode(node)) {
+        const key = String(node.structId || node.componentId || "").trim().toLowerCase();
         if (key) {
           registry.set(key, node);
         }
@@ -9883,7 +10113,7 @@
       }
     }
 
-    if (node.kind === core.NODE_TYPES.component) {
+    if (node.kind === core.NODE_TYPES.component || isStructDefinitionNode(node)) {
       if (Array.isArray(node.templateNodes)) {
         node.templateNodes = normalizeNodesForDefinitions(node.templateNodes, definitionRegistry);
       }
@@ -9950,6 +10180,9 @@
           : "";
       if (tag && tag !== "slot" && definitionRegistry.has(tag)) {
         const definitionNode = definitionRegistry.get(tag);
+        if (isStructDefinitionNode(definitionNode)) {
+          return convertElementInvocationToStructInstance(node, definitionNode);
+        }
         return convertElementInvocationToInstance(node, definitionNode, definitionRegistry);
       }
       if (instanceAlias) {
@@ -12764,6 +12997,9 @@
 
     if (selectors.length === 1) {
       const definitionSelector = selectors[0].toLowerCase();
+      if (definitionSelector === "q-struct") {
+        return buildStructNodeFromAst(astElement);
+      }
       if (definitionSelector === "q-component" || definitionSelector === "q-worker") {
         return buildComponentNodeFromAst(astElement, source, {
           definitionType: definitionSelector === "q-worker" ? "worker" : "component",
@@ -12885,6 +13121,10 @@
           leaf.meta = {};
         }
         leaf.meta.__qhtmlInstanceAlias = instanceAlias;
+        const potentialStructFields = tryReadStructFieldsFromAstItems(astElement.items);
+        if (potentialStructFields) {
+          leaf.meta.__qhtmlStructFieldOverrides = potentialStructFields;
+        }
       }
       return leaf;
     }
@@ -12948,6 +13188,10 @@
         leaf.meta = {};
       }
       leaf.meta.__qhtmlInstanceAlias = instanceAlias;
+      const potentialStructFields = tryReadStructFieldsFromAstItems(astElement.items);
+      if (potentialStructFields) {
+        leaf.meta.__qhtmlStructFieldOverrides = potentialStructFields;
+      }
     }
 
     return chain[0];
@@ -14093,6 +14337,66 @@
 
     if (String(node.kind || "").trim().toLowerCase() === "q-switch") {
       return serializeQSwitchDeclarationBlock(node, indentLevel);
+    }
+
+    function serializeStructField(field, fieldIndentLevel) {
+      const fieldIndent = "  ".repeat(fieldIndentLevel);
+      const name = String(field && field.name || "").trim();
+      if (!name) {
+        return "";
+      }
+      const kind = String(field.kind || "").trim().toLowerCase();
+      let valueSource = "";
+      if (kind === "function") {
+        valueSource =
+          "function(" +
+          String(field.parameters || "").trim() +
+          ") { " +
+          String(field.body || "").trim() +
+          " }";
+      } else if (kind === "binding" || kind === "expression") {
+        valueSource = String(field.source || "").trim();
+      } else if (typeof field.source === "string" && field.source.trim()) {
+        valueSource = String(field.source || "").trim();
+      } else {
+        valueSource = serializeAssignmentValue(field.value);
+      }
+      return fieldIndent + name + " { " + valueSource + " }";
+    }
+
+    if (core.NODE_TYPES.struct && node.kind === core.NODE_TYPES.struct) {
+      const structId = String(node.structId || node.componentId || "").trim();
+      const lines = [indent + "q-struct " + structId + " {"];
+      const fields = Array.isArray(node.fields) ? node.fields : [];
+      for (let i = 0; i < fields.length; i += 1) {
+        const serializedField = serializeStructField(fields[i], indentLevel + 1);
+        if (serializedField) {
+          lines.push(serializedField);
+        }
+      }
+      lines.push(indent + "}");
+      return lines.join("\n");
+    }
+
+    if (core.NODE_TYPES.structInstance && node.kind === core.NODE_TYPES.structInstance) {
+      const structId = String(node.structId || node.componentId || node.tagName || "").trim().toLowerCase();
+      const instanceAlias =
+        node &&
+        node.meta &&
+        typeof node.meta === "object" &&
+        typeof node.meta.__qhtmlInstanceAlias === "string"
+          ? String(node.meta.__qhtmlInstanceAlias || "").trim()
+          : "";
+      const lines = [indent + structId + (instanceAlias ? " " + instanceAlias : "") + " {"];
+      const fields = Array.isArray(node.fields) ? node.fields : [];
+      for (let i = 0; i < fields.length; i += 1) {
+        const serializedField = serializeStructField(fields[i], indentLevel + 1);
+        if (serializedField) {
+          lines.push(serializedField);
+        }
+      }
+      lines.push(indent + "}");
+      return lines.join("\n");
     }
 
     if (node.kind === core.NODE_TYPES.component) {

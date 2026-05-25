@@ -1886,7 +1886,7 @@
     }
 
     const explicit = String(definitionNode.definitionType || "").trim().toLowerCase();
-    if (explicit === "component" || explicit === "template" || explicit === "signal" || explicit === "worker") {
+    if (explicit === "component" || explicit === "template" || explicit === "signal" || explicit === "worker" || explicit === "struct") {
       return explicit;
     }
 
@@ -1902,6 +1902,9 @@
     }
     if (originalSource.startsWith("q-worker")) {
       return "worker";
+    }
+    if (originalSource.startsWith("q-struct")) {
+      return "struct";
     }
 
     return "component";
@@ -2474,6 +2477,11 @@
       }
       if (node.kind === core.NODE_TYPES.component) {
         const id = String(node.componentId || "").trim().toLowerCase();
+        if (id) {
+          registry.set(id, node);
+        }
+      } else if (core.NODE_TYPES.struct && node.kind === core.NODE_TYPES.struct) {
+        const id = String(node.structId || node.componentId || "").trim().toLowerCase();
         if (id) {
           registry.set(id, node);
         }
@@ -8949,6 +8957,37 @@
     }
   }
 
+  function registerNamedRuntimeValueAlias(context, aliasName, value) {
+    if (!context || !aliasName) {
+      return;
+    }
+    const alias = String(aliasName || "").trim();
+    if (!alias) {
+      return;
+    }
+    ensureContextFrames(context);
+    const stack = ensureInstanceAliasScopeStack(context);
+    const frame = stack[stack.length - 1] || createContextFrame(context[QCONTEXT_SCOPE_FRAME_KEY], "scope", null);
+    if (frame !== stack[stack.length - 1]) {
+      stack[stack.length - 1] = frame;
+    }
+    frame.set(alias, value);
+    context[QCONTEXT_SCOPE_FRAME_KEY] = frame;
+    context[QCONTEXT_RUNTIME_FRAME_KEY].set(alias, value);
+    const hostStack = Array.isArray(context.componentHostStack) ? context.componentHostStack : null;
+    const ownerHost = hostStack && hostStack.length > 0 ? hostStack[hostStack.length - 1] : null;
+    if (ownerHost) {
+      exportNamedAliasToHost(ownerHost, alias, value);
+      return;
+    }
+    if (context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
+      context.namedRuntimeValues[alias] = value;
+    }
+    if (context.rootHostElement) {
+      exportNamedAliasToHost(context.rootHostElement, alias, value);
+    }
+  }
+
   function bindRuntimeContextToTarget(target, scopeFrame, runtimeFrame) {
     if (!target || (typeof target !== "object" && typeof target !== "function")) {
       return;
@@ -10784,6 +10823,24 @@
         return;
       }
 
+      if (core.NODE_TYPES.struct && node.kind === core.NODE_TYPES.struct) {
+        const structId = String(node.structId || node.componentId || "").trim().toLowerCase();
+        if (structId && context && context.componentRegistry instanceof Map) {
+          context.componentRegistry.set(structId, node);
+        }
+        return;
+      }
+
+      if (core.NODE_TYPES.structInstance && node.kind === core.NODE_TYPES.structInstance) {
+        const registry = context.componentRegistry;
+        const key = String(node.structId || node.componentId || node.tagName || "").toLowerCase();
+        const structNode = registry && typeof registry.get === "function" ? registry.get(key) : null;
+        if (structNode && core.NODE_TYPES.struct && structNode.kind === core.NODE_TYPES.struct) {
+          renderStructInstance(structNode, node, parent, targetDocument, context);
+        }
+        return;
+      }
+
       if (node.kind === core.NODE_TYPES.componentInstance || node.kind === core.NODE_TYPES.templateInstance) {
         if (isQStateMachineNode(node)) {
           renderQStateMachineNode(node, parent, targetDocument, context);
@@ -10813,6 +10870,10 @@
 	      const component = registry.get(tagName);
 	
 	      if (component && !isLayoutKeywordElement) {
+	        if (core.NODE_TYPES.struct && component.kind === core.NODE_TYPES.struct) {
+	          renderStructInstance(component, createStructInstanceNodeFromElement(node, component), parent, targetDocument, context);
+	          return;
+	        }
 	        renderComponentInstance(component, node, parent, targetDocument, context);
 	        return;
 	      }
@@ -11532,6 +11593,14 @@
   }
 
   function renderComponentInstance(componentNode, instanceNode, parent, targetDocument, context) {
+    if (core.NODE_TYPES.struct && componentNode && componentNode.kind === core.NODE_TYPES.struct) {
+      const structInstanceNode =
+        core.NODE_TYPES.structInstance && instanceNode && instanceNode.kind === core.NODE_TYPES.structInstance
+          ? instanceNode
+          : createStructInstanceNodeFromElement(instanceNode, componentNode);
+      renderStructInstance(componentNode, structInstanceNode, parent, targetDocument, context);
+      return;
+    }
     const effectiveComponentNode = resolveInheritedComponentDefinition(
       componentNode,
       context && context.componentRegistry,
@@ -11551,6 +11620,243 @@
       return;
     }
     renderComponentHostInstance(effectiveComponentNode, instanceNode, parent, targetDocument, context);
+  }
+
+  function normalizeStructFieldMap(fields) {
+    const map = new Map();
+    const list = Array.isArray(fields) ? fields : [];
+    for (let i = 0; i < list.length; i += 1) {
+      const field = list[i];
+      const name = String(field && field.name || "").trim();
+      if (!name) {
+        continue;
+      }
+      map.set(name.toLowerCase(), Object.assign({}, field, { name: name }));
+    }
+    return map;
+  }
+
+  function readStructInstanceAlias(instanceNode) {
+    return String(
+      instanceNode &&
+      instanceNode.meta &&
+      typeof instanceNode.meta === "object" &&
+      typeof instanceNode.meta.__qhtmlInstanceAlias === "string"
+        ? instanceNode.meta.__qhtmlInstanceAlias
+        : ""
+    ).trim();
+  }
+
+  function evaluateStructExpressionSource(sourceValue, instanceValue, parent, context) {
+    const source = String(sourceValue || "").trim();
+    if (!source) {
+      return undefined;
+    }
+    const scope = buildInterpolationScope(context, parent && parent.nodeType === 1 ? parent : null);
+    const alias = instanceValue && typeof instanceValue.__qhtmlAlias === "string" ? instanceValue.__qhtmlAlias : "";
+    if (alias) {
+      scope[alias] = instanceValue;
+    }
+    return evaluateInlineReferenceExpression(
+      source,
+      parent && parent.nodeType === 1 ? parent : null,
+      scope,
+      "qhtml q-struct field evaluation failed:",
+      { pathFallbackLiteral: false, allowBareDotWalk: true }
+    );
+  }
+
+  function evaluateStructBindingField(field, instanceValue, parent, context) {
+    return evaluateStructExpressionSource(field && field.source, instanceValue, parent, context);
+  }
+
+  function createStructFunctionField(field, instanceValue, parent, context) {
+    const params = String(field && field.parameters || "").trim();
+    const body = String(field && field.body || "");
+    const scope = buildInterpolationScope(context, parent && parent.nodeType === 1 ? parent : null);
+    const alias = instanceValue && typeof instanceValue.__qhtmlAlias === "string" ? instanceValue.__qhtmlAlias : "";
+    if (alias) {
+      scope[alias] = instanceValue;
+    }
+    let factory = null;
+    try {
+      factory = new Function("__qhtmlScope", "return function(" + params + ") { with(__qhtmlScope){ " + body + " } };");
+      return factory(scope).bind(instanceValue);
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml q-struct function field failed:", error);
+      }
+      return function qStructInvalidFunctionField() {};
+    }
+  }
+
+  function createQStructInstanceValue(structNode, instanceNode, parent, targetDocument, context) {
+    const definitionFields = normalizeStructFieldMap(structNode && structNode.fields);
+    const overrideFields = normalizeStructFieldMap(instanceNode && instanceNode.fields);
+    overrideFields.forEach(function applyStructOverride(field, key) {
+      definitionFields.set(key, field);
+    });
+    const fieldKeys = Array.from(definitionFields.keys());
+    const manualValues = Object.create(null);
+    const functionValues = Object.create(null);
+    const instanceValue = {
+      __qhtmlIsQStructInstance: true,
+      __qhtmlStructId: String(structNode && (structNode.structId || structNode.componentId) || "").trim().toLowerCase(),
+      __qhtmlAlias: readStructInstanceAlias(instanceNode),
+      qdom: function qStructInstanceQdom() {
+        return instanceNode;
+      },
+      definition: function qStructDefinition() {
+        return structNode;
+      },
+      toObject: function qStructInstanceToObject() {
+        const out = {};
+        for (let i = 0; i < fieldKeys.length; i += 1) {
+          const field = definitionFields.get(fieldKeys[i]);
+          if (!field || !field.name) {
+            continue;
+          }
+          out[field.name] = instanceValue[field.name];
+        }
+        return out;
+      },
+    };
+
+    function setStructFieldValue(fieldName, value) {
+      const key = String(fieldName || "").trim().toLowerCase();
+      if (!key) {
+        return;
+      }
+      manualValues[key] = value;
+      const existing = definitionFields.get(key);
+      const name = existing && existing.name ? existing.name : String(fieldName || "").trim();
+      definitionFields.set(key, {
+        name: name,
+        kind: "literal",
+        value: value,
+      });
+      if (instanceNode && typeof instanceNode === "object") {
+        if (!Array.isArray(instanceNode.fields)) {
+          instanceNode.fields = [];
+        }
+        let updated = false;
+        for (let i = 0; i < instanceNode.fields.length; i += 1) {
+          const field = instanceNode.fields[i];
+          if (String(field && field.name || "").trim().toLowerCase() === key) {
+            instanceNode.fields[i] = { name: name, kind: "literal", value: value };
+            updated = true;
+            break;
+          }
+        }
+        if (!updated) {
+          instanceNode.fields.push({ name: name, kind: "literal", value: value });
+        }
+        if (!instanceNode.props || typeof instanceNode.props !== "object") {
+          instanceNode.props = {};
+        }
+        instanceNode.props[name] = value;
+      }
+    }
+
+    for (let i = 0; i < fieldKeys.length; i += 1) {
+      const key = fieldKeys[i];
+      const field = definitionFields.get(key);
+      const fieldName = String(field && field.name || "").trim();
+      if (!fieldName || Object.prototype.hasOwnProperty.call(instanceValue, fieldName)) {
+        continue;
+      }
+      Object.defineProperty(instanceValue, fieldName, {
+        configurable: true,
+        enumerable: true,
+        get: function getQStructField() {
+          if (Object.prototype.hasOwnProperty.call(manualValues, key)) {
+            return manualValues[key];
+          }
+          const activeField = definitionFields.get(key) || field;
+          const kind = String(activeField && activeField.kind || "literal").trim().toLowerCase();
+          if (kind === "binding" || kind === "expression") {
+            return evaluateStructBindingField(activeField, instanceValue, parent, context);
+          }
+          if (kind === "function") {
+            if (!Object.prototype.hasOwnProperty.call(functionValues, key)) {
+              functionValues[key] = createStructFunctionField(activeField, instanceValue, parent, context);
+            }
+            return functionValues[key];
+          }
+          return activeField ? activeField.value : undefined;
+        },
+        set: function setQStructField(value) {
+          setStructFieldValue(fieldName, value);
+        },
+      });
+    }
+
+    for (let i = 0; i < fieldKeys.length; i += 1) {
+      const field = definitionFields.get(fieldKeys[i]);
+      const kind = String(field && field.kind || "").trim().toLowerCase();
+      const source = String(field && field.source || "").trim();
+      if (kind !== "binding" || source.indexOf(".") === -1) {
+        continue;
+      }
+      const head = source.split(".")[0].trim();
+      if (!head || Object.prototype.hasOwnProperty.call(instanceValue, head)) {
+        continue;
+      }
+      Object.defineProperty(instanceValue, head, {
+        configurable: true,
+        enumerable: false,
+        get: function getQStructBoundPathHead() {
+          return new Proxy(Object.create(null), {
+            get: function getQStructBoundPathSegment(_target, prop) {
+              if (prop === "toString") {
+                return function qStructBoundPathToString() {
+                  return String(evaluateStructExpressionSource(head, instanceValue, parent, context) || "");
+                };
+              }
+              if (prop === Symbol.toPrimitive) {
+                return function qStructBoundPathToPrimitive() {
+                  return evaluateStructExpressionSource(head, instanceValue, parent, context);
+                };
+              }
+              if (typeof prop !== "string") {
+                return undefined;
+              }
+              return evaluateStructExpressionSource(head + "." + prop, instanceValue, parent, context);
+            },
+          });
+        },
+      });
+    }
+
+    return instanceValue;
+  }
+
+  function renderStructInstance(structNode, instanceNode, parent, targetDocument, context) {
+    const alias = readStructInstanceAlias(instanceNode);
+    if (!alias) {
+      return;
+    }
+    const value = createQStructInstanceValue(structNode, instanceNode, parent, targetDocument, context);
+    registerNamedRuntimeValueAlias(context, alias, value);
+  }
+
+  function createStructInstanceNodeFromElement(elementNode, structNode) {
+    const meta = Object.assign({}, elementNode && elementNode.meta || {});
+    const structId = String(structNode && (structNode.structId || structNode.componentId) || elementNode && elementNode.tagName || "")
+      .trim()
+      .toLowerCase();
+    return core.createStructInstanceNode({
+      structId: structId,
+      componentId: structId,
+      tagName: String(elementNode && elementNode.tagName || structId).trim().toLowerCase(),
+      fields: meta && Array.isArray(meta.__qhtmlStructFieldOverrides) ? meta.__qhtmlStructFieldOverrides.slice() : [],
+      selectorMode: elementNode && elementNode.selectorMode || "single",
+      selectorChain:
+        elementNode && Array.isArray(elementNode.selectorChain)
+          ? elementNode.selectorChain.slice()
+          : [structId],
+      meta: meta,
+    });
   }
 
   function renderDocumentToFragment(documentNode, targetDocument, options) {
@@ -11634,7 +11940,10 @@
     const nodes = Array.isArray(documentNode && documentNode.nodes) ? documentNode.nodes : [];
     for (let i = 0; i < nodes.length; i += 1) {
       const node = nodes[i];
-      if (node && node.kind === core.NODE_TYPES.component) {
+      if (
+        node &&
+        (node.kind === core.NODE_TYPES.component || (core.NODE_TYPES.struct && node.kind === core.NODE_TYPES.struct))
+      ) {
         continue;
       }
       renderNode(node, fragment, doc, context);

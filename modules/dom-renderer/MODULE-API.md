@@ -9,6 +9,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 ### Primary APIs
 - `collectComponentRegistry(documentNode)`
   - Returns `Map<componentId, componentDefinitionNode>`.
+  - Also includes `q-struct` definitions keyed by `structId`.
   - Walks nested definition locations including repeater template/model payloads.
 - `renderDocumentToFragment(documentNode, targetDocument?)`
   - Renders top-level runtime nodes into a `DocumentFragment`.
@@ -34,6 +35,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - `repeater` (runtime iteration)
 - `model` (repeater model container consumed by repeater rendering)
 - `component-instance`, `template-instance`
+- `struct`, `struct-instance` (`q-struct` data definitions/instances; scope registration only, no direct DOM output)
 - `slot` projection containers
 - `q-signal` definitions invoked through `component-instance` dispatch behavior
 
@@ -57,6 +59,13 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - duplicate names in the same lexical frame use last-write-wins semantics.
   - alias handles are UUID-backed runtime pointers, resolved lazily when dereferenced.
   - nested instance names live in child lexical scope frames (visible through that instance context chain, not promoted globally).
+- Named `q-struct` instances register data-only runtime objects into the same lexical/runtime context frames:
+  - declaration form: `SomeStruct someName { ... }`
+  - no DOM element is created for the definition or instance
+  - fields read defaults from the `q-struct` definition unless overridden by the instance
+  - bare dot-walk field values stay live as declarative bindings until assigned from JavaScript
+  - assigning `someName.field = value` stores a literal override on the struct instance QDom and removes the active binding for that field
+  - function fields return callable JavaScript function references, so `someName.fn()` works in interpolation and handlers
 - Named `q-state-machine` hosts are registered in lexical/runtime scope by machine name:
   - declaration form: `q-state-machine machineName { stateName { ... } }`
   - renders through the normal q-component host path as `<q-state-machine q-component="q-state-machine" qhtml-component-instance="1">`.

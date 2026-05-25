@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-23T04:06:11Z */
+/* generated: 2026-05-24T21:50:23Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -15,6 +15,8 @@
     component: "component",
     componentInstance: "component-instance",
     templateInstance: "template-instance",
+    struct: "struct",
+    structInstance: "struct-instance",
     slot: "slot",
     scriptRule: "script-rule",
     color: "color",
@@ -218,6 +220,44 @@
       super(NODE_TYPES.slot, opts.meta);
       this.name = String(opts.name || "default").trim() || "default";
       this.children = Array.isArray(opts.children) ? opts.children : [];
+    }
+  }
+
+  class QStructNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      super(NODE_TYPES.struct, opts.meta);
+      this.structId = String(opts.structId || "").trim();
+      this.componentId = this.structId;
+      this.definitionType = "struct";
+      this.fields = Array.isArray(opts.fields) ? opts.fields : [];
+    }
+  }
+
+  class QStructInstanceNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      const id = String(opts.structId || opts.componentId || opts.tagName || "").trim().toLowerCase();
+      super(NODE_TYPES.structInstance, opts.meta);
+      this.structId = id;
+      this.componentId = id;
+      this.tagName = id;
+      this.fields = Array.isArray(opts.fields) ? opts.fields : [];
+      this.props = Object.assign({}, opts.props || {});
+      this.selectorMode = opts.selectorMode || "single";
+      this.selectorChain = Array.isArray(opts.selectorChain) ? opts.selectorChain.slice() : [id];
+    }
+
+    properties() {
+      return Object.assign({}, this.props || {});
+    }
+
+    getProperty(key) {
+      const name = String(key || "").trim();
+      if (!name || !this.props || typeof this.props !== "object") {
+        return undefined;
+      }
+      return Object.prototype.hasOwnProperty.call(this.props, name) ? this.props[name] : undefined;
     }
   }
 
@@ -488,6 +528,14 @@
     return new QSlotNode(opts);
   }
 
+  function createStructNode(options) {
+    return new QStructNode(options || {});
+  }
+
+  function createStructInstanceNode(options) {
+    return new QStructInstanceNode(options || {});
+  }
+
   function normalizeInstanceKind(kind) {
     const value = String(kind || "").trim().toLowerCase();
     if (value === NODE_TYPES.templateInstance || value === "template") {
@@ -571,6 +619,15 @@
       }
       if (node.kind === NODE_TYPES.component && Array.isArray(node.templateNodes)) {
         walkNodes(node.templateNodes, visitor, node, path.concat("templateNodes"));
+      }
+      if ((node.kind === NODE_TYPES.struct || node.kind === NODE_TYPES.structInstance) && Array.isArray(node.fields)) {
+        for (let j = 0; j < node.fields.length; j += 1) {
+          const field = node.fields[j];
+          if (!field || typeof field !== "object" || !Array.isArray(field.nodes)) {
+            continue;
+          }
+          walkNodes(field.nodes, visitor, node, path.concat("fields", j, "nodes"));
+        }
       }
       if (node.kind === NODE_TYPES.model && Array.isArray(node.entries)) {
         for (let j = 0; j < node.entries.length; j += 1) {
@@ -981,6 +1038,25 @@
         meta: reviveQDomTree(value.meta || {}),
       });
     }
+    if (kind === NODE_TYPES.struct) {
+      return createStructNode({
+        structId: value.structId || value.componentId,
+        fields: reviveQDomTree(Array.isArray(value.fields) ? value.fields : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
+    if (kind === NODE_TYPES.structInstance) {
+      return createStructInstanceNode({
+        structId: value.structId || value.componentId || value.tagName,
+        componentId: value.componentId,
+        tagName: value.tagName,
+        fields: reviveQDomTree(Array.isArray(value.fields) ? value.fields : []),
+        props: reviveQDomTree(value.props || {}),
+        selectorMode: value.selectorMode,
+        selectorChain: reviveQDomTree(Array.isArray(value.selectorChain) ? value.selectorChain : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
     if (kind === NODE_TYPES.componentInstance || kind === NODE_TYPES.templateInstance) {
       return createComponentInstanceNode({
         kind: kind,
@@ -1221,6 +1297,7 @@
       NODE_TYPES.document,
       NODE_TYPES.componentInstance,
       NODE_TYPES.templateInstance,
+      NODE_TYPES.structInstance,
       NODE_TYPES.slot,
     ]);
 
@@ -1345,6 +1422,8 @@
     QDomModel: QDomModel,
     QRepeaterNode: QRepeaterNode,
     QComponentNode: QComponentNode,
+    QStructNode: QStructNode,
+    QStructInstanceNode: QStructInstanceNode,
     QComponentInstanceNode: QComponentInstanceNode,
     QTemplateInstanceNode: QTemplateInstanceNode,
     QSlotNode: QSlotNode,
@@ -1360,6 +1439,8 @@
     createRepeaterNode: createRepeaterNode,
     createComponentNode: createComponentNode,
     createComponentInstanceNode: createComponentInstanceNode,
+    createStructNode: createStructNode,
+    createStructInstanceNode: createStructInstanceNode,
     createSlotNode: createSlotNode,
     createScriptRule: createScriptRule,
     createQColorNode: createQColorNode,
@@ -1422,6 +1503,7 @@
   let anonymousQThemeStyleCounter = 0;
   const CANONICAL_KEYWORD_TARGETS = new Set([
     "q-component",
+    "q-struct",
     "q-worker",
     "q-template",
     "q-macro",
@@ -11230,6 +11312,230 @@
     });
   }
 
+  function isStructDefinitionNode(node) {
+    return !!(
+      node &&
+      typeof node === "object" &&
+      core.NODE_TYPES &&
+      core.NODE_TYPES.struct &&
+      node.kind === core.NODE_TYPES.struct
+    );
+  }
+
+  function normalizeStructFieldName(value) {
+    const source = String(value || "").trim();
+    if (!source) {
+      return "";
+    }
+    const token = parseTagToken(source);
+    return String((token && token.tag) || source).trim();
+  }
+
+  function isStructBindingExpression(value) {
+    const source = String(value || "").trim();
+    if (!source) {
+      return false;
+    }
+    if (/^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+$/.test(source)) {
+      return true;
+    }
+    if (/^(?:this\.|this\.component\.|component\.)[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(source)) {
+      return true;
+    }
+    return false;
+  }
+
+  function coerceStructLiteralValue(source) {
+    const text = String(source || "").trim();
+    if (!text) {
+      return "";
+    }
+    if (
+      (text.charAt(0) === '"' && text.charAt(text.length - 1) === '"') ||
+      (text.charAt(0) === "'" && text.charAt(text.length - 1) === "'")
+    ) {
+      try {
+        return text.charAt(0) === '"' ? JSON.parse(text) : text.slice(1, -1);
+      } catch (error) {
+        return text.slice(1, -1);
+      }
+    }
+    if (/^-?(?:\d+|\d*\.\d+)$/.test(text)) {
+      const numberValue = Number(text);
+      return Number.isFinite(numberValue) ? numberValue : text;
+    }
+    if (text === "true") {
+      return true;
+    }
+    if (text === "false") {
+      return false;
+    }
+    if (text === "null") {
+      return null;
+    }
+    return text;
+  }
+
+  function readStructFieldValue(items, rawSource) {
+    const list = Array.isArray(items) ? items : [];
+    if (list.length === 1 && list[0] && list[0].type === "FunctionBlock") {
+      const fn = list[0];
+      return {
+        kind: "function",
+        parameters: String(fn.parameters || "").trim(),
+        body: compactScriptBody(fn.body || ""),
+        source: String(fn.raw || rawSource || "").trim(),
+      };
+    }
+    const chunks = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const item = list[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type === "TextBlock" || item.type === "RawTextLine") {
+        chunks.push(String(item.text || item.raw || ""));
+        continue;
+      }
+      if (item.type === "BareWord") {
+        chunks.push(String(item.name || item.word || item.raw || ""));
+        continue;
+      }
+      if (typeof item.raw === "string") {
+        chunks.push(item.raw);
+      }
+    }
+    const source = chunks.join(" ").trim();
+    if (isStructBindingExpression(source)) {
+      return {
+        kind: "binding",
+        source: source,
+      };
+    }
+    return {
+      kind: "literal",
+      value: coerceStructLiteralValue(source),
+      source: source,
+    };
+  }
+
+  function readStructFieldsFromAstItems(items, ownerLabel) {
+    const fields = [];
+    const seen = new Set();
+    const list = Array.isArray(items) ? items : [];
+    for (let i = 0; i < list.length; i += 1) {
+      const item = list[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type === "Element") {
+        const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+        if (selectors.length !== 1 || String(item.instanceAlias || "").trim()) {
+          throw new Error("q-struct fields must be simple named blocks in " + ownerLabel + ".");
+        }
+        const fieldName = normalizeStructFieldName(selectors[0]);
+        if (!fieldName) {
+          continue;
+        }
+        const key = fieldName.toLowerCase();
+        if (seen.has(key)) {
+          throw new Error("Duplicate q-struct field '" + fieldName + "' in " + ownerLabel + ".");
+        }
+        seen.add(key);
+        fields.push(Object.assign({ name: fieldName }, readStructFieldValue(item.items, item.raw)));
+        continue;
+      }
+      if (item.type === "Property") {
+        const fieldName = normalizeStructFieldName(item.name);
+        if (!fieldName) {
+          continue;
+        }
+        const key = fieldName.toLowerCase();
+        if (seen.has(key)) {
+          throw new Error("Duplicate q-struct field '" + fieldName + "' in " + ownerLabel + ".");
+        }
+        seen.add(key);
+        const propertySource = String(item.value || "").trim();
+        const propertyIsBinding = isStructBindingExpression(propertySource);
+        fields.push(
+          propertyIsBinding
+            ? {
+                name: fieldName,
+                kind: "binding",
+                source: propertySource,
+              }
+            : {
+                name: fieldName,
+                kind: "literal",
+                value: coerceStructLiteralValue(propertySource),
+                source: propertySource,
+              }
+        );
+        continue;
+      }
+      const typeName = String(item.type || "").trim() || "item";
+      throw new Error("q-struct does not allow " + typeName + " entries in " + ownerLabel + ".");
+    }
+    return fields;
+  }
+
+  function tryReadStructFieldsFromAstItems(items) {
+    try {
+      return readStructFieldsFromAstItems(items, "potential q-struct instance");
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function buildStructNodeFromAst(astElement) {
+    const structId = String(astElement && astElement.instanceAlias || "").trim();
+    if (!structId) {
+      throw new Error("q-struct definition requires a name.");
+    }
+    const structNode = core.createStructNode({
+      structId: structId,
+      fields: readStructFieldsFromAstItems(astElement.items, "q-struct '" + structId + "'"),
+      meta: {
+        originalSource: astElement.raw || "",
+        sourceRange:
+          typeof astElement.start === "number" && typeof astElement.end === "number"
+            ? [astElement.start, astElement.end]
+            : null,
+      },
+    });
+    applyKeywordAliasesToNode(structNode, astElement.keywords);
+    return structNode;
+  }
+
+  function convertElementInvocationToStructInstance(elementNode, definitionNode) {
+    const instanceMeta = Object.assign({}, elementNode.meta || {});
+    const instanceAlias =
+      elementNode &&
+      elementNode.meta &&
+      typeof elementNode.meta === "object" &&
+      typeof elementNode.meta.__qhtmlInstanceAlias === "string"
+        ? String(elementNode.meta.__qhtmlInstanceAlias || "").trim()
+        : "";
+    if (!instanceAlias) {
+      throw new Error("q-struct instance requires a typed name: '" + String(elementNode.tagName || "").trim() + "'.");
+    }
+    instanceMeta.__qhtmlInstanceAlias = instanceAlias;
+    return core.createStructInstanceNode({
+      structId: String(definitionNode.structId || definitionNode.componentId || elementNode.tagName || "").trim().toLowerCase(),
+      componentId: String(definitionNode.structId || definitionNode.componentId || elementNode.tagName || "").trim().toLowerCase(),
+      tagName: String(elementNode.tagName || definitionNode.structId || definitionNode.componentId || "").trim().toLowerCase(),
+      fields:
+        elementNode.meta && Array.isArray(elementNode.meta.__qhtmlStructFieldOverrides)
+          ? elementNode.meta.__qhtmlStructFieldOverrides.slice()
+          : [],
+      selectorMode: elementNode.selectorMode || "single",
+      selectorChain: Array.isArray(elementNode.selectorChain)
+        ? elementNode.selectorChain.slice()
+        : [String(elementNode.tagName || definitionNode.structId || "").trim().toLowerCase()],
+      meta: instanceMeta,
+    });
+  }
+
   function buildDefinitionRegistry(nodes) {
     const registry = new Map();
     const list = Array.isArray(nodes) ? nodes : [];
@@ -11241,6 +11547,11 @@
       }
       if (node.kind === core.NODE_TYPES.component) {
         const key = String(node.componentId || "").trim().toLowerCase();
+        if (key) {
+          registry.set(key, node);
+        }
+      } else if (isStructDefinitionNode(node)) {
+        const key = String(node.structId || node.componentId || "").trim().toLowerCase();
         if (key) {
           registry.set(key, node);
         }
@@ -11274,7 +11585,7 @@
       }
     }
 
-    if (node.kind === core.NODE_TYPES.component) {
+    if (node.kind === core.NODE_TYPES.component || isStructDefinitionNode(node)) {
       if (Array.isArray(node.templateNodes)) {
         node.templateNodes = normalizeNodesForDefinitions(node.templateNodes, definitionRegistry);
       }
@@ -11341,6 +11652,9 @@
           : "";
       if (tag && tag !== "slot" && definitionRegistry.has(tag)) {
         const definitionNode = definitionRegistry.get(tag);
+        if (isStructDefinitionNode(definitionNode)) {
+          return convertElementInvocationToStructInstance(node, definitionNode);
+        }
         return convertElementInvocationToInstance(node, definitionNode, definitionRegistry);
       }
       if (instanceAlias) {
@@ -14155,6 +14469,9 @@
 
     if (selectors.length === 1) {
       const definitionSelector = selectors[0].toLowerCase();
+      if (definitionSelector === "q-struct") {
+        return buildStructNodeFromAst(astElement);
+      }
       if (definitionSelector === "q-component" || definitionSelector === "q-worker") {
         return buildComponentNodeFromAst(astElement, source, {
           definitionType: definitionSelector === "q-worker" ? "worker" : "component",
@@ -14276,6 +14593,10 @@
           leaf.meta = {};
         }
         leaf.meta.__qhtmlInstanceAlias = instanceAlias;
+        const potentialStructFields = tryReadStructFieldsFromAstItems(astElement.items);
+        if (potentialStructFields) {
+          leaf.meta.__qhtmlStructFieldOverrides = potentialStructFields;
+        }
       }
       return leaf;
     }
@@ -14339,6 +14660,10 @@
         leaf.meta = {};
       }
       leaf.meta.__qhtmlInstanceAlias = instanceAlias;
+      const potentialStructFields = tryReadStructFieldsFromAstItems(astElement.items);
+      if (potentialStructFields) {
+        leaf.meta.__qhtmlStructFieldOverrides = potentialStructFields;
+      }
     }
 
     return chain[0];
@@ -15484,6 +15809,66 @@
 
     if (String(node.kind || "").trim().toLowerCase() === "q-switch") {
       return serializeQSwitchDeclarationBlock(node, indentLevel);
+    }
+
+    function serializeStructField(field, fieldIndentLevel) {
+      const fieldIndent = "  ".repeat(fieldIndentLevel);
+      const name = String(field && field.name || "").trim();
+      if (!name) {
+        return "";
+      }
+      const kind = String(field.kind || "").trim().toLowerCase();
+      let valueSource = "";
+      if (kind === "function") {
+        valueSource =
+          "function(" +
+          String(field.parameters || "").trim() +
+          ") { " +
+          String(field.body || "").trim() +
+          " }";
+      } else if (kind === "binding" || kind === "expression") {
+        valueSource = String(field.source || "").trim();
+      } else if (typeof field.source === "string" && field.source.trim()) {
+        valueSource = String(field.source || "").trim();
+      } else {
+        valueSource = serializeAssignmentValue(field.value);
+      }
+      return fieldIndent + name + " { " + valueSource + " }";
+    }
+
+    if (core.NODE_TYPES.struct && node.kind === core.NODE_TYPES.struct) {
+      const structId = String(node.structId || node.componentId || "").trim();
+      const lines = [indent + "q-struct " + structId + " {"];
+      const fields = Array.isArray(node.fields) ? node.fields : [];
+      for (let i = 0; i < fields.length; i += 1) {
+        const serializedField = serializeStructField(fields[i], indentLevel + 1);
+        if (serializedField) {
+          lines.push(serializedField);
+        }
+      }
+      lines.push(indent + "}");
+      return lines.join("\n");
+    }
+
+    if (core.NODE_TYPES.structInstance && node.kind === core.NODE_TYPES.structInstance) {
+      const structId = String(node.structId || node.componentId || node.tagName || "").trim().toLowerCase();
+      const instanceAlias =
+        node &&
+        node.meta &&
+        typeof node.meta === "object" &&
+        typeof node.meta.__qhtmlInstanceAlias === "string"
+          ? String(node.meta.__qhtmlInstanceAlias || "").trim()
+          : "";
+      const lines = [indent + structId + (instanceAlias ? " " + instanceAlias : "") + " {"];
+      const fields = Array.isArray(node.fields) ? node.fields : [];
+      for (let i = 0; i < fields.length; i += 1) {
+        const serializedField = serializeStructField(fields[i], indentLevel + 1);
+        if (serializedField) {
+          lines.push(serializedField);
+        }
+      }
+      lines.push(indent + "}");
+      return lines.join("\n");
     }
 
     if (node.kind === core.NODE_TYPES.component) {
@@ -17832,7 +18217,7 @@
     }
 
     const explicit = String(definitionNode.definitionType || "").trim().toLowerCase();
-    if (explicit === "component" || explicit === "template" || explicit === "signal" || explicit === "worker") {
+    if (explicit === "component" || explicit === "template" || explicit === "signal" || explicit === "worker" || explicit === "struct") {
       return explicit;
     }
 
@@ -17848,6 +18233,9 @@
     }
     if (originalSource.startsWith("q-worker")) {
       return "worker";
+    }
+    if (originalSource.startsWith("q-struct")) {
+      return "struct";
     }
 
     return "component";
@@ -18420,6 +18808,11 @@
       }
       if (node.kind === core.NODE_TYPES.component) {
         const id = String(node.componentId || "").trim().toLowerCase();
+        if (id) {
+          registry.set(id, node);
+        }
+      } else if (core.NODE_TYPES.struct && node.kind === core.NODE_TYPES.struct) {
+        const id = String(node.structId || node.componentId || "").trim().toLowerCase();
         if (id) {
           registry.set(id, node);
         }
@@ -24895,6 +25288,37 @@
     }
   }
 
+  function registerNamedRuntimeValueAlias(context, aliasName, value) {
+    if (!context || !aliasName) {
+      return;
+    }
+    const alias = String(aliasName || "").trim();
+    if (!alias) {
+      return;
+    }
+    ensureContextFrames(context);
+    const stack = ensureInstanceAliasScopeStack(context);
+    const frame = stack[stack.length - 1] || createContextFrame(context[QCONTEXT_SCOPE_FRAME_KEY], "scope", null);
+    if (frame !== stack[stack.length - 1]) {
+      stack[stack.length - 1] = frame;
+    }
+    frame.set(alias, value);
+    context[QCONTEXT_SCOPE_FRAME_KEY] = frame;
+    context[QCONTEXT_RUNTIME_FRAME_KEY].set(alias, value);
+    const hostStack = Array.isArray(context.componentHostStack) ? context.componentHostStack : null;
+    const ownerHost = hostStack && hostStack.length > 0 ? hostStack[hostStack.length - 1] : null;
+    if (ownerHost) {
+      exportNamedAliasToHost(ownerHost, alias, value);
+      return;
+    }
+    if (context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
+      context.namedRuntimeValues[alias] = value;
+    }
+    if (context.rootHostElement) {
+      exportNamedAliasToHost(context.rootHostElement, alias, value);
+    }
+  }
+
   function bindRuntimeContextToTarget(target, scopeFrame, runtimeFrame) {
     if (!target || (typeof target !== "object" && typeof target !== "function")) {
       return;
@@ -26730,6 +27154,24 @@
         return;
       }
 
+      if (core.NODE_TYPES.struct && node.kind === core.NODE_TYPES.struct) {
+        const structId = String(node.structId || node.componentId || "").trim().toLowerCase();
+        if (structId && context && context.componentRegistry instanceof Map) {
+          context.componentRegistry.set(structId, node);
+        }
+        return;
+      }
+
+      if (core.NODE_TYPES.structInstance && node.kind === core.NODE_TYPES.structInstance) {
+        const registry = context.componentRegistry;
+        const key = String(node.structId || node.componentId || node.tagName || "").toLowerCase();
+        const structNode = registry && typeof registry.get === "function" ? registry.get(key) : null;
+        if (structNode && core.NODE_TYPES.struct && structNode.kind === core.NODE_TYPES.struct) {
+          renderStructInstance(structNode, node, parent, targetDocument, context);
+        }
+        return;
+      }
+
       if (node.kind === core.NODE_TYPES.componentInstance || node.kind === core.NODE_TYPES.templateInstance) {
         if (isQStateMachineNode(node)) {
           renderQStateMachineNode(node, parent, targetDocument, context);
@@ -26759,6 +27201,10 @@
 	      const component = registry.get(tagName);
 	
 	      if (component && !isLayoutKeywordElement) {
+	        if (core.NODE_TYPES.struct && component.kind === core.NODE_TYPES.struct) {
+	          renderStructInstance(component, createStructInstanceNodeFromElement(node, component), parent, targetDocument, context);
+	          return;
+	        }
 	        renderComponentInstance(component, node, parent, targetDocument, context);
 	        return;
 	      }
@@ -27478,6 +27924,14 @@
   }
 
   function renderComponentInstance(componentNode, instanceNode, parent, targetDocument, context) {
+    if (core.NODE_TYPES.struct && componentNode && componentNode.kind === core.NODE_TYPES.struct) {
+      const structInstanceNode =
+        core.NODE_TYPES.structInstance && instanceNode && instanceNode.kind === core.NODE_TYPES.structInstance
+          ? instanceNode
+          : createStructInstanceNodeFromElement(instanceNode, componentNode);
+      renderStructInstance(componentNode, structInstanceNode, parent, targetDocument, context);
+      return;
+    }
     const effectiveComponentNode = resolveInheritedComponentDefinition(
       componentNode,
       context && context.componentRegistry,
@@ -27497,6 +27951,243 @@
       return;
     }
     renderComponentHostInstance(effectiveComponentNode, instanceNode, parent, targetDocument, context);
+  }
+
+  function normalizeStructFieldMap(fields) {
+    const map = new Map();
+    const list = Array.isArray(fields) ? fields : [];
+    for (let i = 0; i < list.length; i += 1) {
+      const field = list[i];
+      const name = String(field && field.name || "").trim();
+      if (!name) {
+        continue;
+      }
+      map.set(name.toLowerCase(), Object.assign({}, field, { name: name }));
+    }
+    return map;
+  }
+
+  function readStructInstanceAlias(instanceNode) {
+    return String(
+      instanceNode &&
+      instanceNode.meta &&
+      typeof instanceNode.meta === "object" &&
+      typeof instanceNode.meta.__qhtmlInstanceAlias === "string"
+        ? instanceNode.meta.__qhtmlInstanceAlias
+        : ""
+    ).trim();
+  }
+
+  function evaluateStructExpressionSource(sourceValue, instanceValue, parent, context) {
+    const source = String(sourceValue || "").trim();
+    if (!source) {
+      return undefined;
+    }
+    const scope = buildInterpolationScope(context, parent && parent.nodeType === 1 ? parent : null);
+    const alias = instanceValue && typeof instanceValue.__qhtmlAlias === "string" ? instanceValue.__qhtmlAlias : "";
+    if (alias) {
+      scope[alias] = instanceValue;
+    }
+    return evaluateInlineReferenceExpression(
+      source,
+      parent && parent.nodeType === 1 ? parent : null,
+      scope,
+      "qhtml q-struct field evaluation failed:",
+      { pathFallbackLiteral: false, allowBareDotWalk: true }
+    );
+  }
+
+  function evaluateStructBindingField(field, instanceValue, parent, context) {
+    return evaluateStructExpressionSource(field && field.source, instanceValue, parent, context);
+  }
+
+  function createStructFunctionField(field, instanceValue, parent, context) {
+    const params = String(field && field.parameters || "").trim();
+    const body = String(field && field.body || "");
+    const scope = buildInterpolationScope(context, parent && parent.nodeType === 1 ? parent : null);
+    const alias = instanceValue && typeof instanceValue.__qhtmlAlias === "string" ? instanceValue.__qhtmlAlias : "";
+    if (alias) {
+      scope[alias] = instanceValue;
+    }
+    let factory = null;
+    try {
+      factory = new Function("__qhtmlScope", "return function(" + params + ") { with(__qhtmlScope){ " + body + " } };");
+      return factory(scope).bind(instanceValue);
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml q-struct function field failed:", error);
+      }
+      return function qStructInvalidFunctionField() {};
+    }
+  }
+
+  function createQStructInstanceValue(structNode, instanceNode, parent, targetDocument, context) {
+    const definitionFields = normalizeStructFieldMap(structNode && structNode.fields);
+    const overrideFields = normalizeStructFieldMap(instanceNode && instanceNode.fields);
+    overrideFields.forEach(function applyStructOverride(field, key) {
+      definitionFields.set(key, field);
+    });
+    const fieldKeys = Array.from(definitionFields.keys());
+    const manualValues = Object.create(null);
+    const functionValues = Object.create(null);
+    const instanceValue = {
+      __qhtmlIsQStructInstance: true,
+      __qhtmlStructId: String(structNode && (structNode.structId || structNode.componentId) || "").trim().toLowerCase(),
+      __qhtmlAlias: readStructInstanceAlias(instanceNode),
+      qdom: function qStructInstanceQdom() {
+        return instanceNode;
+      },
+      definition: function qStructDefinition() {
+        return structNode;
+      },
+      toObject: function qStructInstanceToObject() {
+        const out = {};
+        for (let i = 0; i < fieldKeys.length; i += 1) {
+          const field = definitionFields.get(fieldKeys[i]);
+          if (!field || !field.name) {
+            continue;
+          }
+          out[field.name] = instanceValue[field.name];
+        }
+        return out;
+      },
+    };
+
+    function setStructFieldValue(fieldName, value) {
+      const key = String(fieldName || "").trim().toLowerCase();
+      if (!key) {
+        return;
+      }
+      manualValues[key] = value;
+      const existing = definitionFields.get(key);
+      const name = existing && existing.name ? existing.name : String(fieldName || "").trim();
+      definitionFields.set(key, {
+        name: name,
+        kind: "literal",
+        value: value,
+      });
+      if (instanceNode && typeof instanceNode === "object") {
+        if (!Array.isArray(instanceNode.fields)) {
+          instanceNode.fields = [];
+        }
+        let updated = false;
+        for (let i = 0; i < instanceNode.fields.length; i += 1) {
+          const field = instanceNode.fields[i];
+          if (String(field && field.name || "").trim().toLowerCase() === key) {
+            instanceNode.fields[i] = { name: name, kind: "literal", value: value };
+            updated = true;
+            break;
+          }
+        }
+        if (!updated) {
+          instanceNode.fields.push({ name: name, kind: "literal", value: value });
+        }
+        if (!instanceNode.props || typeof instanceNode.props !== "object") {
+          instanceNode.props = {};
+        }
+        instanceNode.props[name] = value;
+      }
+    }
+
+    for (let i = 0; i < fieldKeys.length; i += 1) {
+      const key = fieldKeys[i];
+      const field = definitionFields.get(key);
+      const fieldName = String(field && field.name || "").trim();
+      if (!fieldName || Object.prototype.hasOwnProperty.call(instanceValue, fieldName)) {
+        continue;
+      }
+      Object.defineProperty(instanceValue, fieldName, {
+        configurable: true,
+        enumerable: true,
+        get: function getQStructField() {
+          if (Object.prototype.hasOwnProperty.call(manualValues, key)) {
+            return manualValues[key];
+          }
+          const activeField = definitionFields.get(key) || field;
+          const kind = String(activeField && activeField.kind || "literal").trim().toLowerCase();
+          if (kind === "binding" || kind === "expression") {
+            return evaluateStructBindingField(activeField, instanceValue, parent, context);
+          }
+          if (kind === "function") {
+            if (!Object.prototype.hasOwnProperty.call(functionValues, key)) {
+              functionValues[key] = createStructFunctionField(activeField, instanceValue, parent, context);
+            }
+            return functionValues[key];
+          }
+          return activeField ? activeField.value : undefined;
+        },
+        set: function setQStructField(value) {
+          setStructFieldValue(fieldName, value);
+        },
+      });
+    }
+
+    for (let i = 0; i < fieldKeys.length; i += 1) {
+      const field = definitionFields.get(fieldKeys[i]);
+      const kind = String(field && field.kind || "").trim().toLowerCase();
+      const source = String(field && field.source || "").trim();
+      if (kind !== "binding" || source.indexOf(".") === -1) {
+        continue;
+      }
+      const head = source.split(".")[0].trim();
+      if (!head || Object.prototype.hasOwnProperty.call(instanceValue, head)) {
+        continue;
+      }
+      Object.defineProperty(instanceValue, head, {
+        configurable: true,
+        enumerable: false,
+        get: function getQStructBoundPathHead() {
+          return new Proxy(Object.create(null), {
+            get: function getQStructBoundPathSegment(_target, prop) {
+              if (prop === "toString") {
+                return function qStructBoundPathToString() {
+                  return String(evaluateStructExpressionSource(head, instanceValue, parent, context) || "");
+                };
+              }
+              if (prop === Symbol.toPrimitive) {
+                return function qStructBoundPathToPrimitive() {
+                  return evaluateStructExpressionSource(head, instanceValue, parent, context);
+                };
+              }
+              if (typeof prop !== "string") {
+                return undefined;
+              }
+              return evaluateStructExpressionSource(head + "." + prop, instanceValue, parent, context);
+            },
+          });
+        },
+      });
+    }
+
+    return instanceValue;
+  }
+
+  function renderStructInstance(structNode, instanceNode, parent, targetDocument, context) {
+    const alias = readStructInstanceAlias(instanceNode);
+    if (!alias) {
+      return;
+    }
+    const value = createQStructInstanceValue(structNode, instanceNode, parent, targetDocument, context);
+    registerNamedRuntimeValueAlias(context, alias, value);
+  }
+
+  function createStructInstanceNodeFromElement(elementNode, structNode) {
+    const meta = Object.assign({}, elementNode && elementNode.meta || {});
+    const structId = String(structNode && (structNode.structId || structNode.componentId) || elementNode && elementNode.tagName || "")
+      .trim()
+      .toLowerCase();
+    return core.createStructInstanceNode({
+      structId: structId,
+      componentId: structId,
+      tagName: String(elementNode && elementNode.tagName || structId).trim().toLowerCase(),
+      fields: meta && Array.isArray(meta.__qhtmlStructFieldOverrides) ? meta.__qhtmlStructFieldOverrides.slice() : [],
+      selectorMode: elementNode && elementNode.selectorMode || "single",
+      selectorChain:
+        elementNode && Array.isArray(elementNode.selectorChain)
+          ? elementNode.selectorChain.slice()
+          : [structId],
+      meta: meta,
+    });
   }
 
   function renderDocumentToFragment(documentNode, targetDocument, options) {
@@ -27580,7 +28271,10 @@
     const nodes = Array.isArray(documentNode && documentNode.nodes) ? documentNode.nodes : [];
     for (let i = 0; i < nodes.length; i += 1) {
       const node = nodes[i];
-      if (node && node.kind === core.NODE_TYPES.component) {
+      if (
+        node &&
+        (node.kind === core.NODE_TYPES.component || (core.NODE_TYPES.struct && node.kind === core.NODE_TYPES.struct))
+      ) {
         continue;
       }
       renderNode(node, fragment, doc, context);
@@ -46795,6 +47489,8 @@
     "lifetimevariation",
     "x",
     "y",
+    "width",
+    "height",
     "xvariation",
     "yvariation",
     "xvelocity",
@@ -46841,20 +47537,24 @@
       this._canvas = document.createElement("canvas");
       this._ctx = this._canvas.getContext("2d", { alpha: true });
       this._particles = [];
-      this._rng = new SeededRandom(0xc0ffee);
       this._sprite = new ParticleSprite();
       this._emitterMask = new ParticleEmitterMask();
-      this._createdTotal = 0;
-      this._emitCarry = 0;
-      this._burstQueue = [];
-      this._lastTime = 0;
-      this._rafId = 0;
-      this._activeLimit = 0;
+      this._particleSnapshot = new Float32Array(0);
+      this._snapshotActive = false;
+      this._worker = null;
+      this._workerUrl = "";
+      this._workerReady = false;
+      this._paintTimer = 0;
+      this._paintInterval = 16.666;
+      this._drawStride = 1;
+      this._drawPhase = 0;
+      this._paintPollCountdown = 1;
+      this._lastPaintDuration = 0;
       this._resizeObserver = typeof ResizeObserver === "function"
         ? new ResizeObserver(() => this._resize())
         : null;
-      this._boundFrame = this._frame.bind(this);
       this._boundResize = this._resize.bind(this);
+      this._boundWorkerMessage = this._onWorkerMessage.bind(this);
     }
 
     connectedCallback() {
@@ -46875,11 +47575,19 @@
         colorOpacity: this._config.colorOpacity,
       });
       this._emitterMask.configure(this._config.emitterMask);
-      this._startLoop();
+      this._ensureWorker();
+      this._postWorkerConfig();
+      this._render();
+
+      if (this._config.running) {
+        this._postWorker({ type: "start" });
+        this._startPainter();
+      }
     }
 
     disconnectedCallback() {
-      this._stopLoop();
+      this._stopPainter();
+      this._destroyWorker();
 
       if (this._resizeObserver) {
         this._resizeObserver.disconnect();
@@ -46905,8 +47613,13 @@
       });
       this._emitterMask.configure(this._config.emitterMask);
 
+      this._postWorkerConfig();
+
       if (!oldRunning && this._config.running) {
-        this._lastTime = performance.now();
+        this._postWorker({ type: "start" });
+        this._startPainter();
+      } else if (oldRunning && !this._config.running) {
+        this._postWorker({ type: "stop" });
       }
 
       this._applyLayerStyle();
@@ -46930,27 +47643,28 @@
 
     clear() {
       this._particles.length = 0;
-      this._burstQueue.length = 0;
-      this._createdTotal = 0;
-      this._emitCarry = 0;
+      this._particleSnapshot = new Float32Array(0);
+      this._snapshotActive = false;
+      this._postWorker({ type: "clear" });
       this._render();
+
+      if (!this._config || !this._config.running) {
+        this._stopPainter();
+      }
     }
 
-    burst(num, x, y) {
+    burst(x, y, num) {
+      const centerX = readFiniteNumber(x, this._config ? this._config.x : 0);
+      const centerY = readFiniteNumber(y, this._config ? this._config.y : 0);
       const count = Math.max(0, Math.floor(Number(num)));
 
       if (!count) {
         return 0;
       }
 
-      const burst = {
-        remaining: count,
-        carry: 0,
-        x: readFiniteNumber(x, this._config ? this._config.x : 0),
-        y: readFiniteNumber(y, this._config ? this._config.y : 0),
-      };
-
-      this._burstQueue.push(burst);
+      this._ensureWorker();
+      this._postWorker({ type: "burst", x: centerX, y: centerY, count });
+      this._startPainter();
       return count;
     }
 
@@ -46993,26 +47707,10 @@
 
     _reloadConfig() {
       const cfg = ParticleConfig.fromElement(this);
-      const seedChanged = !this._config || this._config.seed !== cfg.seed;
 
       this._config = cfg;
-
-      if (seedChanged) {
-        this._rng = new SeededRandom(cfg.seed);
-      }
-
-      this._activeLimit = this._rollActiveLimit();
+      this._paintInterval = Math.max(1, cfg.interval);
       this._applyLayerStyle();
-    }
-
-    _rollActiveLimit() {
-      const cfg = this._config;
-      const varied = cfg.maxActiveParticles + this._rng.range(
-        -cfg.maxActiveParticlesVariation,
-        cfg.maxActiveParticlesVariation
-      );
-
-      return Math.max(0, Math.floor(varied));
     }
 
     _resize() {
@@ -47038,151 +47736,172 @@
       }
     }
 
-    _startLoop() {
-      if (this._rafId) {
+    _ensureWorker() {
+      if (this._worker || typeof Worker !== "function" || typeof Blob !== "function" || typeof URL === "undefined") {
         return;
       }
 
-      this._lastTime = performance.now();
-      this._rafId = requestAnimationFrame(this._boundFrame);
+      try {
+        const blob = new Blob([createParticleWorkerSource()], { type: "application/javascript" });
+        this._workerUrl = URL.createObjectURL(blob);
+        this._worker = new Worker(this._workerUrl);
+        this._worker.addEventListener("message", this._boundWorkerMessage);
+        this._workerReady = true;
+      } catch (error) {
+        this._worker = null;
+        this._workerReady = false;
+        if (this._workerUrl) {
+          URL.revokeObjectURL(this._workerUrl);
+          this._workerUrl = "";
+        }
+      }
     }
 
-    _stopLoop() {
-      if (!this._rafId) {
+    _destroyWorker() {
+      if (this._worker) {
+        this._worker.removeEventListener("message", this._boundWorkerMessage);
+        this._worker.terminate();
+        this._worker = null;
+      }
+      if (this._workerUrl) {
+        URL.revokeObjectURL(this._workerUrl);
+        this._workerUrl = "";
+      }
+      this._workerReady = false;
+    }
+
+    _postWorker(message, transfer) {
+      this._ensureWorker();
+      if (!this._workerReady || !this._worker) {
         return;
       }
 
-      cancelAnimationFrame(this._rafId);
-      this._rafId = 0;
+      this._worker.postMessage(message, transfer || []);
     }
 
-    _frame(now) {
-      const elapsedMs = now - this._lastTime;
-
-      this._lastTime = now;
-      this._update(Math.min(elapsedMs, 100));
-      this._render();
-      this._rafId = requestAnimationFrame(this._boundFrame);
-    }
-
-    _update(elapsedMs) {
-      const cfg = this._config;
-      const tickScale = elapsedMs / cfg.interval;
-
-      if (cfg.running) {
-        this._emit(elapsedMs);
+    _postWorkerConfig() {
+      if (!this._config) {
+        return;
       }
 
-      this._processBursts(elapsedMs);
-
-      for (const particle of this._particles) {
-        particle.update(elapsedMs, tickScale);
-      }
-
-      this._particles = this._particles.filter((particle) => particle.alive);
+      this._postWorker({ type: "config", config: serializeParticleConfig(this._config) });
     }
 
-    _canCreateParticle() {
-      const cfg = this._config;
+    _onWorkerMessage(event) {
+      const data = event && event.data ? event.data : null;
+      if (!data) {
+        return;
+      }
 
-      if (cfg.totalParticleLimit > 0 && this._createdTotal >= cfg.totalParticleLimit) {
-        if (cfg.running) {
+      if (data.type === "snapshot") {
+        this._particleSnapshot = data.buffer ? new Float32Array(data.buffer) : new Float32Array(0);
+        this._snapshotActive = Boolean(data.active);
+        this._particles = snapshotToParticleViews(this._particleSnapshot);
+        if (this._snapshotActive || this._particleSnapshot.length > 0 || (this._config && this._config.running)) {
+          this._startPainter();
+        }
+        return;
+      }
+
+      if (data.type === "stopped") {
+        this._snapshotActive = false;
+        if (!this._config || !this._config.running) {
+          this._render();
+          this._stopPainter();
+        }
+        return;
+      }
+
+      if (data.type === "limitReached") {
+        if (this._config && this._config.running) {
           this.setAttribute("running", "false");
         }
-        return false;
       }
-
-      return this._particles.length < this._activeLimit;
     }
 
-    _createParticle(origin) {
-      if (!this._canCreateParticle()) {
-        return false;
-      }
-
-      this._particles.push(ParticleFactory.create(this._config, this._rng, origin));
-      this._createdTotal += 1;
-      return true;
-    }
-
-    _emit(elapsedMs) {
-      const cfg = this._config;
-
-      if (!this._canCreateParticle()) {
+    _startPainter() {
+      if (this._paintTimer) {
         return;
       }
 
-      this._emitCarry += cfg.emitRate * (elapsedMs / 1000);
-
-      while (this._emitCarry >= 1) {
-        if (this._particles.length >= this._activeLimit) {
-          break;
-        }
-
-        if (!this._canCreateParticle()) {
-          break;
-        }
-
-        this._emitCarry -= 1;
-        this._createParticle(null);
-      }
+      const delay = Math.max(1, Math.floor(this._paintInterval || (this._config ? this._config.interval : 16.666)));
+      this._paintTimer = global.setTimeout(() => this._paintTick(), delay);
     }
 
-    _processBursts(elapsedMs) {
-      if (!Array.isArray(this._burstQueue) || this._burstQueue.length <= 0) {
+    _stopPainter() {
+      if (!this._paintTimer) {
         return;
       }
 
-      const cfg = this._config;
-      const rate = Math.max(1, Number(cfg.emitRate) || 0);
-
-      for (let i = 0; i < this._burstQueue.length; i += 1) {
-        const burst = this._burstQueue[i];
-
-        if (!burst || burst.remaining <= 0) {
-          continue;
-        }
-
-        burst.carry += rate * (elapsedMs / 1000);
-
-        while (burst.remaining > 0 && burst.carry >= 1) {
-          if (!this._createParticle({ x: burst.x, y: burst.y })) {
-            break;
-          }
-
-          burst.carry -= 1;
-          burst.remaining -= 1;
-        }
-      }
-
-      this._burstQueue = this._burstQueue.filter((burst) => burst && burst.remaining > 0);
+      global.clearTimeout(this._paintTimer);
+      this._paintTimer = 0;
     }
 
-    _burstImmediate(count, x, y) {
-      const total = Math.max(0, Math.floor(Number(count)));
-      let created = 0;
-      const origin = {
-        x: readFiniteNumber(x, this._config ? this._config.x : 0),
-        y: readFiniteNumber(y, this._config ? this._config.y : 0),
-      };
+    _paintTick() {
+      this._paintTimer = 0;
 
-      while (created < total && this._createParticle(origin)) {
-        created += 1;
+      const shouldMeasure = this._paintPollCountdown <= 0;
+      const start = shouldMeasure && global.performance ? performance.now() : 0;
+
+      this._render(shouldMeasure);
+
+      if (shouldMeasure && global.performance) {
+        this._lastPaintDuration = performance.now() - start;
+        this._adaptPainter();
+        this._paintPollCountdown = 6 + Math.floor(Math.random() * 10);
+      } else {
+        this._paintPollCountdown -= 1;
       }
 
-      this._render();
-      return created;
+      if ((this._config && this._config.running) || this._snapshotActive || this._particleSnapshot.length > 0) {
+        this._startPainter();
+      }
     }
 
-    _render() {
+    _adaptPainter() {
+      const targetInterval = Math.max(1, this._config ? this._config.interval : 16.666);
+      const drawDuration = Number(this._lastPaintDuration) || 0;
+
+      if (drawDuration > targetInterval) {
+        if (this._drawStride < 2) {
+          this._drawStride = 2;
+          this._paintInterval = targetInterval;
+        } else {
+          this._paintInterval = Math.max(targetInterval, drawDuration + 20);
+        }
+        return;
+      }
+
+      if (drawDuration < targetInterval * 0.55) {
+        if (this._paintInterval > targetInterval) {
+          this._paintInterval = Math.max(targetInterval, this._paintInterval * 0.85);
+        } else if (this._drawStride > 1) {
+          this._drawStride = 1;
+        }
+      }
+    }
+
+    _render(forceAll) {
       const ctx = this._ctx;
       const width = this._canvas.clientWidth;
       const height = this._canvas.clientHeight;
+      const snapshot = this._particleSnapshot;
 
       ctx.clearRect(0, 0, width, height);
 
-      for (const particle of this._particles) {
-        ParticleRenderer.draw(ctx, particle, this._sprite, this._emitterMask, width, height);
+      if (!snapshot || snapshot.length <= 0) {
+        return;
+      }
+
+      const stride = forceAll ? 1 : Math.max(1, Math.floor(this._drawStride || 1));
+      const phase = forceAll ? 0 : this._drawPhase % stride;
+
+      if (!forceAll) {
+        this._drawPhase = (this._drawPhase + 1) % stride;
+      }
+
+      for (let i = phase * 4; i < snapshot.length; i += stride * 4) {
+        ParticleRenderer.drawSnapshot(ctx, snapshot, i, this._sprite, this._emitterMask, width, height);
       }
     }
   }
@@ -47198,6 +47917,8 @@
         lifetimeVariation: Math.max(0, number("lifetimeVariation", 0)),
         x: number("x", 0),
         y: number("y", 0),
+        width: Math.max(0, number("width", 0)),
+        height: Math.max(0, number("height", 0)),
         xVariation: number("xVariation", 0),
         yVariation: number("yVariation", 0),
         xVelocity: number("xVelocity", 0),
@@ -47238,10 +47959,11 @@
       const hasOrigin = origin && typeof origin === "object";
       const originX = hasOrigin && Number.isFinite(Number(origin.x)) ? Number(origin.x) : cfg.x;
       const originY = hasOrigin && Number.isFinite(Number(origin.y)) ? Number(origin.y) : cfg.y;
+      const emitterOrigin = sampleEmitterOrigin(cfg, rng, originX, originY);
 
       return new Particle({
-        x: vary(originX, cfg.xVariation, rng),
-        y: vary(originY, cfg.yVariation, rng),
+        x: vary(emitterOrigin.x, cfg.xVariation, rng),
+        y: vary(emitterOrigin.y, cfg.yVariation, rng),
         vx: vary(cfg.xVelocity, cfg.xVelocityVariation, rng),
         vy: vary(cfg.yVelocity, cfg.yVelocityVariation, rng),
         ax: vary(cfg.xAcceleration, cfg.xAccelerationVariation, rng),
@@ -47290,6 +48012,17 @@
   }
 
   class ParticleRenderer {
+    static drawSnapshot(ctx, snapshot, offset, sprite, emitterMask, emitterWidth, emitterHeight) {
+      const particle = {
+        x: snapshot[offset],
+        y: snapshot[offset + 1],
+        size: snapshot[offset + 2],
+        opacity: snapshot[offset + 3],
+      };
+
+      ParticleRenderer.draw(ctx, particle, sprite, emitterMask, emitterWidth, emitterHeight);
+    }
+
     static draw(ctx, particle, sprite, emitterMask, emitterWidth, emitterHeight) {
       const size = particle.size;
 
@@ -47593,6 +48326,432 @@
     return value + rng.range(-variation, variation);
   }
 
+  function sampleEmitterOrigin(cfg, rng, centerX, centerY) {
+    const width = Math.max(0, Number(cfg && cfg.width) || 0);
+    const height = Math.max(0, Number(cfg && cfg.height) || 0);
+
+    return {
+      x: width ? centerX + rng.range(-width, width) : centerX,
+      y: height ? centerY + rng.range(-height, height) : centerY,
+    };
+  }
+
+  function serializeParticleConfig(cfg) {
+    return {
+      emitRate: cfg.emitRate,
+      lifetime: cfg.lifetime,
+      lifetimeVariation: cfg.lifetimeVariation,
+      x: cfg.x,
+      y: cfg.y,
+      width: cfg.width,
+      height: cfg.height,
+      xVariation: cfg.xVariation,
+      yVariation: cfg.yVariation,
+      xVelocity: cfg.xVelocity,
+      yVelocity: cfg.yVelocity,
+      xVelocityVariation: cfg.xVelocityVariation,
+      yVelocityVariation: cfg.yVelocityVariation,
+      xAcceleration: cfg.xAcceleration,
+      yAcceleration: cfg.yAcceleration,
+      xAccelerationVariation: cfg.xAccelerationVariation,
+      yAccelerationVariation: cfg.yAccelerationVariation,
+      startSize: cfg.startSize,
+      endSize: cfg.endSize,
+      startSizeVariation: cfg.startSizeVariation,
+      endSizeVariation: cfg.endSizeVariation,
+      startOpacity: cfg.startOpacity,
+      endOpacity: cfg.endOpacity,
+      startOpacityVariation: cfg.startOpacityVariation,
+      endOpacityVariation: cfg.endOpacityVariation,
+      maxActiveParticles: cfg.maxActiveParticles,
+      maxActiveParticlesVariation: cfg.maxActiveParticlesVariation,
+      totalParticleLimit: cfg.totalParticleLimit,
+      running: cfg.running,
+      interval: cfg.interval,
+      seed: cfg.seed,
+    };
+  }
+
+  function snapshotToParticleViews(snapshot) {
+    const particles = [];
+
+    for (let i = 0; i < snapshot.length; i += 4) {
+      particles.push({
+        x: snapshot[i],
+        y: snapshot[i + 1],
+        size: snapshot[i + 2],
+        opacity: snapshot[i + 3],
+      });
+    }
+
+    return particles;
+  }
+
+  function createParticleWorkerSource() {
+    return `
+      var cfg = defaultConfig();
+      var particles = [];
+      var rng = new SeededRandom(cfg.seed);
+      var activeLimit = cfg.maxActiveParticles;
+      var createdTotal = 0;
+      var emitCarry = 0;
+      var timer = 0;
+      var lastTime = 0;
+
+      self.onmessage = function(event) {
+        var data = event && event.data ? event.data : {};
+
+        if (data.type === "config") {
+          var oldSeed = cfg.seed;
+          cfg = normalizeConfig(data.config || cfg);
+          if (oldSeed !== cfg.seed) {
+            rng = new SeededRandom(cfg.seed);
+          }
+          activeLimit = rollActiveLimit();
+          if (cfg.running) {
+            startTimer();
+          }
+          return;
+        }
+
+        if (data.type === "start") {
+          cfg.running = true;
+          startTimer();
+          return;
+        }
+
+        if (data.type === "stop") {
+          cfg.running = false;
+          return;
+        }
+
+        if (data.type === "clear") {
+          particles = [];
+          createdTotal = 0;
+          emitCarry = 0;
+          postSnapshot(false);
+          if (!cfg.running) {
+            stopTimer();
+            self.postMessage({ type: "stopped" });
+          }
+          return;
+        }
+
+        if (data.type === "burst") {
+          var created = burst(Number(data.x), Number(data.y), Number(data.count));
+          postSnapshot(cfg.running || particles.length > 0);
+          if (created > 0 || cfg.running) {
+            startTimer();
+          }
+        }
+      };
+
+      function defaultConfig() {
+        return {
+          emitRate: 10,
+          lifetime: 1000,
+          lifetimeVariation: 0,
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0,
+          xVariation: 0,
+          yVariation: 0,
+          xVelocity: 0,
+          yVelocity: 0,
+          xVelocityVariation: 0,
+          yVelocityVariation: 0,
+          xAcceleration: 0,
+          yAcceleration: 0,
+          xAccelerationVariation: 0,
+          yAccelerationVariation: 0,
+          startSize: 8,
+          endSize: 8,
+          startSizeVariation: 0,
+          endSizeVariation: 0,
+          startOpacity: 1,
+          endOpacity: 0,
+          startOpacityVariation: 0,
+          endOpacityVariation: 0,
+          maxActiveParticles: 256,
+          maxActiveParticlesVariation: 0,
+          totalParticleLimit: 0,
+          running: false,
+          interval: 16.666,
+          seed: 0xc0ffee
+        };
+      }
+
+      function normalizeConfig(input) {
+        var next = defaultConfig();
+        var key;
+
+        for (key in input) {
+          if (Object.prototype.hasOwnProperty.call(input, key)) {
+            next[key] = input[key];
+          }
+        }
+
+        next.emitRate = finite(next.emitRate, 10);
+        next.lifetime = Math.max(1, finite(next.lifetime, 1000));
+        next.lifetimeVariation = Math.max(0, finite(next.lifetimeVariation, 0));
+        next.x = finite(next.x, 0);
+        next.y = finite(next.y, 0);
+        next.width = Math.max(0, finite(next.width, 0));
+        next.height = Math.max(0, finite(next.height, 0));
+        next.xVariation = finite(next.xVariation, 0);
+        next.yVariation = finite(next.yVariation, 0);
+        next.xVelocity = finite(next.xVelocity, 0);
+        next.yVelocity = finite(next.yVelocity, 0);
+        next.xVelocityVariation = finite(next.xVelocityVariation, 0);
+        next.yVelocityVariation = finite(next.yVelocityVariation, 0);
+        next.xAcceleration = finite(next.xAcceleration, 0);
+        next.yAcceleration = finite(next.yAcceleration, 0);
+        next.xAccelerationVariation = finite(next.xAccelerationVariation, 0);
+        next.yAccelerationVariation = finite(next.yAccelerationVariation, 0);
+        next.startSize = Math.max(0, finite(next.startSize, 8));
+        next.endSize = Math.max(0, finite(next.endSize, 8));
+        next.startSizeVariation = Math.max(0, finite(next.startSizeVariation, 0));
+        next.endSizeVariation = Math.max(0, finite(next.endSizeVariation, 0));
+        next.startOpacity = clamp(finite(next.startOpacity, 1), 0, 1);
+        next.endOpacity = clamp(finite(next.endOpacity, 0), 0, 1);
+        next.startOpacityVariation = Math.max(0, finite(next.startOpacityVariation, 0));
+        next.endOpacityVariation = Math.max(0, finite(next.endOpacityVariation, 0));
+        next.maxActiveParticles = Math.max(0, Math.floor(finite(next.maxActiveParticles, 256)));
+        next.maxActiveParticlesVariation = Math.max(0, finite(next.maxActiveParticlesVariation, 0));
+        next.totalParticleLimit = Math.max(0, Math.floor(finite(next.totalParticleLimit, 0)));
+        next.running = Boolean(next.running);
+        next.interval = Math.max(1, finite(next.interval, 16.666));
+        next.seed = Math.floor(finite(next.seed, 0xc0ffee));
+
+        return next;
+      }
+
+      function startTimer() {
+        if (timer) {
+          return;
+        }
+
+        lastTime = now();
+        timer = setTimeout(tick, Math.max(1, Math.floor(cfg.interval)));
+      }
+
+      function stopTimer() {
+        if (!timer) {
+          return;
+        }
+
+        clearTimeout(timer);
+        timer = 0;
+      }
+
+      function tick() {
+        timer = 0;
+
+        var current = now();
+        var elapsedMs = Math.min(Math.max(0, current - lastTime), 100);
+        var tickScale = elapsedMs / cfg.interval;
+
+        lastTime = current;
+
+        if (cfg.running) {
+          emit(elapsedMs);
+        }
+
+        updateParticles(elapsedMs, tickScale);
+        postSnapshot(cfg.running || particles.length > 0);
+
+        if (cfg.running || particles.length > 0) {
+          timer = setTimeout(tick, Math.max(1, Math.floor(cfg.interval)));
+        } else {
+          self.postMessage({ type: "stopped" });
+        }
+      }
+
+      function emit(elapsedMs) {
+        if (!canCreateParticle()) {
+          return;
+        }
+
+        emitCarry += cfg.emitRate * (elapsedMs / 1000);
+
+        while (emitCarry >= 1) {
+          if (!createParticle(null)) {
+            break;
+          }
+
+          emitCarry -= 1;
+        }
+      }
+
+      function burst(x, y, count) {
+        var total = Math.max(0, Math.floor(finite(count, 0)));
+        var created = 0;
+        var origin = {
+          x: finite(x, cfg.x),
+          y: finite(y, cfg.y)
+        };
+
+        while (created < total && createParticle(origin)) {
+          created += 1;
+        }
+
+        return created;
+      }
+
+      function canCreateParticle() {
+        if (cfg.totalParticleLimit > 0 && createdTotal >= cfg.totalParticleLimit) {
+          if (cfg.running) {
+            cfg.running = false;
+            self.postMessage({ type: "limitReached" });
+          }
+          return false;
+        }
+
+        return particles.length < activeLimit;
+      }
+
+      function createParticle(origin) {
+        if (!canCreateParticle()) {
+          return false;
+        }
+
+        particles.push(makeParticle(origin));
+        createdTotal += 1;
+        return true;
+      }
+
+      function makeParticle(origin) {
+        var hasOrigin = origin && typeof origin === "object";
+        var originX = hasOrigin && Number.isFinite(Number(origin.x)) ? Number(origin.x) : cfg.x;
+        var originY = hasOrigin && Number.isFinite(Number(origin.y)) ? Number(origin.y) : cfg.y;
+        var emitterOrigin = sampleEmitterOrigin(originX, originY);
+
+        return {
+          x: vary(emitterOrigin.x, cfg.xVariation),
+          y: vary(emitterOrigin.y, cfg.yVariation),
+          vx: vary(cfg.xVelocity, cfg.xVelocityVariation),
+          vy: vary(cfg.yVelocity, cfg.yVelocityVariation),
+          ax: vary(cfg.xAcceleration, cfg.xAccelerationVariation),
+          ay: vary(cfg.yAcceleration, cfg.yAccelerationVariation),
+          startSize: Math.max(0, vary(cfg.startSize, cfg.startSizeVariation)),
+          endSize: Math.max(0, vary(cfg.endSize, cfg.endSizeVariation)),
+          startOpacity: clamp(vary(cfg.startOpacity, cfg.startOpacityVariation), 0, 1),
+          endOpacity: clamp(vary(cfg.endOpacity, cfg.endOpacityVariation), 0, 1),
+          lifetime: vary(cfg.lifetime, cfg.lifetimeVariation),
+          age: 0
+        };
+      }
+
+      function updateParticles(elapsedMs, tickScale) {
+        var alive = [];
+        var i;
+        var particle;
+
+        for (i = 0; i < particles.length; i += 1) {
+          particle = particles[i];
+          particle.age += elapsedMs;
+
+          if (particle.age >= particle.lifetime) {
+            continue;
+          }
+
+          particle.vx += particle.ax * tickScale;
+          particle.vy += particle.ay * tickScale;
+          particle.x += particle.vx * tickScale;
+          particle.y += particle.vy * tickScale;
+          alive.push(particle);
+        }
+
+        particles = alive;
+      }
+
+      function postSnapshot(active) {
+        var snapshot = new Float32Array(particles.length * 4);
+        var i;
+        var p;
+        var progress;
+        var offset;
+
+        for (i = 0; i < particles.length; i += 1) {
+          p = particles[i];
+          progress = clamp(p.age / p.lifetime, 0, 1);
+          offset = i * 4;
+          snapshot[offset] = p.x;
+          snapshot[offset + 1] = p.y;
+          snapshot[offset + 2] = lerp(p.startSize, p.endSize, progress);
+          snapshot[offset + 3] = lerp(p.startOpacity, p.endOpacity, progress);
+        }
+
+        self.postMessage({
+          type: "snapshot",
+          buffer: snapshot.buffer,
+          active: Boolean(active),
+          count: particles.length
+        }, [snapshot.buffer]);
+      }
+
+      function rollActiveLimit() {
+        var varied = cfg.maxActiveParticles + rng.range(
+          -cfg.maxActiveParticlesVariation,
+          cfg.maxActiveParticlesVariation
+        );
+
+        return Math.max(0, Math.floor(varied));
+      }
+
+      function sampleEmitterOrigin(centerX, centerY) {
+        return {
+          x: cfg.width ? centerX + rng.range(-cfg.width, cfg.width) : centerX,
+          y: cfg.height ? centerY + rng.range(-cfg.height, cfg.height) : centerY
+        };
+      }
+
+      function vary(value, variation) {
+        if (!variation) {
+          return value;
+        }
+
+        return value + rng.range(-variation, variation);
+      }
+
+      function finite(value, fallback) {
+        var parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+      }
+
+      function lerp(a, b, t) {
+        return a + (b - a) * t;
+      }
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function now() {
+        return (self.performance && typeof self.performance.now === "function")
+          ? self.performance.now()
+          : Date.now();
+      }
+
+      function SeededRandom(seed) {
+        this.state = seed >>> 0;
+      }
+
+      SeededRandom.prototype.next = function next() {
+        var t = this.state += 0x6d2b79f5;
+
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+
+      SeededRandom.prototype.range = function range(min, max) {
+        return min + (max - min) * this.next();
+      };
+    `;
+  }
+
   function lerp(a, b, t) {
     return a + (b - a) * t;
   }
@@ -47643,20 +48802,21 @@
         if (Array.isArray(this._particles)) {
           this._particles.length = 0;
         }
-        if (Array.isArray(this._burstQueue)) {
-          this._burstQueue.length = 0;
+        if (this._particleSnapshot) {
+          this._particleSnapshot = new Float32Array(0);
         }
-        this._createdTotal = 0;
-        this._emitCarry = 0;
+        if (typeof this._postWorker === "function") {
+          this._postWorker({ type: "clear" });
+        }
         if (typeof this._render === "function") {
           this._render();
         }
       };
     }
     if (typeof proto.burst !== "function") {
-      proto.burst = function burstParticleEmitter(num, x, y) {
+      proto.burst = function burstParticleEmitter(x, y, num) {
         if (typeof this._burstImmediate === "function") {
-          return this._burstImmediate(num, x, y);
+          return this._burstImmediate(x, y, num);
         }
         return 0;
       };
