@@ -1,0 +1,74 @@
+q-style qUiBarHost {
+  display: block
+  width: 100%
+  min-width: 0
+  height: 48px
+  min-height: 48px
+  margin: 0
+  padding: 0
+  box-sizing: border-box
+  background: #0f0f0f
+  color: #ffffff
+  overflow: visible
+}
+
+q-style qUiBarContents {
+  display: flex
+  align-items: center
+  justify-content: flex-start
+  gap: 0.85rem
+  flex-wrap: wrap
+  width: 100%
+  min-width: 0
+  min-height: 100%
+  margin: 0
+  padding: 0.5rem 0.75rem
+  box-sizing: border-box
+}
+
+q-default-theme qUiBarDefaultTheme {
+  q-ui-bar { qUiBarHost }
+  .q-ui-bar-contents { qUiBarContents }
+}
+
+q-component q-ui-bar {
+  q-property height: "48px"
+  q-property background: "#0f0f0f"
+
+  function cssValue(value, fallback) {
+    var text = String(value == null ? "" : value).trim();
+    return text || fallback;
+  }
+
+  function applyBarStyleVars() {
+    this.style.display = "block";
+    this.style.width = "100%";
+    this.style.minWidth = "0";
+    this.style.height = this.cssValue(this.height, "48px");
+    this.style.minHeight = this.cssValue(this.height, "48px");
+    this.style.margin = "0";
+    this.style.padding = "0";
+    this.style.boxSizing = "border-box";
+    this.style.background = this.cssValue(this.background, "#0f0f0f");
+    this.style.color = "#ffffff";
+    this.style.overflow = "visible";
+  }
+
+  onReady {
+    this.applyBarStyleVars();
+  }
+
+  onheightChanged(height) {
+    this.applyBarStyleVars();
+  }
+
+  onbackgroundChanged(background) {
+    this.applyBarStyleVars();
+  }
+
+  qUiBarDefaultTheme {
+    div.q-ui-bar-contents {
+      slot { barContents }
+    }
+  }
+}
