@@ -551,8 +551,13 @@
     var props;
     var block;
     var propMatches;
+    var qpropMatch;
     if (!line || line.indexOf(":") < 0) {
       return [line];
+    }
+    qpropMatch = line.match(/^(\t*)(q-property\s+[A-Za-z_][A-Za-z0-9_-]*\s*:\s*(?:"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s{}\t]+))\s+(.+)$/);
+    if (qpropMatch) {
+      return [qpropMatch[1] + qpropMatch[2]].concat(splitFormattedLine(qpropMatch[1] + qpropMatch[3]));
     }
     if (line.indexOf("{") < 0) {
       match = line.match(/^(\t*)(.*)$/);
@@ -614,6 +619,40 @@
         out += "\n";
       }
     }
+    function readInlineExpression(start) {
+      var expr = "";
+      var depth = 0;
+      var exprQuote = "";
+      var exprEscaped = false;
+      var j;
+      for (j = start; j < text.length; j += 1) {
+        var exprCh = text.charAt(j);
+        expr += exprCh;
+        if (exprQuote) {
+          if (exprEscaped) {
+            exprEscaped = false;
+          } else if (exprCh === "\\") {
+            exprEscaped = true;
+          } else if (exprCh === exprQuote) {
+            exprQuote = "";
+          }
+          continue;
+        }
+        if (exprCh === "\"" || exprCh === "'" || exprCh === "`") {
+          exprQuote = exprCh;
+          continue;
+        }
+        if (exprCh === "{") {
+          depth += 1;
+        } else if (exprCh === "}") {
+          depth -= 1;
+          if (depth === 0) {
+            break;
+          }
+        }
+      }
+      return { text: expr, end: j };
+    }
     if (!text) {
       return "";
     }
@@ -639,6 +678,17 @@
         pendingSpace = false;
         quote = ch;
         out += ch;
+        continue;
+      }
+      if (ch === "$" && text.charAt(i + 1) === "{") {
+        var inlineExpression = readInlineExpression(i);
+        writeIndent();
+        if (pendingSpace && out && !/[\s{([]$/.test(out.charAt(out.length - 1))) {
+          out += " ";
+        }
+        pendingSpace = false;
+        out += inlineExpression.text;
+        i = inlineExpression.end;
         continue;
       }
       if (ch === "{") {

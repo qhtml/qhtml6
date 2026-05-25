@@ -723,6 +723,84 @@
     return { text: out, inBlockComment: block };
   }
 
+  function stripQhtmlInlineExpressions(line) {
+    const input = String(line || '');
+    let out = '';
+    let i = 0;
+    while (i < input.length) {
+      if (input[i] === '$' && input[i + 1] === '{') {
+        i += 2;
+        let depth = 1;
+        let quote = '';
+        let escaped = false;
+        while (i < input.length && depth > 0) {
+          const ch = input[i];
+          if (quote) {
+            if (escaped) {
+              escaped = false;
+            } else if (ch === '\\') {
+              escaped = true;
+            } else if (ch === quote) {
+              quote = '';
+            }
+            i += 1;
+            continue;
+          }
+          if (ch === '"' || ch === '\'' || ch === '`') {
+            quote = ch;
+            i += 1;
+            continue;
+          }
+          if (ch === '{') {
+            depth += 1;
+          } else if (ch === '}') {
+            depth -= 1;
+          }
+          i += 1;
+        }
+        out += '$';
+        continue;
+      }
+      out += input[i];
+      i += 1;
+    }
+    return out;
+  }
+
+  function normalizeQPropertyLineBreaks(source) {
+    const input = String(source || '');
+    const pattern = /(\bq-property\s+[A-Za-z_][A-Za-z0-9_-]*\s*:\s*(?:"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s{}\n]+))([ \t]+)(?=(?![}\n])\S)/g;
+    const changes = [];
+    const text = input.replace(pattern, function replaceQPropertyLine(match, declaration, space, offset) {
+      const spaceStart = offset + declaration.length;
+      changes.push({
+        start: spaceStart,
+        end: spaceStart + space.length,
+        delta: 1 - space.length
+      });
+      return declaration + '\n';
+    });
+
+    return {
+      text: text,
+      mapOffset: function mapOffset(offset) {
+        let mapped = Math.max(0, Math.min(Number(offset) || 0, input.length));
+        for (let i = 0; i < changes.length; i += 1) {
+          const change = changes[i];
+          if (offset <= change.start) {
+            continue;
+          }
+          if (offset <= change.end) {
+            mapped = change.start + 1;
+          } else {
+            mapped += change.delta;
+          }
+        }
+        return Math.max(0, Math.min(mapped, text.length));
+      }
+    };
+  }
+
   function lineOffsets(lines) {
     const starts = [];
     let pos = 0;
@@ -743,7 +821,8 @@
   }
 
   function formatQhtmlForEditing(source, cursorStart, cursorEnd, protectRadius) {
-    const raw = String(source || '').replace(/\r\n/g, '\n');
+    const normalizedInput = normalizeQPropertyLineBreaks(String(source || '').replace(/\r\n/g, '\n'));
+    const raw = normalizedInput.text;
     if (!raw) {
       return {
         text: '',
@@ -800,7 +879,8 @@
       newLeading[idx] = keepAsTyped ? oldLead : desiredIndent.length;
 
       const analysisQuoted = stripQhtmlQuotedSections(trimmed);
-      const analysisResult = stripQhtmlCommentsForDepth(analysisQuoted, inBlockCommentForDepth);
+      const analysisInterpolated = stripQhtmlInlineExpressions(analysisQuoted);
+      const analysisResult = stripQhtmlCommentsForDepth(analysisInterpolated, inBlockCommentForDepth);
       const analysisLine = analysisResult.text;
       inBlockCommentForDepth = analysisResult.inBlockComment;
       const opens = (analysisLine.match(/\{/g) || []).length;
@@ -814,7 +894,7 @@
     const mapOffset = (offset) => {
       if (typeof offset !== 'number') return 0;
       const oldTotal = raw.length;
-      const clamped = Math.max(0, Math.min(offset, oldTotal));
+      const clamped = Math.max(0, Math.min(normalizedInput.mapOffset(offset), oldTotal));
       const lineIdx = lineIndexAtOffset(oldStarts, lines, clamped);
       const oldLineStart = oldStarts[lineIdx];
       const newLineStart = newStarts[lineIdx];
@@ -2073,6 +2153,8 @@
       this._cmLoadError = null;
       this._semanticCacheSource = null;
       this._semanticCacheModel = null;
+      this._autoFormatEnabled = true;
+      this._autoFormatToggle = null;
     }
 
     connectedCallback() {
@@ -2087,9 +2169,11 @@
         const initialFromBody = readInlineSourceFromElement(this);
         const initialSource = initialFromAttr != null ? String(initialFromAttr) : initialFromBody;
 
+        this._autoFormatEnabled = this._readInitialAutoFormatEnabled();
         this.textContent = '';
         this._renderShell();
         this._cacheNodes();
+        this._syncAutoFormatControl();
         this._bindEvents();
         this._setTab('qhtml');
         this.setQhtmlSource(initialSource);
@@ -2123,7 +2207,7 @@
 
     setQhtmlSource(source) {
       const normalized = String(source || '').replace(/\r\n/g, '\n');
-      this._source = formatQhtml(normalized);
+      this._source = this._isAutoFormatEnabled() ? formatQhtml(normalized) : normalized;
       this._semanticCacheSource = null;
       this._semanticCacheModel = null;
       if (this._cmView && this._cmView.state && this._cmView.state.doc) {
@@ -2185,6 +2269,8 @@
           'q-editor .qe-tab[aria-selected="true"]{background:#fff;color:#0f172a;box-shadow:0 1px 0 #e5e7eb inset,0 -1px 0 #fff inset}' +
           'q-editor .qe-actions{margin-left:auto;display:flex;gap:.4rem}' +
           'q-editor .qe-btn{appearance:none;border:1px solid #cbd5e1;background:#fff;color:#0f172a;padding:.4rem .65rem;border-radius:8px;cursor:pointer;font-size:.75rem}' +
+          'q-editor .qe-format-toggle{display:inline-flex;align-items:center;gap:.35rem;margin-left:.25rem;color:#334155;font-size:.75rem;white-space:nowrap;user-select:none}' +
+          'q-editor .qe-format-toggle input{margin:0;accent-color:#1d4ed8}' +
           'q-editor .qe-panel{display:none;position:relative}' +
           'q-editor .qe-panel[data-active="true"]{display:block}' +
           'q-editor .qe-copy{position:absolute;top:.6rem;right:.6rem;z-index:2;appearance:none;border:0;background:#111827;color:#fff;padding:.35rem .55rem;border-radius:8px;cursor:pointer;font-size:.66rem}' +
@@ -2244,6 +2330,7 @@
             '<button class="qe-tab" type="button" data-tab="preview" aria-selected="false">Preview</button>' +
             '<button class="qe-tab" type="button" data-tab="qdom" aria-selected="false">QDom</button>' +
             '<div class="qe-actions">' +
+              '<label class="qe-format-toggle"><input class="qe-auto-format" type="checkbox" checked>Auto-format</label>' +
               '<button class="qe-btn" type="button" data-copy="qhtml">Copy QHTML</button>' +
               '<button class="qe-btn" type="button" data-copy="html">Copy HTML</button>' +
               '<button class="qe-btn" type="button" data-copy="qdom">Copy QDom</button>' +
@@ -2280,6 +2367,7 @@
       this._previewNode = this.querySelector('.qe-preview');
       this._qdomNode = this.querySelector('.qe-qdom');
       this._copyButtons = Array.from(this.querySelectorAll('[data-copy]'));
+      this._autoFormatToggle = this.querySelector('.qe-auto-format');
     }
 
     _bindEvents() {
@@ -2288,6 +2376,20 @@
           this._setTab(tab.getAttribute('data-tab') || 'qhtml');
         });
       });
+
+      if (this._autoFormatToggle) {
+        this._autoFormatToggle.addEventListener('change', () => {
+          this._autoFormatEnabled = !!this._autoFormatToggle.checked;
+          this._syncAutoFormatControl();
+          if (this._autoFormatEnabled) {
+            this.removeAttribute('disable-auto-format');
+            this._applyAutoFormat();
+          } else {
+            this.setAttribute('disable-auto-format', '');
+            this._clearTimer('_formatTimer');
+          }
+        });
+      }
 
       if (this._qhtmlInput) {
         this._qhtmlInput.addEventListener('input', () => {
@@ -2713,6 +2815,7 @@
     }
 
     _scheduleAutoFormat(delayMs) {
+      if (!this._isAutoFormatEnabled()) return;
       if (!this._qhtmlInput && !this._cmView) return;
       this._scheduleTimer('_formatTimer', delayMs, () => {
         this._applyAutoFormat();
@@ -2721,6 +2824,7 @@
 
     _applyAutoFormat() {
       if (this._isApplyingFormat) return;
+      if (!this._isAutoFormatEnabled()) return;
 
       if (this._cmView && this._cmView.state && this._cmView.state.doc) {
         const value = this._cmView.state.doc.toString();
@@ -2771,6 +2875,35 @@
       this._refreshQhtmlHighlight();
       this._syncQhtmlScroll();
       this._scheduleRender(0);
+    }
+
+    _readInitialAutoFormatEnabled() {
+      const attr = this.getAttribute('auto-format');
+      if (this.hasAttribute('disable-auto-format')) {
+        return false;
+      }
+      if (attr != null && /^(?:0|false|off|no)$/i.test(String(attr).trim())) {
+        return false;
+      }
+      return true;
+    }
+
+    _isAutoFormatEnabled() {
+      if (this._autoFormatToggle) {
+        return !!this._autoFormatToggle.checked;
+      }
+      return !!this._autoFormatEnabled;
+    }
+
+    _syncAutoFormatControl() {
+      if (this._autoFormatToggle) {
+        this._autoFormatToggle.checked = !!this._autoFormatEnabled;
+        if (this._autoFormatEnabled) {
+          this._autoFormatToggle.setAttribute('checked', '');
+        } else {
+          this._autoFormatToggle.removeAttribute('checked');
+        }
+      }
     }
 
     _syncQhtmlScroll() {
