@@ -116,12 +116,35 @@ div {
     wiki-example-card {
       title: "Behavior and NumberAnimation"
       summary: "Use behavior on a property to intercept writes and animate from the live value to the requested value."
-      note: "Behavior is not a changed handler. Animation frame writes bypass behavior so they do not recursively start new jobs."
+      note: "Behavior is not a changed handler. Animation frame writes bypass behavior, and dimensional values are delivered as CSS-ready strings like 120px, 52%, or 50vh."
       details {
         html {
-          <q-editor>div box {
-  width: 100
+          <q-editor>q-component animated-panel {
+  q-property panelWidth: "50%"
 
+  behavior on panelWidth {
+    NumberAnimation {
+      duration: 180
+      easing: "easeInOutQuad"
+    }
+  }
+
+  div.panel-fill {
+    style { width: 50%; min-height: 2rem; background: #1d4ed8; color: #ffffff; }
+    text { Animated panel }
+  }
+
+  onpanelWidthchanged(value) {
+    this.querySelector(".panel-fill").style.width = value;
+  }
+
+  onclick {
+    this.panelWidth = "70%"
+  }
+}
+
+div box {
+  width: 100
   behavior on width {
     NumberAnimation {
       duration: 100
@@ -132,7 +155,9 @@ div {
   onclick {
     this.width = 300
   }
-}</q-editor>
+}
+
+animated-panel { }</q-editor>
         }
       }
     }

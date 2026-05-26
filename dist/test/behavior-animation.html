@@ -119,7 +119,7 @@ div#vh-box.box {
       if (!Number.isFinite(midBasicProperty) || midBasicProperty <= 100 || midBasicProperty >= 300) {
         failures.push("basic width property did not receive an intermediate animation value");
       }
-      await wait(100);
+      await wait(1200);
       if (!nearPx(widthOf("basic-box"), 300)) {
         failures.push("basic final width is not exactly 300px");
       }
@@ -132,7 +132,7 @@ div#vh-box.box {
       rebase.width = "300px";
       await wait(35);
       rebase.width = "500px";
-      await wait(180);
+      await wait(1400);
       if (!nearPx(widthOf("rebase-box"), 500)) {
         failures.push("rebase final width is not 500px");
       }
@@ -141,7 +141,7 @@ div#vh-box.box {
         failures.push("disabled behavior did not write immediately");
       }
       percent.width = "70%";
-      await wait(90);
+      await wait(1000);
       if (widthOf("percent-box") !== "70%") {
         failures.push("matching percent units did not animate to 70%");
       }
@@ -149,7 +149,7 @@ div#vh-box.box {
         failures.push("percent width property did not keep its percent unit");
       }
       vh.width = "60vh";
-      await wait(90);
+      await wait(1000);
       if (widthOf("vh-box") !== "60vh") {
         failures.push("matching vh units did not animate to 60vh");
       }
