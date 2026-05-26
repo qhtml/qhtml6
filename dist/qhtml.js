@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-26T06:09:29Z */
+/* generated: 2026-05-26T15:43:55Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -16874,6 +16874,7 @@
   const qBehaviorRegistry = typeof WeakMap === "function" ? new WeakMap() : null;
   const qBehaviorCommitBypass = typeof WeakMap === "function" ? new WeakMap() : null;
   const qBehaviorInterceptors = typeof WeakMap === "function" ? new WeakMap() : null;
+  const CSS_NUMERIC_VALUE_PATTERN = /^(-?(?:\d+|\d*\.\d+))(px|%|em|rem|vh|vw|vmin|vmax|svh|lvh|dvh|svw|lvw|dvw|ch|ex|cm|mm|in|pt|pc|q)?$/i;
 
   class QSignal {
     connect(handler) {
@@ -22366,7 +22367,7 @@
     if (!text) {
       return { valid: false, value: 0, unit: defaultUnit || "px", serialized: "" };
     }
-    const match = text.match(/^(-?(?:\d+|\d*\.\d+))(px|%|em|rem|vh|vw|vmin|vmax|svh|lvh|dvh|svw|lvw|dvw|ch|ex|cm|mm|in|pt|pc|q)?$/i);
+    const match = text.match(CSS_NUMERIC_VALUE_PATTERN);
     if (!match) {
       return { valid: false, value: 0, unit: defaultUnit || "px", serialized: text };
     }
@@ -22387,15 +22388,56 @@
     return String(rounded) + String(unit || "px");
   }
 
+  function parseNumericPropertyValue(value) {
+    const animatedValue = readAnimatedStyleCommitValue(value);
+    if (animatedValue) {
+      return {
+        valid: true,
+        value: Number(animatedValue.value),
+        unit: animatedValue.unit || "",
+        serialized: animatedValue.serialized,
+        propertyValue: animatedValue.propertyValue,
+      };
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return {
+        valid: true,
+        value: Number(value),
+        unit: "",
+        serialized: String(Number(value)),
+        propertyValue: Number(value),
+      };
+    }
+    const text = String(value == null ? "" : value).trim();
+    if (!text) {
+      return { valid: false, value: 0, unit: "", serialized: "", propertyValue: value };
+    }
+    const match = text.match(CSS_NUMERIC_VALUE_PATTERN);
+    if (!match) {
+      return { valid: false, value: value, unit: "", serialized: text, propertyValue: value };
+    }
+    const number = Number(match[1]);
+    const unit = String(match[2] || "");
+    const serialized = Number.isFinite(number) ? String(number) + unit : text;
+    return {
+      valid: Number.isFinite(number),
+      value: number,
+      unit: unit,
+      serialized: serialized,
+      propertyValue: unit ? serialized : number,
+    };
+  }
+
   function createAnimatedStyleCommitValue(numberValue, unit) {
     const number = Number(numberValue);
     const safeNumber = Number.isFinite(number) ? number : 0;
-    const serialized = serializeNumericStyleValue(safeNumber, unit || "px");
+    const normalizedUnit = String(unit || "");
+    const serialized = normalizedUnit ? serializeNumericStyleValue(safeNumber, normalizedUnit) : String(Math.abs(safeNumber) < 0.000001 ? 0 : Math.round(safeNumber * 10000) / 10000);
     return {
       __qhtmlAnimatedStyleValue: true,
       value: safeNumber,
-      propertyValue: serialized,
-      unit: String(unit || "px"),
+      propertyValue: normalizedUnit ? serialized : safeNumber,
+      unit: normalizedUnit,
       serialized: serialized,
     };
   }
@@ -22404,6 +22446,27 @@
     return value && typeof value === "object" && value.__qhtmlAnimatedStyleValue === true
       ? value
       : null;
+  }
+
+  function updateQDomPropertyExtension(qdomNode, prop, value) {
+    if (!qdomNode || typeof qdomNode !== "object" || !prop) {
+      return;
+    }
+    const parsed = parseNumericPropertyValue(value);
+    const unit = parsed && parsed.valid && parsed.unit ? String(parsed.unit || "") : "";
+    if (unit) {
+      if (!qdomNode.property_extensions || typeof qdomNode.property_extensions !== "object" || Array.isArray(qdomNode.property_extensions)) {
+        qdomNode.property_extensions = {};
+      }
+      qdomNode.property_extensions[prop] = unit;
+      return;
+    }
+    if (qdomNode.property_extensions && typeof qdomNode.property_extensions === "object") {
+      delete qdomNode.property_extensions[prop];
+      if (Object.keys(qdomNode.property_extensions).length === 0) {
+        delete qdomNode.property_extensions;
+      }
+    }
   }
 
   function syncQDomProperty(target, prop, value) {
@@ -22423,6 +22486,7 @@
           qdomSourceNode.props = {};
         }
         qdomSourceNode.props[prop] = value;
+        updateQDomPropertyExtension(qdomSourceNode, prop, value);
       }
     } catch (syncError) {
       // qdom syncing is best-effort for arbitrary DOM properties.
@@ -22448,20 +22512,21 @@
           }
         },
         normalize: function normalizeDeclaredValue(value) {
-          const number = Number(value);
-          if (Number.isFinite(number)) {
-            return { valid: true, value: number, unit: "", raw: value };
-          }
-          return { valid: false, value: value, unit: "", raw: value };
+          return parseNumericPropertyValue(value);
         },
         interpolate: function interpolateDeclaredValue(from, to, progress) {
-          return from.value + (to.value - from.value) * progress;
+          return createAnimatedStyleCommitValue(
+            from.value + (to.value - from.value) * progress,
+            to.unit || from.unit || ""
+          );
         },
         commit: function commitDeclaredProperty(value) {
+          const animatedValue = readAnimatedStyleCommitValue(value);
+          const committedValue = animatedValue ? animatedValue.propertyValue : value;
           withBehaviorCommitBypass(target, propertyName, function assignDeclaredProperty() {
-            target[propertyName] = value;
+            target[propertyName] = committedValue;
           });
-          syncQDomProperty(target, propertyName, value);
+          syncQDomProperty(target, propertyName, committedValue);
         },
       };
     }
@@ -22555,22 +22620,24 @@
         }
       },
       normalize: function normalizeGenericProperty(value) {
-        const number = Number(value);
-        return Number.isFinite(number)
-          ? { valid: true, value: number, unit: "", raw: value }
-          : { valid: false, value: value, unit: "", raw: value };
+        return parseNumericPropertyValue(value);
       },
       interpolate: function interpolateGenericProperty(from, to, progress) {
-        return from.value + (to.value - from.value) * progress;
+        return createAnimatedStyleCommitValue(
+          from.value + (to.value - from.value) * progress,
+          to.unit || from.unit || ""
+        );
       },
       commit: function commitGenericProperty(value) {
         if (!target || typeof target !== "object") {
           return;
         }
+        const animatedValue = readAnimatedStyleCommitValue(value);
+        const committedValue = animatedValue ? animatedValue.propertyValue : value;
         withBehaviorCommitBypass(target, propertyName, function assignGenericProperty() {
-          target[propertyName] = value;
+          target[propertyName] = committedValue;
         });
-        syncQDomProperty(target, propertyName, value);
+        syncQDomProperty(target, propertyName, committedValue);
       },
     };
   }

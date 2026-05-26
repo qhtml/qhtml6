@@ -124,7 +124,7 @@ div {
 
   behavior on panelWidth {
     NumberAnimation {
-      duration: 180
+      duration: 1000
       easing: "easeInOutQuad"
     }
   }
@@ -139,21 +139,7 @@ div {
   }
 
   onclick {
-    this.panelWidth = "70%"
-  }
-}
-
-div box {
-  width: 100
-  behavior on width {
-    NumberAnimation {
-      duration: 100
-      easing: "linear"
-    }
-  }
-
-  onclick {
-    this.width = 300
+    this.panelWidth = Math.random() * 100 + "%"
   }
 }
 

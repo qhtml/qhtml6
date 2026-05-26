@@ -151,23 +151,36 @@ Multiple selectors with shorthand:
 `behavior on <property>` intercepts writes before the final value is committed. It is not an `on<Property>Changed` handler. Animation frames commit with behavior bypass enabled, so an animation does not recursively start another animation.
 
 ```qhtml
-div box {
-  width: 100
+q-component animated-panel {
+  q-property panelWidth: "50%"
 
-  behavior on width {
+  behavior on panelWidth {
     NumberAnimation {
-      duration: 100
-      easing: "linear"
+      duration: 1000
+      easing: "easeInOutQuad"
     }
   }
 
+  div.panel-fill {
+    style { width: 50%; min-height: 2rem; background: #1d4ed8; color: #ffffff; }
+    text { Animated panel }
+  }
+
+  onpanelWidthchanged(value) {
+    this.querySelector(".panel-fill").style.width = value;
+  }
+
   onclick {
-    this.width = 300
+    this.panelWidth = Math.random() * 100 + "%"
   }
 }
+
+animated-panel { }
 ```
 
-Inside a behavior, `NumberAnimation` defaults `from` to the current live property value and `to` to the intercepted requested value. Numeric dimensional values such as `100` normalize to `100px`; matching units such as `"50%"` to `"70%"` or `"50vh"` to `"60vh"` animate, while incompatible units fall back to an immediate commit with a warning. Intermediate ticks are also assigned to the actual property with behavior bypassed as CSS-valid strings such as `"123px"` or `"52%"`, so q-property setters and `on<Property>Changed` handlers can project those values into CSS directly.
+Inside a behavior, `NumberAnimation` defaults `from` to the current live property value and `to` to the intercepted requested value. Numeric dimensional values such as `100` normalize to `100px`; matching units such as `"50%"` to `"70%"`, `"50vh"` to `"60vh"`, or `"8rem"` to `"12rem"` animate, while incompatible units fall back to an immediate commit with a warning. QHTML stores the unit sidecar in QDom `property_extensions`, interpolates the number, then commits either a plain number for unitless values or a CSS-valid string such as `"123px"` or `"52%"`, so q-property setters and `on<Property>Changed` handlers can project those values into CSS directly.
+
+This lets a component keep animation state in a q-property while projecting CSS-ready values in the property changed handler. During the animation above, `panelWidth` receives intermediate values like `"43.2%"`; the handler writes those values directly to `.panel-fill.style.width`, and the final frame commits the exact requested percent string.
 
 Resulting HTML:
 

@@ -123,6 +123,8 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - Behavior is not implemented as `on<Property>Changed`; declared `q-property` change events still happen only when the final/bypassed write reaches the declared setter.
   - Animation-frame commits call `commitProperty(..., { bypassBehavior: true, source: "animation" })`; final frames use `source: "animation-final"` and commit the exact requested target.
   - Dimensional style adapters also mirror each animation tick into the real property under behavior bypass as a CSS-valid string with units, so declared q-properties and `on<Property>Changed` handlers can apply values such as `"123px"`, `"52%"`, or `"50vh"` directly while CSS style/attribute output receives the same serialized unit value.
+  - Declared `q-property` and generic property adapters also parse CSS numeric values (`px`, `%`, `vh`, `vw`, `rem`, `em`, and related CSS length units), interpolate the numeric portion, and commit unit-bearing results as CSS-valid strings.
+  - QDom property writes maintain `property_extensions[propName] = unit` for unit-bearing numeric values and remove that sidecar when a property returns to a unitless value.
   - A new external write while an animation is running cancels the current job and rebases from the current live value.
   - `NumberAnimation` supports `duration`, `easing`, optional `from`, optional `to`, and optional `running`.
   - Supported easing names are `linear`, `easeInQuad`, `easeOutQuad`, and `easeInOutQuad`; unknown names warn and use `linear`.

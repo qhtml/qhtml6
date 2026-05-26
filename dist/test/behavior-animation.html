@@ -18,7 +18,7 @@ div#basic-box.box {
   width: 100
   behavior on width {
     NumberAnimation {
-      duration: 8000
+      duration: 80
       easing: "linear"
     }
   }
@@ -29,7 +29,7 @@ div#rebase-box.box {
   width: "100px"
   behavior on width {
     NumberAnimation {
-      duration: 14000
+      duration: 140
       easing: "easeInOutQuad"
     }
   }
@@ -40,7 +40,7 @@ div#disabled-box.box {
   width: "10vh"
   behavior on width {
     NumberAnimation {
-      duration: 10000
+      duration: 100
       running: false
     }
   }
@@ -51,7 +51,7 @@ div#percent-box.box {
   width: "50%"
   behavior on width {
     NumberAnimation {
-      duration: 6000
+      duration: 60
     }
   }
   text { percent }
@@ -61,11 +61,43 @@ div#vh-box.box {
   width: "50vh"
   behavior on width {
     NumberAnimation {
-      duration: 6000
+      duration: 60
     }
   }
   text { vh }
 }
+
+div#rem-box.box {
+  width: "8rem"
+  behavior on width {
+    NumberAnimation {
+      duration: 60
+    }
+  }
+  text { rem }
+}
+
+q-component animated-panel {
+  q-property panelWidth: "50%"
+
+  behavior on panelWidth {
+    NumberAnimation {
+      duration: 60
+      easing: "linear"
+    }
+  }
+
+  div.panel-fill {
+    style { width: 50%; min-height: 1.5rem; background: #0f766e; color: #fff; }
+    text { declared q-property percent }
+  }
+
+  onpanelWidthchanged(value) {
+    this.querySelector(".panel-fill").style.width = value;
+  }
+}
+
+animated-panel#panel-comp { }
 
   </q-html>
   <script>
@@ -84,7 +116,10 @@ div#vh-box.box {
       const disabled = document.getElementById("disabled-box");
       const percent = document.getElementById("percent-box");
       const vh = document.getElementById("vh-box");
-      if (!basic || !rebase || !disabled || !percent || !vh) {
+      const rem = document.getElementById("rem-box");
+      const panel = document.getElementById("panel-comp");
+      const panelFill = panel ? panel.querySelector(".panel-fill") : null;
+      if (!basic || !rebase || !disabled || !percent || !vh || !rem || !panel || !panelFill) {
         failures.push("missing rendered behavior test boxes");
       }
       const parsed = basic && basic.qdom && basic.qdom();
@@ -119,7 +154,7 @@ div#vh-box.box {
       if (!Number.isFinite(midBasicProperty) || midBasicProperty <= 100 || midBasicProperty >= 300) {
         failures.push("basic width property did not receive an intermediate animation value");
       }
-      await wait(1200);
+      await wait(180);
       if (!nearPx(widthOf("basic-box"), 300)) {
         failures.push("basic final width is not exactly 300px");
       }
@@ -132,7 +167,7 @@ div#vh-box.box {
       rebase.width = "300px";
       await wait(35);
       rebase.width = "500px";
-      await wait(1400);
+      await wait(220);
       if (!nearPx(widthOf("rebase-box"), 500)) {
         failures.push("rebase final width is not 500px");
       }
@@ -141,7 +176,7 @@ div#vh-box.box {
         failures.push("disabled behavior did not write immediately");
       }
       percent.width = "70%";
-      await wait(1000);
+      await wait(120);
       if (widthOf("percent-box") !== "70%") {
         failures.push("matching percent units did not animate to 70%");
       }
@@ -149,12 +184,29 @@ div#vh-box.box {
         failures.push("percent width property did not keep its percent unit");
       }
       vh.width = "60vh";
-      await wait(1000);
+      await wait(120);
       if (widthOf("vh-box") !== "60vh") {
         failures.push("matching vh units did not animate to 60vh");
       }
       if (vh.width !== "60vh") {
         failures.push("vh width property did not keep its vh unit");
+      }
+      rem.width = "12rem";
+      await wait(120);
+      if (widthOf("rem-box") !== "12rem") {
+        failures.push("matching rem units did not animate to 12rem");
+      }
+      if (rem.width !== "12rem") {
+        failures.push("rem width property did not keep its rem unit");
+      }
+      panel.panelWidth = "70%";
+      await wait(1000);
+      if (panel.panelWidth !== "70%") {
+        failures.push("declared q-property percent did not animate to 70%");
+      }
+      const panelQDom = panel.qdom ? panel.qdom() : null;
+      if (!panelQDom || !panelQDom.property_extensions || panelQDom.property_extensions.panelWidth !== "%") {
+        failures.push("declared q-property percent did not store property extension metadata");
       }
       document.body.dataset.status = failures.length ? "fail" : "pass";
       document.body.dataset.failures = failures.join(" | ");
