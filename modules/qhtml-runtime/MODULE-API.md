@@ -24,7 +24,7 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - `options.includeSignals === true` includes `q-signal` ids.
 - `listRegisteredComponentSlots(componentId)`
   - Returns ordered unique slot names declared by a registered `q-component` definition.
-  - Reads slot declarations from the stored component definition tree, even when a mounted instance does not preserve slot handles.
+  - Reads slot declarations and `q-slot-default` declarations from the stored component definition tree, even when a mounted instance does not preserve slot handles.
 - `updateQHtmlElement(qHtmlElement, options?)`
   - Re-evaluates binding expressions and re-renders mounted output.
   - Optional `options.scopeElement` (mapped DOM element) performs scoped rerender of only that subtree.
@@ -126,6 +126,11 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - `QHtml.QComponentInstance` / global `QComponentInstance`
   - `QHtml.QVar` / global `QVar`
   - sourced from `dom-renderer` runtime type constructors
+- Behavior/animation exports from `dom-renderer`:
+  - `QHtml.qSet`, `QHtml.commitProperty`
+  - `QHtml.registerBehavior`, `QHtml.getBehavior`, `QHtml.removeBehavior`
+  - `QHtml.BehaviorController`, `QHtml.NumberAnimation`, `QHtml.AnimationJob`
+  - Binding updates targeting a property with a registered behavior route through `qSet(..., { source: "binding" })`, so behavior interception is shared by user writes and binding writes.
 - `qhtml(source)`
   - Creates QHTML fragment tokens consumable by renderer callback/direct-call paths.
   - Typical usage from callbacks: `return qhtml("div { text { hello } }");`

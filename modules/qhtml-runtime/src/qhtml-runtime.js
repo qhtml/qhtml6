@@ -28,7 +28,7 @@
   let runtimeQdomUuidCounter = 0;
   const qdomInstanceIds = new WeakMap();
   const qdomSlotOwnerIds = new WeakMap();
-  const COLLECTION_MUTATION_KEYS = new Set(["nodes", "children", "templateNodes", "slots"]);
+  const COLLECTION_MUTATION_KEYS = new Set(["nodes", "children", "templateNodes", "slotDefaults", "slots"]);
   const FORCED_FULL_RENDER_KEYS = new Set([
     "kind",
     "tagName",
@@ -39,6 +39,7 @@
     "nodes",
     "children",
     "templateNodes",
+    "slotDefaults",
     "slots",
     "lifecycleScripts",
     "methods",
@@ -1319,6 +1320,9 @@
     }
     if (Array.isArray(targetNode.templateNodes)) {
       out.push(targetNode.templateNodes);
+    }
+    if (Array.isArray(targetNode.slotDefaults)) {
+      out.push(targetNode.slotDefaults);
     }
     if (Array.isArray(targetNode.children)) {
       out.push(targetNode.children);
@@ -8846,7 +8850,7 @@
         node.extendsComponentIds[i] = remapSdmlReferenceName(node.extendsComponentIds[i], idMap);
       }
     }
-    const childKeys = ["nodes", "children", "templateNodes", "slots", "__qhtmlSlotNodes", "__qhtmlRenderTree"];
+    const childKeys = ["nodes", "children", "templateNodes", "slotDefaults", "slots", "__qhtmlSlotNodes", "__qhtmlRenderTree"];
     for (let k = 0; k < childKeys.length; k += 1) {
       const key = childKeys[k];
       const list = node[key];
@@ -12032,6 +12036,9 @@
     if (Array.isArray(node.templateNodes) && node.templateNodes.length > 0) {
       out.push(node.templateNodes);
     }
+    if (Array.isArray(node.slotDefaults) && node.slotDefaults.length > 0) {
+      out.push(node.slotDefaults);
+    }
     if (Array.isArray(node.children) && node.children.length > 0) {
       out.push(node.children);
     }
@@ -12798,6 +12805,18 @@
           host: binding && binding.host ? binding.host : null,
         })
       ) {
+        continue;
+      }
+      if (
+        renderer &&
+        typeof renderer.getBehavior === "function" &&
+        typeof renderer.qSet === "function" &&
+        renderer.getBehavior(element, key)
+      ) {
+        renderer.qSet(element, key, value, {
+          source: "binding",
+          preserveBinding: true,
+        });
         continue;
       }
       element.setAttribute(key, attrValue);
@@ -15005,6 +15024,9 @@
         }
         if (Array.isArray(targetNode.templateNodes)) {
           out.push(targetNode.templateNodes);
+        }
+        if (Array.isArray(targetNode.slotDefaults)) {
+          out.push(targetNode.slotDefaults);
         }
         if (Array.isArray(targetNode.children)) {
           out.push(targetNode.children);
@@ -18687,7 +18709,7 @@
       return;
     }
     const kind = String(node.kind || "").trim().toLowerCase();
-    if (kind === "slot") {
+    if (kind === "slot" || kind === "slot-default") {
       const name = String(node.name || "default").trim() || "default";
       const key = name.toLowerCase();
       if (!seen.has(key)) {
@@ -18695,7 +18717,7 @@
         output.push(name);
       }
     }
-    const lists = [node.nodes, node.children, node.templateNodes, node.slots];
+    const lists = [node.nodes, node.children, node.templateNodes, node.slotDefaults, node.slots];
     for (let li = 0; li < lists.length; li += 1) {
       const list = lists[li];
       if (!Array.isArray(list)) {
@@ -18841,6 +18863,14 @@
     QProperty: renderer && renderer.QProperty ? renderer.QProperty : null,
     QComponentInstance: renderer && renderer.QComponentInstance ? renderer.QComponentInstance : null,
     QVar: renderer && renderer.QVar ? renderer.QVar : null,
+    qSet: renderer && typeof renderer.qSet === "function" ? renderer.qSet : null,
+    commitProperty: renderer && typeof renderer.commitProperty === "function" ? renderer.commitProperty : null,
+    registerBehavior: renderer && typeof renderer.registerBehavior === "function" ? renderer.registerBehavior : null,
+    getBehavior: renderer && typeof renderer.getBehavior === "function" ? renderer.getBehavior : null,
+    removeBehavior: renderer && typeof renderer.removeBehavior === "function" ? renderer.removeBehavior : null,
+    BehaviorController: renderer && renderer.BehaviorController ? renderer.BehaviorController : null,
+    NumberAnimation: renderer && renderer.NumberAnimation ? renderer.NumberAnimation : null,
+    AnimationJob: renderer && renderer.AnimationJob ? renderer.AnimationJob : null,
     getQDomDataForUuid: getQDomDataForUuid,
     getQDomDataSnapshot: getQDomDataSnapshot,
     rootContext: {

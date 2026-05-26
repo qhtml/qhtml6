@@ -26,6 +26,9 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - component inheritance metadata:
       - `q-component child extends baseA extends baseB { ... }`
       - emitted as `component.extendsComponentIds` (plus legacy first entry in `component.extendsComponentId`)
+    - `q-slot-default slotName { ... }` inside component definitions:
+      - emitted as first-class QDom `kind: "slot-default"` nodes in `component.slotDefaults`
+      - serialized back to `q-slot-default slotName { ... }`
     - instance-level `q-property` declarations are retained in node metadata (`meta.__qhtmlDeclaredProperties`) and used when mapping invocation assignments/bindings into `component-instance.props`
     - inherited `q-property` declarations from multi-`extends` chains are included when mapping invocation assignments into `component-instance.props`
     - `component-instance.props` populated when invocation keys match declared component properties
@@ -104,6 +107,13 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - supported keys: `left`, `right`, `top`, `bottom`, `hcenter`, `vcenter`, `center`
       - value syntaxes: legacy `key: value` / `key { value }` inside `q-anchor { ... }`, plus shorthand `q-anchor-left { value }`
       - separators supported in the block: newline, `;`, `,`
+    - behavior directives:
+      - `behavior on propertyName { NumberAnimation { duration: 100 easing: "linear" } }`
+      - normalized as direct owner metadata in `node.meta.__qhtmlBehaviors`
+      - equivalent internal `q-behavior propertyName { q-number-animation { ... } }` syntax is accepted
+      - normal element children and runtime-capable component/worker definition children may own behaviors
+      - a target may declare only one behavior per normalized property name
+      - `NumberAnimation` config accepts `duration`, `easing`, `from`, `to`, and `running`
     - layout keywords:
       - `q-layout`, `q-row`, and `q-col` parse as framework layout element nodes, not component invocations
       - layout nodes store `meta.__qhtmlLayoutKeyword = true` and `meta.__qhtmlLayoutRole`
@@ -169,6 +179,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
   - Serializes array/object assignment values using typed container syntax (`q-array { ... }` / `q-map { ... }`) instead of stringifying them.
   - Serializes dirty `q-state-machine` component-instance nodes back to named state-machine block syntax using stored state metadata.
   - Serializes `struct` and `struct-instance` QDom nodes back to `q-struct` and typed instance syntax.
+  - Serializes behavior metadata back to `behavior on <property> { NumberAnimation { ... } }`.
 - `parseQScript(source)`
   - Parses q-script rules of form `selector.on("event"): { ... }`.
 - `serializeQScript(rules)`

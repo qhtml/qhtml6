@@ -14,6 +14,7 @@
     struct: "struct",
     structInstance: "struct-instance",
     slot: "slot",
+    slotDefault: "slot-default",
     scriptRule: "script-rule",
     color: "color",
   });
@@ -192,6 +193,7 @@
       this.extendsComponentId = inheritedList.length > 0 ? inheritedList[0] : "";
       this.definitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
       this.templateNodes = Array.isArray(opts.templateNodes) ? opts.templateNodes : [];
+      this.slotDefaults = Array.isArray(opts.slotDefaults) ? opts.slotDefaults : [];
       this.propertyDefinitions = Array.isArray(opts.propertyDefinitions) ? opts.propertyDefinitions : [];
       this.methods = Array.isArray(opts.methods) ? opts.methods : [];
       this.signalDeclarations = Array.isArray(opts.signalDeclarations) ? opts.signalDeclarations : [];
@@ -214,6 +216,15 @@
     constructor(options) {
       const opts = options || {};
       super(NODE_TYPES.slot, opts.meta);
+      this.name = String(opts.name || "default").trim() || "default";
+      this.children = Array.isArray(opts.children) ? opts.children : [];
+    }
+  }
+
+  class QSlotDefaultNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      super(NODE_TYPES.slotDefault, opts.meta);
       this.name = String(opts.name || "default").trim() || "default";
       this.children = Array.isArray(opts.children) ? opts.children : [];
     }
@@ -524,6 +535,11 @@
     return new QSlotNode(opts);
   }
 
+  function createSlotDefaultNode(options) {
+    const opts = options || {};
+    return new QSlotDefaultNode(opts);
+  }
+
   function createStructNode(options) {
     return new QStructNode(options || {});
   }
@@ -616,6 +632,9 @@
       if (node.kind === NODE_TYPES.component && Array.isArray(node.templateNodes)) {
         walkNodes(node.templateNodes, visitor, node, path.concat("templateNodes"));
       }
+      if (node.kind === NODE_TYPES.component && Array.isArray(node.slotDefaults)) {
+        walkNodes(node.slotDefaults, visitor, node, path.concat("slotDefaults"));
+      }
       if ((node.kind === NODE_TYPES.struct || node.kind === NODE_TYPES.structInstance) && Array.isArray(node.fields)) {
         for (let j = 0; j < node.fields.length; j += 1) {
           const field = node.fields[j];
@@ -654,7 +673,10 @@
       ) {
         walkNodes(node.children, visitor, node, path.concat("children"));
       }
-      if (node.kind === NODE_TYPES.slot && Array.isArray(node.children)) {
+      if (
+        (node.kind === NODE_TYPES.slot || node.kind === NODE_TYPES.slotDefault) &&
+        Array.isArray(node.children)
+      ) {
         walkNodes(node.children, visitor, node, path.concat("children"));
       }
     }
@@ -981,6 +1003,13 @@
         meta: reviveQDomTree(value.meta || {}),
       });
     }
+    if (kind === NODE_TYPES.slotDefault) {
+      return createSlotDefaultNode({
+        name: value.name,
+        children: reviveQDomTree(Array.isArray(value.children) ? value.children : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
     if (kind === NODE_TYPES.model) {
       return createModelNode({
         entries: reviveQDomTree(Array.isArray(value.entries) ? value.entries : []),
@@ -1015,6 +1044,7 @@
         extendsComponentId: value.extendsComponentId,
         definitionType: value.definitionType,
         templateNodes: reviveQDomTree(Array.isArray(value.templateNodes) ? value.templateNodes : []),
+        slotDefaults: reviveQDomTree(Array.isArray(value.slotDefaults) ? value.slotDefaults : []),
         propertyDefinitions: reviveQDomTree(Array.isArray(value.propertyDefinitions) ? value.propertyDefinitions : []),
         methods: reviveQDomTree(Array.isArray(value.methods) ? value.methods : []),
         signalDeclarations: reviveQDomTree(Array.isArray(value.signalDeclarations) ? value.signalDeclarations : []),
@@ -1423,6 +1453,7 @@
     QComponentInstanceNode: QComponentInstanceNode,
     QTemplateInstanceNode: QTemplateInstanceNode,
     QSlotNode: QSlotNode,
+    QSlotDefaultNode: QSlotDefaultNode,
     QScriptRuleNode: QScriptRuleNode,
     QColorNode: QColorNode,
     NODE_TYPES: NODE_TYPES,
@@ -1438,6 +1469,7 @@
     createStructNode: createStructNode,
     createStructInstanceNode: createStructInstanceNode,
     createSlotNode: createSlotNode,
+    createSlotDefaultNode: createSlotDefaultNode,
     createScriptRule: createScriptRule,
     createQColorNode: createQColorNode,
     isNode: isNode,

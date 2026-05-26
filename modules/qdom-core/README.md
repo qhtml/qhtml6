@@ -27,9 +27,10 @@
 
 - Document shape: `{ kind, version, nodes, scripts, meta }`
 - Element shape: `{ kind, tagName, attributes, children, textContent, selectorMode, selectorChain, meta }`
-- Component/template definition shape: `{ kind: "component", componentId, definitionType, templateNodes, methods, signalDeclarations, aliasDeclarations, lifecycleScripts, attributes, properties, meta }`
+- Component/template definition shape: `{ kind: "component", componentId, definitionType, templateNodes, slotDefaults, methods, signalDeclarations, aliasDeclarations, lifecycleScripts, attributes, properties, meta }`
 - Component/template invocation shape: `{ kind: "component-instance" | "template-instance", componentId, tagName, attributes, props, slots, children, textContent, ... }`
 - Slot shape: `{ kind: "slot", name, children, ... }`
+- Slot-default shape: `{ kind: "slot-default", name, children, ... }`
 - Script rule shape: `{ kind: "script-rule", selector, eventName, body, meta }`
 - Color shape: `{ kind: "color", name, value?, assignments?, mode }` with `QColorNode.style(...)` helper.
 

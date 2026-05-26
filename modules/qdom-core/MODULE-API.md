@@ -8,7 +8,7 @@ Exports via `globalThis.QHtmlModules.qdomCore`.
 
 ### Constants
 - `NODE_TYPES`
-  - `document`, `element`, `text`, `raw-html`, `model`, `repeater`, `component`, `component-instance`, `template-instance`, `struct`, `struct-instance`, `slot`, `script-rule`, `color`.
+  - `document`, `element`, `text`, `raw-html`, `model`, `repeater`, `component`, `component-instance`, `template-instance`, `struct`, `struct-instance`, `slot`, `slot-default`, `script-rule`, `color`.
 - `TEXT_ALIASES`
   - `content`, `contents`, `text`, `textcontents`, `innertext`.
 - `QDOM_UUID_KEY`
@@ -41,6 +41,7 @@ Exports via `globalThis.QHtmlModules.qdomCore`.
   - Creates data-only typed struct instances with `structId`, `fields`, and instance alias metadata.
   - Struct instance nodes render no DOM and are consumed by `dom-renderer` as named runtime values.
 - `createSlotNode(options?)`
+- `createSlotDefaultNode(options?)`
 - `createScriptRule(options?)`
 - `createQColorNode(options?)`
   - Creates `QColorNode` entries used by runtime color helpers.
@@ -84,7 +85,7 @@ All constructors normalize missing fields, include `meta` objects, and produce r
 - Mutation observation marks touched objects and root document as dirty.
 - All QDom nodes now receive a stable `meta.uuid` when created unless one is explicitly supplied.
 - Runtime update routing now keys off UUID identity; nonce metadata is no longer required for render invalidation.
-- `walkQDom` traverses `repeater.templateNodes`, `repeater.model`, and nested model entry node payloads (`entry.nodes`) so repeater internals are discoverable through QDom tooling.
+- `walkQDom` traverses component `slotDefaults`, `repeater.templateNodes`, `repeater.model`, and nested model entry node payloads (`entry.nodes`) so internals are discoverable through QDom tooling.
 - `walkQDom` also traverses `struct.fields[].nodes` when field node payloads are present.
 
 ## Module dependencies

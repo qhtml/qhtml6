@@ -21,6 +21,12 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - `QSignal` (callable signal type with `.connect/.disconnect/.emit`)
   - `QProperty` (declared-property backing instance type)
   - `QComponentInstance` (component-instance metadata wrapper)
+- Behavior/animation exports:
+  - `qSet(target, prop, value, options?)`
+  - `commitProperty(target, prop, value, options?)`
+  - `registerBehavior(target, prop, controller)`, `getBehavior(target, prop)`, `removeBehavior(target, prop)`
+  - `BehaviorController`, `NumberAnimation`, `AnimationJob`, `getEasing`, `getPropertyAdapter`
+  - `qSet` is the behavior-aware setter; `commitProperty` is the bypass-capable final write path.
 - q-perf helpers:
   - `startQPerfMeasurement(targetNode, configNode, category, label?)`
   - `finishQPerfMeasurement(marker)`
@@ -112,6 +118,15 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - Rule values can be named DOM side references (`someRef.right`, `someRef.center`) or JavaScript/CSS literal expressions.
   - Renderer resolves named instance handles to rendered DOM geometry and applies absolute pixel offsets relative to the anchored element's offset parent.
   - Positions are recalculated after render, resize, and scroll.
+- `behavior on <property>` is opt-in per direct owner node through `meta.__qhtmlBehaviors`.
+  - Behaviors intercept property writes through `qSet()` before the final value is committed.
+  - Behavior is not implemented as `on<Property>Changed`; declared `q-property` change events still happen only when the final/bypassed write reaches the declared setter.
+  - Animation-frame commits call `commitProperty(..., { bypassBehavior: true, source: "animation" })`; final frames use `source: "animation-final"` and commit the exact requested target.
+  - Dimensional style adapters also mirror each animation tick into the real property under behavior bypass as a CSS-valid string with units, so declared q-properties and `on<Property>Changed` handlers can apply values such as `"123px"`, `"52%"`, or `"50vh"` directly while CSS style/attribute output receives the same serialized unit value.
+  - A new external write while an animation is running cancels the current job and rebases from the current live value.
+  - `NumberAnimation` supports `duration`, `easing`, optional `from`, optional `to`, and optional `running`.
+  - Supported easing names are `linear`, `easeInQuad`, `easeOutQuad`, and `easeInOutQuad`; unknown names warn and use `linear`.
+  - Property adapters cover declared QDom component properties, DOM properties, and DOM style properties. Dimensional style properties normalize bare numbers to `px`; matching CSS units interpolate; incompatible units warn and commit immediately.
 - `q-layout`, `q-row`, and `q-col` are renderer-owned layout keywords:
   - they render as lightweight layout DOM tags with built-in grid/table-like CSS behavior
   - `q-layout` defaults to row stacking; `q-row` defaults to column stacking; `q-col` can host nested rows, columns, or layouts
@@ -123,6 +138,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 ## Component host assignment behavior
 - Component slot projection prefers normalized component-instance `slots` over raw instance children when present. This keeps shorthand slot wrappers (`slotName { ... }`) out of rendered output and allows projected `q-layout`, `q-row`, and `q-col` nodes to render normally inside slots.
 - Slot fill lookup is case-insensitive after exact lookup. This preserves declared slot names such as `slot { heroTitle }` while allowing shorthand invocation wrappers like `heroTitle { ... }`, whose tag names are normalized by HTML/QDom parsing, to project into the intended slot.
+- Component `slotDefaults` (`kind: "slot-default"`) provide fallback projected QDom only when an instance omits that slot; an explicit empty slot suppresses the default.
 - `component-instance.attributes` map to DOM attributes.
 - `component-instance.props` map to direct host element property assignment (`host[propName] = value`).
 - For declared component properties only, bare dotted references (for example `myinstance.myprop1`) are resolved against interpolation scope without `${...}`.

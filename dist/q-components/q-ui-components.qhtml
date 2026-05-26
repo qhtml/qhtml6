@@ -66,6 +66,17 @@ q-component q-ui-bar {
     this.applyBarStyleVars();
   }
 
+  q-slot-default barContents {
+    q-ui-navbutton qUiBarDefaultHome {
+      url: "#"
+      navButtonText { text { Home } }
+    }
+    q-ui-navbutton qUiBarDefaultAbout {
+      url: "#"
+      navButtonText { text { About } }
+    }
+  }
+
   qUiBarDefaultTheme {
     div.q-ui-bar-contents {
       slot { barContents }
@@ -145,6 +156,10 @@ q-component q-ui-navbutton {
     this.applyNavButtonStyle();
   }
 
+  q-slot-default navButtonText {
+    text { Link }
+  }
+
   qUiNavButtonDefaultTheme {
     div.q-ui-navbutton-surface {
       role: "button"
@@ -157,7 +172,149 @@ q-component q-ui-navbutton {
       }
 
       slot { navButtonText }
-      slot { default }
+    }
+  }
+}
+
+q-style qUiSplitLayoutHost {
+  display: block
+  width: 100%
+  height: 100%
+  min-width: 0
+  min-height: 0
+  margin: 0
+  padding: 0
+  box-sizing: border-box
+}
+
+q-style qUiSplitLayoutRegion {
+  width: 100%
+  height: 100%
+  min-width: 0
+  min-height: 0
+  margin: 0
+  padding: 0
+  box-sizing: border-box
+  overflow: auto
+}
+
+q-default-theme qUiSplitLayoutDefaultTheme {
+  q-ui-split-layout { qUiSplitLayoutHost }
+  .q-ui-split-layout-region { qUiSplitLayoutRegion }
+}
+
+q-component q-ui-split-layout {
+  q-property leftWidth: "50%"
+  q-property rightWidth: "rest"
+  q-property gap: "5px"
+
+  function cssValue(value, fallback) {
+    var text = String(value == null ? "" : value).trim();
+    return text || fallback;
+  }
+
+  function trackValue(value, fallback) {
+    var text = this.cssValue(value, fallback);
+    if (text.toLowerCase() === "rest") {
+      return "fill";
+    }
+    return text;
+  }
+
+  function syncSplitLayout() {
+    var layout = this.querySelector(".q-ui-split-layout");
+    var row = this.querySelector(".q-ui-split-layout-row");
+    var leftCol = this.querySelector(".q-ui-split-layout-left");
+    var rightCol = this.querySelector(".q-ui-split-layout-right");
+    var gapValue = this.cssValue(this.gap, "5px");
+    var leftValue = this.trackValue(this.leftWidth, "50%");
+    var rightValue = this.trackValue(this.rightWidth, "fill");
+
+    this.style.display = "block";
+    this.style.width = "100%";
+    this.style.height = "100%";
+    this.style.minWidth = "0";
+    this.style.minHeight = "0";
+    this.style.margin = "0";
+    this.style.padding = "0";
+    this.style.boxSizing = "border-box";
+
+    if (layout) {
+      layout.setAttribute("width", "100%");
+      layout.setAttribute("height", "100%");
+      layout.setAttribute("gap", gapValue);
+    }
+    if (row) {
+      row.setAttribute("height", "100%");
+      row.setAttribute("gap", gapValue);
+    }
+    if (leftCol) {
+      leftCol.setAttribute("width", leftValue);
+      leftCol.setAttribute("height", "100%");
+    }
+    if (rightCol) {
+      rightCol.setAttribute("width", rightValue);
+      rightCol.setAttribute("height", "100%");
+    }
+    if (layout && layout.relayout) {
+      layout.relayout();
+    }
+  }
+
+  onReady {
+    this.syncSplitLayout();
+  }
+
+  onleftWidthChanged(leftWidth) {
+    this.syncSplitLayout();
+  }
+
+  onrightWidthChanged(rightWidth) {
+    this.syncSplitLayout();
+  }
+
+  ongapChanged(gap) {
+    this.syncSplitLayout();
+  }
+
+  q-slot-default left {
+    div.q-ui-split-layout-default {
+      text { Left panel }
+    }
+  }
+
+  q-slot-default right {
+    div.q-ui-split-layout-default {
+      text { Right panel }
+    }
+  }
+
+  qUiSplitLayoutDefaultTheme {
+    q-layout.q-ui-split-layout {
+      width: "100%"
+      height: "100%"
+      gap: "5px"
+
+      q-row.q-ui-split-layout-row {
+        height: "100%"
+        gap: "5px"
+
+        q-col.q-ui-split-layout-left {
+          width: "50%"
+          height: "100%"
+          div.q-ui-split-layout-region.q-ui-split-layout-left-region {
+            slot { left }
+          }
+        }
+
+        q-col.q-ui-split-layout-right {
+          width: "fill"
+          height: "100%"
+          div.q-ui-split-layout-region.q-ui-split-layout-right-region {
+            slot { right }
+          }
+        }
+      }
     }
   }
 }

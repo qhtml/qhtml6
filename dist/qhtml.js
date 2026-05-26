@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-25T22:16:32Z */
+/* generated: 2026-05-26T05:55:22Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -18,6 +18,7 @@
     struct: "struct",
     structInstance: "struct-instance",
     slot: "slot",
+    slotDefault: "slot-default",
     scriptRule: "script-rule",
     color: "color",
   });
@@ -196,6 +197,7 @@
       this.extendsComponentId = inheritedList.length > 0 ? inheritedList[0] : "";
       this.definitionType = String(opts.definitionType || "component").trim().toLowerCase() || "component";
       this.templateNodes = Array.isArray(opts.templateNodes) ? opts.templateNodes : [];
+      this.slotDefaults = Array.isArray(opts.slotDefaults) ? opts.slotDefaults : [];
       this.propertyDefinitions = Array.isArray(opts.propertyDefinitions) ? opts.propertyDefinitions : [];
       this.methods = Array.isArray(opts.methods) ? opts.methods : [];
       this.signalDeclarations = Array.isArray(opts.signalDeclarations) ? opts.signalDeclarations : [];
@@ -218,6 +220,15 @@
     constructor(options) {
       const opts = options || {};
       super(NODE_TYPES.slot, opts.meta);
+      this.name = String(opts.name || "default").trim() || "default";
+      this.children = Array.isArray(opts.children) ? opts.children : [];
+    }
+  }
+
+  class QSlotDefaultNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      super(NODE_TYPES.slotDefault, opts.meta);
       this.name = String(opts.name || "default").trim() || "default";
       this.children = Array.isArray(opts.children) ? opts.children : [];
     }
@@ -528,6 +539,11 @@
     return new QSlotNode(opts);
   }
 
+  function createSlotDefaultNode(options) {
+    const opts = options || {};
+    return new QSlotDefaultNode(opts);
+  }
+
   function createStructNode(options) {
     return new QStructNode(options || {});
   }
@@ -620,6 +636,9 @@
       if (node.kind === NODE_TYPES.component && Array.isArray(node.templateNodes)) {
         walkNodes(node.templateNodes, visitor, node, path.concat("templateNodes"));
       }
+      if (node.kind === NODE_TYPES.component && Array.isArray(node.slotDefaults)) {
+        walkNodes(node.slotDefaults, visitor, node, path.concat("slotDefaults"));
+      }
       if ((node.kind === NODE_TYPES.struct || node.kind === NODE_TYPES.structInstance) && Array.isArray(node.fields)) {
         for (let j = 0; j < node.fields.length; j += 1) {
           const field = node.fields[j];
@@ -658,7 +677,10 @@
       ) {
         walkNodes(node.children, visitor, node, path.concat("children"));
       }
-      if (node.kind === NODE_TYPES.slot && Array.isArray(node.children)) {
+      if (
+        (node.kind === NODE_TYPES.slot || node.kind === NODE_TYPES.slotDefault) &&
+        Array.isArray(node.children)
+      ) {
         walkNodes(node.children, visitor, node, path.concat("children"));
       }
     }
@@ -985,6 +1007,13 @@
         meta: reviveQDomTree(value.meta || {}),
       });
     }
+    if (kind === NODE_TYPES.slotDefault) {
+      return createSlotDefaultNode({
+        name: value.name,
+        children: reviveQDomTree(Array.isArray(value.children) ? value.children : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
     if (kind === NODE_TYPES.model) {
       return createModelNode({
         entries: reviveQDomTree(Array.isArray(value.entries) ? value.entries : []),
@@ -1019,6 +1048,7 @@
         extendsComponentId: value.extendsComponentId,
         definitionType: value.definitionType,
         templateNodes: reviveQDomTree(Array.isArray(value.templateNodes) ? value.templateNodes : []),
+        slotDefaults: reviveQDomTree(Array.isArray(value.slotDefaults) ? value.slotDefaults : []),
         propertyDefinitions: reviveQDomTree(Array.isArray(value.propertyDefinitions) ? value.propertyDefinitions : []),
         methods: reviveQDomTree(Array.isArray(value.methods) ? value.methods : []),
         signalDeclarations: reviveQDomTree(Array.isArray(value.signalDeclarations) ? value.signalDeclarations : []),
@@ -1427,6 +1457,7 @@
     QComponentInstanceNode: QComponentInstanceNode,
     QTemplateInstanceNode: QTemplateInstanceNode,
     QSlotNode: QSlotNode,
+    QSlotDefaultNode: QSlotDefaultNode,
     QScriptRuleNode: QScriptRuleNode,
     QColorNode: QColorNode,
     NODE_TYPES: NODE_TYPES,
@@ -1442,6 +1473,7 @@
     createStructNode: createStructNode,
     createStructInstanceNode: createStructInstanceNode,
     createSlotNode: createSlotNode,
+    createSlotDefaultNode: createSlotDefaultNode,
     createScriptRule: createScriptRule,
     createQColorNode: createQColorNode,
     isNode: isNode,
@@ -1543,6 +1575,7 @@
     "q-logger",
     "q-perf",
     "q-anchor",
+    "q-slot-default",
     "q-layout",
     "q-row",
     "q-col",
@@ -4957,6 +4990,82 @@
           });
           continue;
         }
+        if (nameLower === "q-slot-default" && nextChar !== "{" && nextChar !== ",") {
+          const slotName = parseIdentifier(parser);
+          const normalizedSlotName = String(slotName || "").trim();
+          if (!normalizedSlotName) {
+            throw ParseError("Expected slot name after q-slot-default", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-slot-default slot name", parser.index);
+          }
+          consume(parser);
+          const slotItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          items.push({
+            type: "QSlotDefaultDefinition",
+            name: normalizedSlotName,
+            items: slotItems,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "behavior" && nextChar !== "{" && nextChar !== ",") {
+          const onKeyword = parseIdentifier(parser);
+          if (String(onKeyword || "").trim().toLowerCase() !== "on") {
+            throw ParseError("Expected 'on' after behavior", parser.index);
+          }
+          const behaviorProperty = parseIdentifier(parser);
+          const normalizedBehaviorProperty = String(behaviorProperty || "").trim();
+          if (!normalizedBehaviorProperty) {
+            throw ParseError("Expected property name after behavior on", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after behavior on " + normalizedBehaviorProperty, parser.index);
+          }
+          consume(parser);
+          const behaviorItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          items.push({
+            type: "QBehaviorDefinition",
+            propertyName: normalizedBehaviorProperty,
+            items: behaviorItems,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-behavior" && nextChar !== "{" && nextChar !== ",") {
+          const behaviorProperty = parseIdentifier(parser);
+          const normalizedBehaviorProperty = String(behaviorProperty || "").trim();
+          if (!normalizedBehaviorProperty) {
+            throw ParseError("Expected property name after q-behavior", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-behavior " + normalizedBehaviorProperty, parser.index);
+          }
+          consume(parser);
+          const behaviorItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          items.push({
+            type: "QBehaviorDefinition",
+            propertyName: normalizedBehaviorProperty,
+            items: behaviorItems,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (nameLower === "q-alias" && nextChar !== "{" && nextChar !== ",") {
           const aliasName = parseIdentifier(parser);
           const normalizedAliasName = String(aliasName || "").trim();
@@ -5772,6 +5881,30 @@
           body.push({
             type: "TemplateDefinition",
             templateId: templateId,
+            items: items,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+        if (firstLower === "q-slot-default" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const slotName = parseIdentifier(parser);
+          const normalizedSlotName = String(slotName || "").trim();
+          if (!normalizedSlotName) {
+            throw ParseError("Expected slot name after q-slot-default", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-slot-default slot name", parser.index);
+          }
+          consume(parser);
+          const items = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          body.push({
+            type: "QSlotDefaultDefinition",
+            name: normalizedSlotName,
             items: items,
             keywords: keywordSnapshot,
             start: start,
@@ -10638,6 +10771,103 @@
     return value;
   }
 
+  function normalizeBehaviorAnimationSelector(selector) {
+    const normalized = String(selector || "").trim().toLowerCase();
+    if (normalized === "numberanimation" || normalized === "q-number-animation") {
+      return "NumberAnimation";
+    }
+    return "";
+  }
+
+  function convertBehaviorAnimationItem(item, scopedMaps) {
+    if (!item || item.type !== "Element") {
+      return null;
+    }
+    const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+    if (selectors.length !== 1) {
+      return null;
+    }
+    const animationType = normalizeBehaviorAnimationSelector(selectors[0]);
+    if (!animationType) {
+      return null;
+    }
+    const config = {
+      type: animationType,
+    };
+    const nestedItems = Array.isArray(item.items) ? item.items : [];
+    for (let i = 0; i < nestedItems.length; i += 1) {
+      const child = nestedItems[i];
+      if (!child || child.type !== "Property") {
+        continue;
+      }
+      const assignment = parseAssignmentName(child.name);
+      const key = normalizePropertyName(assignment.name);
+      if (!key) {
+        continue;
+      }
+      config[key] = resolveScopedPropertyValueReferences(
+        coercePropertyValue(child.value),
+        scopedMaps,
+        null
+      );
+    }
+    return config;
+  }
+
+  function convertBehaviorDefinitionItem(item, scopedMaps) {
+    const propertyName = String(item && item.propertyName || "").trim();
+    if (!propertyName) {
+      throw new Error("behavior requires a property name.");
+    }
+    const normalizedPropertyName = normalizePropertyName(propertyName);
+    const nestedItems = Array.isArray(item.items) ? item.items : [];
+    let animation = null;
+    for (let i = 0; i < nestedItems.length; i += 1) {
+      const converted = convertBehaviorAnimationItem(nestedItems[i], scopedMaps);
+      if (!converted) {
+        continue;
+      }
+      if (animation) {
+        throw new Error("behavior on " + propertyName + " supports one animation block.");
+      }
+      animation = converted;
+    }
+    return {
+      propertyName: propertyName,
+      normalizedPropertyName: normalizedPropertyName,
+      animation: animation || null,
+      meta: {
+        originalSource: item && typeof item.raw === "string" ? item.raw : "",
+        sourceRange:
+          item && typeof item.start === "number" && typeof item.end === "number"
+            ? [item.start, item.end]
+            : null,
+      },
+    };
+  }
+
+  function appendQBehaviorDefinitionToNode(targetNode, item, scopedMaps) {
+    if (!targetNode || typeof targetNode !== "object") {
+      return;
+    }
+    if (!targetNode.meta || typeof targetNode.meta !== "object") {
+      targetNode.meta = {};
+    }
+    if (!Array.isArray(targetNode.meta.__qhtmlBehaviors)) {
+      targetNode.meta.__qhtmlBehaviors = [];
+    }
+    const behavior = convertBehaviorDefinitionItem(item, scopedMaps);
+    const key = behavior.normalizedPropertyName || normalizePropertyName(behavior.propertyName);
+    for (let i = 0; i < targetNode.meta.__qhtmlBehaviors.length; i += 1) {
+      const existing = targetNode.meta.__qhtmlBehaviors[i];
+      const existingKey = existing && (existing.normalizedPropertyName || normalizePropertyName(existing.propertyName));
+      if (existingKey && existingKey === key) {
+        throw new Error("Duplicate behavior for property '" + behavior.propertyName + "'.");
+      }
+    }
+    targetNode.meta.__qhtmlBehaviors.push(behavior);
+  }
+
   function convertScopedObjectItemsToPlainValue(items, scopedMaps, visitedRefs) {
     const out = {};
     const itemList = Array.isArray(items) ? items : [];
@@ -10996,11 +11226,19 @@
         set.add(slotName);
       }
 
+      if (core.NODE_TYPES.slotDefault && node.kind === core.NODE_TYPES.slotDefault) {
+        const slotName = typeof node.name === "string" && node.name.trim() ? String(node.name).trim() : "default";
+        set.add(slotName);
+      }
+
       if (Array.isArray(node.children) && node.children.length > 0) {
         collectSlotNamesFromNodes(node.children, set);
       }
       if (Array.isArray(node.templateNodes) && node.templateNodes.length > 0) {
         collectSlotNamesFromNodes(node.templateNodes, set);
+      }
+      if (Array.isArray(node.slotDefaults) && node.slotDefaults.length > 0) {
+        collectSlotNamesFromNodes(node.slotDefaults, set);
       }
       const slotNodes = readNodeSlots(node);
       if (slotNodes.length > 0) {
@@ -11049,6 +11287,9 @@
     const knownSlotNames = definitionNode && Array.isArray(definitionNode.templateNodes)
       ? collectSlotNamesFromNodes(definitionNode.templateNodes)
       : new Set();
+    if (definitionNode && Array.isArray(definitionNode.slotDefaults)) {
+      collectSlotNamesFromNodes(definitionNode.slotDefaults, knownSlotNames);
+    }
 
     function hasKnownSlotName(name) {
       const slotName = String(name || "").trim();
@@ -11080,6 +11321,13 @@
       fills.set(key, bucket);
     }
 
+    function ensureFill(slotName) {
+      const key = String(slotName || "default").trim() || "default";
+      if (!fills.has(key)) {
+        fills.set(key, []);
+      }
+    }
+
     function pushElementAsSlotFill(slotName, child) {
       if (Array.isArray(child.children) && child.children.length > 0) {
         for (let j = 0; j < child.children.length; j += 1) {
@@ -11093,7 +11341,7 @@
           pushFill(slotName, textNode);
         }
       } else {
-        pushFill(slotName, child);
+        ensureFill(slotName);
       }
     }
 
@@ -13471,6 +13719,15 @@
       if (item.type === "QWasmBlock") {
         throw new Error("q-wasm is only valid inside q-component definitions.");
       }
+      if (item.type === "QBehaviorDefinition") {
+        appendQBehaviorDefinitionToNode(targetElement, item, {
+          qArrays: qArrayContext,
+          qObjects: qObjectContext,
+          qModels: qModelContext,
+          repeaterScope: repeaterScope,
+        });
+        continue;
+      }
       if (item.type === "QPropertyBlock") {
         const names = Array.isArray(item.properties) ? item.properties : [];
         if (!targetElement.meta || typeof targetElement.meta !== "object") {
@@ -13751,6 +14008,10 @@
     const componentProperties = [];
     const componentPropertiesSeen = new Set();
     const templateNodes = [];
+    const slotDefaults = [];
+    const slotDefaultIndex = new Map();
+    const componentBehaviors = [];
+    const componentBehaviorNamesSeen = new Set();
     const propertyDefinitions = [];
     const methods = [];
     const signalDeclarations = [];
@@ -13982,6 +14243,19 @@
         }
         continue;
       }
+      if (item.type === "QBehaviorDefinition") {
+        if (!supportsRuntimeDefinition) {
+          continue;
+        }
+        const behavior = convertBehaviorDefinitionItem(item, scopedContext);
+        const behaviorKey = behavior.normalizedPropertyName || normalizePropertyName(behavior.propertyName);
+        if (componentBehaviorNamesSeen.has(behaviorKey)) {
+          throw new Error("Duplicate behavior for property '" + behavior.propertyName + "'.");
+        }
+        componentBehaviorNamesSeen.add(behaviorKey);
+        componentBehaviors.push(behavior);
+        continue;
+      }
       if (item.type === "Element") {
         const loggerCategories = extractQLoggerCategoriesFromElement(item);
         if (loggerCategories !== null) {
@@ -14052,6 +14326,37 @@
             uuid: declarationMeta.uuid,
             meta: declarationMeta,
           });
+        }
+        continue;
+      }
+      if (item.type === "QSlotDefaultDefinition") {
+        const slotName = String(item.name || "").trim() || "default";
+        const slotKey = slotName.toLowerCase();
+        const defaultChildren = [];
+        const nestedItems = Array.isArray(item.items) ? item.items : [];
+        for (let j = 0; j < nestedItems.length; j += 1) {
+          const resolvedNodes = convertAstItemToNodes(nestedItems[j], source, scopedContext);
+          for (let ni = 0; ni < resolvedNodes.length; ni += 1) {
+            defaultChildren.push(resolvedNodes[ni]);
+          }
+        }
+        const defaultNode = core.createSlotDefaultNode({
+          name: slotName,
+          children: defaultChildren,
+          meta: {
+            originalSource: item.raw || "",
+            sourceRange:
+              typeof item.start === "number" && typeof item.end === "number"
+                ? [item.start, item.end]
+                : null,
+          },
+        });
+        applyKeywordAliasesToNode(defaultNode, item.keywords);
+        if (slotDefaultIndex.has(slotKey)) {
+          slotDefaults[slotDefaultIndex.get(slotKey)] = defaultNode;
+        } else {
+          slotDefaultIndex.set(slotKey, slotDefaults.length);
+          slotDefaults.push(defaultNode);
         }
         continue;
       }
@@ -14257,6 +14562,7 @@
       extendsComponentId: extendsComponentIds.length > 0 ? extendsComponentIds[0] : "",
       definitionType: definitionType,
       templateNodes: templateNodes,
+      slotDefaults: slotDefaults,
       methods: methods,
       propertyDefinitions: propertyDefinitions,
       signalDeclarations: signalDeclarations,
@@ -14291,6 +14597,12 @@
         componentNode.meta = {};
       }
       componentNode.meta.__qhtmlAnchorRules = componentAnchorRules.slice();
+    }
+    if (componentBehaviors.length > 0) {
+      if (!componentNode.meta || typeof componentNode.meta !== "object") {
+        componentNode.meta = {};
+      }
+      componentNode.meta.__qhtmlBehaviors = componentBehaviors.slice();
     }
     if (Object.keys(componentEventAttributeParams).length > 0) {
       if (!componentNode.meta || typeof componentNode.meta !== "object") {
@@ -14526,6 +14838,9 @@
 
     if (selectors.length === 1) {
       const definitionSelector = selectors[0].toLowerCase();
+      if (definitionSelector === "q-slot-default") {
+        throw new Error("q-slot-default is only valid inside q-component definitions.");
+      }
       if (definitionSelector === "q-struct") {
         return buildStructNodeFromAst(astElement);
       }
@@ -14791,6 +15106,10 @@
 
     if (item.type === "QStateMachineDefinition") {
       return buildQStateMachineNodeFromAst(item, source, context);
+    }
+
+    if (item.type === "QSlotDefaultDefinition") {
+      throw new Error("q-slot-default is only valid inside q-component definitions.");
     }
 
     if (item.type === "QCanvasDefinition") {
@@ -15588,6 +15907,61 @@
     return lines.join("\n");
   }
 
+  function serializeSlotDefaultNode(slotDefaultNode, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    const slotName =
+      slotDefaultNode && typeof slotDefaultNode.name === "string" && slotDefaultNode.name.trim()
+        ? slotDefaultNode.name
+        : "default";
+    const lines = [indent + "q-slot-default " + slotName + " {"];
+    const children = Array.isArray(slotDefaultNode && slotDefaultNode.children) ? slotDefaultNode.children : [];
+    for (let i = 0; i < children.length; i += 1) {
+      lines.push(serializeNode(children[i], indentLevel + 1));
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
+  function serializeQBehaviorBlock(behavior, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    const propertyName = String(behavior && behavior.propertyName || "").trim();
+    if (!propertyName) {
+      return "";
+    }
+    const animation = behavior && behavior.animation && typeof behavior.animation === "object" ? behavior.animation : null;
+    const animationType = animation && String(animation.type || "").trim() ? String(animation.type || "").trim() : "NumberAnimation";
+    const lines = [indent + "behavior on " + propertyName + " {"];
+    if (animation) {
+      lines.push(indent + "  " + animationType + " {");
+      const keys = Object.keys(animation);
+      for (let i = 0; i < keys.length; i += 1) {
+        const key = keys[i];
+        if (!key || key === "type") {
+          continue;
+        }
+        lines.push(indent + "    " + key + ": " + serializeAssignmentValue(animation[key]));
+      }
+      lines.push(indent + "  }");
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
+  function serializeQBehaviorBlocksFromNode(node, indentLevel) {
+    const behaviors =
+      node && node.meta && Array.isArray(node.meta.__qhtmlBehaviors)
+        ? node.meta.__qhtmlBehaviors
+        : [];
+    const lines = [];
+    for (let i = 0; i < behaviors.length; i += 1) {
+      const serialized = serializeQBehaviorBlock(behaviors[i], indentLevel);
+      if (serialized) {
+        lines.push(serialized);
+      }
+    }
+    return lines;
+  }
+
   function serializeRepeaterPrimitiveLiteral(value) {
     if (value === null) {
       return "null";
@@ -15963,6 +16337,10 @@
       if (serializedComponentAnchorRules) {
         lines.push(serializedComponentAnchorRules);
       }
+      const serializedComponentBehaviors = serializeQBehaviorBlocksFromNode(node, indentLevel + 1);
+      for (let i = 0; i < serializedComponentBehaviors.length; i += 1) {
+        lines.push(serializedComponentBehaviors[i]);
+      }
       const properties = Array.isArray(node.properties) ? node.properties : [];
       if (properties.length > 0) {
         lines.push(indent + "  q-property {");
@@ -15986,6 +16364,17 @@
           const serializedPropertyDefinition = serializePropertyDefinitionBlock(node.propertyDefinitions[i], indentLevel + 1);
           if (serializedPropertyDefinition) {
             lines.push(serializedPropertyDefinition);
+          }
+        }
+      }
+      if (
+        (definitionType === "component" || definitionType === "worker" || definitionType === "template") &&
+        Array.isArray(node.slotDefaults)
+      ) {
+        for (let i = 0; i < node.slotDefaults.length; i += 1) {
+          const serializedSlotDefault = serializeSlotDefaultNode(node.slotDefaults[i], indentLevel + 1);
+          if (serializedSlotDefault) {
+            lines.push(serializedSlotDefault);
           }
         }
       }
@@ -16061,6 +16450,10 @@
 
     if (node.kind === core.NODE_TYPES.slot) {
       return serializeSlotNode(node, indentLevel);
+    }
+
+    if (core.NODE_TYPES.slotDefault && node.kind === core.NODE_TYPES.slotDefault) {
+      return serializeSlotDefaultNode(node, indentLevel);
     }
 
     if (node.kind === core.NODE_TYPES.componentInstance || node.kind === core.NODE_TYPES.templateInstance) {
@@ -16185,9 +16578,13 @@
       node && node.meta && Array.isArray(node.meta.__qhtmlAnchorRules)
         ? node.meta.__qhtmlAnchorRules
         : [];
-    const serializedElementAnchorRules = serializeQAnchorRulesBlock(elementAnchorRules, indentLevel + 1);
-    if (serializedElementAnchorRules) {
-      lines.push(serializedElementAnchorRules);
+      const serializedElementAnchorRules = serializeQAnchorRulesBlock(elementAnchorRules, indentLevel + 1);
+      if (serializedElementAnchorRules) {
+        lines.push(serializedElementAnchorRules);
+      }
+    const serializedElementBehaviors = serializeQBehaviorBlocksFromNode(node, indentLevel + 1);
+    for (let i = 0; i < serializedElementBehaviors.length; i += 1) {
+      lines.push(serializedElementBehaviors[i]);
     }
 
     const textBindings = collectNodeBindingsByTarget(node, "textcontent");
@@ -16449,6 +16846,34 @@
   const qAnchorBindingList = [];
   const qAnchorListenerDocuments = typeof WeakSet === "function" ? new WeakSet() : null;
   let qAnchorApplyScheduled = false;
+  const CSS_DIMENSIONAL_PROPERTIES = new Set([
+    "width",
+    "height",
+    "minwidth",
+    "minheight",
+    "maxwidth",
+    "maxheight",
+    "left",
+    "right",
+    "top",
+    "bottom",
+    "margin",
+    "margintop",
+    "marginright",
+    "marginbottom",
+    "marginleft",
+    "padding",
+    "paddingtop",
+    "paddingright",
+    "paddingbottom",
+    "paddingleft",
+    "fontsize",
+    "borderradius",
+    "borderwidth",
+  ]);
+  const qBehaviorRegistry = typeof WeakMap === "function" ? new WeakMap() : null;
+  const qBehaviorCommitBypass = typeof WeakMap === "function" ? new WeakMap() : null;
+  const qBehaviorInterceptors = typeof WeakMap === "function" ? new WeakMap() : null;
 
   class QSignal {
     connect(handler) {
@@ -16950,6 +17375,9 @@
       if (Array.isArray(current.templateNodes)) {
         queue.push(current.templateNodes);
       }
+      if (Array.isArray(current.slotDefaults)) {
+        queue.push(current.slotDefaults);
+      }
       if (Array.isArray(current.children)) {
         queue.push(current.children);
       }
@@ -16990,6 +17418,9 @@
       }
       if (Array.isArray(current.templateNodes)) {
         queue.push(current.templateNodes);
+      }
+      if (Array.isArray(current.slotDefaults)) {
+        queue.push(current.slotDefaults);
       }
       if (Array.isArray(current.children)) {
         queue.push(current.children);
@@ -18643,6 +19074,7 @@
       extendsComponentId: leafInheritedIds.length > 0 ? leafInheritedIds[0] : "",
       definitionType: String(leaf.definitionType || "component").trim().toLowerCase() || "component",
       templateNodes: [],
+      slotDefaults: [],
       propertyDefinitions: [],
       methods: [],
       signalDeclarations: [],
@@ -18658,6 +19090,7 @@
     };
 
     const propertyIndex = new Map();
+    const slotDefaultIndex = new Map();
     const propertyDefinitionIndex = new Map();
     const methodIndex = new Map();
     const signalIndex = new Map();
@@ -18666,6 +19099,7 @@
     const varIndex = new Map();
     const switchIndex = new Map();
     const lifecycleIndex = new Map();
+    const behaviorIndex = new Map();
     let mergedRepeaterConfig = null;
     let mergedCanvasSemantics = false;
 
@@ -18751,6 +19185,52 @@
       if (Array.isArray(node.templateNodes) && node.templateNodes.length > 0) {
         for (let ti = 0; ti < node.templateNodes.length; ti += 1) {
           merged.templateNodes.push(node.templateNodes[ti]);
+        }
+      }
+
+      const slotDefaults = readRendererSlotDefaultNodes(node);
+      for (let sdi = 0; sdi < slotDefaults.length; sdi += 1) {
+        const slotDefault = slotDefaults[sdi];
+        if (!slotDefault || typeof slotDefault !== "object") {
+          continue;
+        }
+        const slotKey = normalizeComponentKey(slotDefault.name || "default") || "default";
+        if (slotDefaultIndex.has(slotKey)) {
+          merged.slotDefaults[slotDefaultIndex.get(slotKey)] = slotDefault;
+        } else {
+          slotDefaultIndex.set(slotKey, merged.slotDefaults.length);
+          merged.slotDefaults.push(slotDefault);
+        }
+      }
+
+      const behaviorDefinitions =
+        node && node.meta && Array.isArray(node.meta.__qhtmlBehaviors)
+          ? node.meta.__qhtmlBehaviors
+          : [];
+      for (let bi = 0; bi < behaviorDefinitions.length; bi += 1) {
+        const behavior = behaviorDefinitions[bi];
+        const behaviorKey = normalizeComponentKey(behavior && behavior.propertyName);
+        if (!behaviorKey) {
+          continue;
+        }
+        if (!Array.isArray(merged.meta.__qhtmlBehaviors)) {
+          merged.meta.__qhtmlBehaviors = [];
+        }
+        const clonedBehavior = Object.assign({}, behavior, {
+          animation:
+            behavior && behavior.animation && typeof behavior.animation === "object"
+              ? Object.assign({}, behavior.animation)
+              : behavior ? behavior.animation : null,
+          meta:
+            behavior && behavior.meta && typeof behavior.meta === "object"
+              ? Object.assign({}, behavior.meta)
+              : behavior ? behavior.meta : null,
+        });
+        if (behaviorIndex.has(behaviorKey)) {
+          merged.meta.__qhtmlBehaviors[behaviorIndex.get(behaviorKey)] = clonedBehavior;
+        } else {
+          behaviorIndex.set(behaviorKey, merged.meta.__qhtmlBehaviors.length);
+          merged.meta.__qhtmlBehaviors.push(clonedBehavior);
         }
       }
 
@@ -18884,6 +19364,9 @@
       if (Array.isArray(node.templateNodes)) {
         collectComponentDefinitionsInNodes(node.templateNodes, registry);
       }
+      if (Array.isArray(node.slotDefaults)) {
+        collectComponentDefinitionsInNodes(node.slotDefaults, registry);
+      }
       const slotNodes = readRendererSlotNodes(node);
       if (slotNodes.length > 0) {
         collectComponentDefinitionsInNodes(slotNodes, registry);
@@ -18937,6 +19420,13 @@
     return [];
   }
 
+  function readRendererSlotDefaultNodes(node) {
+    if (!node || typeof node !== "object") {
+      return [];
+    }
+    return Array.isArray(node.slotDefaults) ? node.slotDefaults : [];
+  }
+
   function writeRendererSlotNodes(node, slots) {
     if (!node || typeof node !== "object") {
       return;
@@ -18975,8 +19465,17 @@
         out.add(slotName);
       }
 
+      if (core.NODE_TYPES.slotDefault && node.kind === core.NODE_TYPES.slotDefault) {
+        const slotName = typeof node.name === "string" && node.name.trim() ? String(node.name).trim() : "default";
+        out.add(slotName);
+      }
+
       if (Array.isArray(node.children)) {
         collectSlotNames(node.children, out);
+      }
+      const slotDefaultNodes = readRendererSlotDefaultNodes(node);
+      if (slotDefaultNodes.length > 0) {
+        collectSlotNames(slotDefaultNodes, out);
       }
       const slotNodes = readRendererSlotNodes(node);
       if (slotNodes.length > 0) {
@@ -18995,7 +19494,9 @@
       return "";
     }
 
-    const names = Array.from(collectSlotNames(definitionNode.templateNodes));
+    const nameSet = collectSlotNames(definitionNode.templateNodes);
+    collectSlotNames(readRendererSlotDefaultNodes(definitionNode), nameSet);
+    const names = Array.from(nameSet);
     if (names.length !== 1) {
       return "";
     }
@@ -20298,6 +20799,24 @@
       fills.set(key, bucket);
     }
 
+    function ensureFill(slotName, sourceSlotNode, synthesizeSlotRef) {
+      const key = String(slotName || "default").trim() || "default";
+      if (fills.has(key)) {
+        const existing = fills.get(key);
+        if (sourceSlotNode && existing && !existing.slotNode) {
+          existing.slotNode = sourceSlotNode;
+        }
+        return existing;
+      }
+      const resolvedSlotNode = sourceSlotNode || (synthesizeSlotRef ? createRuntimeSlotRef(key) : null);
+      const bucket = {
+        nodes: [],
+        slotNode: resolvedSlotNode || null,
+      };
+      fills.set(key, bucket);
+      return bucket;
+    }
+
     if (typeof instanceNode.textContent === "string" && instanceNode.textContent.length > 0) {
       if (core.NODE_TYPES.text && typeof core.createTextNode === "function") {
         pushFill(
@@ -20324,6 +20843,7 @@
 
         const slotName = String(slotNode.name || "default").trim() || "default";
         const slotChildren = Array.isArray(slotNode.children) ? slotNode.children : [];
+        ensureFill(slotName, slotNode, false);
         if (slotChildren.length > 0) {
           for (let j = 0; j < slotChildren.length; j += 1) {
             const normalized = collectNormalizedSlotChildren(slotName, slotChildren[j], []);
@@ -20391,7 +20911,24 @@
     return fills;
   }
 
-  function materializeSlots(nodes, slotFills) {
+  function buildSlotDefaultFills(definitionNode) {
+    const defaults = readRendererSlotDefaultNodes(definitionNode);
+    const out = new Map();
+    for (let i = 0; i < defaults.length; i += 1) {
+      const slotDefault = defaults[i];
+      if (!slotDefault || typeof slotDefault !== "object") {
+        continue;
+      }
+      const key = String(slotDefault.name || "default").trim() || "default";
+      out.set(key, {
+        nodes: Array.isArray(slotDefault.children) ? slotDefault.children : [],
+        slotDefaultNode: slotDefault,
+      });
+    }
+    return out;
+  }
+
+  function materializeSlots(nodes, slotFills, slotDefaults) {
     const out = [];
 
     function readSlotFillEntry(slotName) {
@@ -20415,6 +20952,27 @@
       return null;
     }
 
+    function readSlotDefaultEntry(slotName) {
+      const requestedName = String(slotName || "default").trim() || "default";
+      if (!(slotDefaults instanceof Map)) {
+        return null;
+      }
+      if (slotDefaults.has(requestedName)) {
+        return slotDefaults.get(requestedName);
+      }
+      const requestedLower = requestedName.toLowerCase();
+      const entries = slotDefaults.entries();
+      let next = entries.next();
+      while (!next.done) {
+        const key = String(next.value[0] || "").trim();
+        if (key.toLowerCase() === requestedLower) {
+          return next.value[1];
+        }
+        next = entries.next();
+      }
+      return null;
+    }
+
     for (let i = 0; i < nodes.length; i += 1) {
       const node = nodes[i];
       if (!node || typeof node !== "object") {
@@ -20424,18 +20982,20 @@
       if (node.kind === core.NODE_TYPES.element && node.tagName === "slot") {
         const slotName = node.attributes && typeof node.attributes.name === "string" ? node.attributes.name : "default";
         const fillEntry = readSlotFillEntry(slotName);
-        const fillNodes = fillEntry && Array.isArray(fillEntry.nodes) ? fillEntry.nodes : [];
+        const defaultEntry = fillEntry ? null : readSlotDefaultEntry(slotName);
+        const effectiveEntry = fillEntry || defaultEntry;
+        const fillNodes = effectiveEntry && Array.isArray(effectiveEntry.nodes) ? effectiveEntry.nodes : [];
         if (fillNodes.length > 0) {
           for (let j = 0; j < fillNodes.length; j += 1) {
             const projected = cloneNodeDeep(fillNodes[j]);
             refreshQDomNodeUuidsDeep(projected);
-            if (fillEntry && fillEntry.slotNode && projected && typeof projected === "object") {
-              projected[RENDER_SLOT_REF] = fillEntry.slotNode;
+            if (effectiveEntry && effectiveEntry.slotNode && projected && typeof projected === "object") {
+              projected[RENDER_SLOT_REF] = effectiveEntry.slotNode;
             }
             out.push(projected);
           }
-        } else if (Array.isArray(node.children) && node.children.length > 0) {
-          const fallback = materializeSlots(node.children, slotFills);
+        } else if (!effectiveEntry && Array.isArray(node.children) && node.children.length > 0) {
+          const fallback = materializeSlots(node.children, slotFills, slotDefaults);
           for (let j = 0; j < fallback.length; j += 1) {
             out.push(fallback[j]);
           }
@@ -20446,7 +21006,7 @@
       const clone = cloneNodeDeep(node);
       refreshQDomNodeUuidsDeep(clone);
       if (clone.kind === core.NODE_TYPES.element && Array.isArray(clone.children) && clone.children.length > 0) {
-        clone.children = materializeSlots(clone.children, slotFills);
+        clone.children = materializeSlots(clone.children, slotFills, slotDefaults);
       }
       if (
         (clone.kind === core.NODE_TYPES.componentInstance || clone.kind === core.NODE_TYPES.templateInstance) &&
@@ -20459,7 +21019,7 @@
             continue;
           }
           if (Array.isArray(slotNode.children) && slotNode.children.length > 0) {
-            slotNode.children = materializeSlots(slotNode.children, slotFills);
+            slotNode.children = materializeSlots(slotNode.children, slotFills, slotDefaults);
           }
         }
         writeRendererSlotNodes(clone, slotNodes);
@@ -20469,15 +21029,15 @@
         Array.isArray(clone.children) &&
         clone.children.length > 0
       ) {
-        clone.children = materializeSlots(clone.children, slotFills);
+        clone.children = materializeSlots(clone.children, slotFills, slotDefaults);
       }
       if (core.NODE_TYPES.repeater && clone.kind === core.NODE_TYPES.repeater) {
         if (Array.isArray(clone.templateNodes) && clone.templateNodes.length > 0) {
-          clone.templateNodes = materializeSlots(clone.templateNodes, slotFills);
+          clone.templateNodes = materializeSlots(clone.templateNodes, slotFills, slotDefaults);
         }
       }
       if (clone.kind === core.NODE_TYPES.slot && Array.isArray(clone.children) && clone.children.length > 0) {
-        clone.children = materializeSlots(clone.children, slotFills);
+        clone.children = materializeSlots(clone.children, slotFills, slotDefaults);
       }
       out.push(clone);
     }
@@ -21575,6 +22135,720 @@
     }
   }
 
+  function warnQBehavior(message, details) {
+    if (global.console && typeof global.console.warn === "function") {
+      if (typeof details !== "undefined") {
+        global.console.warn(message, details);
+      } else {
+        global.console.warn(message);
+      }
+    }
+  }
+
+  function registerBehavior(target, prop, behaviorController) {
+    if (!qBehaviorRegistry || !target || !prop || !behaviorController) {
+      return null;
+    }
+    let map = qBehaviorRegistry.get(target);
+    if (!map) {
+      map = new Map();
+      qBehaviorRegistry.set(target, map);
+    }
+    map.set(String(prop), behaviorController);
+    return behaviorController;
+  }
+
+  function getBehavior(target, prop) {
+    if (!qBehaviorRegistry || !target || !prop) {
+      return null;
+    }
+    const map = qBehaviorRegistry.get(target);
+    if (!map) {
+      return null;
+    }
+    return map.get(String(prop)) || map.get(String(prop).toLowerCase()) || null;
+  }
+
+  function removeBehavior(target, prop) {
+    if (!qBehaviorRegistry || !target || !prop) {
+      return false;
+    }
+    const map = qBehaviorRegistry.get(target);
+    if (!map) {
+      return false;
+    }
+    const controller = map.get(String(prop));
+    if (controller && typeof controller.cancel === "function") {
+      controller.cancel();
+    }
+    return map.delete(String(prop));
+  }
+
+  function withBehaviorCommitBypass(target, prop, callback) {
+    if (!qBehaviorCommitBypass || !target || !prop) {
+      return callback();
+    }
+    let set = qBehaviorCommitBypass.get(target);
+    if (!set) {
+      set = new Set();
+      qBehaviorCommitBypass.set(target, set);
+    }
+    const key = String(prop);
+    set.add(key);
+    try {
+      return callback();
+    } finally {
+      set.delete(key);
+      if (set.size === 0) {
+        qBehaviorCommitBypass.delete(target);
+      }
+    }
+  }
+
+  function isBehaviorCommitBypassed(target, prop) {
+    if (!qBehaviorCommitBypass || !target || !prop) {
+      return false;
+    }
+    const set = qBehaviorCommitBypass.get(target);
+    return !!(set && set.has(String(prop)));
+  }
+
+  const qEasingRegistry = {
+    linear: function linear(t) { return t; },
+    easeInQuad: function easeInQuad(t) { return t * t; },
+    easeOutQuad: function easeOutQuad(t) { return t * (2 - t); },
+    easeInOutQuad: function easeInOutQuad(t) {
+      return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    },
+  };
+
+  function getEasing(name) {
+    const key = String(name || "linear").trim();
+    if (Object.prototype.hasOwnProperty.call(qEasingRegistry, key)) {
+      return qEasingRegistry[key];
+    }
+    warnQBehavior("qhtml behavior warning: unknown easing '" + key + "', using linear.");
+    return qEasingRegistry.linear;
+  }
+
+  class AnimationJob {
+    constructor(options) {
+      const opts = options || {};
+      this.duration = Math.max(0, Number(opts.duration) || 0);
+      this.step = typeof opts.step === "function" ? opts.step : function noopStep() {};
+      this.done = typeof opts.done === "function" ? opts.done : function noopDone() {};
+      this.running = false;
+      this._frame = 0;
+      this._timer = 0;
+      this._cancelled = false;
+      this._startedAt = 0;
+      this._scheduleToken = 0;
+    }
+
+    start() {
+      if (this.running) {
+        return this;
+      }
+      const raf = typeof global.requestAnimationFrame === "function"
+        ? global.requestAnimationFrame.bind(global)
+        : function fallbackRequestAnimationFrame(callback) {
+            return global.setTimeout(function runFallbackFrame() {
+              callback((global.performance && typeof global.performance.now === "function") ? global.performance.now() : Date.now());
+            }, 16);
+          };
+      const caf = typeof global.cancelAnimationFrame === "function"
+        ? global.cancelAnimationFrame.bind(global)
+        : function fallbackCancelAnimationFrame(handle) {
+            global.clearTimeout(handle);
+          };
+      const clearScheduled = () => {
+        if (this._frame) {
+          caf(this._frame);
+          this._frame = 0;
+        }
+        if (this._timer) {
+          global.clearTimeout(this._timer);
+          this._timer = 0;
+        }
+      };
+      const schedule = (callback) => {
+        clearScheduled();
+        const token = this._scheduleToken + 1;
+        this._scheduleToken = token;
+        const run = (now) => {
+          if (this._cancelled || token !== this._scheduleToken) {
+            return;
+          }
+          clearScheduled();
+          callback(now);
+        };
+        this._frame = raf(run);
+        this._timer = global.setTimeout(function runAnimationTimerFallback() {
+          const now = (global.performance && typeof global.performance.now === "function") ? global.performance.now() : Date.now();
+          run(now);
+        }, 16);
+      };
+      this.running = true;
+      this._cancelled = false;
+      this._startedAt = (global.performance && typeof global.performance.now === "function") ? global.performance.now() : Date.now();
+      if (this.duration === 0) {
+        this.step(1);
+        this.running = false;
+        this.done();
+        return this;
+      }
+      const tick = (now) => {
+        if (this._cancelled) {
+          return;
+        }
+        const elapsed = Math.max(0, Number(now) - this._startedAt);
+        const progress = Math.max(0, Math.min(1, elapsed / this.duration));
+        this.step(progress);
+        if (progress >= 1) {
+          this.running = false;
+          this._frame = 0;
+          this._timer = 0;
+          this.done();
+          return;
+        }
+        schedule(tick);
+      };
+      schedule(tick);
+      return this;
+    }
+
+    cancel() {
+      if (!this.running && !this._frame) {
+        this._cancelled = true;
+        return;
+      }
+      this._cancelled = true;
+      this.running = false;
+      this._scheduleToken += 1;
+      const caf = typeof global.cancelAnimationFrame === "function"
+        ? global.cancelAnimationFrame.bind(global)
+        : function fallbackCancelAnimationFrame(handle) {
+            global.clearTimeout(handle);
+          };
+      if (this._frame) {
+        caf(this._frame);
+        this._frame = 0;
+      }
+      if (this._timer) {
+        global.clearTimeout(this._timer);
+        this._timer = 0;
+      }
+    }
+  }
+
+  function cssStylePropertyName(prop) {
+    const raw = String(prop || "").trim();
+    return raw.replace(/-([a-z])/g, function camelizeStyleName(_, ch) {
+      return String(ch || "").toUpperCase();
+    });
+  }
+
+  function isDimensionalStyleProperty(prop) {
+    const key = cssStylePropertyName(prop).toLowerCase();
+    return CSS_DIMENSIONAL_PROPERTIES.has(key);
+  }
+
+  function parseNumericStyleValue(value, defaultUnit) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return {
+        valid: true,
+        value: Number(value),
+        unit: defaultUnit || "px",
+        serialized: String(Number(value)) + (defaultUnit || "px"),
+      };
+    }
+    const text = String(value == null ? "" : value).trim();
+    if (!text) {
+      return { valid: false, value: 0, unit: defaultUnit || "px", serialized: "" };
+    }
+    const match = text.match(/^(-?(?:\d+|\d*\.\d+))(px|%|em|rem|vh|vw|vmin|vmax|svh|lvh|dvh|svw|lvw|dvw|ch|ex|cm|mm|in|pt|pc|q)?$/i);
+    if (!match) {
+      return { valid: false, value: 0, unit: defaultUnit || "px", serialized: text };
+    }
+    const unit = match[2] || defaultUnit || "px";
+    const number = Number(match[1]);
+    return {
+      valid: Number.isFinite(number),
+      value: number,
+      unit: unit,
+      serialized: String(number) + unit,
+    };
+  }
+
+  function serializeNumericStyleValue(value, unit) {
+    const number = Number(value);
+    const safeNumber = Number.isFinite(number) ? number : 0;
+    const rounded = Math.abs(safeNumber) < 0.000001 ? 0 : Math.round(safeNumber * 10000) / 10000;
+    return String(rounded) + String(unit || "px");
+  }
+
+  function createAnimatedStyleCommitValue(numberValue, unit) {
+    const number = Number(numberValue);
+    const safeNumber = Number.isFinite(number) ? number : 0;
+    const serialized = serializeNumericStyleValue(safeNumber, unit || "px");
+    return {
+      __qhtmlAnimatedStyleValue: true,
+      value: safeNumber,
+      propertyValue: serialized,
+      unit: String(unit || "px"),
+      serialized: serialized,
+    };
+  }
+
+  function readAnimatedStyleCommitValue(value) {
+    return value && typeof value === "object" && value.__qhtmlAnimatedStyleValue === true
+      ? value
+      : null;
+  }
+
+  function syncQDomProperty(target, prop, value) {
+    if (!target || typeof target !== "object" || !prop) {
+      return;
+    }
+    try {
+      const qdomNode = typeof target.qdom === "function" ? target.qdom() : target;
+      const qdomSourceNode =
+        qdomNode &&
+        qdomNode.__qhtmlSourceNode &&
+        typeof qdomNode.__qhtmlSourceNode === "object"
+          ? qdomNode.__qhtmlSourceNode
+          : qdomNode;
+      if (qdomSourceNode && typeof qdomSourceNode === "object") {
+        if (!qdomSourceNode.props || typeof qdomSourceNode.props !== "object" || Array.isArray(qdomSourceNode.props)) {
+          qdomSourceNode.props = {};
+        }
+        qdomSourceNode.props[prop] = value;
+      }
+    } catch (syncError) {
+      // qdom syncing is best-effort for arbitrary DOM properties.
+    }
+  }
+
+  function getPropertyAdapter(target, prop, options) {
+    const adapterOptions = options || {};
+    const propertyName = String(prop || "").trim();
+    const styleName = cssStylePropertyName(propertyName);
+    const normalizedStyleName = styleName.toLowerCase();
+    const isDomElement = !!(target && target.nodeType === 1);
+    const qPropertyMap = isDomElement && target[Q_PROPERTY_INSTANCES_KEY] && typeof target[Q_PROPERTY_INSTANCES_KEY] === "object"
+      ? target[Q_PROPERTY_INSTANCES_KEY]
+      : null;
+    if (qPropertyMap && Object.prototype.hasOwnProperty.call(qPropertyMap, propertyName)) {
+      return {
+        read: function readDeclaredProperty() {
+          try {
+            return target[propertyName];
+          } catch (error) {
+            return undefined;
+          }
+        },
+        normalize: function normalizeDeclaredValue(value) {
+          const number = Number(value);
+          if (Number.isFinite(number)) {
+            return { valid: true, value: number, unit: "", raw: value };
+          }
+          return { valid: false, value: value, unit: "", raw: value };
+        },
+        interpolate: function interpolateDeclaredValue(from, to, progress) {
+          return from.value + (to.value - from.value) * progress;
+        },
+        commit: function commitDeclaredProperty(value) {
+          withBehaviorCommitBypass(target, propertyName, function assignDeclaredProperty() {
+            target[propertyName] = value;
+          });
+          syncQDomProperty(target, propertyName, value);
+        },
+      };
+    }
+    if (isDomElement && adapterOptions.propertyTarget !== "property" && isDimensionalStyleProperty(propertyName)) {
+      return {
+        read: function readStyleDimension() {
+          const inlineValue = target.style && typeof target.style[styleName] === "string" ? target.style[styleName] : "";
+          if (inlineValue) {
+            return inlineValue;
+          }
+          const attrValue = typeof target.getAttribute === "function" ? target.getAttribute(propertyName) : "";
+          if (attrValue) {
+            return attrValue;
+          }
+          const doc = target.ownerDocument || global.document || null;
+          const view = doc && doc.defaultView ? doc.defaultView : global;
+          const computed = view && typeof view.getComputedStyle === "function" ? view.getComputedStyle(target) : null;
+          return computed && typeof computed[styleName] === "string" ? computed[styleName] : "";
+        },
+        normalize: function normalizeStyleDimension(value) {
+          const animatedValue = readAnimatedStyleCommitValue(value);
+          if (animatedValue) {
+            return {
+              valid: true,
+              value: Number(animatedValue.value),
+              unit: animatedValue.unit || "px",
+              serialized: animatedValue.serialized,
+            };
+          }
+          return parseNumericStyleValue(value, "px");
+        },
+        interpolate: function interpolateStyleDimension(from, to, progress) {
+          return createAnimatedStyleCommitValue(
+            from.value + (to.value - from.value) * progress,
+            to.unit || from.unit || "px"
+          );
+        },
+        commit: function commitStyleDimension(value) {
+          const animatedValue = readAnimatedStyleCommitValue(value);
+          const normalized = animatedValue || parseNumericStyleValue(value, "px");
+          const serialized = normalized.valid === false ? String(value == null ? "" : value) : normalized.serialized;
+          const propertyValue =
+            animatedValue
+              ? animatedValue.propertyValue
+              : normalized.valid
+                ? serialized
+                : value;
+          if (target.style) {
+            target.style[styleName] = serialized;
+          }
+          if (typeof target.setAttribute === "function") {
+            target.setAttribute(propertyName, serialized);
+          }
+          withBehaviorCommitBypass(target, propertyName, function assignAnimatedStyleProperty() {
+            try {
+              target[propertyName] = propertyValue;
+            } catch (assignPropertyError) {
+              // Style projection already succeeded; property mirroring is best-effort.
+            }
+          });
+          syncQDomProperty(target, propertyName, propertyValue);
+        },
+      };
+    }
+    if (isDomElement && adapterOptions.propertyTarget !== "property" && target.style && normalizedStyleName in target.style) {
+      return {
+        read: function readStyleProperty() {
+          return target.style[styleName] || "";
+        },
+        normalize: function normalizeStyleProperty(value) {
+          const number = Number(value);
+          return Number.isFinite(number)
+            ? { valid: true, value: number, unit: "", raw: value }
+            : { valid: false, value: value, unit: "", raw: value };
+        },
+        interpolate: function interpolateStyleProperty(from, to, progress) {
+          return from.value + (to.value - from.value) * progress;
+        },
+        commit: function commitStyleProperty(value) {
+          target.style[styleName] = String(value == null ? "" : value);
+          syncQDomProperty(target, propertyName, value);
+        },
+      };
+    }
+    return {
+      read: function readGenericProperty() {
+        try {
+          return target ? target[propertyName] : undefined;
+        } catch (error) {
+          return undefined;
+        }
+      },
+      normalize: function normalizeGenericProperty(value) {
+        const number = Number(value);
+        return Number.isFinite(number)
+          ? { valid: true, value: number, unit: "", raw: value }
+          : { valid: false, value: value, unit: "", raw: value };
+      },
+      interpolate: function interpolateGenericProperty(from, to, progress) {
+        return from.value + (to.value - from.value) * progress;
+      },
+      commit: function commitGenericProperty(value) {
+        if (!target || typeof target !== "object") {
+          return;
+        }
+        withBehaviorCommitBypass(target, propertyName, function assignGenericProperty() {
+          target[propertyName] = value;
+        });
+        syncQDomProperty(target, propertyName, value);
+      },
+    };
+  }
+
+  function commitProperty(target, prop, value, options) {
+    const propertyName = String(prop || "").trim();
+    if (!target || !propertyName) {
+      return value;
+    }
+    const adapter = getPropertyAdapter(target, propertyName, options || {});
+    adapter.commit(value, options || {});
+    return value;
+  }
+
+  function qSet(target, prop, value, options) {
+    const opts = Object.assign(
+      {
+        bypassBehavior: false,
+        preserveBinding: true,
+        source: "user",
+      },
+      options || {}
+    );
+    const propertyName = String(prop || "").trim();
+    if (!target || !propertyName) {
+      return value;
+    }
+    if (!opts.bypassBehavior) {
+      const behavior = getBehavior(target, propertyName);
+      if (behavior && behavior.enabled) {
+        return behavior.write(value, opts);
+      }
+    }
+    return commitProperty(target, propertyName, value, opts);
+  }
+
+  class NumberAnimation {
+    constructor(options) {
+      const opts = options || {};
+      this.duration = Math.max(0, Number(opts.duration == null ? 250 : opts.duration) || 0);
+      this.easing = String(opts.easing || "linear").trim() || "linear";
+      this.from = Object.prototype.hasOwnProperty.call(opts, "from") ? opts.from : undefined;
+      this.to = Object.prototype.hasOwnProperty.call(opts, "to") ? opts.to : undefined;
+      this.running = opts.running !== false && String(opts.running).trim().toLowerCase() !== "false";
+    }
+
+    createJob(config) {
+      const opts = config || {};
+      const adapter = getPropertyAdapter(opts.target, opts.prop);
+      const fromNormalized = adapter.normalize(opts.from);
+      const toNormalized = adapter.normalize(opts.to);
+      if (!fromNormalized.valid || !toNormalized.valid) {
+        warnQBehavior("qhtml behavior warning: NumberAnimation requires numeric values; committing immediately.", {
+          property: opts.prop,
+          from: opts.from,
+          to: opts.to,
+        });
+        return null;
+      }
+      if (fromNormalized.unit !== toNormalized.unit) {
+        warnQBehavior("qhtml behavior warning: NumberAnimation unit mismatch; committing immediately.", {
+          property: opts.prop,
+          from: opts.from,
+          to: opts.to,
+          fromUnit: fromNormalized.unit,
+          toUnit: toNormalized.unit,
+        });
+        return null;
+      }
+      const easing = getEasing(this.easing);
+      return new AnimationJob({
+        duration: this.duration,
+        step: function animationStep(progress) {
+          const eased = easing(Math.max(0, Math.min(1, progress)));
+          opts.commit(adapter.interpolate(fromNormalized, toNormalized, eased));
+        },
+        done: function animationDone() {
+          opts.finish(opts.to);
+        },
+      });
+    }
+  }
+
+  class BehaviorController {
+    constructor(options) {
+      const opts = options || {};
+      this.target = opts.target || null;
+      this.prop = String(opts.prop || "").trim();
+      this.animation = opts.animation || null;
+      this.enabled = opts.enabled !== false;
+      this.targetValue = undefined;
+      this.currentJob = null;
+    }
+
+    cancel() {
+      if (this.currentJob && typeof this.currentJob.cancel === "function") {
+        this.currentJob.cancel();
+      }
+      this.currentJob = null;
+    }
+
+    setEnabled(enabled) {
+      this.enabled = enabled !== false;
+      if (!this.enabled) {
+        this.cancel();
+      }
+    }
+
+    write(nextValue, options) {
+      const opts = options || {};
+      if (!this.enabled || !this.animation || this.animation.running === false) {
+        return commitProperty(this.target, this.prop, nextValue, Object.assign({}, opts, { bypassBehavior: true }));
+      }
+      this.cancel();
+      this.targetValue = nextValue;
+      const adapter = getPropertyAdapter(this.target, this.prop);
+      const fromValue = Object.prototype.hasOwnProperty.call(this.animation, "from") && typeof this.animation.from !== "undefined"
+        ? this.animation.from
+        : adapter.read();
+      const toValue = Object.prototype.hasOwnProperty.call(this.animation, "to") && typeof this.animation.to !== "undefined"
+        ? this.animation.to
+        : nextValue;
+      const self = this;
+      const job = this.animation.createJob({
+        target: this.target,
+        prop: this.prop,
+        from: fromValue,
+        to: toValue,
+        commit: function commitAnimationValue(interpolatedValue) {
+          commitProperty(self.target, self.prop, interpolatedValue, {
+            bypassBehavior: true,
+            preserveBinding: true,
+            source: "animation",
+          });
+        },
+        finish: function finishAnimationValue(finalValue) {
+          commitProperty(self.target, self.prop, finalValue, {
+            bypassBehavior: true,
+            preserveBinding: true,
+            source: "animation-final",
+          });
+          self.currentJob = null;
+        },
+      });
+      if (!job) {
+        return commitProperty(this.target, this.prop, nextValue, Object.assign({}, opts, { bypassBehavior: true }));
+      }
+      this.currentJob = job;
+      job.start();
+      return nextValue;
+    }
+  }
+
+  function normalizeBehaviorDefinitionList(node) {
+    return node && node.meta && Array.isArray(node.meta.__qhtmlBehaviors)
+      ? node.meta.__qhtmlBehaviors
+      : [];
+  }
+
+  function installBehaviorPropertyInterceptor(target, prop) {
+    if (!target || typeof target !== "object" || !prop) {
+      return false;
+    }
+    const propertyName = String(prop);
+    const existingOwn = Object.getOwnPropertyDescriptor(target, propertyName);
+    if (existingOwn && existingOwn.configurable === false) {
+      return false;
+    }
+    const installed = qBehaviorInterceptors ? qBehaviorInterceptors.get(target) : null;
+    if (installed && installed.has(propertyName)) {
+      return true;
+    }
+    if (existingOwn && (typeof existingOwn.get === "function" || typeof existingOwn.set === "function")) {
+      return false;
+    }
+    const storageKey = "__qhtmlBehaviorLocalValue__" + propertyName;
+    const initialValue = existingOwn && Object.prototype.hasOwnProperty.call(existingOwn, "value") ? existingOwn.value : undefined;
+    if (typeof initialValue !== "undefined") {
+      target[storageKey] = initialValue;
+    }
+    const descriptor = {
+      configurable: true,
+      enumerable: true,
+      get: function getBehaviorPropertyValue() {
+        if (Object.prototype.hasOwnProperty.call(this, storageKey)) {
+          return this[storageKey];
+        }
+        return getPropertyAdapter(this, propertyName).read();
+      },
+      set: function setBehaviorPropertyValue(value) {
+        if (isBehaviorCommitBypassed(this, propertyName)) {
+          this[storageKey] = value;
+          syncQDomProperty(this, propertyName, value);
+          return;
+        }
+        qSet(this, propertyName, value, { source: "user" });
+      },
+    };
+    try {
+      Object.defineProperty(target, propertyName, descriptor);
+      if (qBehaviorInterceptors) {
+        let set = qBehaviorInterceptors.get(target);
+        if (!set) {
+          set = new Set();
+          qBehaviorInterceptors.set(target, set);
+        }
+        set.add(propertyName);
+      }
+      return true;
+    } catch (error) {
+      warnQBehavior("qhtml behavior warning: failed to install property interceptor.", {
+        property: propertyName,
+        error: error,
+      });
+      return false;
+    }
+  }
+
+  function createAnimationFromBehaviorConfig(config) {
+    const animationConfig = config && config.animation && typeof config.animation === "object" ? config.animation : null;
+    if (!animationConfig) {
+      return null;
+    }
+    const type = String(animationConfig.type || "NumberAnimation").trim().toLowerCase();
+    if (type !== "numberanimation" && type !== "q-number-animation") {
+      warnQBehavior("qhtml behavior warning: unsupported animation type '" + animationConfig.type + "'.");
+      return null;
+    }
+    return new NumberAnimation(animationConfig);
+  }
+
+  function attachQBehaviorsToTarget(target, node) {
+    if (!target || typeof target !== "object") {
+      return;
+    }
+    const behaviors = normalizeBehaviorDefinitionList(node);
+    for (let i = 0; i < behaviors.length; i += 1) {
+      const spec = behaviors[i] || {};
+      const prop = String(spec.propertyName || "").trim();
+      if (!prop) {
+        continue;
+      }
+      if (getBehavior(target, prop)) {
+        warnQBehavior("qhtml behavior warning: duplicate behavior ignored for property '" + prop + "'.");
+        continue;
+      }
+      const animation = createAnimationFromBehaviorConfig(spec);
+      const controller = new BehaviorController({
+        target: target,
+        prop: prop,
+        animation: animation,
+        enabled: !!animation && animation.running !== false,
+      });
+      registerBehavior(target, prop, controller);
+      installBehaviorPropertyInterceptor(target, prop);
+    }
+  }
+
+  function initializeBehaviorTargetProperties(target, node) {
+    const behaviors = normalizeBehaviorDefinitionList(node);
+    if (!target || behaviors.length === 0) {
+      return;
+    }
+    const attrs = node && node.attributes && typeof node.attributes === "object" ? node.attributes : {};
+    const props = node && node.props && typeof node.props === "object" ? node.props : {};
+    for (let i = 0; i < behaviors.length; i += 1) {
+      const prop = String(behaviors[i] && behaviors[i].propertyName || "").trim();
+      if (!prop) {
+        continue;
+      }
+      if (Object.prototype.hasOwnProperty.call(props, prop)) {
+        commitProperty(target, prop, props[prop], { bypassBehavior: true, source: "internal" });
+      } else if (Object.prototype.hasOwnProperty.call(attrs, prop)) {
+        commitProperty(target, prop, attrs[prop], { bypassBehavior: true, source: "internal" });
+      }
+    }
+  }
+
   function setElementAttributes(element, attrs, options) {
     if (!attrs || typeof attrs !== "object") {
       return;
@@ -21716,7 +22990,10 @@
       }
       nextValue = readQVarHandleValue(nextValue);
       try {
-        element[key] = nextValue;
+        qSet(element, key, nextValue, {
+          source: "internal",
+          propertyTarget: declaredProperty ? "property" : "auto",
+        });
       } catch (error) {
         if (global.console && typeof global.console.error === "function") {
           global.console.error("qhtml component property assignment failed:", key, error);
@@ -23845,6 +25122,13 @@
             return resolveCallbackReferenceValue(literalDefault);
           },
           set: function setDeclaredComponentProperty(value) {
+            if (!isBehaviorCommitBypassed(this, propertyName)) {
+              const behavior = getBehavior(this, propertyName);
+              if (behavior && behavior.enabled) {
+                behavior.write(value, { source: "user" });
+                return;
+              }
+            }
             const normalizedValue = resolveCallbackReferenceValue(value);
             if (normalizedValue && typeof normalizedValue.then === "function") {
               const self = this;
@@ -27613,6 +28897,8 @@
             : null,
       });
       parent.appendChild(element);
+      attachQBehaviorsToTarget(element, node);
+      initializeBehaviorTargetProperties(element, node);
 
       if (context.capture) {
         if (context.capture.nodeMap) {
@@ -27671,6 +28957,7 @@
     const templateNodes = Array.isArray(componentNode.templateNodes) ? componentNode.templateNodes : [];
     const singleSlotName = resolveSingleSlotName(componentNode);
     const slotNames = collectSlotNames(templateNodes);
+    collectSlotNames(readRendererSlotDefaultNodes(componentNode), slotNames);
     const ownerInstanceId = ensureInstanceId(instanceNode);
     const slotFills = splitSlotFills(instanceNode, {
       singleSlotName: singleSlotName,
@@ -27679,7 +28966,8 @@
       ownerDefinitionType: inferDefinitionType(componentNode),
       ownerInstanceId: ownerInstanceId,
     });
-    const expanded = materializeSlots(templateNodes, slotFills);
+    const slotDefaults = buildSlotDefaultFills(componentNode);
+    const expanded = materializeSlots(templateNodes, slotFills, slotDefaults);
 
     stack.push(key);
     const contentContext = createChildRenderContext(context);
@@ -27832,6 +29120,7 @@
           : [];
       const singleSlotName = resolveSingleSlotName(componentNode);
       const slotNames = collectSlotNames(templateNodes);
+      collectSlotNames(readRendererSlotDefaultNodes(componentNode), slotNames);
       const ownerInstanceId = ensureInstanceId(instanceNode);
       const slotFills = splitSlotFills(instanceNode, {
         singleSlotName: singleSlotName,
@@ -27840,7 +29129,8 @@
         ownerDefinitionType: inferDefinitionType(componentNode),
         ownerInstanceId: ownerInstanceId,
       });
-      expanded = materializeSlots(templateNodes, slotFills);
+      const slotDefaults = buildSlotDefaultFills(componentNode);
+      expanded = materializeSlots(templateNodes, slotFills, slotDefaults);
       const propertyDefinitions = Array.isArray(componentNode.propertyDefinitions) ? componentNode.propertyDefinitions : [];
       if (propertyDefinitions.length > 0) {
         const propertyNodes = [];
@@ -28082,6 +29372,8 @@
     }
 
     bindComponentMethods(componentNode, hostElement, instanceNode);
+    attachQBehaviorsToTarget(hostElement, componentNode);
+    initializeBehaviorTargetProperties(hostElement, instanceNode);
     installQStateMachineStateBridge(componentNode, instanceNode, hostElement, targetDocument, context);
 
     stack.push(key);
@@ -28889,6 +30181,16 @@
     QComponentInstance: QComponentInstance,
     QVar: QVar,
     createQSignalInstance: createQSignalInstance,
+    qSet: qSet,
+    commitProperty: commitProperty,
+    registerBehavior: registerBehavior,
+    getBehavior: getBehavior,
+    removeBehavior: removeBehavior,
+    BehaviorController: BehaviorController,
+    NumberAnimation: NumberAnimation,
+    AnimationJob: AnimationJob,
+    getEasing: getEasing,
+    getPropertyAdapter: getPropertyAdapter,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);
 
@@ -28925,7 +30227,7 @@
   let runtimeQdomUuidCounter = 0;
   const qdomInstanceIds = new WeakMap();
   const qdomSlotOwnerIds = new WeakMap();
-  const COLLECTION_MUTATION_KEYS = new Set(["nodes", "children", "templateNodes", "slots"]);
+  const COLLECTION_MUTATION_KEYS = new Set(["nodes", "children", "templateNodes", "slotDefaults", "slots"]);
   const FORCED_FULL_RENDER_KEYS = new Set([
     "kind",
     "tagName",
@@ -28936,6 +30238,7 @@
     "nodes",
     "children",
     "templateNodes",
+    "slotDefaults",
     "slots",
     "lifecycleScripts",
     "methods",
@@ -30216,6 +31519,9 @@
     }
     if (Array.isArray(targetNode.templateNodes)) {
       out.push(targetNode.templateNodes);
+    }
+    if (Array.isArray(targetNode.slotDefaults)) {
+      out.push(targetNode.slotDefaults);
     }
     if (Array.isArray(targetNode.children)) {
       out.push(targetNode.children);
@@ -37743,7 +39049,7 @@
         node.extendsComponentIds[i] = remapSdmlReferenceName(node.extendsComponentIds[i], idMap);
       }
     }
-    const childKeys = ["nodes", "children", "templateNodes", "slots", "__qhtmlSlotNodes", "__qhtmlRenderTree"];
+    const childKeys = ["nodes", "children", "templateNodes", "slotDefaults", "slots", "__qhtmlSlotNodes", "__qhtmlRenderTree"];
     for (let k = 0; k < childKeys.length; k += 1) {
       const key = childKeys[k];
       const list = node[key];
@@ -40929,6 +42235,9 @@
     if (Array.isArray(node.templateNodes) && node.templateNodes.length > 0) {
       out.push(node.templateNodes);
     }
+    if (Array.isArray(node.slotDefaults) && node.slotDefaults.length > 0) {
+      out.push(node.slotDefaults);
+    }
     if (Array.isArray(node.children) && node.children.length > 0) {
       out.push(node.children);
     }
@@ -41695,6 +43004,18 @@
           host: binding && binding.host ? binding.host : null,
         })
       ) {
+        continue;
+      }
+      if (
+        renderer &&
+        typeof renderer.getBehavior === "function" &&
+        typeof renderer.qSet === "function" &&
+        renderer.getBehavior(element, key)
+      ) {
+        renderer.qSet(element, key, value, {
+          source: "binding",
+          preserveBinding: true,
+        });
         continue;
       }
       element.setAttribute(key, attrValue);
@@ -43902,6 +45223,9 @@
         }
         if (Array.isArray(targetNode.templateNodes)) {
           out.push(targetNode.templateNodes);
+        }
+        if (Array.isArray(targetNode.slotDefaults)) {
+          out.push(targetNode.slotDefaults);
         }
         if (Array.isArray(targetNode.children)) {
           out.push(targetNode.children);
@@ -47584,7 +48908,7 @@
       return;
     }
     const kind = String(node.kind || "").trim().toLowerCase();
-    if (kind === "slot") {
+    if (kind === "slot" || kind === "slot-default") {
       const name = String(node.name || "default").trim() || "default";
       const key = name.toLowerCase();
       if (!seen.has(key)) {
@@ -47592,7 +48916,7 @@
         output.push(name);
       }
     }
-    const lists = [node.nodes, node.children, node.templateNodes, node.slots];
+    const lists = [node.nodes, node.children, node.templateNodes, node.slotDefaults, node.slots];
     for (let li = 0; li < lists.length; li += 1) {
       const list = lists[li];
       if (!Array.isArray(list)) {
@@ -47738,6 +49062,14 @@
     QProperty: renderer && renderer.QProperty ? renderer.QProperty : null,
     QComponentInstance: renderer && renderer.QComponentInstance ? renderer.QComponentInstance : null,
     QVar: renderer && renderer.QVar ? renderer.QVar : null,
+    qSet: renderer && typeof renderer.qSet === "function" ? renderer.qSet : null,
+    commitProperty: renderer && typeof renderer.commitProperty === "function" ? renderer.commitProperty : null,
+    registerBehavior: renderer && typeof renderer.registerBehavior === "function" ? renderer.registerBehavior : null,
+    getBehavior: renderer && typeof renderer.getBehavior === "function" ? renderer.getBehavior : null,
+    removeBehavior: renderer && typeof renderer.removeBehavior === "function" ? renderer.removeBehavior : null,
+    BehaviorController: renderer && renderer.BehaviorController ? renderer.BehaviorController : null,
+    NumberAnimation: renderer && renderer.NumberAnimation ? renderer.NumberAnimation : null,
+    AnimationJob: renderer && renderer.AnimationJob ? renderer.AnimationJob : null,
     getQDomDataForUuid: getQDomDataForUuid,
     getQDomDataSnapshot: getQDomDataSnapshot,
     rootContext: {

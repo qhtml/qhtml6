@@ -112,6 +112,30 @@ div {
         }
       }
     }
+
+    wiki-example-card {
+      title: "Behavior and NumberAnimation"
+      summary: "Use behavior on a property to intercept writes and animate from the live value to the requested value."
+      note: "Behavior is not a changed handler. Animation frame writes bypass behavior so they do not recursively start new jobs."
+      details {
+        html {
+          <q-editor>div box {
+  width: 100
+
+  behavior on width {
+    NumberAnimation {
+      duration: 100
+      easing: "linear"
+    }
+  }
+
+  onclick {
+    this.width = 300
+  }
+}</q-editor>
+        }
+      }
+    }
   }
 }
     </q-html>

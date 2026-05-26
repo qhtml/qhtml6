@@ -20,6 +20,7 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Improved page-builder drag/drop behavior for nested component slots, including dialog-based Insert into slot vs Replace Target choices and a slot combobox for selecting the destination.
 - Improved the instance editor so slot selection defaults to `none`, letting the full instance block be edited and saved as a different instance shape while slot-specific editing remains available.
 - Updated page-builder layout/editing ergonomics: larger edit q-editors, nested instance edit buttons, layout palette items as real q-components with slots/placeholders, responsive canvas body styling, and a dark page-builder body background.
+- Added QML-style `behavior on <property>` with `NumberAnimation` as a property-write interceptor. Animation frame writes bypass behavior recursion, and numeric width/height values normalize to CSS units.
 
 ## 1. Quick Start
 
@@ -146,6 +147,29 @@ Multiple selectors with shorthand:
 </q-html>
 ```
 
+### Behavior and NumberAnimation
+
+`behavior on <property>` intercepts writes before the final value is committed. It is not an `on<Property>Changed` handler. Animation frames commit with behavior bypass enabled, so an animation does not recursively start another animation.
+
+```qhtml
+div box {
+  width: 100
+
+  behavior on width {
+    NumberAnimation {
+      duration: 100
+      easing: "linear"
+    }
+  }
+
+  onclick {
+    this.width = 300
+  }
+}
+```
+
+Inside a behavior, `NumberAnimation` defaults `from` to the current live property value and `to` to the intercepted requested value. Numeric dimensional values such as `100` normalize to `100px`; matching units such as `"50%"` to `"70%"` or `"50vh"` to `"60vh"` animate, while incompatible units fall back to an immediate commit with a warning. Intermediate ticks are also assigned to the actual property with behavior bypassed as CSS-valid strings such as `"123px"` or `"52%"`, so q-property setters and `on<Property>Changed` handlers can project those values into CSS directly.
+
 Resulting HTML:
 
 ```html
@@ -234,6 +258,30 @@ Resulting HTML:
     body { p { text { Projected content. } } }
   }
 </q-html>
+```
+
+### Slot defaults
+
+Use `q-slot-default` inside a component definition to provide fallback QHTML for a slot when the instance does not supply that slot. An explicit empty slot suppresses the default.
+
+```qhtml
+q-component notice-card {
+  q-slot-default body {
+    p { text { Default notice text. } }
+  }
+
+  article {
+    slot { body }
+  }
+}
+
+notice-card { }
+notice-card {
+  body { p { text { Custom notice text. } } }
+}
+notice-card {
+  body { }
+}
 ```
 
 ### `q-component` instantiation (typed named-instance syntax)

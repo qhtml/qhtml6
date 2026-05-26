@@ -71,6 +71,7 @@
     "q-logger",
     "q-perf",
     "q-anchor",
+    "q-slot-default",
     "q-layout",
     "q-row",
     "q-col",
@@ -3485,6 +3486,82 @@
           });
           continue;
         }
+        if (nameLower === "q-slot-default" && nextChar !== "{" && nextChar !== ",") {
+          const slotName = parseIdentifier(parser);
+          const normalizedSlotName = String(slotName || "").trim();
+          if (!normalizedSlotName) {
+            throw ParseError("Expected slot name after q-slot-default", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-slot-default slot name", parser.index);
+          }
+          consume(parser);
+          const slotItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          items.push({
+            type: "QSlotDefaultDefinition",
+            name: normalizedSlotName,
+            items: slotItems,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "behavior" && nextChar !== "{" && nextChar !== ",") {
+          const onKeyword = parseIdentifier(parser);
+          if (String(onKeyword || "").trim().toLowerCase() !== "on") {
+            throw ParseError("Expected 'on' after behavior", parser.index);
+          }
+          const behaviorProperty = parseIdentifier(parser);
+          const normalizedBehaviorProperty = String(behaviorProperty || "").trim();
+          if (!normalizedBehaviorProperty) {
+            throw ParseError("Expected property name after behavior on", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after behavior on " + normalizedBehaviorProperty, parser.index);
+          }
+          consume(parser);
+          const behaviorItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          items.push({
+            type: "QBehaviorDefinition",
+            propertyName: normalizedBehaviorProperty,
+            items: behaviorItems,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-behavior" && nextChar !== "{" && nextChar !== ",") {
+          const behaviorProperty = parseIdentifier(parser);
+          const normalizedBehaviorProperty = String(behaviorProperty || "").trim();
+          if (!normalizedBehaviorProperty) {
+            throw ParseError("Expected property name after q-behavior", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-behavior " + normalizedBehaviorProperty, parser.index);
+          }
+          consume(parser);
+          const behaviorItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          items.push({
+            type: "QBehaviorDefinition",
+            propertyName: normalizedBehaviorProperty,
+            items: behaviorItems,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (nameLower === "q-alias" && nextChar !== "{" && nextChar !== ",") {
           const aliasName = parseIdentifier(parser);
           const normalizedAliasName = String(aliasName || "").trim();
@@ -4300,6 +4377,30 @@
           body.push({
             type: "TemplateDefinition",
             templateId: templateId,
+            items: items,
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+        if (firstLower === "q-slot-default" && peek(parser) !== "{" && peek(parser) !== ",") {
+          const slotName = parseIdentifier(parser);
+          const normalizedSlotName = String(slotName || "").trim();
+          if (!normalizedSlotName) {
+            throw ParseError("Expected slot name after q-slot-default", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-slot-default slot name", parser.index);
+          }
+          consume(parser);
+          const items = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          body.push({
+            type: "QSlotDefaultDefinition",
+            name: normalizedSlotName,
             items: items,
             keywords: keywordSnapshot,
             start: start,
@@ -9166,6 +9267,103 @@
     return value;
   }
 
+  function normalizeBehaviorAnimationSelector(selector) {
+    const normalized = String(selector || "").trim().toLowerCase();
+    if (normalized === "numberanimation" || normalized === "q-number-animation") {
+      return "NumberAnimation";
+    }
+    return "";
+  }
+
+  function convertBehaviorAnimationItem(item, scopedMaps) {
+    if (!item || item.type !== "Element") {
+      return null;
+    }
+    const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+    if (selectors.length !== 1) {
+      return null;
+    }
+    const animationType = normalizeBehaviorAnimationSelector(selectors[0]);
+    if (!animationType) {
+      return null;
+    }
+    const config = {
+      type: animationType,
+    };
+    const nestedItems = Array.isArray(item.items) ? item.items : [];
+    for (let i = 0; i < nestedItems.length; i += 1) {
+      const child = nestedItems[i];
+      if (!child || child.type !== "Property") {
+        continue;
+      }
+      const assignment = parseAssignmentName(child.name);
+      const key = normalizePropertyName(assignment.name);
+      if (!key) {
+        continue;
+      }
+      config[key] = resolveScopedPropertyValueReferences(
+        coercePropertyValue(child.value),
+        scopedMaps,
+        null
+      );
+    }
+    return config;
+  }
+
+  function convertBehaviorDefinitionItem(item, scopedMaps) {
+    const propertyName = String(item && item.propertyName || "").trim();
+    if (!propertyName) {
+      throw new Error("behavior requires a property name.");
+    }
+    const normalizedPropertyName = normalizePropertyName(propertyName);
+    const nestedItems = Array.isArray(item.items) ? item.items : [];
+    let animation = null;
+    for (let i = 0; i < nestedItems.length; i += 1) {
+      const converted = convertBehaviorAnimationItem(nestedItems[i], scopedMaps);
+      if (!converted) {
+        continue;
+      }
+      if (animation) {
+        throw new Error("behavior on " + propertyName + " supports one animation block.");
+      }
+      animation = converted;
+    }
+    return {
+      propertyName: propertyName,
+      normalizedPropertyName: normalizedPropertyName,
+      animation: animation || null,
+      meta: {
+        originalSource: item && typeof item.raw === "string" ? item.raw : "",
+        sourceRange:
+          item && typeof item.start === "number" && typeof item.end === "number"
+            ? [item.start, item.end]
+            : null,
+      },
+    };
+  }
+
+  function appendQBehaviorDefinitionToNode(targetNode, item, scopedMaps) {
+    if (!targetNode || typeof targetNode !== "object") {
+      return;
+    }
+    if (!targetNode.meta || typeof targetNode.meta !== "object") {
+      targetNode.meta = {};
+    }
+    if (!Array.isArray(targetNode.meta.__qhtmlBehaviors)) {
+      targetNode.meta.__qhtmlBehaviors = [];
+    }
+    const behavior = convertBehaviorDefinitionItem(item, scopedMaps);
+    const key = behavior.normalizedPropertyName || normalizePropertyName(behavior.propertyName);
+    for (let i = 0; i < targetNode.meta.__qhtmlBehaviors.length; i += 1) {
+      const existing = targetNode.meta.__qhtmlBehaviors[i];
+      const existingKey = existing && (existing.normalizedPropertyName || normalizePropertyName(existing.propertyName));
+      if (existingKey && existingKey === key) {
+        throw new Error("Duplicate behavior for property '" + behavior.propertyName + "'.");
+      }
+    }
+    targetNode.meta.__qhtmlBehaviors.push(behavior);
+  }
+
   function convertScopedObjectItemsToPlainValue(items, scopedMaps, visitedRefs) {
     const out = {};
     const itemList = Array.isArray(items) ? items : [];
@@ -9524,11 +9722,19 @@
         set.add(slotName);
       }
 
+      if (core.NODE_TYPES.slotDefault && node.kind === core.NODE_TYPES.slotDefault) {
+        const slotName = typeof node.name === "string" && node.name.trim() ? String(node.name).trim() : "default";
+        set.add(slotName);
+      }
+
       if (Array.isArray(node.children) && node.children.length > 0) {
         collectSlotNamesFromNodes(node.children, set);
       }
       if (Array.isArray(node.templateNodes) && node.templateNodes.length > 0) {
         collectSlotNamesFromNodes(node.templateNodes, set);
+      }
+      if (Array.isArray(node.slotDefaults) && node.slotDefaults.length > 0) {
+        collectSlotNamesFromNodes(node.slotDefaults, set);
       }
       const slotNodes = readNodeSlots(node);
       if (slotNodes.length > 0) {
@@ -9577,6 +9783,9 @@
     const knownSlotNames = definitionNode && Array.isArray(definitionNode.templateNodes)
       ? collectSlotNamesFromNodes(definitionNode.templateNodes)
       : new Set();
+    if (definitionNode && Array.isArray(definitionNode.slotDefaults)) {
+      collectSlotNamesFromNodes(definitionNode.slotDefaults, knownSlotNames);
+    }
 
     function hasKnownSlotName(name) {
       const slotName = String(name || "").trim();
@@ -9608,6 +9817,13 @@
       fills.set(key, bucket);
     }
 
+    function ensureFill(slotName) {
+      const key = String(slotName || "default").trim() || "default";
+      if (!fills.has(key)) {
+        fills.set(key, []);
+      }
+    }
+
     function pushElementAsSlotFill(slotName, child) {
       if (Array.isArray(child.children) && child.children.length > 0) {
         for (let j = 0; j < child.children.length; j += 1) {
@@ -9621,7 +9837,7 @@
           pushFill(slotName, textNode);
         }
       } else {
-        pushFill(slotName, child);
+        ensureFill(slotName);
       }
     }
 
@@ -11999,6 +12215,15 @@
       if (item.type === "QWasmBlock") {
         throw new Error("q-wasm is only valid inside q-component definitions.");
       }
+      if (item.type === "QBehaviorDefinition") {
+        appendQBehaviorDefinitionToNode(targetElement, item, {
+          qArrays: qArrayContext,
+          qObjects: qObjectContext,
+          qModels: qModelContext,
+          repeaterScope: repeaterScope,
+        });
+        continue;
+      }
       if (item.type === "QPropertyBlock") {
         const names = Array.isArray(item.properties) ? item.properties : [];
         if (!targetElement.meta || typeof targetElement.meta !== "object") {
@@ -12279,6 +12504,10 @@
     const componentProperties = [];
     const componentPropertiesSeen = new Set();
     const templateNodes = [];
+    const slotDefaults = [];
+    const slotDefaultIndex = new Map();
+    const componentBehaviors = [];
+    const componentBehaviorNamesSeen = new Set();
     const propertyDefinitions = [];
     const methods = [];
     const signalDeclarations = [];
@@ -12510,6 +12739,19 @@
         }
         continue;
       }
+      if (item.type === "QBehaviorDefinition") {
+        if (!supportsRuntimeDefinition) {
+          continue;
+        }
+        const behavior = convertBehaviorDefinitionItem(item, scopedContext);
+        const behaviorKey = behavior.normalizedPropertyName || normalizePropertyName(behavior.propertyName);
+        if (componentBehaviorNamesSeen.has(behaviorKey)) {
+          throw new Error("Duplicate behavior for property '" + behavior.propertyName + "'.");
+        }
+        componentBehaviorNamesSeen.add(behaviorKey);
+        componentBehaviors.push(behavior);
+        continue;
+      }
       if (item.type === "Element") {
         const loggerCategories = extractQLoggerCategoriesFromElement(item);
         if (loggerCategories !== null) {
@@ -12580,6 +12822,37 @@
             uuid: declarationMeta.uuid,
             meta: declarationMeta,
           });
+        }
+        continue;
+      }
+      if (item.type === "QSlotDefaultDefinition") {
+        const slotName = String(item.name || "").trim() || "default";
+        const slotKey = slotName.toLowerCase();
+        const defaultChildren = [];
+        const nestedItems = Array.isArray(item.items) ? item.items : [];
+        for (let j = 0; j < nestedItems.length; j += 1) {
+          const resolvedNodes = convertAstItemToNodes(nestedItems[j], source, scopedContext);
+          for (let ni = 0; ni < resolvedNodes.length; ni += 1) {
+            defaultChildren.push(resolvedNodes[ni]);
+          }
+        }
+        const defaultNode = core.createSlotDefaultNode({
+          name: slotName,
+          children: defaultChildren,
+          meta: {
+            originalSource: item.raw || "",
+            sourceRange:
+              typeof item.start === "number" && typeof item.end === "number"
+                ? [item.start, item.end]
+                : null,
+          },
+        });
+        applyKeywordAliasesToNode(defaultNode, item.keywords);
+        if (slotDefaultIndex.has(slotKey)) {
+          slotDefaults[slotDefaultIndex.get(slotKey)] = defaultNode;
+        } else {
+          slotDefaultIndex.set(slotKey, slotDefaults.length);
+          slotDefaults.push(defaultNode);
         }
         continue;
       }
@@ -12785,6 +13058,7 @@
       extendsComponentId: extendsComponentIds.length > 0 ? extendsComponentIds[0] : "",
       definitionType: definitionType,
       templateNodes: templateNodes,
+      slotDefaults: slotDefaults,
       methods: methods,
       propertyDefinitions: propertyDefinitions,
       signalDeclarations: signalDeclarations,
@@ -12819,6 +13093,12 @@
         componentNode.meta = {};
       }
       componentNode.meta.__qhtmlAnchorRules = componentAnchorRules.slice();
+    }
+    if (componentBehaviors.length > 0) {
+      if (!componentNode.meta || typeof componentNode.meta !== "object") {
+        componentNode.meta = {};
+      }
+      componentNode.meta.__qhtmlBehaviors = componentBehaviors.slice();
     }
     if (Object.keys(componentEventAttributeParams).length > 0) {
       if (!componentNode.meta || typeof componentNode.meta !== "object") {
@@ -13054,6 +13334,9 @@
 
     if (selectors.length === 1) {
       const definitionSelector = selectors[0].toLowerCase();
+      if (definitionSelector === "q-slot-default") {
+        throw new Error("q-slot-default is only valid inside q-component definitions.");
+      }
       if (definitionSelector === "q-struct") {
         return buildStructNodeFromAst(astElement);
       }
@@ -13319,6 +13602,10 @@
 
     if (item.type === "QStateMachineDefinition") {
       return buildQStateMachineNodeFromAst(item, source, context);
+    }
+
+    if (item.type === "QSlotDefaultDefinition") {
+      throw new Error("q-slot-default is only valid inside q-component definitions.");
     }
 
     if (item.type === "QCanvasDefinition") {
@@ -14116,6 +14403,61 @@
     return lines.join("\n");
   }
 
+  function serializeSlotDefaultNode(slotDefaultNode, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    const slotName =
+      slotDefaultNode && typeof slotDefaultNode.name === "string" && slotDefaultNode.name.trim()
+        ? slotDefaultNode.name
+        : "default";
+    const lines = [indent + "q-slot-default " + slotName + " {"];
+    const children = Array.isArray(slotDefaultNode && slotDefaultNode.children) ? slotDefaultNode.children : [];
+    for (let i = 0; i < children.length; i += 1) {
+      lines.push(serializeNode(children[i], indentLevel + 1));
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
+  function serializeQBehaviorBlock(behavior, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    const propertyName = String(behavior && behavior.propertyName || "").trim();
+    if (!propertyName) {
+      return "";
+    }
+    const animation = behavior && behavior.animation && typeof behavior.animation === "object" ? behavior.animation : null;
+    const animationType = animation && String(animation.type || "").trim() ? String(animation.type || "").trim() : "NumberAnimation";
+    const lines = [indent + "behavior on " + propertyName + " {"];
+    if (animation) {
+      lines.push(indent + "  " + animationType + " {");
+      const keys = Object.keys(animation);
+      for (let i = 0; i < keys.length; i += 1) {
+        const key = keys[i];
+        if (!key || key === "type") {
+          continue;
+        }
+        lines.push(indent + "    " + key + ": " + serializeAssignmentValue(animation[key]));
+      }
+      lines.push(indent + "  }");
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
+  function serializeQBehaviorBlocksFromNode(node, indentLevel) {
+    const behaviors =
+      node && node.meta && Array.isArray(node.meta.__qhtmlBehaviors)
+        ? node.meta.__qhtmlBehaviors
+        : [];
+    const lines = [];
+    for (let i = 0; i < behaviors.length; i += 1) {
+      const serialized = serializeQBehaviorBlock(behaviors[i], indentLevel);
+      if (serialized) {
+        lines.push(serialized);
+      }
+    }
+    return lines;
+  }
+
   function serializeRepeaterPrimitiveLiteral(value) {
     if (value === null) {
       return "null";
@@ -14491,6 +14833,10 @@
       if (serializedComponentAnchorRules) {
         lines.push(serializedComponentAnchorRules);
       }
+      const serializedComponentBehaviors = serializeQBehaviorBlocksFromNode(node, indentLevel + 1);
+      for (let i = 0; i < serializedComponentBehaviors.length; i += 1) {
+        lines.push(serializedComponentBehaviors[i]);
+      }
       const properties = Array.isArray(node.properties) ? node.properties : [];
       if (properties.length > 0) {
         lines.push(indent + "  q-property {");
@@ -14514,6 +14860,17 @@
           const serializedPropertyDefinition = serializePropertyDefinitionBlock(node.propertyDefinitions[i], indentLevel + 1);
           if (serializedPropertyDefinition) {
             lines.push(serializedPropertyDefinition);
+          }
+        }
+      }
+      if (
+        (definitionType === "component" || definitionType === "worker" || definitionType === "template") &&
+        Array.isArray(node.slotDefaults)
+      ) {
+        for (let i = 0; i < node.slotDefaults.length; i += 1) {
+          const serializedSlotDefault = serializeSlotDefaultNode(node.slotDefaults[i], indentLevel + 1);
+          if (serializedSlotDefault) {
+            lines.push(serializedSlotDefault);
           }
         }
       }
@@ -14589,6 +14946,10 @@
 
     if (node.kind === core.NODE_TYPES.slot) {
       return serializeSlotNode(node, indentLevel);
+    }
+
+    if (core.NODE_TYPES.slotDefault && node.kind === core.NODE_TYPES.slotDefault) {
+      return serializeSlotDefaultNode(node, indentLevel);
     }
 
     if (node.kind === core.NODE_TYPES.componentInstance || node.kind === core.NODE_TYPES.templateInstance) {
@@ -14713,9 +15074,13 @@
       node && node.meta && Array.isArray(node.meta.__qhtmlAnchorRules)
         ? node.meta.__qhtmlAnchorRules
         : [];
-    const serializedElementAnchorRules = serializeQAnchorRulesBlock(elementAnchorRules, indentLevel + 1);
-    if (serializedElementAnchorRules) {
-      lines.push(serializedElementAnchorRules);
+      const serializedElementAnchorRules = serializeQAnchorRulesBlock(elementAnchorRules, indentLevel + 1);
+      if (serializedElementAnchorRules) {
+        lines.push(serializedElementAnchorRules);
+      }
+    const serializedElementBehaviors = serializeQBehaviorBlocksFromNode(node, indentLevel + 1);
+    for (let i = 0; i < serializedElementBehaviors.length; i += 1) {
+      lines.push(serializedElementBehaviors[i]);
     }
 
     const textBindings = collectNodeBindingsByTarget(node, "textcontent");

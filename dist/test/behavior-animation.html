@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML Behavior and NumberAnimation Test</title>
+  <script src="qhtml.js"></script>
+  <style>
+    body { margin: 0; padding: 1rem; font-family: system-ui, sans-serif; }
+    q-html { display: block; }
+    .box { display: block; height: 1.5rem; margin: 0.5rem 0; background: #1d4ed8; color: #fff; overflow: hidden; }
+  </style>
+</head>
+<body data-status="pending">
+  <q-html>
+div#basic-box.box {
+  width: 100
+  behavior on width {
+    NumberAnimation {
+      duration: 8000
+      easing: "linear"
+    }
+  }
+  text { basic }
+}
+
+div#rebase-box.box {
+  width: "100px"
+  behavior on width {
+    NumberAnimation {
+      duration: 14000
+      easing: "easeInOutQuad"
+    }
+  }
+  text { rebase }
+}
+
+div#disabled-box.box {
+  width: "10vh"
+  behavior on width {
+    NumberAnimation {
+      duration: 10000
+      running: false
+    }
+  }
+  text { disabled }
+}
+
+div#percent-box.box {
+  width: "50%"
+  behavior on width {
+    NumberAnimation {
+      duration: 6000
+    }
+  }
+  text { percent }
+}
+
+div#vh-box.box {
+  width: "50vh"
+  behavior on width {
+    NumberAnimation {
+      duration: 6000
+    }
+  }
+  text { vh }
+}
+
+  </q-html>
+  <script>
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    function widthOf(id) {
+      return document.getElementById(id).style.width;
+    }
+    function nearPx(value, expected) {
+      const number = Number(String(value || "").replace("px", ""));
+      return Number.isFinite(number) && Math.abs(number - expected) <= 1;
+    }
+    async function runBehaviorTests() {
+      const failures = [];
+      const basic = document.getElementById("basic-box");
+      const rebase = document.getElementById("rebase-box");
+      const disabled = document.getElementById("disabled-box");
+      const percent = document.getElementById("percent-box");
+      const vh = document.getElementById("vh-box");
+      if (!basic || !rebase || !disabled || !percent || !vh) {
+        failures.push("missing rendered behavior test boxes");
+      }
+      const parsed = basic && basic.qdom && basic.qdom();
+      const parsedBehavior = parsed && parsed.meta && Array.isArray(parsed.meta.__qhtmlBehaviors) ? parsed.meta.__qhtmlBehaviors[0] : null;
+      if (!parsedBehavior || parsedBehavior.propertyName !== "width") {
+        failures.push("parser did not attach behavior metadata to width");
+      }
+      const originalBehavior = window.QHtml && window.QHtml.getBehavior ? window.QHtml.getBehavior(basic, "width") : null;
+      let writes = 0;
+      if (originalBehavior) {
+        const originalWrite = originalBehavior.write.bind(originalBehavior);
+        originalBehavior.write = function wrappedWrite(value, options) {
+          writes += 1;
+          return originalWrite(value, options);
+        };
+      } else {
+        failures.push("runtime behavior was not registered");
+      }
+      if (widthOf("basic-box") !== "100px") {
+        failures.push("100 did not normalize to 100px");
+      }
+      basic.width = 300;
+      await wait(35);
+      const midBasic = widthOf("basic-box");
+      const midBasicProperty = parseFloat(String(basic.width || "").replace("px", ""));
+      if (midBasic === "100px" || midBasic === "300px") {
+        failures.push("basic width did not animate through an intermediate value");
+      }
+      if (!String(basic.width || "").endsWith("px")) {
+        failures.push("basic width property did not keep its px unit during animation");
+      }
+      if (!Number.isFinite(midBasicProperty) || midBasicProperty <= 100 || midBasicProperty >= 300) {
+        failures.push("basic width property did not receive an intermediate animation value");
+      }
+      await wait(100);
+      if (!nearPx(widthOf("basic-box"), 300)) {
+        failures.push("basic final width is not exactly 300px");
+      }
+      if (basic.width !== "300px") {
+        failures.push("basic final width property is not exactly 300px");
+      }
+      if (writes !== 1) {
+        failures.push("animation frame commits re-entered behavior write path");
+      }
+      rebase.width = "300px";
+      await wait(35);
+      rebase.width = "500px";
+      await wait(180);
+      if (!nearPx(widthOf("rebase-box"), 500)) {
+        failures.push("rebase final width is not 500px");
+      }
+      disabled.width = 300;
+      if (!nearPx(widthOf("disabled-box"), 300)) {
+        failures.push("disabled behavior did not write immediately");
+      }
+      percent.width = "70%";
+      await wait(90);
+      if (widthOf("percent-box") !== "70%") {
+        failures.push("matching percent units did not animate to 70%");
+      }
+      if (percent.width !== "70%") {
+        failures.push("percent width property did not keep its percent unit");
+      }
+      vh.width = "60vh";
+      await wait(90);
+      if (widthOf("vh-box") !== "60vh") {
+        failures.push("matching vh units did not animate to 60vh");
+      }
+      if (vh.width !== "60vh") {
+        failures.push("vh width property did not keep its vh unit");
+      }
+      document.body.dataset.status = failures.length ? "fail" : "pass";
+      document.body.dataset.failures = failures.join(" | ");
+    }
+    window.addEventListener("QHTMLContentLoaded", () => {
+      setTimeout(() => {
+        runBehaviorTests().catch((error) => {
+          document.body.dataset.status = "fail";
+          document.body.dataset.failures = String(error && error.stack || error);
+        });
+      }, 0);
+    });
+  </script>
+</body>
+</html>
