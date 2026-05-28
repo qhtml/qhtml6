@@ -82,6 +82,11 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - parsed in top-level, element blocks, and runtime-capable component/worker blocks
       - compiled into equivalent `onready` lifecycle connect scripts (declarative sugar over `signal.connect(handler)`)
       - sender/target expressions are kept as runtime-evaluated expressions, so named aliases and `document.querySelector(...)` expressions are both supported
+    - declarative CSS property binding:
+      - `q-bind-css { this.component.widthValue this.component.style.width }`
+      - valid only inside `q-component` definitions
+      - the first expression must reference a `q-property` declared on the same definition (`this.component.prop`, `component.prop`, `this.prop`, or `prop`)
+      - emitted as component metadata in `component.meta.__qhtmlCssBindings` and serialized back to `q-bind-css { source target }`
     - callback declarations:
       - top-level `q-callback name(param1, ...) { ... }` emitted as QDom `kind: "callback"` nodes
       - component-local `q-callback name(param1, ...) { ... }` emitted in `component.callbackDeclarations`
@@ -135,6 +140,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - style declarations and application:
       - `q-style name { q-style-class { classA classB } prop: value }`
       - `q-style-class` stores class tokens in the style definition
+      - `q-style-path-animation { path: "M ..."; duration: 1200; easing: "ease-in-out"; anchorPoint: "center"; rotation: "auto"; repeat: "true" }` inside `q-style` emits CSS motion-path declarations plus keyframe metadata
       - `q-theme name { selector { q-style { prop: value } named-style } }` supports anonymous q-style blocks inside selector rules; they are lowered to private generated q-style definitions in rule order
       - applying the style merges classes into `class` and declarations into `style`
     - repeater and iterable model support:
@@ -179,7 +185,8 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
   - Serializes array/object assignment values using typed container syntax (`q-array { ... }` / `q-map { ... }`) instead of stringifying them.
   - Serializes dirty `q-state-machine` component-instance nodes back to named state-machine block syntax using stored state metadata.
   - Serializes `struct` and `struct-instance` QDom nodes back to `q-struct` and typed instance syntax.
-  - Serializes behavior metadata back to `behavior on <property> { NumberAnimation { ... } }`.
+- Serializes behavior metadata back to `behavior on <property> { NumberAnimation { ... } }`.
+- Serializes `q-bind-css` metadata back to `q-bind-css { source target }`.
 - `parseQScript(source)`
   - Parses q-script rules of form `selector.on("event"): { ... }`.
 - `serializeQScript(rules)`
@@ -190,6 +197,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
 - Throws `QHtmlKeywordAliasError` with `.index` for invalid alias declarations/usages (self-reference or alias-to-alias).
 - Import/macro stages throw descriptive `Error` messages for recursion/limits/unbalanced blocks.
 - `q-style-class` is block-only inside `q-style` (`q-style-class { ... }`).
+- `q-style-path-animation` is block-only inside `q-style`; unsupported `@keyframes` CSS is stored as QDom metadata for the renderer to inject as a `<style data-qhtml-path-animation>` tag.
 - model warnings are emitted when non-iterative containers are mixed into model blocks; `q-model-view` keeps valid parsed entries while `q-repeater` retains fallback behavior for incompatible model content.
 
 ## Binding semantics

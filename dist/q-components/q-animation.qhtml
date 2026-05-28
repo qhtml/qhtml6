@@ -1,0 +1,308 @@
+q-component q-property-animation {
+  q-signal started()
+  q-signal stopped()
+  q-signal stepped(value, currentStep, progress)
+  q-signal ended()
+
+  q-property target: ""
+  q-property duration: 1000
+  q-property steps: 60
+  q-property easing: "linear"
+  q-property repeat: false
+  q-property from: ""
+  q-property to: ""
+  q-property running: false
+  q-property stepInterval: 16
+  q-property currentStep: 0
+  q-property currentLoop: 0
+  q-property activeFrom: ""
+
+  q-timer animationTimer {
+    interval: 16
+    repeat: true
+    running: false
+  }
+
+  q-connect { animationTimer.timeout this.component.advance }
+
+  function normalizeNumber(value, fallbackValue) {
+    var number = Number(value);
+    return Number.isFinite(number) ? number : Number(fallbackValue || 0);
+  }
+
+  function normalizePositiveInteger(value, fallbackValue) {
+    var number = Math.floor(this.component.normalizeNumber(value, fallbackValue));
+    return number > 0 ? number : Math.max(1, Math.floor(Number(fallbackValue || 1)));
+  }
+
+  function normalizeBoolean(value, fallbackValue) {
+    if (value === true || value === false) {
+      return value;
+    }
+    if (value === 1 || value === "1") {
+      return true;
+    }
+    if (value === 0 || value === "0") {
+      return false;
+    }
+    var text = String(value == null ? "" : value).trim().toLowerCase();
+    if (text === "true" || text === "yes" || text === "on") {
+      return true;
+    }
+    if (text === "false" || text === "no" || text === "off" || text === "") {
+      return false;
+    }
+    return Boolean(fallbackValue);
+  }
+
+  function repeatLimit() {
+    var repeatValue = this.component.repeat;
+    if (typeof repeatValue === "number" && Number.isFinite(repeatValue)) {
+      return repeatValue > 0 ? Math.floor(repeatValue) : 1;
+    }
+    var repeatText = String(repeatValue == null ? "" : repeatValue).trim().toLowerCase();
+    if (/^\d+$/.test(repeatText)) {
+      var numericRepeat = Math.floor(Number(repeatText));
+      return numericRepeat > 0 ? numericRepeat : 1;
+    }
+    if (repeatValue === true || repeatText === "true" || repeatText === "yes" || repeatText === "on" || repeatText === "infinite") {
+      return Infinity;
+    }
+    if (repeatValue === false || repeatText === "false" || repeatText === "no" || repeatText === "off" || repeatText === "") {
+      return 1;
+    }
+    return 1;
+  }
+
+  function refreshTimerInterval() {
+    var durationValue = Math.max(0, this.component.normalizeNumber(this.component.duration, 1000));
+    var stepCount = this.component.normalizePositiveInteger(this.component.steps, 60);
+    var interval = Math.max(1, Math.floor(durationValue / stepCount));
+    this.component.stepInterval = interval;
+    animationTimer.interval = interval;
+    if (this.component.normalizeBoolean(this.component.running, false)) {
+      animationTimer.stop();
+      animationTimer.start();
+    }
+  }
+
+  function stripQuotes(value) {
+    var text = String(value == null ? "" : value).trim();
+    if (text.length >= 2) {
+      var first = text.charAt(0);
+      var last = text.charAt(text.length - 1);
+      if ((first === "\"" && last === "\"") || (first === "'" && last === "'") || (first === "`" && last === "`")) {
+        return text.slice(1, -1);
+      }
+    }
+    return text;
+  }
+
+  function parseNumericValue(value) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return { valid: true, value: value, unit: "", raw: value };
+    }
+    var text = this.component.stripQuotes(value);
+    var match = text.match(/^\s*(-?(?:\d+|\d*\.\d+))(px|%|vh|vw|vmin|vmax|rem|em|ch|ex|cm|mm|in|pt|pc|deg|rad|turn|s|ms)?\s*$/i);
+    if (!match) {
+      return { valid: false, value: 0, unit: "", raw: value };
+    }
+    return {
+      valid: true,
+      value: Number(match[1]),
+      unit: String(match[2] || ""),
+      raw: value
+    };
+  }
+
+  function formatNumericValue(number, unit) {
+    var safe = Number(number);
+    if (!Number.isFinite(safe)) {
+      safe = 0;
+    }
+    var rounded = Math.abs(safe) < 0.000001 ? 0 : Math.round(safe * 10000) / 10000;
+    return unit ? String(rounded) + unit : rounded;
+  }
+
+  function splitReferencePath(pathText) {
+    var text = String(pathText == null ? "" : pathText).trim();
+    if (!text) {
+      return [];
+    }
+    return text.split(".").map(function cleanReferenceToken(part) {
+      return String(part || "").trim();
+    }).filter(Boolean);
+  }
+
+  function resolveReferenceOwner(pathText) {
+    var parts = this.component.splitReferencePath(pathText);
+    if (parts.length < 2) {
+      return null;
+    }
+    var rootName = parts[0];
+    var root = null;
+    if (rootName === "this" || rootName === "component") {
+      root = this.component;
+    } else if (this.component[rootName] !== undefined) {
+      root = this.component[rootName];
+    } else if (window[rootName] !== undefined) {
+      root = window[rootName];
+    } else if (document.getElementById(rootName)) {
+      root = document.getElementById(rootName);
+    } else if (document.querySelector(rootName)) {
+      root = document.querySelector(rootName);
+    }
+    if (root == null) {
+      return null;
+    }
+    for (var i = 1; i < parts.length - 1; i += 1) {
+      root = root[parts[i]];
+      if (root == null) {
+        return null;
+      }
+    }
+    return {
+      owner: root,
+      property: parts[parts.length - 1]
+    };
+  }
+
+  function readTargetValue() {
+    var resolved = this.component.resolveReferenceOwner(this.component.target);
+    if (!resolved || !resolved.owner || !resolved.property) {
+      return "";
+    }
+    return resolved.owner[resolved.property];
+  }
+
+  function writeTargetValue(value) {
+    var resolved = this.component.resolveReferenceOwner(this.component.target);
+    if (!resolved || !resolved.owner || !resolved.property) {
+      return false;
+    }
+    resolved.owner[resolved.property] = value;
+    return true;
+  }
+
+  function easeProgress(progress) {
+    var t = Math.max(0, Math.min(1, Number(progress) || 0));
+    var name = String(this.component.easing || "linear").trim().toLowerCase();
+    if (name === "ease-in" || name === "easein" || name === "easeinquad") {
+      return t * t;
+    }
+    if (name === "ease-out" || name === "easeout" || name === "easeoutquad") {
+      return t * (2 - t);
+    }
+    if (name === "ease" || name === "ease-in-out" || name === "easeinout" || name === "easeinoutquad") {
+      return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    }
+    return t;
+  }
+
+  function computeStepValue() {
+    var start = this.component.parseNumericValue(this.component.activeFrom);
+    var end = this.component.parseNumericValue(this.component.to);
+    if (!start.valid || !end.valid || start.unit !== end.unit) {
+      return this.component.currentStep >= this.component.normalizePositiveInteger(this.component.steps, 60)
+        ? this.component.stripQuotes(this.component.to)
+        : this.component.stripQuotes(this.component.activeFrom);
+    }
+    var stepCount = this.component.normalizePositiveInteger(this.component.steps, 60);
+    var progress = Math.max(0, Math.min(1, Number(this.component.currentStep || 0) / stepCount));
+    var eased = this.component.easeProgress(progress);
+    return this.component.formatNumericValue(start.value + ((end.value - start.value) * eased), end.unit);
+  }
+
+  function resetLoop() {
+    this.component.currentStep = 0;
+    if (String(this.component.from == null ? "" : this.component.from).trim()) {
+      this.component.activeFrom = this.component.from;
+    } else {
+      this.component.activeFrom = this.component.readTargetValue();
+    }
+  }
+
+  function start() {
+    if (!String(this.component.to == null ? "" : this.component.to).trim()) {
+      this.component.running = false;
+      animationTimer.stop();
+      return;
+    }
+    this.component.refreshTimerInterval();
+    this.component.currentLoop = 0;
+    this.component.resetLoop();
+    this.component.running = true;
+    this.component.started();
+    this.component.writeTargetValue(this.component.computeStepValue());
+    animationTimer.start();
+  }
+
+  function stop() {
+    this.component.running = false;
+    animationTimer.stop();
+    this.component.stopped();
+  }
+
+  function restart() {
+    this.component.stop();
+    this.component.start();
+  }
+
+  function end() {
+    this.component.writeTargetValue(this.component.stripQuotes(this.component.to));
+    this.component.running = false;
+    animationTimer.stop();
+    this.component.ended();
+  }
+
+  function finish() {
+    this.component.currentLoop = Number(this.component.currentLoop || 0) + 1;
+    if (this.component.currentLoop < this.component.repeatLimit()) {
+      this.component.resetLoop();
+      return;
+    }
+    this.component.end();
+  }
+
+  function advance() {
+    if (!this.component.normalizeBoolean(this.component.running, false)) {
+      animationTimer.stop();
+      return;
+    }
+    var stepCount = this.component.normalizePositiveInteger(this.component.steps, 60);
+    if (Number(this.component.currentStep || 0) >= stepCount) {
+      this.component.finish();
+      return;
+    }
+    this.component.currentStep = Number(this.component.currentStep || 0) + 1;
+    var nextValue = this.component.computeStepValue();
+    var progress = Math.max(0, Math.min(1, Number(this.component.currentStep || 0) / stepCount));
+    this.component.writeTargetValue(nextValue);
+    this.component.stepped(nextValue, this.component.currentStep, progress);
+  }
+
+  onready {
+    this.component.refreshTimerInterval();
+    if (this.component.normalizeBoolean(this.component.running, false)) {
+      this.component.start();
+    }
+  }
+
+  ondurationchanged {
+    this.component.refreshTimerInterval();
+  }
+
+  onstepschanged {
+    this.component.refreshTimerInterval();
+  }
+
+  onrunningchanged {
+    if (this.component.normalizeBoolean(this.component.running, false)) {
+      if (!animationTimer.running) {
+        animationTimer.start();
+      }
+    } else {
+      animationTimer.stop();
+    }
+  }
+}

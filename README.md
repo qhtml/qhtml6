@@ -18,6 +18,7 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Added QML-style `behavior on <property>` with `NumberAnimation` as a property-write interceptor.
 - Added behavior-aware property writes through `QHtml.qSet()` and bypassed animation-frame commits so animations do not recursively trigger themselves.
 - Expanded dimensional animation support so `px`, `%`, `vh`, and other matching CSS units interpolate while intermediate values are mirrored as CSS-valid property strings.
+- Added `q-style-path-animation` for CSS motion-path animation sugar inside `q-style`.
 - Added `q-slot-default` for component slot fallback content and updated the UI component defaults that use it.
 - Added `q-ui-split-layout` and default slot content for the optional `q-ui-components.qhtml` component set.
 
@@ -181,6 +182,22 @@ animated-panel { }
 Inside a behavior, `NumberAnimation` defaults `from` to the current live property value and `to` to the intercepted requested value. Numeric dimensional values such as `100` normalize to `100px`; matching units such as `"50%"` to `"70%"`, `"50vh"` to `"60vh"`, or `"8rem"` to `"12rem"` animate, while incompatible units fall back to an immediate commit with a warning. QHTML stores the unit sidecar in QDom `property_extensions`, interpolates the number, then commits either a plain number for unitless values or a CSS-valid string such as `"123px"` or `"52%"`, so q-property setters and `on<Property>Changed` handlers can project those values into CSS directly.
 
 This lets a component keep animation state in a q-property while projecting CSS-ready values in the property changed handler. During the animation above, `panelWidth` receives intermediate values like `"43.2%"`; the handler writes those values directly to `.panel-fill.style.width`, and the final frame commits the exact requested percent string.
+
+Use `q-bind-css` inside a component when the property can be projected directly to a writable CSS reference:
+
+```qhtml
+q-component animated-box {
+  q-property w: "200px"
+
+  q-bind-css { this.component.w this.component.style.width }
+
+  behavior on w {
+    NumberAnimation { duration: 250 }
+  }
+}
+```
+
+The first `q-bind-css` expression must reference a `q-property` declared on the same component. The second expression must resolve to a writable target such as `this.component.style.width`.
 
 Resulting HTML:
 
@@ -1284,6 +1301,33 @@ q-style quick-fade-style {
 
 quick-fade-style,div#boxA { text { transition-ready } }
 ```
+
+### `q-style-path-animation`
+
+`q-style-path-animation` is q-style sugar for CSS motion-path animation. Inline-compatible declarations are applied to the element, and QHTML injects a generated `@keyframes` style tag for the unsupported inline part.
+
+```qhtml
+q-style mover {
+  width: 40px;
+  height: 40px;
+  background: red;
+
+  q-style-path-animation {
+    path: "M 50 50 C 400 50, 50 300, 400 300"
+    duration: 1200
+    easing: "ease-in-out"
+    anchorPoint: "center"
+    rotation: "auto"
+    repeat: "true"
+  }
+}
+
+q-theme motion-theme {
+  .box { mover }
+}
+```
+
+This emits `offset-path`, `offset-distance`, `offset-anchor`, `offset-rotate`, and `animation` on matching elements, plus a generated `@keyframes` rule that moves `offset-distance` from `0%` to `100%`.
 
 ### `q-anchor` positioning
 

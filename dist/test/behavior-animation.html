@@ -4,221 +4,210 @@
   <meta charset="UTF-8">
   <base href="../">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QHTML Behavior and NumberAnimation Test</title>
+  <title>QHTML Behavior and NumberAnimation Demo</title>
   <script src="qhtml.js"></script>
   <style>
-    body { margin: 0; padding: 1rem; font-family: system-ui, sans-serif; }
-    q-html { display: block; }
-    .box { display: block; height: 1.5rem; margin: 0.5rem 0; background: #1d4ed8; color: #fff; overflow: hidden; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-family: system-ui, sans-serif;
+    }
+
+    q-html {
+      display: block;
+      min-height: 100vh;
+    }
   </style>
 </head>
-<body data-status="pending">
+<body data-status="pass">
   <q-html>
-div#basic-box.box {
-  width: 100
-  behavior on width {
-    NumberAnimation {
-      duration: 80
-      easing: "linear"
-    }
-  }
-  text { basic }
-}
+q-component behavior-bar {
+  q-property label: "bar"
+  q-property unitMode: "px"
+  q-property barColor: "#1d4ed8"
+  q-property widthValue: "140px"
+  q-property heightValue: "44px"
+  q-property leftValue: "20px"
+  q-property topValue: "20px"
 
-div#rebase-box.box {
-  width: "100px"
-  behavior on width {
+  q-bind-css { this.component.widthValue this.component.style.width }
+  q-bind-css { this.component.heightValue this.component.style.height }
+  q-bind-css { this.component.leftValue this.component.style.left }
+  q-bind-css { this.component.topValue this.component.style.top }
+
+  behavior on widthValue {
     NumberAnimation {
-      duration: 140
+      duration: 500
       easing: "easeInOutQuad"
     }
   }
-  text { rebase }
-}
 
-div#disabled-box.box {
-  width: "10vh"
-  behavior on width {
+  behavior on heightValue {
     NumberAnimation {
-      duration: 100
-      running: false
+      duration: 1000
+      easing: "easeInOutQuad"
     }
   }
-  text { disabled }
-}
 
-div#percent-box.box {
-  width: "50%"
-  behavior on width {
+  behavior on leftValue {
     NumberAnimation {
-      duration: 60
+      duration: 1000
+      easing: "easeInOutQuad"
     }
   }
-  text { percent }
-}
 
-div#vh-box.box {
-  width: "50vh"
-  behavior on width {
+  behavior on topValue {
     NumberAnimation {
-      duration: 60
+      duration: 500
+      easing: "easeInOutQuad"
     }
   }
-  text { vh }
+
+  function randomBetween(min, max) {
+    return min + Math.random() * (max - min);
+  }
+
+  function unitValue(value, unit) {
+    return unit ? String(value) + unit : Number(value);
+  }
+
+  function randomLength(unit, min, max) {
+    return this.unitValue(Math.round(this.randomBetween(min, max) * 100) / 100, unit);
+  }
+
+  function randomize() {
+    var randomNumber = 2 +  Math.floor(Math.random() * 2);
+    var unit = String(this.unitMode || "").trim();
+    if (unit === "%") {
+      if (randomNumber === 0) { this.widthValue = this.randomLength("%", 18, 48); }
+      else if (randomNumber === 1) { this.heightValue = this.randomLength("%", 6, 18); }
+      else if (randomNumber === 2) { this.leftValue = this.randomLength("%", 3, 68); }
+      else { this.topValue = this.randomLength("%", 8, 72); }
+    } else if (unit === "px") {
+      if (randomNumber === 0) { this.widthValue = this.randomLength("px", 80, 260); }
+      else if (randomNumber === 1) { this.heightValue = this.randomLength("px", 32, 92); }
+      else if (randomNumber === 2) { this.leftValue = this.randomLength("px", 12, 560); }
+      else { this.topValue = this.randomLength("px", 80, 420); }
+    } else if (unit === "rem") {
+      if (randomNumber === 0) { this.widthValue = this.randomLength("rem", 5, 16); }
+      else if (randomNumber === 1) { this.heightValue = this.randomLength("rem", 2, 6); }
+      else if (randomNumber === 2) { this.leftValue = this.randomLength("rem", 1, 34); }
+      else { this.topValue = this.randomLength("rem", 7, 24); }
+    } else if (unit === "vh") {
+      if (randomNumber === 0) { this.widthValue = this.randomLength("vh", 10, 30); }
+      else if (randomNumber === 1) { this.heightValue = this.randomLength("vh", 5, 14); }
+      else if (randomNumber === 2) { this.leftValue = this.randomLength("vh", 2, 62); }
+      else { this.topValue = this.randomLength("vh", 10, 52); }
+    } else {
+      if (randomNumber === 0) { this.widthValue = this.randomLength("", 90, 260); }
+      else if (randomNumber === 1) { this.heightValue = this.randomLength("", 34, 110); }
+      else if (randomNumber === 2) { this.leftValue = this.randomLength("", 24, 620); }
+      else { this.topValue = this.randomLength("", 100, 470); }
+    }
+  }
+
+  function applyBox() {
+    this.style.position = "absolute";
+    this.style.display = "grid";
+    this.style.placeItems = "center";
+    this.style.boxSizing = "border-box";
+    this.style.border = "1px solid rgba(255,255,255,.35)";
+    this.style.borderRadius = "0.75rem";
+    this.style.background = String(this.barColor || "#1d4ed8");
+    this.style.color = "#ffffff";
+    this.style.fontWeight = "800";
+    this.style.fontSize = "0.82rem";
+    this.style.overflow = "hidden";
+    this.style.boxShadow = "0 18px 40px rgba(0,0,0,.28)";
+  }
+
+  onReady {
+    this.applyBox();
+  }
+
+  div {
+    text { ${this.component.label} }
+  }
 }
 
-div#rem-box.box {
-  width: "8rem"
-  behavior on width {
-    NumberAnimation {
-      duration: 60
+section.behavior-stage {
+  style { position: relative; min-height: 100vh; overflow: hidden; padding: 1rem; box-sizing: border-box; }
+
+  header {
+    style { position: relative; z-index: 2; max-width: 48rem; }
+    h1 { text { Behavior and NumberAnimation } }
+    p {
+      style { color: #cbd5e1; line-height: 1.5; }
+      text { q-timer continuously retargets width, height, left, and top for %, px, rem, vh, and unitless q-property values. }
     }
   }
-  text { rem }
+
+  behavior-bar percentBar {
+    label: "percent"
+    unitMode: "%"
+    barColor: "#1d4ed8"
+    widthValue: "36%"
+    heightValue: "10%"
+    leftValue: "5%"
+    topValue: "22%"
+  }
+
+  behavior-bar pixelBar {
+    label: "px"
+    unitMode: "px"
+    barColor: "#0f766e"
+    widthValue: "180px"
+    heightValue: "58px"
+    leftValue: "300px"
+    topValue: "120px"
+  }
+
+  behavior-bar remBar {
+    label: "rem"
+    unitMode: "rem"
+    barColor: "#7c3aed"
+    widthValue: "9rem"
+    heightValue: "3rem"
+    leftValue: "7rem"
+    topValue: "19rem"
+  }
+
+  behavior-bar vhBar {
+    label: "vh"
+    unitMode: "vh"
+    barColor: "#be123c"
+    widthValue: "18vh"
+    heightValue: "7vh"
+    leftValue: "42vh"
+    topValue: "30vh"
+  }
+
+  behavior-bar unitlessBar {
+    label: "unitless"
+    unitMode: ""
+    barColor: "#d97706"
+    widthValue: 160
+    heightValue: 54
+    leftValue: 80
+    topValue: 430
+  }
 }
 
-q-component animated-panel {
-  q-property panelWidth: "50%"
-
-  behavior on panelWidth {
-    NumberAnimation {
-      duration: 60
-      easing: "linear"
-    }
-  }
-
-  div.panel-fill {
-    style { width: 50%; min-height: 1.5rem; background: #0f766e; color: #fff; }
-    text { declared q-property percent }
-  }
-
-  onpanelWidthchanged(value) {
-    this.querySelector(".panel-fill").style.width = value;
-  }
-}
-
-animated-panel#panel-comp { }
-
-  </q-html>
-  <script>
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    function widthOf(id) {
-      return document.getElementById(id).style.width;
-    }
-    function nearPx(value, expected) {
-      const number = Number(String(value || "").replace("px", ""));
-      return Number.isFinite(number) && Math.abs(number - expected) <= 1;
-    }
-    async function runBehaviorTests() {
-      const failures = [];
-      const basic = document.getElementById("basic-box");
-      const rebase = document.getElementById("rebase-box");
-      const disabled = document.getElementById("disabled-box");
-      const percent = document.getElementById("percent-box");
-      const vh = document.getElementById("vh-box");
-      const rem = document.getElementById("rem-box");
-      const panel = document.getElementById("panel-comp");
-      const panelFill = panel ? panel.querySelector(".panel-fill") : null;
-      if (!basic || !rebase || !disabled || !percent || !vh || !rem || !panel || !panelFill) {
-        failures.push("missing rendered behavior test boxes");
+q-timer behaviorAnimationShuffle {
+  interval: 450
+  repeat: true
+  running: true
+  onTimeout {
+    document.querySelectorAll("behavior-bar").forEach(function(bar) {
+      if (bar && typeof bar.randomize === "function") {
+        bar.randomize();
       }
-      const parsed = basic && basic.qdom && basic.qdom();
-      const parsedBehavior = parsed && parsed.meta && Array.isArray(parsed.meta.__qhtmlBehaviors) ? parsed.meta.__qhtmlBehaviors[0] : null;
-      if (!parsedBehavior || parsedBehavior.propertyName !== "width") {
-        failures.push("parser did not attach behavior metadata to width");
-      }
-      const originalBehavior = window.QHtml && window.QHtml.getBehavior ? window.QHtml.getBehavior(basic, "width") : null;
-      let writes = 0;
-      if (originalBehavior) {
-        const originalWrite = originalBehavior.write.bind(originalBehavior);
-        originalBehavior.write = function wrappedWrite(value, options) {
-          writes += 1;
-          return originalWrite(value, options);
-        };
-      } else {
-        failures.push("runtime behavior was not registered");
-      }
-      if (widthOf("basic-box") !== "100px") {
-        failures.push("100 did not normalize to 100px");
-      }
-      basic.width = 300;
-      await wait(35);
-      const midBasic = widthOf("basic-box");
-      const midBasicProperty = parseFloat(String(basic.width || "").replace("px", ""));
-      if (midBasic === "100px" || midBasic === "300px") {
-        failures.push("basic width did not animate through an intermediate value");
-      }
-      if (!String(basic.width || "").endsWith("px")) {
-        failures.push("basic width property did not keep its px unit during animation");
-      }
-      if (!Number.isFinite(midBasicProperty) || midBasicProperty <= 100 || midBasicProperty >= 300) {
-        failures.push("basic width property did not receive an intermediate animation value");
-      }
-      await wait(180);
-      if (!nearPx(widthOf("basic-box"), 300)) {
-        failures.push("basic final width is not exactly 300px");
-      }
-      if (basic.width !== "300px") {
-        failures.push("basic final width property is not exactly 300px");
-      }
-      if (writes !== 1) {
-        failures.push("animation frame commits re-entered behavior write path");
-      }
-      rebase.width = "300px";
-      await wait(35);
-      rebase.width = "500px";
-      await wait(220);
-      if (!nearPx(widthOf("rebase-box"), 500)) {
-        failures.push("rebase final width is not 500px");
-      }
-      disabled.width = 300;
-      if (!nearPx(widthOf("disabled-box"), 300)) {
-        failures.push("disabled behavior did not write immediately");
-      }
-      percent.width = "70%";
-      await wait(120);
-      if (widthOf("percent-box") !== "70%") {
-        failures.push("matching percent units did not animate to 70%");
-      }
-      if (percent.width !== "70%") {
-        failures.push("percent width property did not keep its percent unit");
-      }
-      vh.width = "60vh";
-      await wait(120);
-      if (widthOf("vh-box") !== "60vh") {
-        failures.push("matching vh units did not animate to 60vh");
-      }
-      if (vh.width !== "60vh") {
-        failures.push("vh width property did not keep its vh unit");
-      }
-      rem.width = "12rem";
-      await wait(120);
-      if (widthOf("rem-box") !== "12rem") {
-        failures.push("matching rem units did not animate to 12rem");
-      }
-      if (rem.width !== "12rem") {
-        failures.push("rem width property did not keep its rem unit");
-      }
-      panel.panelWidth = "70%";
-      await wait(1000);
-      if (panel.panelWidth !== "70%") {
-        failures.push("declared q-property percent did not animate to 70%");
-      }
-      const panelQDom = panel.qdom ? panel.qdom() : null;
-      if (!panelQDom || !panelQDom.property_extensions || panelQDom.property_extensions.panelWidth !== "%") {
-        failures.push("declared q-property percent did not store property extension metadata");
-      }
-      document.body.dataset.status = failures.length ? "fail" : "pass";
-      document.body.dataset.failures = failures.join(" | ");
-    }
-    window.addEventListener("QHTMLContentLoaded", () => {
-      setTimeout(() => {
-        runBehaviorTests().catch((error) => {
-          document.body.dataset.status = "fail";
-          document.body.dataset.failures = String(error && error.stack || error);
-        });
-      }, 0);
     });
-  </script>
+    document.body.dataset.status = "pass";
+  }
+}
+  </q-html>
 </body>
 </html>

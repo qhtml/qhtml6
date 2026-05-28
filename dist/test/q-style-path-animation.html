@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML q-style-path-animation Test</title>
+  <script src="qhtml.js"></script>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f8fafc;
+      font-family: system-ui, sans-serif;
+    }
+  </style>
+</head>
+<body data-status="pending">
+  <q-html>
+q-style mover {
+  width: 40px;
+  height: 40px;
+  background: red;
+
+  q-style-path-animation {
+    path: "M 50 50 C 400 50, 50 300, 400 300"
+    duration: 1200
+    easing: "ease-in-out"
+    anchorPoint: "center"
+    rotation: "auto"
+    repeat: "true"
+  }
+}
+
+q-theme motion-theme {
+  .box { mover }
+}
+
+motion-theme {
+  div#path-box.box {
+    text { path }
+  }
+}
+  </q-html>
+  <script>
+    setTimeout(function checkPathAnimation() {
+      var box = document.getElementById("path-box");
+      var keyframes = document.querySelector("style[data-qhtml-path-animation]");
+      var styleText = box ? String(box.getAttribute("style") || "") : "";
+      var ok = !!(
+        box &&
+        keyframes &&
+        /width:\s*40px/.test(styleText) &&
+        /height:\s*40px/.test(styleText) &&
+        /offset-path:\s*path/.test(styleText) &&
+        /offset-distance:\s*0%/.test(styleText) &&
+        /offset-anchor:\s*center/.test(styleText) &&
+        /offset-rotate:\s*auto/.test(styleText) &&
+        /animation:/.test(styleText) &&
+        /1200ms/.test(styleText) &&
+        /ease-in-out/.test(styleText) &&
+        /infinite/.test(styleText) &&
+        /@keyframes/.test(keyframes.textContent || "")
+      );
+      document.body.dataset.status = ok ? "pass" : "fail";
+    }, 80);
+  </script>
+</body>
+</html>

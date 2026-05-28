@@ -336,16 +336,40 @@
   }
 
   function qhtmlInstanceSource(el) {
-    return safeAttr(el, "instance", qhtmlAttrSource(el));
+    return normalizeBareInstanceTextSource(safeAttr(el, "instance", (componentName(el) || "pb-item") + " { }"));
   }
 
   function qhtmlStringLiteral(value) {
     return JSON.stringify(String(value == null ? "" : value));
   }
 
+  function normalizeBareInstanceTextSource(source) {
+    var text = String(source == null ? "" : source);
+    var trimmed = text.trim();
+    var blocks;
+    var block;
+    var body;
+    if (!trimmed) {
+      return text;
+    }
+    blocks = readQHtmlBlocks(trimmed, 0, trimmed.length);
+    if (blocks.length !== 1) {
+      return text;
+    }
+    block = blocks[0];
+    if (block.start !== 0 || block.end !== trimmed.length - 1) {
+      return text;
+    }
+    body = trimmed.slice(block.bodyStart, block.bodyEnd).trim();
+    if (!body || /[{}]/.test(body) || /^[A-Za-z_][A-Za-z0-9_-]*\s*:/.test(body)) {
+      return text;
+    }
+    return trimmed.slice(0, block.bodyStart).trimEnd() + "\n  text { " + body + " }\n" + trimmed.slice(block.bodyEnd).trimStart();
+  }
+
   function builderItemQHtml(name, component, source, instance, support) {
     var definition = source == null ? "" : String(source);
-    var instantiation = instance == null || instance === "" ? (definition || "div { text { Empty component } }") : String(instance);
+    var instantiation = instance == null || instance === "" ? ((component || "pb-item") + " { }") : String(instance);
     var lines = [
       "q-builder-item {",
       "  name: " + qhtmlStringLiteral(name || "Item"),
@@ -358,6 +382,27 @@
     lines.push("  instance: " + qhtmlStringLiteral(instantiation));
     lines.push("}");
     return lines.join("\n");
+  }
+
+  function paletteEditorSourceForButton(button) {
+    var component = componentName(button);
+    var source = qhtmlDefinitionSource(button);
+    return componentDefinitionBlock(component, source) || ("q-component " + (component || "pb-item") + " {\n}");
+  }
+
+  function paletteEditorDefinitionFromSource(source, fallbackComponent) {
+    var text = String(source || "").trim();
+    var block = scanTopLevelDefinitionBlocks(text, ["q-component"])[0] || null;
+    if (!block) {
+      return {
+        component: String(fallbackComponent || "").trim(),
+        body: text
+      };
+    }
+    return {
+      component: String(block.name || fallbackComponent || "").trim(),
+      body: String(block.body || "").trim()
+    };
   }
 
   function componentDefinitionBlock(component, source) {
@@ -1850,7 +1895,7 @@
     if (options.support) {
       item.setAttribute("support", options.support);
     }
-    item.setAttribute("instance", options.instance || options.qhtml || "div { text { Empty component } }");
+    item.setAttribute("instance", options.instance || (options.component || "pb-item") + " { }");
     item.appendPreview(options.preview || null);
     return item;
   }
@@ -3879,7 +3924,7 @@
     open: function (button) {
       var modal = this.modal();
       var component = componentName(button);
-      var source = qhtmlAttrSource(button);
+      var source = paletteEditorSourceForButton(button);
       this.currentButton = button;
       if (this.componentInput()) { this.componentInput().value = component; }
       setPaletteEditorSource(this.sourceInput(), source);
@@ -3928,6 +3973,7 @@
       var button = this.currentButton;
       var component = this.componentInput() ? this.componentInput().value : "";
       var source = readPaletteEditorSource(this.sourceInput());
+      var definition;
       if (!button && component) {
         button = arr(document.querySelectorAll(Q.button)).filter(function (candidate) {
           return componentName(candidate) === component;
@@ -3939,7 +3985,11 @@
       if (!this.validate(source)) {
         return;
       }
-      applyPaletteSource(button, source);
+      definition = paletteEditorDefinitionFromSource(source, componentName(button));
+      if (definition.component && definition.component !== componentName(button)) {
+        button.setAttribute("component", definition.component);
+      }
+      applyPaletteSource(button, definition.body);
       this.close();
     },
     preview: function () {

@@ -33,6 +33,7 @@
   const QHTML_NAMED_CALLBACKS_KEY = "__qhtmlNamedCallbacks";
   const QHTML_PAINTER_REGISTRY_KEY = "__qhtmlPainterRegistry";
   const QHTML_PAINTER_SCOPE_KEY = "__qhtmlPainterScopeId";
+  const QHTML_PATH_ANIMATION_STYLE_KEY = "__qhtmlPathAnimationStyleNames";
   const INLINE_REFERENCE_PATTERN = /\$\{\s*([^}]+?)\s*\}/g;
   const INLINE_REFERENCE_ESCAPE_TOKEN = "__QHTML_ESCAPED_INLINE_REF__";
   const Q_SIGNAL_META_KEY = "__qhtmlSignalMeta";
@@ -924,6 +925,102 @@
     return property + " " + duration + " " + timing + " " + delay;
   }
 
+  function sanitizeKeyframeNameToken(value) {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return "";
+    }
+    return raw.replace(/[^A-Za-z0-9_-]/g, "-");
+  }
+
+  function getPathAnimationStyleRegistry(doc) {
+    const targetDocument = doc || global.document || null;
+    if (!targetDocument) {
+      return null;
+    }
+    if (!targetDocument[QHTML_PATH_ANIMATION_STYLE_KEY]) {
+      try {
+        Object.defineProperty(targetDocument, QHTML_PATH_ANIMATION_STYLE_KEY, {
+          configurable: true,
+          enumerable: false,
+          writable: true,
+          value: new Set(),
+        });
+      } catch (error) {
+        targetDocument[QHTML_PATH_ANIMATION_STYLE_KEY] = new Set();
+      }
+    }
+    return targetDocument[QHTML_PATH_ANIMATION_STYLE_KEY];
+  }
+
+  function buildPathAnimationKeyframesCss(pathAnimation) {
+    const animation = pathAnimation && typeof pathAnimation === "object" ? pathAnimation : {};
+    const name = sanitizeKeyframeNameToken(animation.keyframeName);
+    if (!name) {
+      return "";
+    }
+    return [
+      "@keyframes " + name + " {",
+      "  from {",
+      "    offset-distance: 0%;",
+      "  }",
+      "  to {",
+      "    offset-distance: 100%;",
+      "  }",
+      "}",
+    ].join("\n");
+  }
+
+  function ensurePathAnimationStyle(targetDocument, pathAnimation) {
+    const doc = targetDocument || global.document || null;
+    const animation = pathAnimation && typeof pathAnimation === "object" ? pathAnimation : {};
+    const name = sanitizeKeyframeNameToken(animation.keyframeName);
+    if (!doc || !name) {
+      return;
+    }
+    const registry = getPathAnimationStyleRegistry(doc);
+    if (registry && registry.has(name)) {
+      return;
+    }
+    const css = buildPathAnimationKeyframesCss(animation);
+    if (!css) {
+      return;
+    }
+    const styleElement = doc.createElement("style");
+    styleElement.setAttribute("data-qhtml-path-animation", name);
+    styleElement.textContent = css;
+    const head = doc.head || doc.getElementsByTagName("head")[0] || doc.documentElement;
+    if (head && typeof head.appendChild === "function") {
+      head.appendChild(styleElement);
+      if (registry) {
+        registry.add(name);
+      }
+    }
+  }
+
+  function normalizeRuntimePathAnimationList(pathAnimations) {
+    const list = Array.isArray(pathAnimations) ? pathAnimations : [];
+    const out = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const entry = list[i] && typeof list[i] === "object" ? list[i] : null;
+      if (!entry || !entry.keyframeName) {
+        continue;
+      }
+      out.push(Object.assign({}, entry));
+    }
+    return out;
+  }
+
+  function applyPathAnimationsToElement(element, pathAnimations, targetDocument) {
+    if (!element || !element.style || typeof element.style.setProperty !== "function") {
+      return;
+    }
+    const animations = normalizeRuntimePathAnimationList(pathAnimations);
+    for (let i = 0; i < animations.length; i += 1) {
+      ensurePathAnimationStyle(targetDocument || element.ownerDocument || global.document || null, animations[i]);
+    }
+  }
+
   function buildPainterWorkletModuleSource(internalName, painterDefinition) {
     const painter = painterDefinition && typeof painterDefinition === "object" ? painterDefinition : {};
     const defaults =
@@ -1308,6 +1405,11 @@
       }
       element.style.setProperty(cssProperty, cssValue);
     }
+    applyPathAnimationsToElement(
+      element,
+      Array.isArray(rule.pathAnimations) ? rule.pathAnimations : [],
+      element.ownerDocument || global.document || null
+    );
 
     const painters =
       rule.painters && typeof rule.painters === "object" && !Array.isArray(rule.painters)
@@ -2316,6 +2418,7 @@
     const switchIndex = new Map();
     const lifecycleIndex = new Map();
     const behaviorIndex = new Map();
+    const cssBindingIndex = new Map();
     let mergedRepeaterConfig = null;
     let mergedCanvasSemantics = false;
 
@@ -2447,6 +2550,36 @@
         } else {
           behaviorIndex.set(behaviorKey, merged.meta.__qhtmlBehaviors.length);
           merged.meta.__qhtmlBehaviors.push(clonedBehavior);
+        }
+      }
+
+      const cssBindingDefinitions =
+        node && node.meta && Array.isArray(node.meta.__qhtmlCssBindings)
+          ? node.meta.__qhtmlCssBindings
+          : [];
+      for (let cbi = 0; cbi < cssBindingDefinitions.length; cbi += 1) {
+        const binding = cssBindingDefinitions[cbi];
+        const bindingKey =
+          normalizeComponentKey(binding && binding.propertyName) +
+          "->" +
+          String(binding && binding.targetExpression || "").trim();
+        if (!bindingKey || bindingKey === "->") {
+          continue;
+        }
+        if (!Array.isArray(merged.meta.__qhtmlCssBindings)) {
+          merged.meta.__qhtmlCssBindings = [];
+        }
+        const clonedBinding = Object.assign({}, binding, {
+          meta:
+            binding && binding.meta && typeof binding.meta === "object"
+              ? Object.assign({}, binding.meta)
+              : binding ? binding.meta : null,
+        });
+        if (cssBindingIndex.has(bindingKey)) {
+          merged.meta.__qhtmlCssBindings[cssBindingIndex.get(bindingKey)] = clonedBinding;
+        } else {
+          cssBindingIndex.set(bindingKey, merged.meta.__qhtmlCssBindings.length);
+          merged.meta.__qhtmlCssBindings.push(clonedBinding);
         }
       }
 
@@ -8162,6 +8295,161 @@
     }
   }
 
+  function normalizeQBindCssExpression(expression) {
+    const source = String(expression || "").trim();
+    if (!source) {
+      return "";
+    }
+    if (source === "this.component") {
+      return "component";
+    }
+    if (source.indexOf("this.component.") === 0) {
+      return "component." + source.slice("this.component.".length);
+    }
+    return source;
+  }
+
+  function warnQBindCss(message, details) {
+    if (!global.console || typeof global.console.warn !== "function") {
+      return;
+    }
+    if (typeof details === "undefined") {
+      global.console.warn("qhtml q-bind-css warning: " + message);
+    } else {
+      global.console.warn("qhtml q-bind-css warning: " + message, details);
+    }
+  }
+
+  function parseQBindCssTargetReference(expression) {
+    const normalized = normalizeQBindCssExpression(expression);
+    const match = normalized.match(/^([\s\S]+)\.([A-Za-z_$][A-Za-z0-9_$-]*)$/);
+    if (!match) {
+      return null;
+    }
+    return {
+      objectExpression: String(match[1] || "").trim(),
+      propertyName: String(match[2] || "").trim(),
+    };
+  }
+
+  function evaluateQBindCssObjectReference(expression, hostElement) {
+    const objectExpression = String(expression || "").trim();
+    if (!objectExpression || !hostElement) {
+      return undefined;
+    }
+    try {
+      ensureScopedSelectorShortcut(hostElement, null);
+      const doc = hostElement.ownerDocument || global.document || null;
+      const evaluator = new Function(
+        "component",
+        "document",
+        "window",
+        "globalThis",
+        "return (" + objectExpression + ");"
+      );
+      return evaluator.call(hostElement, hostElement, doc, global, global);
+    } catch (error) {
+      warnQBindCss("target reference evaluation failed", {
+        target: objectExpression,
+        error: error && error.message ? error.message : String(error || ""),
+      });
+      return undefined;
+    }
+  }
+
+  function assignQBindCssTarget(hostElement, binding, value) {
+    const targetExpression = String(binding && binding.targetExpression || "").trim();
+    const target = parseQBindCssTargetReference(targetExpression);
+    if (!target || !target.objectExpression || !target.propertyName) {
+      warnQBindCss("target must be a writable property reference", {
+        target: targetExpression,
+      });
+      return false;
+    }
+    const owner = evaluateQBindCssObjectReference(target.objectExpression, hostElement);
+    if (owner === null || typeof owner === "undefined") {
+      warnQBindCss("target owner is undefined", {
+        target: targetExpression,
+      });
+      return false;
+    }
+    try {
+      const styleCtor = global.CSSStyleDeclaration;
+      const isCssStyleDeclaration =
+        !!(
+          owner &&
+          (
+            (typeof styleCtor === "function" && owner instanceof styleCtor) ||
+            (typeof owner.setProperty === "function" && typeof owner.cssText === "string")
+          )
+        );
+      if (isCssStyleDeclaration && isDimensionalStyleProperty(target.propertyName)) {
+        const styleName = cssStylePropertyName(target.propertyName);
+        const animatedValue = readAnimatedStyleCommitValue(value);
+        const normalized = animatedValue || parseNumericStyleValue(value, "px");
+        owner[styleName] = normalized && normalized.valid === false
+          ? String(value == null ? "" : value)
+          : normalized.serialized;
+      } else {
+        owner[target.propertyName] = value;
+      }
+      return true;
+    } catch (error) {
+      warnQBindCss("target assignment failed", {
+        target: targetExpression,
+        error: error && error.message ? error.message : String(error || ""),
+      });
+      return false;
+    }
+  }
+
+  function bindComponentCssBindings(componentNode, hostElement, declaredPropertiesSeen) {
+    if (!componentNode || !hostElement) {
+      return;
+    }
+    const bindings =
+      componentNode && componentNode.meta && Array.isArray(componentNode.meta.__qhtmlCssBindings)
+        ? componentNode.meta.__qhtmlCssBindings
+        : [];
+    if (bindings.length === 0) {
+      return;
+    }
+    const declared = declaredPropertiesSeen instanceof Set ? declaredPropertiesSeen : new Set();
+    for (let i = 0; i < bindings.length; i += 1) {
+      const binding = bindings[i] || {};
+      const propertyName = String(binding.propertyName || "").trim();
+      const propertyKey = normalizeComponentKey(propertyName);
+      if (!propertyName || !propertyKey || !declared.has(propertyKey)) {
+        warnQBindCss("source property is not declared on this component", {
+          property: propertyName,
+          source: String(binding.propertyExpression || "").trim(),
+        });
+        continue;
+      }
+      const changedSignalName = propertyName + "Changed";
+      const signal = hostElement[changedSignalName];
+      if (signal && typeof signal.connect === "function") {
+        signal.connect(function qBindCssPropertyChanged(nextValue) {
+          assignQBindCssTarget(hostElement, binding, nextValue);
+        });
+      } else {
+        warnQBindCss("property changed signal is not available", {
+          property: propertyName,
+          signal: changedSignalName,
+        });
+      }
+      try {
+        assignQBindCssTarget(hostElement, binding, hostElement[propertyName]);
+      } catch (error) {
+        warnQBindCss("initial assignment failed", {
+          property: propertyName,
+          target: String(binding.targetExpression || "").trim(),
+          error: error && error.message ? error.message : String(error || ""),
+        });
+      }
+    }
+  }
+
   function bindComponentMethods(componentNode, hostElement, instanceNode) {
     if (!componentNode || !hostElement) {
       return;
@@ -9403,6 +9691,8 @@
         : [];
       hostElement[signalName] = createComponentSignalEmitter(signalName, parameterNames);
     }
+
+    bindComponentCssBindings(componentNode, hostElement, declaredPropertiesSeen);
 
     const signalAttributeLookup = new Map();
     for (let i = 0; i < runtimeSignals.length; i += 1) {
@@ -12179,6 +12469,13 @@
             : null,
       });
       parent.appendChild(element);
+      if (
+        node &&
+        node.meta &&
+        Array.isArray(node.meta.__qhtmlStylePathAnimations)
+      ) {
+        applyPathAnimationsToElement(element, node.meta.__qhtmlStylePathAnimations, targetDocument);
+      }
       attachQBehaviorsToTarget(element, node);
       initializeBehaviorTargetProperties(element, node);
 

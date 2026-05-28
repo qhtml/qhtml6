@@ -113,6 +113,9 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - Component definition flags are copied to each rendered component/worker instance node so measurements are per instance where a live instance QDom node exists.
   - Measurements are aggregated in-place on the measured QDom node as `perf_data`; no per-execution records are stored.
   - `logQPerfData()` prints `{ uuid, canonicalName, referenceName, perf_data }` for measured nodes.
+- `q-style-path-animation` style metadata emits CSS motion-path keyframes at render time.
+  - Inline-compatible declarations such as `offset-path`, `offset-distance`, `offset-anchor`, `offset-rotate`, and `animation` remain on the rendered element style.
+  - `@keyframes` rules are injected once per document as `<style data-qhtml-path-animation="...">` because keyframes cannot be represented inside `style=""`.
 - `q-anchor` positioning is opt-in per direct owner node through `meta.__qhtmlAnchorRules`.
   - Supported rule keys: `left`, `right`, `top`, `bottom`, `hcenter`, `vcenter`, `center`.
   - Rule values can be named DOM side references (`someRef.right`, `someRef.center`) or JavaScript/CSS literal expressions.
@@ -129,6 +132,11 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - `NumberAnimation` supports `duration`, `easing`, optional `from`, optional `to`, and optional `running`.
   - Supported easing names are `linear`, `easeInQuad`, `easeOutQuad`, and `easeInOutQuad`; unknown names warn and use `linear`.
   - Property adapters cover declared QDom component properties, DOM properties, and DOM style properties. Dimensional style properties normalize bare numbers to `px`; matching CSS units interpolate; incompatible units warn and commit immediately.
+- `q-bind-css { sourceProperty targetCssReference }` is component-local syntax sugar stored in `component.meta.__qhtmlCssBindings`.
+  - The renderer validates the source against declared component properties, connects to the generated `<property>Changed` signal, and assigns each new property value to the target reference.
+  - The target reference must resolve to a writable object property at runtime, for example `this.component.style.width`; unresolved targets warn and are skipped.
+  - Numeric values assigned into CSSStyleDeclaration dimensional targets such as `style.width`, `style.height`, `style.left`, and `style.top` normalize to pixel strings.
+  - The initial property value is assigned once during component binding so CSS starts synchronized with the declared `q-property` value.
 - `q-layout`, `q-row`, and `q-col` are renderer-owned layout keywords:
   - they render as lightweight layout DOM tags with built-in grid/table-like CSS behavior
   - `q-layout` defaults to row stacking; `q-row` defaults to column stacking; `q-col` can host nested rows, columns, or layouts
