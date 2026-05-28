@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.9.6
+# QHTML.js v6.9.7
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,9 +12,9 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v6.9.6
+## Whats New in v6.9.7
 
-- Bumped the release line to `6.9.6`.
+- Bumped the release line to `6.9.7`.
 - Added QML-style `behavior on <property>` with `NumberAnimation` as a property-write interceptor.
 - Added behavior-aware property writes through `QHtml.qSet()` and bypassed animation-frame commits so animations do not recursively trigger themselves.
 - Expanded dimensional animation support so `px`, `%`, `vh`, and other matching CSS units interpolate while intermediate values are mirrored as CSS-valid property strings.

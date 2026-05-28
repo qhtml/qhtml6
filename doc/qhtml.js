@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-27T06:21:29Z */
+/* generated: 2026-05-28T02:35:46Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -30940,7 +30940,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.9.6";
+  const RUNTIME_VERSION = "6.9.7";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -49876,7 +49876,7 @@
   }
 
   const api = runtime;
-  api.version = "6.9.6";
+  api.version = "6.9.7";
   global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {
