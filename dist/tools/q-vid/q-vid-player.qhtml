@@ -1,0 +1,752 @@
+q-component q-vid-player {
+  q-signal stepped()
+  q-signal stopped()
+  q-signal started()
+
+  q-property currentFrame: 0
+  q-property reverse: false
+  q-property repeat: true
+  q-property frameDuration: 30
+  q-property scale: 1
+  q-property startFrame: 0
+  q-property endFrame: 0
+  q-property src: ""
+
+  canvas.q-vid-player-canvas {
+    style {
+      display: block;
+      width: 100%;
+      height: auto;
+      image-rendering: auto;
+    }
+  }
+
+  q-timer qvidFrameTimer {
+    interval: 30
+    repeat: true
+    running: false
+  }
+
+  q-connect { qvidFrameTimer.timeout this.component.step }
+
+  function canvas() {
+    return this.querySelector("canvas.q-vid-player-canvas");
+  }
+
+  function context() {
+    var canvas = this.component.canvas();
+    return canvas ? canvas.getContext("2d", { willReadFrequently: true }) : null;
+  }
+
+  function getFrameTimer() {
+    if (typeof qvidFrameTimer !== "undefined" && qvidFrameTimer) {
+      return qvidFrameTimer;
+    }
+    if (this.component.qvidFrameTimer) {
+      return this.component.qvidFrameTimer;
+    }
+    return null;
+  }
+
+  function normalizeBoolean(value, fallbackValue) {
+    if (value === true || value === false) {
+      return value;
+    }
+    if (value === 1 || value === "1") {
+      return true;
+    }
+    if (value === 0 || value === "0") {
+      return false;
+    }
+    var text = String(value == null ? "" : value).trim().toLowerCase();
+    if (text === "true" || text === "yes" || text === "on" || text === "") {
+      return true;
+    }
+    if (text === "false" || text === "no" || text === "off") {
+      return false;
+    }
+    return Boolean(fallbackValue);
+  }
+
+  function normalizePositiveNumber(value, fallbackValue) {
+    var number = Number(value);
+    if (!Number.isFinite(number) || number <= 0) {
+      number = Number(fallbackValue || 1);
+    }
+    return Math.max(1, number);
+  }
+
+  function normalizeUrl(src) {
+    try {
+      return new URL(String(src || ""), document.baseURI).href;
+    } catch (error) {
+      return String(src || "");
+    }
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function resolveStartFrame() {
+    var asset = this.component.__qvidAsset;
+    var maxFrame = asset && Number.isFinite(Number(asset.frameCount)) ? Number(asset.frameCount) - 1 : Math.max(0, Number(this.component.endFrame || 0));
+    var frame = Math.floor(Number(this.component.startFrame || 0));
+    if (!Number.isFinite(frame)) {
+      frame = 0;
+    }
+    return this.component.clamp(frame, 0, Math.max(0, maxFrame));
+  }
+
+  function resolveEndFrame() {
+    var asset = this.component.__qvidAsset;
+    var maxFrame = asset && Number.isFinite(Number(asset.frameCount)) ? Number(asset.frameCount) - 1 : Math.max(0, Number(this.component.endFrame || 0));
+    var start = this.component.resolveStartFrame();
+    var raw = Number(this.component.endFrame);
+    var frame = Math.floor(raw);
+    if (!Number.isFinite(frame) || frame < start) {
+      frame = maxFrame;
+    }
+    return this.component.clamp(frame, start, Math.max(start, maxFrame));
+  }
+
+  function clampFrame(value) {
+    var start = this.component.resolveStartFrame();
+    var end = this.component.resolveEndFrame();
+    var frame = Math.floor(Number(value || 0));
+    if (!Number.isFinite(frame)) {
+      frame = start;
+    }
+    return this.component.clamp(frame, Math.min(start, end), Math.max(start, end));
+  }
+
+  function decodeBase64ToUint8(base64) {
+    var binary = atob(String(base64 || ""));
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+
+  function decodePayload(base64, codec) {
+    var bytes = this.component.decodeBase64ToUint8(base64);
+    var resolvedCodec = String(codec || "raw");
+    if (!resolvedCodec || resolvedCodec === "raw") {
+      return Promise.resolve(bytes);
+    }
+    if (resolvedCodec !== "gzip") {
+      return Promise.reject(new Error("Unsupported q-vid payload codec: " + resolvedCodec));
+    }
+    if (typeof DecompressionStream === "undefined") {
+      return Promise.reject(new Error("This q-vid asset uses gzip payloads, but DecompressionStream is unavailable."));
+    }
+    var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+    return new Response(stream).arrayBuffer().then(function(buffer) {
+      return new Uint8Array(buffer);
+    });
+  }
+
+  function assertSupportedAsset(rawAsset) {
+    var format = rawAsset && String(rawAsset.format || "");
+    var supported = format === "q-vid-rgba-tile-v1" ||
+      format === "q-vid-delta-binary-v1" ||
+      format === "sprite-delta-rgba-tile-v1" ||
+      format === "sprite-delta-binary-v2";
+    if (!supported) {
+      throw new Error("Unsupported q-vid asset format: " + (format || "unknown"));
+    }
+    if (!Number.isInteger(rawAsset.width) || !Number.isInteger(rawAsset.height) || rawAsset.width < 1 || rawAsset.height < 1) {
+      throw new Error("Invalid q-vid asset dimensions.");
+    }
+    if (!Number.isInteger(rawAsset.frameCount) || rawAsset.frameCount < 1) {
+      throw new Error("Invalid q-vid asset frameCount.");
+    }
+  }
+
+  function executeQVidText(text, src) {
+    var trimmed = String(text || "").trim();
+    if (trimmed.charAt(0) === "{") {
+      var jsonAsset = JSON.parse(trimmed);
+      if (src) {
+        jsonAsset.src = src;
+      }
+      return jsonAsset;
+    }
+
+    var registered = [];
+    var registryShim = {
+      register: function(asset) {
+        if (asset && src) {
+          asset.src = src;
+        }
+        registered.push(asset);
+        return asset;
+      }
+    };
+    var fakeGlobal = {
+      QVidAssetRegistry: registryShim,
+      SpriteSheetAssetRegistry: registryShim,
+      __pendingQVidAssets: [],
+      __pendingSpriteSheetAssets: []
+    };
+
+    var run = new Function("globalThis", trimmed);
+    run(fakeGlobal);
+
+    var pending = [];
+    if (Array.isArray(fakeGlobal.__pendingQVidAssets)) {
+      pending = pending.concat(fakeGlobal.__pendingQVidAssets);
+    }
+    if (Array.isArray(fakeGlobal.__pendingSpriteSheetAssets)) {
+      pending = pending.concat(fakeGlobal.__pendingSpriteSheetAssets);
+    }
+
+    var asset = registered[0] || pending[0];
+    if (!asset) {
+      throw new Error("The selected file did not register a q-vid delta asset.");
+    }
+    if (src) {
+      asset.src = src;
+    }
+    return asset;
+  }
+
+  function normalizeAsset(rawAsset) {
+    var host = this.component;
+    host.assertSupportedAsset(rawAsset);
+    if (rawAsset.__normalizedAsset) {
+      return Promise.resolve(rawAsset.__normalizedAsset);
+    }
+    var format = String(rawAsset.format || "");
+    var promise = (format === "q-vid-delta-binary-v1" || format === "sprite-delta-binary-v2")
+      ? host.normalizeV2Asset(rawAsset)
+      : host.normalizeV1Asset(rawAsset);
+    return promise.then(function(asset) {
+      rawAsset.__normalizedAsset = asset;
+      return asset;
+    });
+  }
+
+  function normalizeV1Asset(rawAsset) {
+    var host = this.component;
+    var deltaCache = new Map();
+    var keyFrameBytes = host.decodeBase64ToUint8(rawAsset.keyFrame);
+    return Promise.resolve(host.buildNormalizedAsset(rawAsset, keyFrameBytes, function(deltaIndex) {
+      var index = host.clamp(Math.trunc(Number(deltaIndex || 0)), 0, Math.max(0, rawAsset.deltas.length - 1));
+      if (deltaCache.has(index)) {
+        return Promise.resolve(deltaCache.get(index));
+      }
+      var sourceTiles = rawAsset.deltas[index] || [];
+      var tiles = [];
+      for (var i = 0; i < sourceTiles.length; i += 1) {
+        var tile = sourceTiles[i];
+        tiles.push({
+          x: tile.x,
+          y: tile.y,
+          w: tile.w,
+          h: tile.h,
+          bytes: host.decodeBase64ToUint8(tile.bytes)
+        });
+      }
+      deltaCache.set(index, tiles);
+      return Promise.resolve(tiles);
+    }));
+  }
+
+  function normalizeV2Asset(rawAsset) {
+    var host = this.component;
+    var codec = rawAsset.codec || "raw";
+    var deltaCache = new Map();
+    return host.decodePayload(rawAsset.keyFrame, codec).then(function(keyFrameBytes) {
+      return host.buildNormalizedAsset(rawAsset, new Uint8ClampedArray(keyFrameBytes), function(deltaIndex) {
+        var index = host.clamp(Math.trunc(Number(deltaIndex || 0)), 0, Math.max(0, rawAsset.deltas.length - 1));
+        if (deltaCache.has(index)) {
+          return Promise.resolve(deltaCache.get(index));
+        }
+        return host.decodePayload(rawAsset.deltas[index] || "", codec).then(function(packed) {
+          var tiles = host.unpackTiles(packed, rawAsset.width, rawAsset.height);
+          deltaCache.set(index, tiles);
+          return tiles;
+        });
+      });
+    });
+  }
+
+  function buildNormalizedAsset(rawAsset, keyFrameBytes, getDelta) {
+    var expectedBytes = rawAsset.width * rawAsset.height * 4;
+    if (keyFrameBytes.byteLength !== expectedBytes) {
+      throw new Error("Invalid q-vid keyframe byte length. Expected " + expectedBytes + ", got " + keyFrameBytes.byteLength + ".");
+    }
+    return {
+      format: rawAsset.format,
+      name: rawAsset.name || "q_vid_asset",
+      src: rawAsset.src || rawAsset.name || "q_vid_asset",
+      width: rawAsset.width,
+      height: rawAsset.height,
+      sourceWidth: rawAsset.sourceWidth || rawAsset.width,
+      sourceHeight: rawAsset.sourceHeight || rawAsset.height,
+      resize: rawAsset.resize || null,
+      frameCount: rawAsset.frameCount,
+      tileSize: rawAsset.tileSize || 32,
+      tolerance: rawAsset.tolerance || 0,
+      codec: rawAsset.codec || "raw",
+      deltaMode: rawAsset.deltaMode || "tile",
+      pack: rawAsset.pack || "legacy",
+      defaultFrameDuration: rawAsset.defaultFrameDuration || 30,
+      sourceFrames: rawAsset.sourceFrames || [],
+      stats: rawAsset.stats || {},
+      keyFrameBytes: new Uint8ClampedArray(keyFrameBytes),
+      getDelta: getDelta
+    };
+  }
+
+  function unpackTiles(bytes, canvasWidth, canvasHeight) {
+    var view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    var offset = 0;
+    if (bytes.byteLength < 4) {
+      throw new Error("Invalid q-vid delta stream: missing tile count.");
+    }
+    var tileCount = view.getUint32(offset, true);
+    offset += 4;
+    var tiles = [];
+    for (var i = 0; i < tileCount; i += 1) {
+      if (offset + 16 > bytes.byteLength) {
+        throw new Error("Invalid q-vid delta stream: truncated tile header.");
+      }
+      var x = view.getUint32(offset, true); offset += 4;
+      var y = view.getUint32(offset, true); offset += 4;
+      var w = view.getUint32(offset, true); offset += 4;
+      var h = view.getUint32(offset, true); offset += 4;
+      var length = w * h * 4;
+      if (x + w > canvasWidth || y + h > canvasHeight) {
+        throw new Error("Invalid q-vid tile bounds: " + x + "," + y + "," + w + "," + h);
+      }
+      if (offset + length > bytes.byteLength) {
+        throw new Error("Invalid q-vid delta stream: truncated tile payload.");
+      }
+      tiles.push({
+        x: x,
+        y: y,
+        w: w,
+        h: h,
+        bytes: bytes.subarray(offset, offset + length)
+      });
+      offset += length;
+    }
+    return tiles;
+  }
+
+  function applyTilesToBuffer(target, tiles, canvasWidth) {
+    for (var i = 0; i < tiles.length; i += 1) {
+      var tile = tiles[i];
+      for (var row = 0; row < tile.h; row += 1) {
+        var srcStart = row * tile.w * 4;
+        var srcEnd = srcStart + tile.w * 4;
+        var dstStart = ((tile.y + row) * canvasWidth + tile.x) * 4;
+        target.set(tile.bytes.subarray(srcStart, srcEnd), dstStart);
+      }
+    }
+  }
+
+  function applyScale() {
+    var canvas = this.component.canvas();
+    if (!canvas) {
+      return;
+    }
+    var asset = this.component.__qvidAsset;
+    var scale = Math.max(0.01, Number(this.component.scale || 1));
+    var width = asset ? Number(asset.width || 0) : Number(canvas.width || 0);
+    var height = asset ? Number(asset.height || 0) : Number(canvas.height || 0);
+    if (width > 0) {
+      canvas.style.width = String(Math.max(1, Math.round(width * scale))) + "px";
+    }
+    if (height > 0) {
+      canvas.style.height = String(Math.max(1, Math.round(height * scale))) + "px";
+    }
+  }
+
+  function setCurrentFrameValue(frame) {
+    var host = this.component;
+    var target = host.clampFrame(frame);
+    host.__qvidInternalFrameWrite = true;
+    host.currentFrame = target;
+    host.__qvidInternalFrameWrite = false;
+    return host.renderFrame(target);
+  }
+
+  function nearestCachedFrameBefore(target) {
+    var cache = this.component.__qvidFrameCache;
+    var nearest = 0;
+    if (!cache || typeof cache.keys !== "function") {
+      return nearest;
+    }
+    var keys = cache.keys();
+    var next = keys.next();
+    while (!next.done) {
+      var key = Number(next.value);
+      if (key < target && key > nearest) {
+        nearest = key;
+      }
+      next = keys.next();
+    }
+    return nearest;
+  }
+
+  function getFrameBytes(frameIndex) {
+    var host = this.component;
+    var asset = host.__qvidAsset;
+    var cache = host.__qvidFrameCache;
+    if (!asset || !cache) {
+      return Promise.resolve(null);
+    }
+    var target = host.clamp(Math.trunc(Number(frameIndex || 0)), 0, asset.frameCount - 1);
+    if (cache.has(target)) {
+      return Promise.resolve(cache.get(target));
+    }
+    var start = host.nearestCachedFrameBefore(target);
+    var working = new Uint8ClampedArray(cache.get(start));
+    var chain = Promise.resolve();
+    for (var frame = start + 1; frame <= target; frame += 1) {
+      (function(nextFrame) {
+        chain = chain.then(function() {
+          return asset.getDelta(nextFrame - 1).then(function(delta) {
+            host.applyTilesToBuffer(working, delta, asset.width);
+            cache.set(nextFrame, new Uint8ClampedArray(working));
+          });
+        });
+      })(frame);
+    }
+    return chain.then(function() {
+      return cache.get(target);
+    });
+  }
+
+  function drawDelta(tiles) {
+    var host = this.component;
+    var asset = host.__qvidAsset;
+    var context = host.context();
+    if (!asset || !context || !host.__qvidImageData || !tiles || !tiles.length) {
+      return;
+    }
+    var totalTiles = Math.ceil(asset.width / asset.tileSize) * Math.ceil(asset.height / asset.tileSize);
+    var ratio = totalTiles > 0 ? tiles.length / totalTiles : 1;
+    if (ratio >= 0.65) {
+      context.putImageData(host.__qvidImageData, 0, 0);
+      return;
+    }
+    for (var i = 0; i < tiles.length; i += 1) {
+      var tile = tiles[i];
+      context.putImageData(host.__qvidImageData, 0, 0, tile.x, tile.y, tile.w, tile.h);
+    }
+  }
+
+  function emitFrameEvent(frameIndex) {
+    this.dispatchEvent(new CustomEvent("q-vid-frame", {
+      detail: {
+        currentFrame: frameIndex,
+        frameDuration: this.component.frameDuration,
+        reverse: this.component.reverse,
+        repeat: this.component.repeat
+      },
+      bubbles: true,
+      composed: true
+    }));
+  }
+
+  function emitError(error) {
+    this.dispatchEvent(new CustomEvent("q-vid-error", {
+      detail: { error: error },
+      bubbles: true,
+      composed: true
+    }));
+  }
+
+  function renderFrame(frameIndex) {
+    var host = this.component;
+    var asset = host.__qvidAsset;
+    var context = host.context();
+    if (!asset || !context || !host.__qvidImageData) {
+      return Promise.resolve();
+    }
+    var token = Number(host.__qvidRenderToken || 0) + 1;
+    host.__qvidRenderToken = token;
+    var target = host.clamp(Math.trunc(Number(frameIndex || 0)), 0, asset.frameCount - 1);
+    if (target === host.__qvidRenderedFrame) {
+      host.emitFrameEvent(target);
+      return Promise.resolve();
+    }
+    host.__qvidRenderBusy = true;
+    var renderPromise = null;
+    if (target === host.__qvidRenderedFrame + 1) {
+      renderPromise = asset.getDelta(target - 1).then(function(delta) {
+        if (token !== host.__qvidRenderToken) {
+          return;
+        }
+        host.applyTilesToBuffer(host.__qvidImageData.data, delta, asset.width);
+        host.__qvidFrameCache.set(target, new Uint8ClampedArray(host.__qvidImageData.data));
+        host.drawDelta(delta);
+        host.__qvidRenderedFrame = target;
+        host.emitFrameEvent(target);
+      });
+    } else {
+      renderPromise = host.getFrameBytes(target).then(function(bytes) {
+        if (token !== host.__qvidRenderToken || !bytes) {
+          return;
+        }
+        host.__qvidImageData.data.set(bytes);
+        context.putImageData(host.__qvidImageData, 0, 0);
+        host.__qvidRenderedFrame = target;
+        host.emitFrameEvent(target);
+      });
+    }
+    return renderPromise.catch(function(error) {
+      host.emitError(error);
+      throw error;
+    }).finally(function() {
+      if (token === host.__qvidRenderToken) {
+        host.__qvidRenderBusy = false;
+        if (host.__qvidQueuedStep && host.__qvidRunning) {
+          host.__qvidQueuedStep = false;
+          host.step();
+        }
+      }
+    });
+  }
+
+  function installAsset(asset) {
+    var host = this.component;
+    var canvas = host.canvas();
+    var context = host.context();
+    if (!canvas || !context) {
+      return Promise.reject(new Error("q-vid-player canvas is unavailable."));
+    }
+    host.stopClock();
+    host.__qvidAsset = asset;
+    host.__qvidFrameCache = new Map();
+    host.__qvidImageData = context.createImageData(asset.width, asset.height);
+    host.__qvidRenderedFrame = -1;
+    host.__qvidRenderBusy = false;
+    host.__qvidQueuedStep = false;
+    canvas.width = asset.width;
+    canvas.height = asset.height;
+    host.applyScale();
+    host.__qvidImageData.data.set(asset.keyFrameBytes);
+    context.putImageData(host.__qvidImageData, 0, 0);
+    host.__qvidFrameCache.set(0, new Uint8ClampedArray(asset.keyFrameBytes));
+    host.__qvidRenderedFrame = 0;
+
+    var initialFrame = host.normalizeBoolean(host.reverse, false) ? host.resolveEndFrame() : host.resolveStartFrame();
+    return host.setCurrentFrameValue(initialFrame).then(function() {
+      host.dispatchEvent(new CustomEvent("q-vid-load", {
+        detail: {
+          asset: asset,
+          width: asset.width,
+          height: asset.height,
+          frameCount: asset.frameCount,
+          startFrame: host.resolveStartFrame(),
+          endFrame: host.resolveEndFrame(),
+          currentFrame: host.currentFrame
+        },
+        bubbles: true,
+        composed: true
+      }));
+      if (host.__qvidRunning) {
+        host.startClock();
+      }
+    });
+  }
+
+  function loadSource(srcValue) {
+    var host = this.component;
+    var src = String(srcValue == null ? host.src : srcValue || "").trim();
+    if (!src) {
+      return Promise.resolve(null);
+    }
+    var normalizedSrc = host.normalizeUrl(src);
+    if (host.__qvidLoadedSrc === normalizedSrc && host.__qvidAsset) {
+      return Promise.resolve(host.__qvidAsset);
+    }
+    var loadToken = Number(host.__qvidLoadToken || 0) + 1;
+    host.__qvidLoadToken = loadToken;
+    host.__qvidLoadedSrc = normalizedSrc;
+    return fetch(normalizedSrc).then(function(response) {
+      if (!response.ok) {
+        throw new Error("Failed to load q-vid asset: " + normalizedSrc);
+      }
+      return response.text();
+    }).then(function(text) {
+      if (loadToken !== host.__qvidLoadToken) {
+        return null;
+      }
+      var rawAsset = host.executeQVidText(text, normalizedSrc);
+      return host.normalizeAsset(rawAsset);
+    }).then(function(asset) {
+      if (!asset || loadToken !== host.__qvidLoadToken) {
+        return null;
+      }
+      return host.installAsset(asset).then(function() {
+        return asset;
+      });
+    }).catch(function(error) {
+      host.__qvidLoadedSrc = "";
+      host.emitError(error);
+      throw error;
+    });
+  }
+
+  function updateTimerInterval() {
+    var interval = this.component.normalizePositiveNumber(this.component.frameDuration, 30);
+    var timer = this.component.getFrameTimer();
+    if (timer) {
+      timer.interval = interval;
+    }
+  }
+
+  function startClock() {
+    this.component.updateTimerInterval();
+    var timer = this.component.getFrameTimer();
+    if (timer && typeof timer.start === "function") {
+      timer.start();
+      return;
+    }
+    this.component.stopFallbackTimer();
+    var host = this.component;
+    host.__qvidFallbackTimer = setInterval(function runQVidFallbackTimer() {
+      host.step();
+    }, Math.max(1, Number(host.frameDuration || 30)));
+  }
+
+  function stopFallbackTimer() {
+    if (this.component.__qvidFallbackTimer) {
+      clearInterval(this.component.__qvidFallbackTimer);
+      this.component.__qvidFallbackTimer = 0;
+    }
+  }
+
+  function stopClock() {
+    var timer = this.component.getFrameTimer();
+    if (timer && typeof timer.stop === "function") {
+      timer.stop();
+    }
+    this.component.stopFallbackTimer();
+  }
+
+  function start() {
+    var host = this.component;
+    var wasRunning = host.__qvidRunning === true;
+    host.__qvidRunning = true;
+    if (!wasRunning) {
+      host.started();
+      host.dispatchEvent(new CustomEvent("q-vid-started", { bubbles: true, composed: true }));
+    }
+    if (!host.__qvidAsset && host.src) {
+      host.loadSource(host.src).then(function() {
+        if (host.__qvidRunning) {
+          host.startClock();
+        }
+      }).catch(function() {});
+      return;
+    }
+    host.startClock();
+  }
+
+  function stop() {
+    var host = this.component;
+    var wasRunning = host.__qvidRunning === true;
+    host.__qvidRunning = false;
+    host.stopClock();
+    if (wasRunning) {
+      host.stopped();
+      host.dispatchEvent(new CustomEvent("q-vid-stopped", { bubbles: true, composed: true }));
+    }
+  }
+
+  function step() {
+    var host = this.component;
+    var asset = host.__qvidAsset;
+    if (!asset) {
+      return;
+    }
+    if (host.__qvidRenderBusy) {
+      host.__qvidQueuedStep = true;
+      return;
+    }
+    var start = host.resolveStartFrame();
+    var end = host.resolveEndFrame();
+    var min = Math.min(start, end);
+    var max = Math.max(start, end);
+    var direction = host.normalizeBoolean(host.reverse, false) ? -1 : 1;
+    var next = Math.floor(Number(host.currentFrame || 0)) + direction;
+    var shouldStop = false;
+    if (next > max) {
+      if (host.normalizeBoolean(host.repeat, true)) {
+        next = min;
+      } else {
+        next = max;
+        shouldStop = true;
+      }
+    } else if (next < min) {
+      if (host.normalizeBoolean(host.repeat, true)) {
+        next = max;
+      } else {
+        next = min;
+        shouldStop = true;
+      }
+    }
+    host.setCurrentFrameValue(next).then(function() {
+      host.stepped();
+      if (shouldStop) {
+        host.stop();
+      }
+    }).catch(function() {});
+  }
+
+  onReady {
+    this.component.style.display = "inline-block";
+    this.component.style.contain = "content";
+    this.component.__qvidRunning = false;
+    this.component.__qvidLoadedSrc = "";
+    this.component.__qvidLoadToken = 0;
+    this.component.__qvidRenderToken = 0;
+    this.component.updateTimerInterval();
+    this.component.applyScale();
+    if (this.component.src) {
+      this.component.loadSource(this.component.src).catch(function() {});
+    }
+  }
+
+  onsrcChanged(value) {
+    this.component.loadSource(value).catch(function() {});
+  }
+
+  oncurrentFrameChanged(value) {
+    if (this.component.__qvidInternalFrameWrite) {
+      return;
+    }
+    this.component.setCurrentFrameValue(value).catch(function() {});
+  }
+
+  onframeDurationChanged(value) {
+    this.component.updateTimerInterval();
+    if (this.component.__qvidFallbackTimer) {
+      this.component.startClock();
+    }
+  }
+
+  onscaleChanged(value) {
+    this.component.applyScale();
+  }
+
+  onstartFrameChanged(value) {
+    if (this.component.__qvidAsset) {
+      this.component.setCurrentFrameValue(this.component.currentFrame).catch(function() {});
+    }
+  }
+
+  onendFrameChanged(value) {
+    if (this.component.__qvidAsset) {
+      this.component.setCurrentFrameValue(this.component.currentFrame).catch(function() {});
+    }
+  }
+}

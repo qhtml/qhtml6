@@ -12,6 +12,7 @@ wiki/*
 ..
 .*
 /node_modules/
+/dist/tools/q-vid/node_modules/
 /package.json
 /package-lock.json
 /tmp-page-builder*.spec.js

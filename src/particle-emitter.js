@@ -8,7 +8,6 @@
   if (existingParticleEmitter) {
     installParticleEmitterControls(existingParticleEmitter.prototype);
     global.ParticleEmitterElement = existingParticleEmitter;
-    defineParticleEmitterAlias(existingParticleEmitter);
     return;
   }
 
@@ -1352,28 +1351,7 @@
     }
   }
 
-  function defineParticleEmitterAlias(BaseElement) {
-    const existingAlias = global.customElements.get("q-particle-emitter");
-
-    if (existingAlias) {
-      installParticleEmitterControls(existingAlias.prototype);
-      global.QParticleEmitterElement = existingAlias;
-      return;
-    }
-
-    if (!BaseElement) {
-      return;
-    }
-
-    class QParticleEmitterElement extends BaseElement {}
-
-    installParticleEmitterControls(QParticleEmitterElement.prototype);
-    global.QParticleEmitterElement = QParticleEmitterElement;
-    global.customElements.define("q-particle-emitter", QParticleEmitterElement);
-  }
-
   installParticleEmitterControls(ParticleEmitterElement.prototype);
   global.ParticleEmitterElement = ParticleEmitterElement;
   global.customElements.define("particle-emitter", ParticleEmitterElement);
-  defineParticleEmitterAlias(ParticleEmitterElement);
 })(typeof globalThis !== "undefined" ? globalThis : window);

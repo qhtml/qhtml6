@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML q-vid-player Visual Test</title>
+  <script src="qhtml.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: rgba(15, 23, 42, 0.84);
+      --panel-2: rgba(30, 41, 59, 0.72);
+      --edge: rgba(148, 163, 184, 0.28);
+      --ink: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #6ee7ff;
+      --good: #86efac;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, "Segoe UI", sans-serif;
+    }
+
+    .test-page {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .test-header {
+      position: relative;
+      z-index: 1000;
+      display: grid;
+      gap: 0.35rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--edge);
+      background: var(--panel);
+      backdrop-filter: blur(8px);
+    }
+
+    .test-header h1 {
+      margin: 0;
+      color: var(--accent);
+      font-size: clamp(1.15rem, 2vw, 1.65rem);
+      line-height: 1.15;
+    }
+
+    .test-header p {
+      margin: 0;
+      max-width: 72rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .test-header a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .test-stage {
+      display: grid;
+      gap: 1rem;
+      padding: 1rem;
+    }
+
+    .visual-shell {
+      display: grid;
+      gap: 1rem;
+      width: min(1180px, 100%);
+      margin: 0 auto;
+    }
+
+    .viewport {
+      min-height: 520px;
+      display: grid;
+      place-items: center;
+      overflow: auto;
+      border: 1px solid var(--edge);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      background-color: #020617;
+      background-image:
+        linear-gradient(45deg, rgba(255,255,255,0.045) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(255,255,255,0.045) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.045) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.045) 75%);
+      background-size: 24px 24px;
+      background-position: 0 0, 0 12px, 12px -12px, -12px 0px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      border: 1px solid var(--edge);
+      border-radius: 0.75rem;
+      padding: 0.75rem;
+      background: var(--panel-2);
+    }
+
+    .property-panel {
+      display: grid;
+      gap: 0.75rem;
+      border: 1px solid var(--edge);
+      border-radius: 0.75rem;
+      padding: 0.75rem;
+      background: rgba(15, 23, 42, 0.58);
+    }
+
+    .property-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 0.75rem;
+      align-items: end;
+    }
+
+    .field {
+      display: grid;
+      gap: 0.35rem;
+      min-width: 0;
+    }
+
+    .field label,
+    .check-field span {
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .field input {
+      width: 100%;
+      min-width: 0;
+      border: 1px solid var(--edge);
+      border-radius: 0.45rem;
+      padding: 0.48rem 0.55rem;
+      background: rgba(2, 6, 23, 0.78);
+      color: var(--ink);
+      font: inherit;
+    }
+
+    .field.src-field {
+      grid-column: 1 / -1;
+    }
+
+    .check-field {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      min-height: 2.45rem;
+      border: 1px solid var(--edge);
+      border-radius: 0.45rem;
+      padding: 0.45rem 0.6rem;
+      background: rgba(2, 6, 23, 0.42);
+    }
+
+    .frame-slider {
+      grid-column: 1 / -1;
+    }
+
+    .controls button {
+      border: 1px solid rgba(110, 231, 255, 0.38);
+      border-radius: 0.45rem;
+      padding: 0.55rem 0.8rem;
+      background: rgba(14, 165, 233, 0.16);
+      color: var(--ink);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+    }
+
+    .controls button:hover {
+      border-color: var(--accent);
+    }
+
+    .readout {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .readout span {
+      border: 1px solid var(--edge);
+      border-radius: 999px;
+      padding: 0.3rem 0.6rem;
+      background: rgba(15, 23, 42, 0.75);
+    }
+
+    .readout strong {
+      color: var(--good);
+    }
+
+    q-html {
+      display: block;
+      min-height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <main class="test-page">
+    <header class="test-header">
+      <h1>q-vid-player Visual Test</h1>
+      <p>This page loads <code>assets/hud-extend.qvid</code> through the QHTML <code>q-vid-player</code> component. Use the controls to verify playback, stepping, reverse, repeat, and scale behavior. <a href="test.html">Back to test index</a></p>
+    </header>
+    <section class="test-stage">
+<q-html>
+q-import { ./q-components/q-vid-player.qhtml }
+
+div.visual-shell {
+  div.viewport {
+    q-vid-player hudExtendPlayer {
+      src: "./assets/hud-extend.qvid"
+      frameDuration: 16
+      scale: 1
+      reverse: false
+      repeat: true
+      startFrame: 0
+      endFrame: 0
+      onstepped(currentFrame) {
+        if (typeof window.__qvidVisualFrameStepped === "function") {
+          window.__qvidVisualFrameStepped(currentFrame);
+        }
+      }
+    }
+  }
+
+  div.controls {
+    button {
+      id: "qvid-start-button"
+      type: "button"
+      text { Start }
+    }
+    button {
+      id: "qvid-stop-button"
+      type: "button"
+      text { Stop }
+    }
+    button {
+      id: "qvid-step-button"
+      type: "button"
+      text { Step }
+    }
+    button {
+      id: "qvid-reverse-button"
+      type: "button"
+      text { Reverse }
+    }
+    button {
+      id: "qvid-repeat-button"
+      type: "button"
+      text { Repeat }
+    }
+    button {
+      id: "qvid-scale-down-button"
+      type: "button"
+      text { Scale - }
+    }
+    button {
+      id: "qvid-scale-up-button"
+      type: "button"
+      text { Scale + }
+    }
+
+    div.readout {
+      span#qvid-status { text { loading } }
+      span#qvid-frame { text { frame: 0 } }
+      span#qvid-mode { text { forward repeat } }
+      span#qvid-scale { text { scale: 1 } }
+    }
+  }
+
+  div.property-panel {
+    div.property-grid {
+      div.field.src-field {
+        label { for: "qvid-src-input" text { src } }
+        input#qvid-src-input {
+          type: "text"
+          value: "./assets/hud-extend.qvid"
+        }
+      }
+
+      div.field {
+        label { for: "qvid-frame-duration-input" text { frameDuration ms } }
+        input#qvid-frame-duration-input {
+          type: "number"
+          min: "1"
+          step: "1"
+          value: "16"
+        }
+      }
+
+      div.field {
+        label { for: "qvid-scale-input" text { scale } }
+        input#qvid-scale-input {
+          type: "number"
+          min: "0.1"
+          step: "0.05"
+          value: "1"
+        }
+      }
+
+      div.field {
+        label { for: "qvid-current-frame-input" text { currentFrame } }
+        input#qvid-current-frame-input {
+          type: "number"
+          min: "0"
+          step: "1"
+          value: "0"
+        }
+      }
+
+      div.field {
+        label { for: "qvid-start-frame-input" text { startFrame } }
+        input#qvid-start-frame-input {
+          type: "number"
+          min: "0"
+          step: "1"
+          value: "0"
+        }
+      }
+
+      div.field {
+        label { for: "qvid-end-frame-input" text { endFrame } }
+        input#qvid-end-frame-input {
+          type: "number"
+          min: "0"
+          step: "1"
+          value: "0"
+        }
+      }
+
+      div.check-field {
+        span { text { reverse } }
+        input#qvid-reverse-input { type: "checkbox" }
+      }
+
+      div.check-field {
+        span { text { repeat } }
+        input#qvid-repeat-input {
+          type: "checkbox"
+          checked: true
+        }
+      }
+
+      div.field.frame-slider {
+        label { for: "qvid-frame-slider" text { currentFrame slider } }
+        input#qvid-frame-slider {
+          type: "range"
+          min: "0"
+          max: "0"
+          step: "1"
+          value: "0"
+        }
+      }
+    }
+  }
+}
+
+onReady {
+  var status = document.querySelector("#qvid-status");
+  var frame = document.querySelector("#qvid-frame");
+  var mode = document.querySelector("#qvid-mode");
+  var scale = document.querySelector("#qvid-scale");
+  var qhtmlHost = document.querySelector("q-html");
+  var startButton = document.querySelector("#qvid-start-button");
+  var stopButton = document.querySelector("#qvid-stop-button");
+  var stepButton = document.querySelector("#qvid-step-button");
+  var reverseButton = document.querySelector("#qvid-reverse-button");
+  var repeatButton = document.querySelector("#qvid-repeat-button");
+  var scaleDownButton = document.querySelector("#qvid-scale-down-button");
+  var scaleUpButton = document.querySelector("#qvid-scale-up-button");
+  var srcInput = document.querySelector("#qvid-src-input");
+  var durationInput = document.querySelector("#qvid-frame-duration-input");
+  var scaleInput = document.querySelector("#qvid-scale-input");
+  var currentFrameInput = document.querySelector("#qvid-current-frame-input");
+  var startFrameInput = document.querySelector("#qvid-start-frame-input");
+  var endFrameInput = document.querySelector("#qvid-end-frame-input");
+  var reverseInput = document.querySelector("#qvid-reverse-input");
+  var repeatInput = document.querySelector("#qvid-repeat-input");
+  var frameSlider = document.querySelector("#qvid-frame-slider");
+
+  function asBoolean(value, fallbackValue) {
+    if (value === true || value === false) {
+      return value;
+    }
+    var text = String(value == null ? "" : value).toLowerCase();
+    if (text === "true" || text === "1" || text === "yes" || text === "on") {
+      return true;
+    }
+    if (text === "false" || text === "0" || text === "no" || text === "off") {
+      return false;
+    }
+    return Boolean(fallbackValue);
+  }
+
+  function numberFromInput(input, fallbackValue) {
+    var value = input ? Number(input.value) : Number.NaN;
+    return Number.isFinite(value) ? value : fallbackValue;
+  }
+
+  function currentPlayer() {
+    return document.querySelector("q-vid-player");
+  }
+
+  function updateMode() {
+    var player = currentPlayer();
+    var isReverse = asBoolean(player ? player.reverse : false, false);
+    var isRepeat = asBoolean(player ? player.repeat : true, true);
+    if (mode) {
+      mode.textContent = (isReverse ? "reverse" : "forward") + " " + (isRepeat ? "repeat" : "once");
+    }
+    if (scale) {
+      scale.textContent = "scale: " + String(player ? player.scale : 1);
+    }
+  }
+
+  window.__qvidVisualFrameStepped = function(currentFrame) {
+    if (frame) {
+      frame.textContent = "frame: " + String(currentFrame);
+    }
+    if (currentFrameInput && document.activeElement !== currentFrameInput) {
+      currentFrameInput.value = String(currentFrame);
+    }
+    if (frameSlider && document.activeElement !== frameSlider) {
+      frameSlider.value = String(currentFrame);
+    }
+    updateMode();
+  };
+
+  function syncInputs() {
+    var player = currentPlayer();
+    if (srcInput) {
+      srcInput.value = String(player && player.src || "");
+    }
+    if (durationInput) {
+      durationInput.value = String(player && player.frameDuration || 16);
+    }
+    if (scaleInput) {
+      scaleInput.value = String(player && player.scale || 1);
+    }
+    if (currentFrameInput) {
+      currentFrameInput.value = String(player && player.currentFrame || 0);
+    }
+    if (frameSlider) {
+      frameSlider.value = String(player && player.currentFrame || 0);
+    }
+    if (startFrameInput) {
+      startFrameInput.value = String(player && player.startFrame || 0);
+    }
+    if (endFrameInput) {
+      endFrameInput.value = String(player && player.endFrame || 0);
+    }
+    if (reverseInput) {
+      reverseInput.checked = asBoolean(player && player.reverse, false);
+    }
+    if (repeatInput) {
+      repeatInput.checked = asBoolean(player && player.repeat, true);
+    }
+    updateMode();
+  }
+
+  function bindEvent(node, eventName, callback) {
+    if (node) {
+      node.addEventListener(eventName, callback);
+    }
+  }
+
+  bindEvent(startButton, "click", function() {
+    var player = currentPlayer();
+    if (player) { player.start(); }
+  });
+
+  bindEvent(stopButton, "click", function() {
+    var player = currentPlayer();
+    if (player) { player.stop(); }
+  });
+
+  bindEvent(stepButton, "click", function() {
+    var player = currentPlayer();
+    if (player) { player.step(); }
+  });
+
+  bindEvent(reverseButton, "click", function() {
+    var player = currentPlayer();
+    if (player) {
+      player.reverse = !asBoolean(player.reverse, false);
+      syncInputs();
+    }
+  });
+
+  bindEvent(repeatButton, "click", function() {
+    var player = currentPlayer();
+    if (player) {
+      player.repeat = !asBoolean(player.repeat, true);
+      syncInputs();
+    }
+  });
+
+  bindEvent(scaleDownButton, "click", function() {
+    var player = currentPlayer();
+    if (player) {
+      player.scale = Math.max(0.25, Number(player.scale || 1) - 0.25);
+      syncInputs();
+    }
+  });
+
+  bindEvent(scaleUpButton, "click", function() {
+    var player = currentPlayer();
+    if (player) {
+      player.scale = Number(player.scale || 1) + 0.25;
+      syncInputs();
+    }
+  });
+
+  bindEvent(srcInput, "change", function() {
+    var player = currentPlayer();
+    if (!player) { return; }
+    player.stop();
+    player.src = srcInput.value;
+  });
+
+  bindEvent(durationInput, "input", function() {
+    var player = currentPlayer();
+    if (!player) { return; }
+    player.frameDuration = Math.max(1, Math.floor(numberFromInput(durationInput, 16)));
+    updateMode();
+  });
+
+  bindEvent(scaleInput, "input", function() {
+    var player = currentPlayer();
+    if (!player) { return; }
+    player.scale = Math.max(0.1, numberFromInput(scaleInput, 1));
+    updateMode();
+  });
+
+  bindEvent(currentFrameInput, "input", function() {
+    var player = currentPlayer();
+    if (!player) { return; }
+    player.currentFrame = Math.max(0, Math.floor(numberFromInput(currentFrameInput, 0)));
+  });
+
+  bindEvent(frameSlider, "input", function() {
+    var player = currentPlayer();
+    if (!player) { return; }
+    player.currentFrame = Math.max(0, Math.floor(numberFromInput(frameSlider, 0)));
+  });
+
+  bindEvent(startFrameInput, "input", function() {
+    var player = currentPlayer();
+    if (!player) { return; }
+    player.startFrame = Math.max(0, Math.floor(numberFromInput(startFrameInput, 0)));
+  });
+
+  bindEvent(endFrameInput, "input", function() {
+    var player = currentPlayer();
+    if (!player) { return; }
+    player.endFrame = Math.max(0, Math.floor(numberFromInput(endFrameInput, 0)));
+  });
+
+  bindEvent(reverseInput, "change", function() {
+    var player = currentPlayer();
+    if (!player) { return; }
+    player.reverse = Boolean(reverseInput.checked);
+    updateMode();
+  });
+
+  bindEvent(repeatInput, "change", function() {
+    var player = currentPlayer();
+    if (!player) { return; }
+    player.repeat = Boolean(repeatInput.checked);
+    updateMode();
+  });
+
+  bindEvent(qhtmlHost, "q-vid-load", function(event) {
+    var player = currentPlayer();
+    var maxFrame = Math.max(0, Number(event.detail.frameCount || 1) - 1);
+    if (status) {
+      status.innerHTML = "<strong>loaded</strong> " + String(event.detail.width || 0) + "x" + String(event.detail.height || 0);
+    }
+    if (currentFrameInput) {
+      currentFrameInput.max = String(maxFrame);
+    }
+    if (startFrameInput) {
+      startFrameInput.max = String(maxFrame);
+    }
+    if (endFrameInput) {
+      endFrameInput.max = String(maxFrame);
+      if (String(endFrameInput.value || "0") === "0") {
+        endFrameInput.value = String(maxFrame);
+        player.endFrame = maxFrame;
+      }
+    }
+    if (frameSlider) {
+      frameSlider.max = String(maxFrame);
+    }
+    syncInputs();
+  });
+
+  bindEvent(qhtmlHost, "q-vid-error", function(event) {
+    if (status) {
+      status.textContent = event.detail.error && event.detail.error.message ? event.detail.error.message : "q-vid load error";
+    }
+  });
+
+  bindEvent(qhtmlHost, "q-vid-started", function() {
+    if (status) {
+      status.innerHTML = "<strong>playing</strong>";
+    }
+  });
+
+  bindEvent(qhtmlHost, "q-vid-stopped", function() {
+    if (status) {
+      status.textContent = "stopped";
+    }
+  });
+
+  syncInputs();
+}
+</q-html>
+    </section>
+  </main>
+</body>
+</html>

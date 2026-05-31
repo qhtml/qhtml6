@@ -355,7 +355,7 @@ q-timer accRefreshTimer {
           <span class="badge pending">section</span>
         </div>
         <div class="test-expected"><strong>Includes:</strong> tests 120, 121, 122</div>
-        <div style="padding:10px; font-size:13px; color:#425b78;">Native particle-emitter visual, start/stop behavior, q-particle-emitter alias, SVG star mask tests, and mixed-container emitter tests. <a href="test.html">Back to test index</a>.</div>
+        <div style="padding:10px; font-size:13px; color:#425b78;">Native particle-emitter visual, start/stop behavior, q-particle-emitter component wrapper, SVG star mask tests, and mixed-container emitter tests. <a href="test.html">Back to test index</a>.</div>
       </article>
       <article class="test-card" id="card-120">
         <div class="test-head">
@@ -443,6 +443,8 @@ onReady {
         </div>
         <div class="test-expected"><strong>Expected:</strong> q-particle-emitter | star mask | SVG mask</div>
 <q-html id="host-t121" data-test-no="121">
+q-import { q-components/q-particle-emitter.qhtml }
+
 div#t121-system {
   style {
     display: block;
@@ -527,6 +529,7 @@ div#t121-system {
         <div class="test-expected"><strong>Expected:</strong> div emitter | h3 emitter | button emitter | span emitter | q-modal emitter</div>
 <q-html id="host-t122" data-test-no="122">
 q-import { q-components/q-modal.qhtml }
+q-import { q-components/q-particle-emitter.qhtml }
 
 div#t122-board {
   style {

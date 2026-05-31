@@ -25,7 +25,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - `qSet(target, prop, value, options?)`
   - `commitProperty(target, prop, value, options?)`
   - `registerBehavior(target, prop, controller)`, `getBehavior(target, prop)`, `removeBehavior(target, prop)`
-  - `BehaviorController`, `NumberAnimation`, `AnimationJob`, `getEasing`, `getPropertyAdapter`
+  - `QBehaviorAbstractAnimation`, `BehaviorController`, `NumberAnimation`, `QBehaviorPropertyAnimation`, `QBehaviorAnimationGroup`, `AnimationJob`, `getEasing`, `getPropertyAdapter`
   - `qSet` is the behavior-aware setter; `commitProperty` is the bypass-capable final write path.
 - q-perf helpers:
   - `startQPerfMeasurement(targetNode, configNode, category, label?)`
@@ -105,6 +105,10 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - anonymous containers inherit the current QContext instead of creating a new named scope
   - root timers are registered before document nodes render so handlers and expressions can resolve them by name
   - timers inside component/worker hosts are owned by that host and remain reachable through normal named-reference dot walking
+- `q-worker` method invocation serializes arguments, returned values, emitted signal payloads, and worker state through the renderer clone-safe bridge:
+  - worker methods return Promises from the main thread.
+  - clone-safe payloads preserve `ArrayBuffer`, `DataView`, and typed arrays such as `Uint8Array` / `Uint8ClampedArray`, enabling worker decode pipelines to return binary frame or pixel buffers.
+  - DOM nodes and functions are intentionally omitted from worker payloads.
 - Inline event handlers receive the current inherited QContext in their script scope, so named references visible during render are also visible when the handler runs.
   - Rendered DOM elements are bound to the active scope/runtime context frames before event attributes are compiled.
   - Script contexts read `q-var` declarations as their stored JavaScript values and write assignment back to q-var storage, so handlers can use natural `var`-like syntax such as `count = count + 1` or `helper()`.
@@ -130,6 +134,9 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - QDom property writes maintain `property_extensions[propName] = unit` for unit-bearing numeric values and remove that sidecar when a property returns to a unitless value.
   - A new external write while an animation is running cancels the current job and rebases from the current live value.
   - `NumberAnimation` supports `duration`, `easing`, optional `from`, optional `to`, and optional `running`.
+  - `q-property-animation` can be used inside a behavior as an abstract-animation leaf. When `target`, `from`, or `to` are omitted, they default to the intercepted behavior target/property, current live value, and requested value.
+  - `q-parallel-animation-group` and `q-sequential-animation-group` can be used inside behavior blocks with nested `q-property-animation` children. Parallel groups start all child jobs together; sequential groups start each child after the previous child completes.
+  - Behavior-side `q-property-animation` hook blocks such as `onstepped { ... }` execute with `this` bound to the behavior target and receive `(value, currentStep, progress)` values.
   - Supported easing names are `linear`, `easeInQuad`, `easeOutQuad`, and `easeInOutQuad`; unknown names warn and use `linear`.
   - Property adapters cover declared QDom component properties, DOM properties, and DOM style properties. Dimensional style properties normalize bare numbers to `px`; matching CSS units interpolate; incompatible units warn and commit immediately.
 - `q-bind-css { sourceProperty targetCssReference }` is component-local syntax sugar stored in `component.meta.__qhtmlCssBindings`.
@@ -147,6 +154,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 
 ## Component host assignment behavior
 - Component slot projection prefers normalized component-instance `slots` over raw instance children when present. This keeps shorthand slot wrappers (`slotName { ... }`) out of rendered output and allows projected `q-layout`, `q-row`, and `q-col` nodes to render normally inside slots.
+- Projected slot content preserves the caller's lexical render context while retaining the receiving component's slot ownership metadata. This means `q-var`, named aliases, inline expressions, and `for (...)` model sources declared on the component that supplies slot content remain visible after that content is projected through another component such as `q-tabs`.
 - Slot fill lookup is case-insensitive after exact lookup. This preserves declared slot names such as `slot { heroTitle }` while allowing shorthand invocation wrappers like `heroTitle { ... }`, whose tag names are normalized by HTML/QDom parsing, to project into the intended slot.
 - Component `slotDefaults` (`kind: "slot-default"`) provide fallback projected QDom only when an instance omits that slot; an explicit empty slot suppresses the default.
 - `component-instance.attributes` map to DOM attributes.

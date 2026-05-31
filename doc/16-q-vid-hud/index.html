@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML q-vid and HUD Components</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #05070a;
+      --panel: #101820;
+      --edge: #29404c;
+      --ink: #e8f7ef;
+      --muted: #9fb7b4;
+      --accent: #86efac;
+      --warn: #ff7a18;
+      --code: #0b1014;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+      display: grid;
+      gap: 18px;
+    }
+    a { color: var(--accent); }
+    h1, h2, h3 { line-height: 1.15; margin: 0; }
+    p { margin: 0; color: var(--muted); }
+    .hero, section {
+      border: 1px solid var(--edge);
+      background: var(--panel);
+      padding: 18px;
+    }
+    .hero {
+      display: grid;
+      gap: 10px;
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--edge));
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      border: 1px solid var(--edge);
+      padding: 14px;
+      background: #0b1117;
+      display: grid;
+      gap: 8px;
+    }
+    code, pre {
+      background: var(--code);
+      color: #d9ffe6;
+      border: 1px solid #20343e;
+    }
+    code { padding: 0.1rem 0.25rem; }
+    pre {
+      overflow: auto;
+      padding: 14px;
+      margin: 0;
+    }
+    ul {
+      margin: 0;
+      padding-left: 1.2rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="hero">
+      <p><a href="../index.html">Back to wiki index</a></p>
+      <h1>q-vid and HUD Components</h1>
+      <p>QHTML 6.9.8 adds the q-vid animation stack, HUD visual assets, and related component tests. The q-vid player is built as source, painter, and player components so decoding, timing, and canvas painting stay separated.</p>
+    </div>
+
+    <section>
+      <h2>q-vid Component Stack</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>q-vid-source</h3>
+          <p>Owns the decoder worker, multi-URL frame cache, and frame data API. It emits `fileLoaded`, `frameReady`, `frameData`, and `frameNotReady`.</p>
+        </div>
+        <div class="card">
+          <h3>q-vid-painter</h3>
+          <p>Owns playback timing. It emits readiness and frame-data intent, accepts bytes, and emits `frameReadyToPaint` after a frame is accepted.</p>
+        </div>
+        <div class="card">
+          <h3>q-vid-player</h3>
+          <p>Public canvas component. It mediates all source/painter traffic, binds player properties into the painter, paints frames, and emits `started`, `stopped`, and `stepped`.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Basic Playback</h2>
+      <pre><code>q-import { q-components/q-vid-player.qhtml }
+
+q-vid-player hudPlayer {
+  src: "assets/hud-extend.qvid"
+  frameDuration: 16
+  repeat: true
+  scale: 1
+  onstepped(currentFrame) {
+    console.log("painted frame", currentFrame);
+  }
+}
+
+button { text { Start } onclick { hudPlayer.start(); } }
+button { text { Stop } onclick { hudPlayer.stop(); } }
+button { text { Step } onclick { hudPlayer.step(); } }</code></pre>
+    </section>
+
+    <section>
+      <h2>Included Files</h2>
+      <ul>
+        <li><code>dist/q-components/q-vid.qhtml</code>: source, painter, and player implementation.</li>
+        <li><code>dist/q-components/q-vid-player.qhtml</code>: import wrapper for user pages.</li>
+        <li><code>dist/tools/q-vid/</code>: browser encoder and standalone q-vid player/debugger.</li>
+        <li><code>dist/assets/hud-extend.qvid</code> and related HUD images: sample visual assets.</li>
+        <li><code>dist/test/q-vid-player.html</code> and <code>dist/test/q-vid-animations.html</code>: manual visual smoke pages.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Related Visual Components</h2>
+      <p>The release also includes `q-tech-button`, `q-control-arm-screen`, and updated animation group tests for HUD-style interfaces. Import them from `q-components.qhtml` or directly from `dist/q-components/` when building focused pages.</p>
+    </section>
+  </main>
+</body>
+</html>

@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.9.7
+# QHTML.js v6.9.8
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,15 +12,19 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v6.9.7
+## Whats New in v6.9.8
 
-- Bumped the release line to `6.9.7`.
+- Bumped the release line to `6.9.8`.
 - Added QML-style `behavior on <property>` with `NumberAnimation` as a property-write interceptor.
 - Added behavior-aware property writes through `QHtml.qSet()` and bypassed animation-frame commits so animations do not recursively trigger themselves.
 - Expanded dimensional animation support so `px`, `%`, `vh`, and other matching CSS units interpolate while intermediate values are mirrored as CSS-valid property strings.
 - Added `q-style-path-animation` for CSS motion-path animation sugar inside `q-style`.
+- Added behavior-compatible `q-property-animation`, `q-parallel-animation-group`, and `q-sequential-animation-group` support for grouped property-write animations.
 - Added `q-slot-default` for component slot fallback content and updated the UI component defaults that use it.
 - Added `q-ui-split-layout` and default slot content for the optional `q-ui-components.qhtml` component set.
+- Added the `q-vid` component stack and q-vid browser tooling for `.qvid` assets: source decoding/cache, painter-driven playback, and the user-facing `q-vid-player` canvas component.
+- Added HUD/control-arm visual assets and components, including `q-tech-button`, `q-control-arm-screen`, q-vid visual tests, and q-vid sample assets.
+- Added `q-particle-emitter` as a QHTML wrapper component around the native `particle-emitter` element.
 
 ## 1. Quick Start
 
@@ -182,6 +186,38 @@ animated-panel { }
 Inside a behavior, `NumberAnimation` defaults `from` to the current live property value and `to` to the intercepted requested value. Numeric dimensional values such as `100` normalize to `100px`; matching units such as `"50%"` to `"70%"`, `"50vh"` to `"60vh"`, or `"8rem"` to `"12rem"` animate, while incompatible units fall back to an immediate commit with a warning. QHTML stores the unit sidecar in QDom `property_extensions`, interpolates the number, then commits either a plain number for unitless values or a CSS-valid string such as `"123px"` or `"52%"`, so q-property setters and `on<Property>Changed` handlers can project those values into CSS directly.
 
 This lets a component keep animation state in a q-property while projecting CSS-ready values in the property changed handler. During the animation above, `panelWidth` receives intermediate values like `"43.2%"`; the handler writes those values directly to `.panel-fill.style.width`, and the final frame commits the exact requested percent string.
+
+Behaviors can also run abstract animation groups:
+
+```qhtml
+q-component grouped-panel {
+  q-property w: "120px"
+  q-property h: "40px"
+
+  q-bind-css { this.component.w this.component.style.width }
+  q-bind-css { this.component.h this.component.style.height }
+
+  behavior on w {
+    q-sequential-animation-group {
+      q-property-animation {
+        duration: 300
+        onstepped {
+          console.log(value, progress);
+        }
+      }
+
+      q-property-animation {
+        target: "this.component.h"
+        from: "40px"
+        to: "100px"
+        duration: 300
+      }
+    }
+  }
+}
+```
+
+Inside a behavior, a `q-property-animation` without `target`, `from`, or `to` defaults to the intercepted property, the current live value, and the requested value. `q-parallel-animation-group` starts nested animations together; `q-sequential-animation-group` starts each nested animation after the previous one ends.
 
 Use `q-bind-css` inside a component when the property can be projected directly to a writable CSS reference:
 
@@ -773,9 +809,11 @@ Notes:
 
 ### `particle-emitter` / `q-particle-emitter` (canvas-backed particle effects)
 
-`particle-emitter` is a native custom element registered by `qhtml.js`. `q-particle-emitter` is an alias for the same emitter system. It is not a `q-component` and does not require `q-components.qhtml`. Place it inside any positioned container, configure it with attributes, and control it with the boolean `running` property or the `start()`, `stop()`, `clear()`, and `burst(num, x, y)` methods.
+`particle-emitter` is the native custom element registered by `qhtml.js`. `q-particle-emitter` is a QHTML component wrapper from `q-components/q-particle-emitter.qhtml`; it exposes the emitter settings as q-properties, renders a native `particle-emitter` child, and forwards `start()`, `stop()`, `clear()`, and `burst(x, y, num)`.
 
 ```qhtml
+q-import { q-components/q-particle-emitter.qhtml }
+
 div#energy-field {
   style {
     position: relative;
@@ -785,7 +823,7 @@ div#energy-field {
     background: #07111f;
   }
 
-  particle-emitter#energy-emitter {
+  q-particle-emitter#energy-emitter {
     emitRate: "84"
     lifetime: "3600"
     lifetimeVariation: "900"
@@ -813,7 +851,7 @@ div#energy-field {
 
 button { text { Start } onclick { document.querySelector("#energy-emitter").running = true; } }
 button { text { Stop } onclick { document.querySelector("#energy-emitter").running = false; } }
-button { text { Burst } onclick { document.querySelector("#energy-emitter").burst(24, 210, 120); } }
+button { text { Burst } onclick { document.querySelector("#energy-emitter").burst(210, 120, 24); } }
 ```
 
 Useful attributes:
@@ -831,9 +869,39 @@ Useful attributes:
 Useful methods:
 - `start()` / `stop()`: toggles continuous emission.
 - `clear()`: removes current particles and pending bursts.
-- `burst(num, x, y)`: queues `num` particles emitted at the current `emitRate` from the supplied origin. The emitter's configured `x` / `y` attributes are not changed.
+- `burst(x, y, num)`: queues `num` particles emitted at the current `emitRate` from the supplied origin. The emitter's configured `x` / `y` attributes are not changed.
 
 See `doc/11-particle-emitter/` for the full attribute reference.
+
+### `q-vid-player` (q-vid delta animation playback)
+
+`q-vid-player` is the user-facing canvas component for `.qvid` delta animation assets. Import `q-components/q-vid-player.qhtml` directly or through `q-components.qhtml`.
+
+```qhtml
+q-import { q-components/q-vid-player.qhtml }
+
+q-vid-player hudPlayer {
+  src: "assets/hud-extend.qvid"
+  frameDuration: 16
+  repeat: true
+  scale: 1
+  onstepped(currentFrame) {
+    console.log("painted frame", currentFrame);
+  }
+}
+
+button { text { Start } onclick { hudPlayer.start(); } }
+button { text { Stop } onclick { hudPlayer.stop(); } }
+button { text { Step } onclick { hudPlayer.step(); } }
+```
+
+The component stack is split into three QHTML components:
+
+- `q-vid-source`: owns the decoder worker, multi-URL frame cache, and frame data APIs.
+- `q-vid-painter`: owns playback timing and emits frame readiness/data/paint intent.
+- `q-vid-player`: mediates source and painter, binds public properties, paints the canvas, and emits `started`, `stopped`, and `stepped(currentFrame)`.
+
+The q-vid tooling lives in `dist/tools/q-vid/`, with visual coverage in `dist/test/q-vid-player.html` and `dist/test/q-vid-animations.html`.
 
 ### `q-spritesheet [alpha]` (component-level state machine)
 

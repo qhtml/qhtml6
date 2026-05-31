@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-28T02:35:46Z */
+/* generated: 2026-05-31T09:00:10Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -11022,6 +11022,15 @@
     if (normalized === "numberanimation" || normalized === "q-number-animation") {
       return "NumberAnimation";
     }
+    if (normalized === "q-property-animation" || normalized === "propertyanimation" || normalized === "property-animation") {
+      return "q-property-animation";
+    }
+    if (normalized === "q-parallel-animation-group" || normalized === "q-parallel-animation" || normalized === "parallelanimationgroup" || normalized === "parallel-animation-group") {
+      return "q-parallel-animation-group";
+    }
+    if (normalized === "q-sequential-animation-group" || normalized === "q-sequential-animation" || normalized === "sequentialanimationgroup" || normalized === "sequential-animation-group") {
+      return "q-sequential-animation-group";
+    }
     return "";
   }
 
@@ -11040,22 +11049,50 @@
     const config = {
       type: animationType,
     };
+    const childAnimations = [];
+    const hooks = {};
     const nestedItems = Array.isArray(item.items) ? item.items : [];
     for (let i = 0; i < nestedItems.length; i += 1) {
       const child = nestedItems[i];
-      if (!child || child.type !== "Property") {
+      if (!child) {
         continue;
       }
-      const assignment = parseAssignmentName(child.name);
-      const key = normalizePropertyName(assignment.name);
-      if (!key) {
+      if (child.type === "Property") {
+        const assignment = parseAssignmentName(child.name);
+        const key = normalizePropertyName(assignment.name);
+        if (!key) {
+          continue;
+        }
+        config[key] = resolveScopedPropertyValueReferences(
+          coercePropertyValue(child.value),
+          scopedMaps,
+          null
+        );
         continue;
       }
-      config[key] = resolveScopedPropertyValueReferences(
-        coercePropertyValue(child.value),
-        scopedMaps,
-        null
-      );
+      if (child.type === "EventBlock") {
+        const hookName = String(child.name || "").trim().toLowerCase();
+        if (hookName) {
+          hooks[hookName] = {
+            name: String(child.name || "").trim(),
+            script: String(child.script || ""),
+            parameters: Array.isArray(child.parameters) ? child.parameters.slice() : [],
+            thenBodies: Array.isArray(child.thenBodies) ? child.thenBodies.slice() : [],
+            raw: typeof child.raw === "string" ? child.raw : "",
+          };
+        }
+        continue;
+      }
+      const convertedChild = convertBehaviorAnimationItem(child, scopedMaps);
+      if (convertedChild) {
+        childAnimations.push(convertedChild);
+      }
+    }
+    if (Object.keys(hooks).length > 0) {
+      config.hooks = hooks;
+    }
+    if (childAnimations.length > 0) {
+      config.children = childAnimations;
     }
     return config;
   }
@@ -16273,16 +16310,42 @@
     const animationType = animation && String(animation.type || "").trim() ? String(animation.type || "").trim() : "NumberAnimation";
     const lines = [indent + "behavior on " + propertyName + " {"];
     if (animation) {
-      lines.push(indent + "  " + animationType + " {");
-      const keys = Object.keys(animation);
-      for (let i = 0; i < keys.length; i += 1) {
-        const key = keys[i];
-        if (!key || key === "type") {
-          continue;
-        }
-        lines.push(indent + "    " + key + ": " + serializeAssignmentValue(animation[key]));
+      lines.push(serializeBehaviorAnimationBlock(animation, indentLevel + 1));
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
+  function serializeBehaviorAnimationBlock(animation, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    const animationType = animation && String(animation.type || "").trim() ? String(animation.type || "").trim() : "NumberAnimation";
+    const lines = [indent + animationType + " {"];
+    const keys = Object.keys(animation || {});
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      if (!key || key === "type" || key === "children" || key === "hooks") {
+        continue;
+      }
+      lines.push(indent + "  " + key + ": " + serializeAssignmentValue(animation[key]));
+    }
+    const hooks = animation && animation.hooks && typeof animation.hooks === "object" ? animation.hooks : {};
+    Object.keys(hooks).forEach(function serializeAnimationHook(key) {
+      const hook = hooks[key] || {};
+      const name = String(hook.name || key || "").trim();
+      const script = String(hook.script || "");
+      if (!name || !script.trim()) {
+        return;
+      }
+      lines.push(indent + "  " + name + " {");
+      const chunks = script.split("\n");
+      for (let i = 0; i < chunks.length; i += 1) {
+        lines.push(indent + "    " + chunks[i]);
       }
       lines.push(indent + "  }");
+    });
+    const children = Array.isArray(animation && animation.children) ? animation.children : [];
+    for (let i = 0; i < children.length; i += 1) {
+      lines.push(serializeBehaviorAnimationBlock(children[i], indentLevel + 1));
     }
     lines.push(indent + "}");
     return lines.join("\n");
@@ -17152,6 +17215,7 @@
   const core = modules.qdomCore;
   const parser = modules.qhtmlParser;
   const RENDER_SLOT_REF = typeof Symbol === "function" ? Symbol("qhtml.render.slotRef") : "__qhtmlRenderSlotRef__";
+  const RENDER_SLOT_CONTEXT = typeof Symbol === "function" ? Symbol("qhtml.render.slotContext") : "__qhtmlRenderSlotContext__";
 
   if (!core) {
     throw new Error("dom-renderer requires qdom-core to be loaded first.");
@@ -21224,6 +21288,7 @@
 
   function splitSlotFills(instanceNode, options) {
     const opts = options || {};
+    const sourceContext = opts.sourceContext && typeof opts.sourceContext === "object" ? opts.sourceContext : null;
     const singleSlotName = String(opts.singleSlotName || "").trim();
     const knownSlotsRaw = opts.slotNames instanceof Set ? opts.slotNames : new Set();
     const knownSlotsExact = new Set();
@@ -21289,10 +21354,14 @@
         fills.get(key) || {
           nodes: [],
           slotNode: resolvedSlotNode || null,
+          sourceContext: sourceContext,
         };
       bucket.nodes.push(value);
       if (resolvedSlotNode && !bucket.slotNode) {
         bucket.slotNode = resolvedSlotNode;
+      }
+      if (sourceContext && !bucket.sourceContext) {
+        bucket.sourceContext = sourceContext;
       }
       fills.set(key, bucket);
     }
@@ -21310,6 +21379,7 @@
       const bucket = {
         nodes: [],
         slotNode: resolvedSlotNode || null,
+        sourceContext: sourceContext,
       };
       fills.set(key, bucket);
       return bucket;
@@ -21489,6 +21559,9 @@
             refreshQDomNodeUuidsDeep(projected);
             if (effectiveEntry && effectiveEntry.slotNode && projected && typeof projected === "object") {
               projected[RENDER_SLOT_REF] = effectiveEntry.slotNode;
+            }
+            if (effectiveEntry && effectiveEntry.sourceContext && projected && typeof projected === "object") {
+              projected[RENDER_SLOT_CONTEXT] = effectiveEntry.sourceContext;
             }
             out.push(projected);
           }
@@ -22729,6 +22802,49 @@
     return qEasingRegistry.linear;
   }
 
+  function normalizeBehaviorAnimationType(type) {
+    const raw = String(type || "").trim();
+    const normalized = raw.toLowerCase();
+    if (!normalized || normalized === "numberanimation" || normalized === "q-number-animation") {
+      return "NumberAnimation";
+    }
+    if (normalized === "q-property-animation" || normalized === "propertyanimation" || normalized === "property-animation") {
+      return "q-property-animation";
+    }
+    if (normalized === "q-parallel-animation-group" || normalized === "q-parallel-animation" || normalized === "parallelanimationgroup" || normalized === "parallel-animation-group") {
+      return "q-parallel-animation-group";
+    }
+    if (normalized === "q-sequential-animation-group" || normalized === "q-sequential-animation" || normalized === "sequentialanimationgroup" || normalized === "sequential-animation-group") {
+      return "q-sequential-animation-group";
+    }
+    return raw;
+  }
+
+  function executeBehaviorAnimationHook(hook, target, args) {
+    if (!hook || !target || target.nodeType !== 1) {
+      return undefined;
+    }
+    const body = String(hook.script || "");
+    if (!body.trim()) {
+      return undefined;
+    }
+    const doc = target.ownerDocument || global.document || null;
+    const values = Array.isArray(args) ? args : [];
+    ensureComponentSelfReference(target);
+    ensureScopedSelectorShortcut(target, null);
+    try {
+      const compiled = new Function("value", "currentStep", "progress", "event", "document", withScopedSelectorPrelude(transformScriptBody(body)));
+      return invokeWithRuntimeExecutionHost(target, function invokeBehaviorAnimationHook() {
+        return compiled.call(target, values[0], values[1], values[2], null, doc);
+      });
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml behavior animation hook failed:", error);
+      }
+      return undefined;
+    }
+  }
+
   class AnimationJob {
     constructor(options) {
       const opts = options || {};
@@ -23171,14 +23287,118 @@
     return commitProperty(target, propertyName, value, opts);
   }
 
-  class NumberAnimation {
+  class QBehaviorAbstractAnimation {
     constructor(options) {
       const opts = options || {};
+      this.type = normalizeBehaviorAnimationType(opts.type || "q-abstract-animation");
+      this.running = opts.running !== false && String(opts.running).trim().toLowerCase() !== "false";
+      this.hooks = opts.hooks && typeof opts.hooks === "object" ? opts.hooks : {};
+    }
+
+    createJob() {
+      return null;
+    }
+  }
+
+  function normalizeBehaviorAnimationConfigValue(value) {
+    if (value == null) {
+      return "";
+    }
+    if (typeof value === "string") {
+      const text = value.trim();
+      if (text.length >= 2) {
+        const first = text.charAt(0);
+        const last = text.charAt(text.length - 1);
+        if ((first === "\"" && last === "\"") || (first === "'" && last === "'") || (first === "`" && last === "`")) {
+          return text.slice(1, -1);
+        }
+      }
+      return text;
+    }
+    return value;
+  }
+
+  function splitBehaviorReferencePath(pathText) {
+    const text = String(normalizeBehaviorAnimationConfigValue(pathText) || "").trim();
+    if (!text) {
+      return [];
+    }
+    return text.split(".").map(function cleanBehaviorReferenceToken(part) {
+      return String(part || "").trim();
+    }).filter(Boolean);
+  }
+
+  function resolveBehaviorReferenceOwner(pathText, fallbackTarget, fallbackProp) {
+    const parts = splitBehaviorReferencePath(pathText);
+    if (parts.length < 2) {
+      return {
+        target: fallbackTarget,
+        prop: fallbackProp,
+      };
+    }
+    let root = null;
+    let index = 1;
+    const rootName = parts[0];
+    if (rootName === "this") {
+      if (parts[1] === "component") {
+        root = ensureComponentSelfReference(fallbackTarget) || (fallbackTarget && fallbackTarget.component) || fallbackTarget;
+        index = 2;
+      } else {
+        root = fallbackTarget;
+        index = 1;
+      }
+    } else if (rootName === "component") {
+      root = ensureComponentSelfReference(fallbackTarget) || (fallbackTarget && fallbackTarget.component) || fallbackTarget;
+      index = 1;
+    } else if (fallbackTarget && fallbackTarget.__qhtmlScriptScope && Object.prototype.hasOwnProperty.call(fallbackTarget.__qhtmlScriptScope, rootName)) {
+      root = fallbackTarget.__qhtmlScriptScope[rootName];
+      index = 1;
+    } else if (fallbackTarget && fallbackTarget.component && fallbackTarget.component.__qhtmlScriptScope && Object.prototype.hasOwnProperty.call(fallbackTarget.component.__qhtmlScriptScope, rootName)) {
+      root = fallbackTarget.component.__qhtmlScriptScope[rootName];
+      index = 1;
+    } else if (global && typeof global[rootName] !== "undefined") {
+      root = global[rootName];
+      index = 1;
+    } else {
+      const doc = fallbackTarget && fallbackTarget.ownerDocument ? fallbackTarget.ownerDocument : global.document || null;
+      if (doc && typeof doc.querySelector === "function") {
+        try {
+          root = doc.querySelector(rootName);
+        } catch (queryError) {
+          root = null;
+        }
+      }
+      index = 1;
+    }
+    if (root == null) {
+      return {
+        target: fallbackTarget,
+        prop: fallbackProp,
+      };
+    }
+    for (let i = index; i < parts.length - 1; i += 1) {
+      root = root[parts[i]];
+      if (root == null) {
+        return {
+          target: fallbackTarget,
+          prop: fallbackProp,
+        };
+      }
+    }
+    return {
+      target: root,
+      prop: parts[parts.length - 1],
+    };
+  }
+
+  class NumberAnimation extends QBehaviorAbstractAnimation {
+    constructor(options) {
+      const opts = options || {};
+      super(Object.assign({}, opts, { type: opts.type || "NumberAnimation" }));
       this.duration = Math.max(0, Number(opts.duration == null ? 250 : opts.duration) || 0);
       this.easing = String(opts.easing || "linear").trim() || "linear";
       this.from = Object.prototype.hasOwnProperty.call(opts, "from") ? opts.from : undefined;
       this.to = Object.prototype.hasOwnProperty.call(opts, "to") ? opts.to : undefined;
-      this.running = opts.running !== false && String(opts.running).trim().toLowerCase() !== "false";
     }
 
     createJob(config) {
@@ -23215,6 +23435,193 @@
           opts.finish(opts.to);
         },
       });
+    }
+  }
+
+  class QBehaviorPropertyAnimation extends QBehaviorAbstractAnimation {
+    constructor(options) {
+      const opts = options || {};
+      super(Object.assign({}, opts, { type: opts.type || "q-property-animation" }));
+      this.targetExpression = Object.prototype.hasOwnProperty.call(opts, "target") ? opts.target : "";
+      this.duration = Math.max(0, Number(opts.duration == null ? 250 : opts.duration) || 0);
+      this.easing = String(opts.easing || "linear").trim() || "linear";
+      this.from = Object.prototype.hasOwnProperty.call(opts, "from") ? opts.from : undefined;
+      this.to = Object.prototype.hasOwnProperty.call(opts, "to") ? opts.to : undefined;
+    }
+
+    createJob(config) {
+      const opts = config || {};
+      const resolvedTarget = this.targetExpression
+        ? resolveBehaviorReferenceOwner(this.targetExpression, opts.target, opts.prop)
+        : { target: opts.target, prop: opts.prop };
+      const target = resolvedTarget.target;
+      const prop = String(resolvedTarget.prop || "").trim();
+      if (!target || !prop) {
+        return null;
+      }
+      const adapter = getPropertyAdapter(target, prop);
+      const fromValue = Object.prototype.hasOwnProperty.call(this, "from") && typeof this.from !== "undefined"
+        ? this.from
+        : adapter.read();
+      const toValue = Object.prototype.hasOwnProperty.call(this, "to") && typeof this.to !== "undefined"
+        ? this.to
+        : opts.to;
+      const fromNormalized = adapter.normalize(fromValue);
+      const toNormalized = adapter.normalize(toValue);
+      if (!fromNormalized.valid || !toNormalized.valid) {
+        warnQBehavior("qhtml behavior warning: q-property-animation requires numeric values; committing immediately.", {
+          property: prop,
+          from: fromValue,
+          to: toValue,
+        });
+        return null;
+      }
+      if (fromNormalized.unit !== toNormalized.unit) {
+        warnQBehavior("qhtml behavior warning: q-property-animation unit mismatch; committing immediately.", {
+          property: prop,
+          from: fromValue,
+          to: toValue,
+          fromUnit: fromNormalized.unit,
+          toUnit: toNormalized.unit,
+        });
+        return null;
+      }
+      const easing = getEasing(this.easing);
+      const self = this;
+      let currentStep = 0;
+      return new AnimationJob({
+        duration: this.duration,
+        step: function propertyAnimationStep(progress) {
+          currentStep += 1;
+          const clamped = Math.max(0, Math.min(1, progress));
+          const eased = easing(clamped);
+          const interpolated = adapter.interpolate(fromNormalized, toNormalized, eased);
+          commitProperty(target, prop, interpolated, {
+            bypassBehavior: true,
+            preserveBinding: true,
+            source: "animation",
+          });
+          const animatedValue = readAnimatedStyleCommitValue(interpolated);
+          const hookValue = animatedValue ? animatedValue.propertyValue : interpolated;
+          executeBehaviorAnimationHook(self.hooks.onstepped || self.hooks.onstep, opts.target, [hookValue, currentStep, clamped]);
+        },
+        done: function propertyAnimationDone() {
+          commitProperty(target, prop, toValue, {
+            bypassBehavior: true,
+            preserveBinding: true,
+            source: "animation-final",
+          });
+          executeBehaviorAnimationHook(self.hooks.onended || self.hooks.onend, opts.target, [toValue, currentStep, 1]);
+          opts.finish(toValue);
+        },
+      });
+    }
+  }
+
+  class QBehaviorAnimationGroup extends QBehaviorAbstractAnimation {
+    constructor(options) {
+      const opts = options || {};
+      super(opts);
+      this.mode = String(opts.mode || "").trim().toLowerCase() === "sequential" ? "sequential" : "parallel";
+      this.children = Array.isArray(opts.children) ? opts.children : [];
+    }
+
+    createJob(config) {
+      const opts = config || {};
+      const children = this.children.slice();
+      const self = this;
+      let running = false;
+      let cancelled = false;
+      let activeJobs = [];
+      const cancelActiveJobs = function cancelActiveGroupJobs() {
+        for (let i = 0; i < activeJobs.length; i += 1) {
+          const job = activeJobs[i];
+          if (job && typeof job.cancel === "function") {
+            job.cancel();
+          }
+        }
+        activeJobs = [];
+      };
+      const job = {
+        running: false,
+        start: function startAnimationGroup() {
+          if (running) {
+            return job;
+          }
+          running = true;
+          cancelled = false;
+          job.running = true;
+          executeBehaviorAnimationHook(self.hooks.onstarted || self.hooks.onstart, opts.target, [opts.to, 0, 0]);
+          if (!children.length) {
+            running = false;
+            job.running = false;
+            executeBehaviorAnimationHook(self.hooks.onended || self.hooks.onend, opts.target, [opts.to, 0, 1]);
+            opts.finish(opts.to);
+            return job;
+          }
+          if (self.mode === "sequential") {
+            let index = 0;
+            const startNext = function startNextSequentialAnimation() {
+              if (cancelled) {
+                return;
+              }
+              if (index >= children.length) {
+                running = false;
+                job.running = false;
+                executeBehaviorAnimationHook(self.hooks.onended || self.hooks.onend, opts.target, [opts.to, index, 1]);
+                opts.finish(opts.to);
+                return;
+              }
+              const child = children[index];
+              index += 1;
+              const childJob = child && typeof child.createJob === "function"
+                ? child.createJob(Object.assign({}, opts, { finish: startNext }))
+                : null;
+              if (!childJob) {
+                startNext();
+                return;
+              }
+              activeJobs = [childJob];
+              childJob.start();
+            };
+            startNext();
+            return job;
+          }
+          let remaining = children.length;
+          const finishOne = function finishOneParallelAnimation() {
+            remaining -= 1;
+            if (remaining <= 0 && !cancelled) {
+              running = false;
+              job.running = false;
+              executeBehaviorAnimationHook(self.hooks.onended || self.hooks.onend, opts.target, [opts.to, children.length, 1]);
+              opts.finish(opts.to);
+            }
+          };
+          activeJobs = children.map(function createParallelChildJob(child) {
+            return child && typeof child.createJob === "function"
+              ? child.createJob(Object.assign({}, opts, { finish: finishOne }))
+              : null;
+          }).filter(Boolean);
+          if (!activeJobs.length) {
+            running = false;
+            job.running = false;
+            opts.finish(opts.to);
+            return job;
+          }
+          remaining = activeJobs.length;
+          activeJobs.forEach(function startParallelChildJob(childJob) {
+            childJob.start();
+          });
+          return job;
+        },
+        cancel: function cancelAnimationGroup() {
+          cancelled = true;
+          running = false;
+          job.running = false;
+          cancelActiveJobs();
+        },
+      };
+      return job;
     }
   }
 
@@ -23358,12 +23765,32 @@
     if (!animationConfig) {
       return null;
     }
-    const type = String(animationConfig.type || "NumberAnimation").trim().toLowerCase();
-    if (type !== "numberanimation" && type !== "q-number-animation") {
-      warnQBehavior("qhtml behavior warning: unsupported animation type '" + animationConfig.type + "'.");
+    return createBehaviorAnimationFromConfig(animationConfig);
+  }
+
+  function createBehaviorAnimationFromConfig(animationConfig) {
+    if (!animationConfig || typeof animationConfig !== "object") {
       return null;
     }
-    return new NumberAnimation(animationConfig);
+    const type = normalizeBehaviorAnimationType(animationConfig.type || "NumberAnimation");
+    if (type === "NumberAnimation") {
+      return new NumberAnimation(animationConfig);
+    }
+    if (type === "q-property-animation") {
+      return new QBehaviorPropertyAnimation(animationConfig);
+    }
+    if (type === "q-parallel-animation-group" || type === "q-sequential-animation-group") {
+      const children = Array.isArray(animationConfig.children)
+        ? animationConfig.children.map(createBehaviorAnimationFromConfig).filter(Boolean)
+        : [];
+      return new QBehaviorAnimationGroup(Object.assign({}, animationConfig, {
+        type: type,
+        mode: type === "q-sequential-animation-group" ? "sequential" : "parallel",
+        children: children,
+      }));
+    }
+    warnQBehavior("qhtml behavior warning: unsupported animation type '" + animationConfig.type + "'.");
+    return null;
   }
 
   function attachQBehaviorsToTarget(target, node) {
@@ -24564,6 +24991,19 @@
     if (value && value.nodeType === 1) {
       return null;
     }
+    if (typeof ArrayBuffer !== "undefined") {
+      if (value instanceof ArrayBuffer) {
+        return value.slice(0);
+      }
+      if (typeof ArrayBuffer.isView === "function" && ArrayBuffer.isView(value)) {
+        if (typeof DataView !== "undefined" && value instanceof DataView) {
+          return new DataView(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
+        }
+        if (typeof value.constructor === "function") {
+          return new value.constructor(value);
+        }
+      }
+    }
     if (typeof value !== "object") {
       return value;
     }
@@ -24661,7 +25101,7 @@
     }
     const script =
       "function __qhtmlWorkerSerializeError(error){return {error:true,name:String(error&&error.name||'Error'),message:String(error&&error.message||String(error||'')),stack:String(error&&error.stack||'')}}\n" +
-      "function __qhtmlWorkerCloneSafe(value, seen){if(value===null||typeof value==='undefined'){return value;}var t=typeof value;if(t==='string'||t==='number'||t==='boolean'){return value;}if(t==='function'){return undefined;}if(t==='bigint'){return Number(value);}if(!seen||typeof seen.has!=='function'){seen=new Map();}if(seen.has(value)){return undefined;}if(Array.isArray(value)){seen.set(value,true);var outArr=[];for(var i=0;i<value.length;i+=1){var next=__qhtmlWorkerCloneSafe(value[i],seen);if(typeof next!=='undefined'){outArr.push(next);}}seen.delete(value);return outArr;}if(t==='object'){seen.set(value,true);var outObj={};var keys=Object.keys(value);for(var k=0;k<keys.length;k+=1){var key=keys[k];if(!key){continue;}var nextVal=__qhtmlWorkerCloneSafe(value[key],seen);if(typeof nextVal!=='undefined'){outObj[key]=nextVal;}}seen.delete(value);return outObj;}return undefined;}\n" +
+      "function __qhtmlWorkerCloneSafe(value, seen){if(value===null||typeof value==='undefined'){return value;}var t=typeof value;if(t==='string'||t==='number'||t==='boolean'){return value;}if(t==='function'){return undefined;}if(t==='bigint'){return Number(value);}if(typeof ArrayBuffer!=='undefined'){if(value instanceof ArrayBuffer){return value.slice(0);}if(typeof ArrayBuffer.isView==='function'&&ArrayBuffer.isView(value)){if(typeof DataView!=='undefined'&&value instanceof DataView){return new DataView(value.buffer.slice(value.byteOffset,value.byteOffset+value.byteLength));}if(typeof value.constructor==='function'){return new value.constructor(value);}}}if(!seen||typeof seen.has!=='function'){seen=new Map();}if(seen.has(value)){return undefined;}if(Array.isArray(value)){seen.set(value,true);var outArr=[];for(var i=0;i<value.length;i+=1){var next=__qhtmlWorkerCloneSafe(value[i],seen);if(typeof next!=='undefined'){outArr.push(next);}}seen.delete(value);return outArr;}if(t==='object'){seen.set(value,true);var outObj={};var keys=Object.keys(value);for(var k=0;k<keys.length;k+=1){var key=keys[k];if(!key){continue;}var nextVal=__qhtmlWorkerCloneSafe(value[key],seen);if(typeof nextVal!=='undefined'){outObj[key]=nextVal;}}seen.delete(value);return outObj;}return undefined;}\n" +
       "self.onmessage = async function(event){var data = event && event.data && typeof event.data === 'object' ? event.data : {}; if (data.type !== 'run'){ return; }\n" +
       "var state = data.state && typeof data.state === 'object' ? data.state : {}; var emitted = []; var runtimeThis = { component: state }; var signalNames = Array.isArray(data.signalNames) ? data.signalNames : [];\n" +
       "for (var i=0;i<signalNames.length;i+=1){(function(name){if(!name){return;} var fn=function(){emitted.push({name:name,args:Array.prototype.slice.call(arguments)})}; runtimeThis[name]=fn; runtimeThis.component[name]=fn;})(String(signalNames[i]||'').trim());}\n" +
@@ -28235,6 +28675,47 @@
     return next;
   }
 
+  function createProjectedSlotRenderContext(currentContext, sourceContext) {
+    const current = currentContext && typeof currentContext === "object" ? currentContext : {};
+    const source = sourceContext && typeof sourceContext === "object" ? sourceContext : null;
+    if (!source) {
+      return current;
+    }
+    const next = Object.assign({}, current);
+    ensureContextFrames(next);
+    if (source[QCONTEXT_SCOPE_FRAME_KEY] && typeof source[QCONTEXT_SCOPE_FRAME_KEY] === "object") {
+      next[QCONTEXT_SCOPE_FRAME_KEY] = source[QCONTEXT_SCOPE_FRAME_KEY];
+    }
+    if (source[QCONTEXT_RUNTIME_FRAME_KEY] && typeof source[QCONTEXT_RUNTIME_FRAME_KEY] === "object") {
+      next[QCONTEXT_RUNTIME_FRAME_KEY] = source[QCONTEXT_RUNTIME_FRAME_KEY];
+    }
+    next.inlineScope =
+      source.inlineScope && typeof source.inlineScope === "object"
+        ? Object.assign({}, source.inlineScope)
+        : {};
+    next.namedRuntimeValues =
+      source.namedRuntimeValues && typeof source.namedRuntimeValues === "object"
+        ? source.namedRuntimeValues
+        : current.namedRuntimeValues || null;
+    if (Array.isArray(source.instanceAliasScopeStack)) {
+      next.instanceAliasScopeStack = source.instanceAliasScopeStack.slice();
+    }
+    if (Array.isArray(source.componentHostStack)) {
+      next.componentHostStack = source.componentHostStack.slice();
+    }
+    if (Array.isArray(source.componentQdomStack)) {
+      next.componentQdomStack = source.componentQdomStack.slice();
+    }
+    next.componentRegistry = current.componentRegistry;
+    next.resolvedComponentRegistry = current.resolvedComponentRegistry;
+    next.componentStack = Array.isArray(current.componentStack) ? current.componentStack : [];
+    next.slotStack = Array.isArray(current.slotStack) ? current.slotStack : [];
+    next.capture = current.capture || null;
+    next.rootHostElement = current.rootHostElement || source.rootHostElement || null;
+    ensureInstanceAliasScopeStack(next);
+    return next;
+  }
+
   function isQStateMachineNode(node) {
     return !!(
       node &&
@@ -29459,6 +29940,10 @@
     if (!node || typeof node !== "object") {
       return;
     }
+    const projectedSlotContext = node[RENDER_SLOT_CONTEXT] || null;
+    if (projectedSlotContext && projectedSlotContext !== context) {
+      context = createProjectedSlotRenderContext(context, projectedSlotContext);
+    }
     const slotRef = node[RENDER_SLOT_REF] || null;
     if (slotRef) {
       context.slotStack.push(slotRef);
@@ -29693,6 +30178,7 @@
       ownerComponentId: String(componentNode.componentId || "").trim().toLowerCase(),
       ownerDefinitionType: inferDefinitionType(componentNode),
       ownerInstanceId: ownerInstanceId,
+      sourceContext: context,
     });
     const slotDefaults = buildSlotDefaultFills(componentNode);
     const expanded = materializeSlots(templateNodes, slotFills, slotDefaults);
@@ -29836,7 +30322,7 @@
     });
   }
 
-  function renderComponentContentIntoHost(componentNode, instanceNode, hostElement, targetDocument, context) {
+  function renderComponentContentIntoHost(componentNode, instanceNode, hostElement, targetDocument, context, slotSourceContext) {
     const persistRenderTree = !!(instanceNode && instanceNode.__qhtmlPersistRenderTree);
     let expanded = persistRenderTree && Array.isArray(instanceNode.__qhtmlRenderTree) ? instanceNode.__qhtmlRenderTree : null;
     if (!expanded) {
@@ -29856,6 +30342,7 @@
         ownerComponentId: String(componentNode.componentId || "").trim().toLowerCase(),
         ownerDefinitionType: inferDefinitionType(componentNode),
         ownerInstanceId: ownerInstanceId,
+        sourceContext: slotSourceContext && typeof slotSourceContext === "object" ? slotSourceContext : context,
       });
       const slotDefaults = buildSlotDefaultFills(componentNode);
       expanded = materializeSlots(templateNodes, slotFills, slotDefaults);
@@ -30132,7 +30619,7 @@
       );
     }
     try {
-      renderComponentContentIntoHost(componentNode, instanceNode, hostElement, targetDocument, componentContext);
+      renderComponentContentIntoHost(componentNode, instanceNode, hostElement, targetDocument, componentContext, context);
     } finally {
       context.componentQdomStack.pop();
       context.componentHostStack.pop();
@@ -30219,6 +30706,7 @@
       ownerComponentId: String(componentNode.componentId || "").trim().toLowerCase(),
       ownerDefinitionType: inferDefinitionType(componentNode),
       ownerInstanceId: ownerInstanceId,
+      sourceContext: context,
     });
     const signalName = String(componentNode.componentId || instanceNode.tagName || "").trim();
     const slotsPayload = buildSignalPayloadSlots(slotFills);
@@ -30914,8 +31402,11 @@
     registerBehavior: registerBehavior,
     getBehavior: getBehavior,
     removeBehavior: removeBehavior,
+    QBehaviorAbstractAnimation: QBehaviorAbstractAnimation,
     BehaviorController: BehaviorController,
     NumberAnimation: NumberAnimation,
+    QBehaviorPropertyAnimation: QBehaviorPropertyAnimation,
+    QBehaviorAnimationGroup: QBehaviorAnimationGroup,
     AnimationJob: AnimationJob,
     getEasing: getEasing,
     getPropertyAdapter: getPropertyAdapter,
@@ -30940,7 +31431,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.9.7";
+  const RUNTIME_VERSION = "6.9.8";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -49876,7 +50367,7 @@
   }
 
   const api = runtime;
-  api.version = "6.9.7";
+  api.version = "6.9.8";
   global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {
@@ -49915,7 +50406,6 @@
   if (existingParticleEmitter) {
     installParticleEmitterControls(existingParticleEmitter.prototype);
     global.ParticleEmitterElement = existingParticleEmitter;
-    defineParticleEmitterAlias(existingParticleEmitter);
     return;
   }
 
@@ -51259,30 +51749,9 @@
     }
   }
 
-  function defineParticleEmitterAlias(BaseElement) {
-    const existingAlias = global.customElements.get("q-particle-emitter");
-
-    if (existingAlias) {
-      installParticleEmitterControls(existingAlias.prototype);
-      global.QParticleEmitterElement = existingAlias;
-      return;
-    }
-
-    if (!BaseElement) {
-      return;
-    }
-
-    class QParticleEmitterElement extends BaseElement {}
-
-    installParticleEmitterControls(QParticleEmitterElement.prototype);
-    global.QParticleEmitterElement = QParticleEmitterElement;
-    global.customElements.define("q-particle-emitter", QParticleEmitterElement);
-  }
-
   installParticleEmitterControls(ParticleEmitterElement.prototype);
   global.ParticleEmitterElement = ParticleEmitterElement;
   global.customElements.define("particle-emitter", ParticleEmitterElement);
-  defineParticleEmitterAlias(ParticleEmitterElement);
 })(typeof globalThis !== "undefined" ? globalThis : window);
 
 /*** END: src/particle-emitter.js ***/

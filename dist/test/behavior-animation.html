@@ -132,6 +132,114 @@ q-component behavior-bar {
   }
 }
 
+q-component behavior-property-animation-case {
+  q-property widthValue: "80px"
+  q-property stepCount: 0
+
+  q-bind-css { this.component.widthValue this.component.style.width }
+
+  behavior on widthValue {
+    q-property-animation {
+      duration: 280
+      easing: "linear"
+
+      onstepped {
+        this.component.stepCount = Number(this.component.stepCount || 0) + 1;
+      }
+    }
+  }
+
+  style { display: grid; place-items: center; width: 80px; height: 32px; background: #38bdf8; color: #082f49; border-radius: 0.4rem; font-weight: 800; margin-top: 0.75rem; }
+  text { q-property-animation behavior }
+
+  onReady {
+    var host = this.component;
+    setTimeout(function runPropertyAnimationBehaviorCase() {
+      host.widthValue = "210px";
+    }, 90);
+  }
+}
+
+q-component behavior-parallel-group-case {
+  q-property widthValue: "70px"
+  q-property heightValue: "32px"
+  q-property stepCount: 0
+
+  q-bind-css { this.component.widthValue this.component.style.width }
+  q-bind-css { this.component.heightValue this.component.style.height }
+
+  behavior on widthValue {
+    q-parallel-animation-group {
+      q-property-animation {
+        duration: 320
+        easing: "linear"
+
+        onstepped {
+          this.component.stepCount = Number(this.component.stepCount || 0) + 1;
+        }
+      }
+
+      q-property-animation {
+        target: "this.component.heightValue"
+        duration: 320
+        easing: "linear"
+        from: "32px"
+        to: "88px"
+      }
+    }
+  }
+
+  style { display: grid; place-items: center; width: 70px; height: 32px; background: #22c55e; color: #052e16; border-radius: 0.4rem; font-weight: 800; margin-top: 0.75rem; }
+  text { parallel group behavior }
+
+  onReady {
+    var host = this.component;
+    setTimeout(function runParallelGroupBehaviorCase() {
+      host.widthValue = "230px";
+    }, 90);
+  }
+}
+
+q-component behavior-sequential-group-case {
+  q-property widthValue: "72px"
+  q-property heightValue: "34px"
+  q-property stepCount: 0
+
+  q-bind-css { this.component.widthValue this.component.style.width }
+  q-bind-css { this.component.heightValue this.component.style.height }
+
+  behavior on widthValue {
+    q-sequential-animation-group {
+      q-property-animation {
+        duration: 260
+        easing: "linear"
+
+        onstepped {
+          this.component.stepCount = Number(this.component.stepCount || 0) + 1;
+        }
+      }
+
+      q-property-animation {
+        target: "this.component.heightValue"
+        duration: 260
+        easing: "linear"
+        from: "34px"
+        to: "96px"
+      }
+    }
+  }
+
+  style { display: grid; place-items: center; width: 72px; height: 34px; background: #f59e0b; color: #451a03; border-radius: 0.4rem; font-weight: 800; margin-top: 0.75rem; }
+  text { sequential group behavior }
+
+  onReady {
+    var host = this.component;
+    setTimeout(function runSequentialGroupBehaviorCase() {
+      host.widthValue = "240px";
+    }, 90);
+  }
+}
+
 section.behavior-stage {
   style { position: relative; min-height: 100vh; overflow: hidden; padding: 1rem; box-sizing: border-box; }
 
@@ -193,6 +301,14 @@ section.behavior-stage {
     leftValue: 80
     topValue: 430
   }
+
+  section.behavior-group-tests {
+    style { position: relative; z-index: 3; width: min(36rem, calc(100vw - 2rem)); margin-top: 1rem; padding: 0.9rem; background: rgba(15,23,42,.76); border: 1px solid rgba(255,255,255,.18); border-radius: 0.75rem; box-sizing: border-box; }
+    h2 { text { Behavior group checks } }
+    behavior-property-animation-case propertyAnimationCase { }
+    behavior-parallel-group-case parallelGroupCase { }
+    behavior-sequential-group-case sequentialGroupCase { }
+  }
 }
 
 q-timer behaviorAnimationShuffle {
@@ -205,9 +321,30 @@ q-timer behaviorAnimationShuffle {
         bar.randomize();
       }
     });
-    document.body.dataset.status = "pass";
+    document.body.dataset.shuffle = "running";
   }
 }
   </q-html>
+  <script>
+    setTimeout(function runBehaviorAnimationAssertions() {
+      var propertyCase = document.querySelector("behavior-property-animation-case");
+      var parallelCase = document.querySelector("behavior-parallel-group-case");
+      var sequentialCase = document.querySelector("behavior-sequential-group-case");
+      var ok = !!(
+        propertyCase &&
+        parallelCase &&
+        sequentialCase &&
+        propertyCase.style.width === "210px" &&
+        Number(propertyCase.stepCount || 0) > 0 &&
+        parallelCase.style.width === "230px" &&
+        parallelCase.style.height === "88px" &&
+        Number(parallelCase.stepCount || 0) > 0 &&
+        sequentialCase.style.width === "240px" &&
+        sequentialCase.style.height === "96px" &&
+        Number(sequentialCase.stepCount || 0) > 0
+      );
+      document.body.dataset.status = ok ? "pass" : "fail";
+    }, 1700);
+  </script>
 </body>
 </html>

@@ -1,0 +1,846 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>q-vid Player</title>
+  <script src="./q-vid-player.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1117;
+      --panel: #121b24;
+      --panel-2: #0f1720;
+      --text: #dce7f2;
+      --muted: #8fa2b7;
+      --line: #29384a;
+      --accent: #73d0ff;
+      --danger: #ff6f91;
+      --ok: #76e0a8;
+      --shadow: rgba(0, 0, 0, 0.35);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 20% 0%, rgba(115, 208, 255, 0.12), transparent 30rem),
+        linear-gradient(135deg, #06090d, var(--bg));
+      color: var(--text);
+    }
+
+    main {
+      width: min(1320px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 36px;
+    }
+
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.4rem, 3vw, 2.2rem);
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+    }
+
+    .subtitle {
+      margin-top: 8px;
+      color: var(--muted);
+      max-width: 78ch;
+      line-height: 1.45;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 380px) 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    section,
+    .viewport {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(18, 27, 36, 0.98), rgba(12, 18, 24, 0.98));
+      border-radius: 18px;
+      box-shadow: 0 20px 50px var(--shadow);
+    }
+
+    section {
+      padding: 16px;
+    }
+
+    .panel-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 0 12px;
+      font-size: 0.88rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      color: var(--muted);
+    }
+
+    .control-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field.inline {
+      grid-template-columns: 1fr auto;
+      align-items: center;
+    }
+
+    .field label,
+    .row-label {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    input[type="file"],
+    input[type="url"],
+    input[type="number"],
+    input[type="range"],
+    select {
+      width: 100%;
+    }
+
+    input[type="file"],
+    input[type="url"],
+    input[type="number"],
+    select {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      background: var(--panel-2);
+      color: var(--text);
+      outline: none;
+    }
+
+    input[type="file"]::file-selector-button,
+    button {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 12px;
+      background: #162535;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    input[type="file"]::file-selector-button:hover,
+    button:hover {
+      border-color: var(--accent);
+    }
+
+    button.primary {
+      background: linear-gradient(180deg, #1b5c7d, #16445e);
+      border-color: #277ba7;
+    }
+
+    button.danger {
+      border-color: rgba(255, 111, 145, 0.5);
+      background: rgba(255, 111, 145, 0.12);
+    }
+
+    button:disabled,
+    input:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .check-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: var(--panel-2);
+    }
+
+    .status {
+      min-height: 2.4rem;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: rgba(15, 23, 32, 0.78);
+      color: var(--muted);
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .status.ok {
+      color: var(--ok);
+      border-color: rgba(118, 224, 168, 0.42);
+    }
+
+    .status.err {
+      color: var(--danger);
+      border-color: rgba(255, 111, 145, 0.52);
+    }
+
+    .viewport {
+      min-height: 620px;
+      padding: 16px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 14px;
+    }
+
+    .stage-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .stage-wrap {
+      position: relative;
+      min-height: 440px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background-color: #0a0f14;
+      background-image:
+        linear-gradient(45deg, rgba(255,255,255,0.045) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(255,255,255,0.045) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.045) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.045) 75%);
+      background-size: 24px 24px;
+      background-position: 0 0, 0 12px, 12px -12px, -12px 0px;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    q-vid-player {
+      max-width: none;
+      border: 1px solid rgba(115, 208, 255, 0.28);
+      box-shadow: 0 0 0 1px rgba(115, 208, 255, 0.08), 0 12px 34px rgba(0,0,0,0.32);
+      background: transparent;
+    }
+
+    .placeholder {
+      color: var(--muted);
+      text-align: center;
+      max-width: 48ch;
+      line-height: 1.5;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(130px, 1fr));
+      gap: 10px;
+    }
+
+    @media (max-width: 1080px) {
+      .metrics {
+        grid-template-columns: repeat(2, minmax(130px, 1fr));
+      }
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: var(--panel-2);
+      min-width: 0;
+    }
+
+    .metric .k {
+      color: var(--muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .metric .v {
+      margin-top: 5px;
+      font-size: 1rem;
+      overflow-wrap: anywhere;
+    }
+
+    details {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel-2);
+      overflow: hidden;
+    }
+
+    summary {
+      cursor: pointer;
+      padding: 10px 12px;
+      color: var(--muted);
+    }
+
+    pre {
+      margin: 0;
+      padding: 12px;
+      overflow: auto;
+      color: #bfe8ff;
+      border-top: 1px solid var(--line);
+      font-size: 0.82rem;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>q-vid Player <span style="color: var(--muted); font-size: 0.55em;">v4</span></h1>
+        <div class="subtitle">
+          Browse for a generated .qvid file or legacy .js q-vid asset, then adjust playback parameters live.
+          The selected file is read locally in this browser tab; it does not upload anywhere.
+        </div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section aria-label="Controls">
+        <div class="panel-title">Asset</div>
+        <div class="control-grid">
+          <div class="field">
+            <label for="assetFile">Generated q-vid file</label>
+            <input id="assetFile" type="file" accept=".qvid,.js,text/plain,text/javascript,application/javascript">
+          </div>
+
+          <div class="field">
+            <label for="assetUrl">Or load by URL/path</label>
+            <input id="assetUrl" type="url" placeholder="./output.qvid">
+          </div>
+
+          <div class="button-row">
+            <button id="loadUrl" class="primary" type="button">Load URL</button>
+            <button id="clearAsset" class="danger" type="button">Clear</button>
+          </div>
+
+          <div id="status" class="status">Choose a generated <code>output.qvid</code> asset.</div>
+        </div>
+
+        <details open>
+          <summary>Playback parameters</summary>
+          <div class="control-grid" style="padding: 0 12px 12px;">
+            <div class="two-col">
+              <div class="field">
+                <label for="frameDuration">frameDuration ms</label>
+                <input id="frameDuration" type="number" min="1" step="1" value="30">
+              </div>
+              <div class="field">
+                <label for="displayScale">scale attribute</label>
+                <input id="displayScale" type="number" min="0.05" max="8" step="0.05" value="1">
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="scalePreset">scale preset</label>
+              <select id="scalePreset">
+                <option value="">custom</option>
+                <option value="0.25">0.25x</option>
+                <option value="0.5">0.5x</option>
+                <option value="1">1x</option>
+                <option value="1.5">1.5x</option>
+                <option value="2">2x</option>
+                <option value="3">3x</option>
+                <option value="4">4x</option>
+              </select>
+            </div>
+
+            <div class="two-col">
+              <div class="field">
+                <label for="startFrame">startFrame</label>
+                <input id="startFrame" type="number" min="0" step="1" value="0">
+              </div>
+              <div class="field">
+                <label for="endFrame">endFrame</label>
+                <input id="endFrame" type="number" min="0" step="1" value="0">
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="currentFrame">currentFrame</label>
+              <input id="currentFrame" type="range" min="0" max="0" step="1" value="0">
+              <input id="currentFrameNumber" type="number" min="0" step="1" value="0">
+            </div>
+
+            <div class="check-row">
+              <span class="row-label">reverse</span>
+              <input id="reverse" type="checkbox">
+            </div>
+
+            <div class="check-row">
+              <span class="row-label">running</span>
+              <input id="running" type="checkbox" checked>
+            </div>
+
+            <div class="button-row">
+              <button id="restart" type="button">Restart</button>
+              <button id="stop" type="button">Stop</button>
+              <button id="start" type="button">Start</button>
+            </div>
+
+            <div class="button-row">
+              <button id="stepBack5" type="button">-5</button>
+              <button id="stepBack1" type="button">-1</button>
+              <button id="stepForward1" type="button">+1</button>
+              <button id="stepForward5" type="button">+5</button>
+            </div>
+          </div>
+        </details>
+
+        <details>
+          <summary>Element preview</summary>
+          <pre id="elementPreview"></pre>
+        </details>
+      </section>
+
+      <div class="viewport" aria-label="Preview">
+        <div class="stage-toolbar">
+          <span id="assetName">No asset loaded</span>
+          <span id="frameReadout">Frame 0 / 0</span>
+        </div>
+
+        <div class="stage-wrap" id="stageWrap">
+          <div id="placeholder" class="placeholder">
+            Load a generated .qvid file or legacy .js q-vid asset to preview the animation.
+          </div>
+          <q-vid-player id="previewQVid" class="hidden" frameDuration="30" reverse="false" startFrame="0" endFrame="0" scale="1" running="false"></q-vid-player>
+        </div>
+
+        <div class="metrics">
+          <div class="metric"><div class="k">Canvas</div><div id="metricCanvas" class="v">—</div></div>
+          <div class="metric"><div class="k">Frames</div><div id="metricFrames" class="v">—</div></div>
+          <div class="metric"><div class="k">Codec</div><div id="metricCodec" class="v">—</div></div>
+          <div class="metric"><div class="k">Delta mode</div><div id="metricDelta" class="v">—</div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    ;(() => {
+      "use strict";
+
+      const $ = (id) => document.getElementById(id);
+
+      const controls = {
+        assetFile: $("assetFile"),
+        assetUrl: $("assetUrl"),
+        loadUrl: $("loadUrl"),
+        clearAsset: $("clearAsset"),
+        status: $("status"),
+        frameDuration: $("frameDuration"),
+        displayScale: $("displayScale"),
+        scalePreset: $("scalePreset"),
+        startFrame: $("startFrame"),
+        endFrame: $("endFrame"),
+        currentFrame: $("currentFrame"),
+        currentFrameNumber: $("currentFrameNumber"),
+        reverse: $("reverse"),
+        running: $("running"),
+        restart: $("restart"),
+        stop: $("stop"),
+        start: $("start"),
+        stepBack5: $("stepBack5"),
+        stepBack1: $("stepBack1"),
+        stepForward1: $("stepForward1"),
+        stepForward5: $("stepForward5"),
+        elementPreview: $("elementPreview"),
+        placeholder: $("placeholder"),
+        assetName: $("assetName"),
+        frameReadout: $("frameReadout"),
+        metricCanvas: $("metricCanvas"),
+        metricFrames: $("metricFrames"),
+        metricCodec: $("metricCodec"),
+        metricDelta: $("metricDelta")
+      };
+
+      const qvid = $("previewQVid");
+
+      const state = {
+        objectUrl: "",
+        srcLabel: "",
+        asset: null,
+        suppressUiSync: false
+      };
+
+      function setStatus(message, kind = "") {
+        controls.status.textContent = message;
+        controls.status.classList.toggle("ok", kind === "ok");
+        controls.status.classList.toggle("err", kind === "err");
+      }
+
+      function toInteger(value, fallback = 0) {
+        const parsed = Number.parseInt(value, 10);
+        return Number.isFinite(parsed) ? parsed : fallback;
+      }
+
+      function toNumber(value, fallback = 0) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+      }
+
+      function clamp(value, min, max) {
+        return Math.min(max, Math.max(min, value));
+      }
+
+      function setQVidSrc(src, label) {
+        if (!customElements.get("q-vid-player")) {
+          setStatus("q-vid-player.js did not load. Keep q-vid-player.html next to q-vid-player.js.", "err");
+          return;
+        }
+
+        state.asset = null;
+        state.srcLabel = label || src;
+
+        controls.placeholder.classList.add("hidden");
+        qvid.classList.remove("hidden");
+
+        qvid.setAttribute("src", src);
+        qvid.setAttribute("frameDuration", String(toNumber(controls.frameDuration.value, 30)));
+        qvid.setAttribute("reverse", String(controls.reverse.checked));
+        qvid.setAttribute("startFrame", String(toInteger(controls.startFrame.value, 0)));
+        qvid.setAttribute("endFrame", String(toInteger(controls.endFrame.value, 0)));
+        qvid.setAttribute("running", String(controls.running.checked));
+
+        setStatus(`Loading ${state.srcLabel}…`);
+        updateElementPreview();
+      }
+
+      function revokeCurrentObjectUrl() {
+        if (state.objectUrl) {
+          URL.revokeObjectURL(state.objectUrl);
+          state.objectUrl = "";
+        }
+      }
+
+      function resetViewer() {
+        qvid.stop?.();
+        qvid.removeAttribute("src");
+        qvid.classList.add("hidden");
+        controls.placeholder.classList.remove("hidden");
+        revokeCurrentObjectUrl();
+
+        state.asset = null;
+        state.srcLabel = "";
+
+        controls.assetName.textContent = "No asset loaded";
+        controls.frameReadout.textContent = "Frame 0 / 0";
+        controls.metricCanvas.textContent = "—";
+        controls.metricFrames.textContent = "—";
+        controls.metricCodec.textContent = "—";
+        controls.metricDelta.textContent = "—";
+        controls.currentFrame.max = "0";
+        controls.currentFrame.value = "0";
+        controls.currentFrameNumber.value = "0";
+        controls.endFrame.value = "0";
+
+        setStatus("Choose a generated output.qvid asset.");
+        updateElementPreview();
+      }
+
+      function applyDisplayScale() {
+        if (!state.asset) return;
+        const scale = Math.max(0.05, toNumber(controls.displayScale.value, 1));
+        qvid.setScale?.(scale);
+        updateElementPreview();
+      }
+
+      function syncScalePreset() {
+        var scale = String(controls.displayScale.value || "1");
+        var found = false;
+        for (var i = 0; i < controls.scalePreset.options.length; i += 1) {
+          if (controls.scalePreset.options[i].value === scale) {
+            found = true;
+            break;
+          }
+        }
+        controls.scalePreset.value = found ? scale : "";
+      }
+
+      function syncFrameControls(frame) {
+        state.suppressUiSync = true;
+        controls.currentFrame.value = String(frame);
+        controls.currentFrameNumber.value = String(frame);
+        controls.frameReadout.textContent = state.asset
+          ? `Frame ${frame} / ${state.asset.frameCount - 1}`
+          : `Frame ${frame}`;
+        state.suppressUiSync = false;
+      }
+
+      function applyFrameBoundsFromInputs() {
+        if (!state.asset) return;
+
+        const maxFrame = state.asset.frameCount - 1;
+        const start = clamp(toInteger(controls.startFrame.value, 0), 0, maxFrame);
+        const end = clamp(toInteger(controls.endFrame.value, maxFrame), 0, maxFrame);
+
+        controls.startFrame.value = String(start);
+        controls.endFrame.value = String(end);
+
+        controls.currentFrame.min = String(Math.min(start, end));
+        controls.currentFrame.max = String(Math.max(start, end));
+        controls.currentFrameNumber.min = String(Math.min(start, end));
+        controls.currentFrameNumber.max = String(Math.max(start, end));
+
+        qvid.setStartFrame(start);
+        qvid.setEndFrame(end);
+      }
+
+      function escapeHtmlAttr(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("\"", "&quot;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
+      }
+
+      function updateElementPreview() {
+        const src = state.srcLabel || controls.assetUrl.value || "output.qvid";
+        const attrs = [
+          ["src", src],
+          ["frameDuration", controls.frameDuration.value || "30"],
+          ["scale", controls.displayScale.value || "1"],
+          ["reverse", String(controls.reverse.checked)],
+          ["startFrame", controls.startFrame.value || "0"],
+          ["endFrame", controls.endFrame.value || "0"],
+          ["running", String(controls.running.checked)]
+        ];
+
+        const body = attrs
+          .map(([key, value]) => `  ${key}="${escapeHtmlAttr(value)}"`)
+          .join("\n");
+
+        controls.elementPreview.textContent = `<q-vid-player\n${body}>\n</q-vid-player>`;
+      }
+
+      function updateMetrics(asset) {
+        controls.assetName.textContent = state.srcLabel || asset.name || "Loaded asset";
+        controls.metricCanvas.textContent = `${asset.width} × ${asset.height}`;
+        controls.metricFrames.textContent = String(asset.frameCount);
+        controls.metricCodec.textContent = asset.codec || asset.format || "—";
+        controls.metricDelta.textContent = asset.deltaMode || "—";
+      }
+
+      function onAssetLoaded(event) {
+        const asset = event.detail.asset;
+        state.asset = asset;
+
+        const maxFrame = asset.frameCount - 1;
+        const previousEnd = toInteger(controls.endFrame.value, 0);
+        const shouldAutoEnd = previousEnd === 0 || previousEnd >= asset.frameCount;
+
+        controls.startFrame.max = String(maxFrame);
+        controls.endFrame.max = String(maxFrame);
+        controls.currentFrame.max = String(maxFrame);
+        controls.currentFrameNumber.max = String(maxFrame);
+
+        if (shouldAutoEnd) {
+          controls.endFrame.value = String(maxFrame);
+        }
+
+        applyFrameBoundsFromInputs();
+        applyDisplayScale();
+        updateMetrics(asset);
+        syncFrameControls(qvid.currentFrame);
+        updateElementPreview();
+
+        setStatus(`Loaded ${state.srcLabel || asset.name || "q-vid asset"}.`, "ok");
+      }
+
+      async function loadSelectedFile(file) {
+        if (!file) return;
+        revokeCurrentObjectUrl();
+
+        if (!window.QVidAssetRegistry?.registerTextAsset) {
+          setStatus("q-vid-player.js is not the updated v4 runtime. Replace it and reload q-vid-player.html.", "err");
+          return;
+        }
+
+        const localSrc = `q-vid-local:///${Date.now()}/${encodeURIComponent(file.name)}`;
+
+        try {
+          setStatus(`Reading ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)…`);
+          const text = await file.text();
+
+          setStatus(`Parsing ${file.name}…`);
+          await window.QVidAssetRegistry.registerTextAsset(text, localSrc);
+
+          controls.assetUrl.value = "";
+          setQVidSrc(localSrc, file.name);
+        } catch (error) {
+          console.error(error);
+          setStatus(error?.message || "Failed to read selected q-vid asset.", "err");
+        }
+      }
+
+      function loadUrl() {
+        const src = controls.assetUrl.value.trim();
+        if (!src) {
+          setStatus("Enter a URL/path or select a file.", "err");
+          return;
+        }
+
+        revokeCurrentObjectUrl();
+        setQVidSrc(src, src);
+      }
+
+      controls.assetFile.addEventListener("change", () => {
+        loadSelectedFile(controls.assetFile.files?.[0]);
+      });
+
+      controls.loadUrl.addEventListener("click", loadUrl);
+      controls.assetUrl.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") loadUrl();
+      });
+
+      controls.clearAsset.addEventListener("click", resetViewer);
+
+      controls.frameDuration.addEventListener("input", () => {
+        qvid.setFrameDuration?.(controls.frameDuration.value);
+        updateElementPreview();
+      });
+
+      controls.displayScale.addEventListener("input", () => {
+        syncScalePreset();
+        applyDisplayScale();
+      });
+
+      controls.scalePreset.addEventListener("change", () => {
+        if (controls.scalePreset.value) {
+          controls.displayScale.value = controls.scalePreset.value;
+        }
+        applyDisplayScale();
+      });
+
+      controls.startFrame.addEventListener("input", () => {
+        applyFrameBoundsFromInputs();
+        updateElementPreview();
+      });
+
+      controls.endFrame.addEventListener("input", () => {
+        applyFrameBoundsFromInputs();
+        updateElementPreview();
+      });
+
+      controls.currentFrame.addEventListener("input", () => {
+        if (state.suppressUiSync) return;
+        qvid.setCurrentFrame?.(controls.currentFrame.value);
+        syncFrameControls(qvid.currentFrame || 0);
+      });
+
+      controls.currentFrameNumber.addEventListener("input", () => {
+        if (state.suppressUiSync) return;
+        qvid.setCurrentFrame?.(controls.currentFrameNumber.value);
+        syncFrameControls(qvid.currentFrame || 0);
+      });
+
+      controls.reverse.addEventListener("change", () => {
+        qvid.setReverse?.(controls.reverse.checked);
+        updateElementPreview();
+      });
+
+      controls.running.addEventListener("change", () => {
+        if (controls.running.checked) qvid.start?.();
+        else qvid.stop?.();
+        updateElementPreview();
+      });
+
+      controls.restart.addEventListener("click", () => {
+        controls.running.checked = true;
+        qvid.restart?.();
+        updateElementPreview();
+      });
+
+      controls.stop.addEventListener("click", () => {
+        controls.running.checked = false;
+        qvid.stop?.();
+        updateElementPreview();
+      });
+
+      controls.start.addEventListener("click", () => {
+        controls.running.checked = true;
+        qvid.start?.();
+        updateElementPreview();
+      });
+
+      controls.stepBack5.addEventListener("click", () => {
+        qvid.step?.(-5);
+        syncFrameControls(qvid.currentFrame || 0);
+      });
+
+      controls.stepBack1.addEventListener("click", () => {
+        qvid.step?.(-1);
+        syncFrameControls(qvid.currentFrame || 0);
+      });
+
+      controls.stepForward1.addEventListener("click", () => {
+        qvid.step?.(1);
+        syncFrameControls(qvid.currentFrame || 0);
+      });
+
+      controls.stepForward5.addEventListener("click", () => {
+        qvid.step?.(5);
+        syncFrameControls(qvid.currentFrame || 0);
+      });
+
+      qvid.addEventListener("q-vid-load", onAssetLoaded);
+
+      qvid.addEventListener("q-vid-frame", (event) => {
+        syncFrameControls(event.detail.currentFrame);
+      });
+
+      qvid.addEventListener("q-vid-error", (event) => {
+        setStatus(event.detail.error?.message || "Failed to load q-vid asset.", "err");
+      });
+
+      window.addEventListener("beforeunload", revokeCurrentObjectUrl);
+
+      updateElementPreview();
+    })();
+  </script>
+</body>
+</html>

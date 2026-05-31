@@ -1,0 +1,229 @@
+q-component q-particle-emitter {
+  q-property running: false
+  q-property src: ""
+  q-property mask: ""
+  q-property emitterMask: ""
+  q-property color: ""
+  q-property colorOpacity: ""
+  q-property emitRate: 10
+  q-property interval: 16.666
+  q-property maxActiveParticles: 256
+  q-property maxActiveParticlesVariation: 0
+  q-property maxParticles: 0
+  q-property stopAfter: 0
+  q-property lifetime: 1000
+  q-property lifetimeVariation: 0
+  q-property x: 0
+  q-property y: 0
+  q-property width: 0
+  q-property height: 0
+  q-property xVariation: 0
+  q-property yVariation: 0
+  q-property xVelocity: 0
+  q-property yVelocity: 0
+  q-property xVelocityVariation: 0
+  q-property yVelocityVariation: 0
+  q-property xAcceleration: 0
+  q-property yAcceleration: 0
+  q-property xAccelerationVariation: 0
+  q-property yAccelerationVariation: 0
+  q-property startSize: 8
+  q-property endSize: 8
+  q-property startSizeVariation: 0
+  q-property endSizeVariation: 0
+  q-property startOpacity: 1
+  q-property endOpacity: 0
+  q-property startOpacityVariation: 0
+  q-property endOpacityVariation: 0
+  q-property seed: 12648430
+  q-property zIndex: 1
+
+  function emitter() {
+    return this.querySelector("particle-emitter");
+  }
+
+  function applyHostDefaults() {
+    this.style.display = "block";
+    this.style.position = "absolute";
+    this.style.inset = "0px";
+    this.style.pointerEvents = "none";
+    this.style.overflow = "hidden";
+    this.style.zIndex = String(this.zIndex || 1);
+  }
+
+  function setEmitterAttribute(emitter, name, value) {
+    if (!emitter || !name) {
+      return;
+    }
+    if (value == null || value === "") {
+      emitter.removeAttribute(name);
+      return;
+    }
+    emitter.setAttribute(name, String(value));
+  }
+
+  function syncEmitter() {
+    var emitter = this.emitter();
+    if (!emitter) {
+      return null;
+    }
+    this.setEmitterAttribute(emitter, "running", this.running);
+    this.setEmitterAttribute(emitter, "src", this.src);
+    this.setEmitterAttribute(emitter, "mask", this.mask);
+    this.setEmitterAttribute(emitter, "emitterMask", this.emitterMask);
+    this.setEmitterAttribute(emitter, "color", this.color);
+    this.setEmitterAttribute(emitter, "colorOpacity", this.colorOpacity);
+    this.setEmitterAttribute(emitter, "emitRate", this.emitRate);
+    this.setEmitterAttribute(emitter, "interval", this.interval);
+    this.setEmitterAttribute(emitter, "maxActiveParticles", this.maxActiveParticles);
+    this.setEmitterAttribute(emitter, "maxActiveParticlesVariation", this.maxActiveParticlesVariation);
+    this.setEmitterAttribute(emitter, "maxParticles", this.maxParticles);
+    this.setEmitterAttribute(emitter, "stopAfter", this.stopAfter);
+    this.setEmitterAttribute(emitter, "lifetime", this.lifetime);
+    this.setEmitterAttribute(emitter, "lifetimeVariation", this.lifetimeVariation);
+    this.setEmitterAttribute(emitter, "x", this.x);
+    this.setEmitterAttribute(emitter, "y", this.y);
+    this.setEmitterAttribute(emitter, "width", this.width);
+    this.setEmitterAttribute(emitter, "height", this.height);
+    this.setEmitterAttribute(emitter, "xVariation", this.xVariation);
+    this.setEmitterAttribute(emitter, "yVariation", this.yVariation);
+    this.setEmitterAttribute(emitter, "xVelocity", this.xVelocity);
+    this.setEmitterAttribute(emitter, "yVelocity", this.yVelocity);
+    this.setEmitterAttribute(emitter, "xVelocityVariation", this.xVelocityVariation);
+    this.setEmitterAttribute(emitter, "yVelocityVariation", this.yVelocityVariation);
+    this.setEmitterAttribute(emitter, "xAcceleration", this.xAcceleration);
+    this.setEmitterAttribute(emitter, "yAcceleration", this.yAcceleration);
+    this.setEmitterAttribute(emitter, "xAccelerationVariation", this.xAccelerationVariation);
+    this.setEmitterAttribute(emitter, "yAccelerationVariation", this.yAccelerationVariation);
+    this.setEmitterAttribute(emitter, "startSize", this.startSize);
+    this.setEmitterAttribute(emitter, "endSize", this.endSize);
+    this.setEmitterAttribute(emitter, "startSizeVariation", this.startSizeVariation);
+    this.setEmitterAttribute(emitter, "endSizeVariation", this.endSizeVariation);
+    this.setEmitterAttribute(emitter, "startOpacity", this.startOpacity);
+    this.setEmitterAttribute(emitter, "endOpacity", this.endOpacity);
+    this.setEmitterAttribute(emitter, "startOpacityVariation", this.startOpacityVariation);
+    this.setEmitterAttribute(emitter, "endOpacityVariation", this.endOpacityVariation);
+    this.setEmitterAttribute(emitter, "seed", this.seed);
+    this.setEmitterAttribute(emitter, "zIndex", this.zIndex);
+    return emitter;
+  }
+
+  function start() {
+    this.running = true;
+    var emitter = this.syncEmitter();
+    if (emitter && typeof emitter.start === "function") {
+      emitter.start();
+    }
+  }
+
+  function stop() {
+    this.running = false;
+    var emitter = this.syncEmitter();
+    if (emitter && typeof emitter.stop === "function") {
+      emitter.stop();
+    }
+  }
+
+  function burst(x, y, num) {
+    var emitter = this.syncEmitter();
+    if (emitter && typeof emitter.burst === "function") {
+      return emitter.burst(x, y, num);
+    }
+    return 0;
+  }
+
+  function clear() {
+    var emitter = this.emitter();
+    if (emitter && typeof emitter.clear === "function") {
+      emitter.clear();
+    }
+  }
+
+  onReady {
+    this.component.applyHostDefaults();
+    this.component.syncEmitter();
+  }
+
+  onrunningChanged(value) { this.component.syncEmitter(); }
+  onsrcChanged(value) { this.component.syncEmitter(); }
+  onmaskChanged(value) { this.component.syncEmitter(); }
+  onemitterMaskChanged(value) { this.component.syncEmitter(); }
+  oncolorChanged(value) { this.component.syncEmitter(); }
+  oncolorOpacityChanged(value) { this.component.syncEmitter(); }
+  onemitRateChanged(value) { this.component.syncEmitter(); }
+  onintervalChanged(value) { this.component.syncEmitter(); }
+  onmaxActiveParticlesChanged(value) { this.component.syncEmitter(); }
+  onmaxActiveParticlesVariationChanged(value) { this.component.syncEmitter(); }
+  onmaxParticlesChanged(value) { this.component.syncEmitter(); }
+  onstopAfterChanged(value) { this.component.syncEmitter(); }
+  onlifetimeChanged(value) { this.component.syncEmitter(); }
+  onlifetimeVariationChanged(value) { this.component.syncEmitter(); }
+  onxChanged(value) { this.component.syncEmitter(); }
+  onyChanged(value) { this.component.syncEmitter(); }
+  onwidthChanged(value) { this.component.syncEmitter(); }
+  onheightChanged(value) { this.component.syncEmitter(); }
+  onxVariationChanged(value) { this.component.syncEmitter(); }
+  onyVariationChanged(value) { this.component.syncEmitter(); }
+  onxVelocityChanged(value) { this.component.syncEmitter(); }
+  onyVelocityChanged(value) { this.component.syncEmitter(); }
+  onxVelocityVariationChanged(value) { this.component.syncEmitter(); }
+  onyVelocityVariationChanged(value) { this.component.syncEmitter(); }
+  onxAccelerationChanged(value) { this.component.syncEmitter(); }
+  onyAccelerationChanged(value) { this.component.syncEmitter(); }
+  onxAccelerationVariationChanged(value) { this.component.syncEmitter(); }
+  onyAccelerationVariationChanged(value) { this.component.syncEmitter(); }
+  onstartSizeChanged(value) { this.component.syncEmitter(); }
+  onendSizeChanged(value) { this.component.syncEmitter(); }
+  onstartSizeVariationChanged(value) { this.component.syncEmitter(); }
+  onendSizeVariationChanged(value) { this.component.syncEmitter(); }
+  onstartOpacityChanged(value) { this.component.syncEmitter(); }
+  onendOpacityChanged(value) { this.component.syncEmitter(); }
+  onstartOpacityVariationChanged(value) { this.component.syncEmitter(); }
+  onendOpacityVariationChanged(value) { this.component.syncEmitter(); }
+  onseedChanged(value) { this.component.syncEmitter(); }
+  onzIndexChanged(value) {
+    this.component.applyHostDefaults();
+    this.component.syncEmitter();
+  }
+
+  particle-emitter {
+    running: this.component.running
+    src: this.component.src
+    mask: this.component.mask
+    emitterMask: this.component.emitterMask
+    color: this.component.color
+    colorOpacity: this.component.colorOpacity
+    emitRate: this.component.emitRate
+    interval: this.component.interval
+    maxActiveParticles: this.component.maxActiveParticles
+    maxActiveParticlesVariation: this.component.maxActiveParticlesVariation
+    maxParticles: this.component.maxParticles
+    stopAfter: this.component.stopAfter
+    lifetime: this.component.lifetime
+    lifetimeVariation: this.component.lifetimeVariation
+    x: this.component.x
+    y: this.component.y
+    width: this.component.width
+    height: this.component.height
+    xVariation: this.component.xVariation
+    yVariation: this.component.yVariation
+    xVelocity: this.component.xVelocity
+    yVelocity: this.component.yVelocity
+    xVelocityVariation: this.component.xVelocityVariation
+    yVelocityVariation: this.component.yVelocityVariation
+    xAcceleration: this.component.xAcceleration
+    yAcceleration: this.component.yAcceleration
+    xAccelerationVariation: this.component.xAccelerationVariation
+    yAccelerationVariation: this.component.yAccelerationVariation
+    startSize: this.component.startSize
+    endSize: this.component.endSize
+    startSizeVariation: this.component.startSizeVariation
+    endSizeVariation: this.component.endSizeVariation
+    startOpacity: this.component.startOpacity
+    endOpacity: this.component.endOpacity
+    startOpacityVariation: this.component.startOpacityVariation
+    endOpacityVariation: this.component.endOpacityVariation
+    seed: this.component.seed
+    zIndex: this.component.zIndex
+  }
+}

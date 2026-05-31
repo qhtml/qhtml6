@@ -1,4 +1,53 @@
-q-component q-property-animation {
+q-component q-abstract-animation {
+  q-signal started()
+  q-signal stopped()
+  q-signal stepped(value, currentStep, progress)
+  q-signal ended()
+
+  q-property running: false
+
+  function normalizeBoolean(value, fallbackValue) {
+    if (value === true || value === false) {
+      return value;
+    }
+    if (value === 1 || value === "1") {
+      return true;
+    }
+    if (value === 0 || value === "0") {
+      return false;
+    }
+    var text = String(value == null ? "" : value).trim().toLowerCase();
+    if (text === "true" || text === "yes" || text === "on") {
+      return true;
+    }
+    if (text === "false" || text === "no" || text === "off" || text === "") {
+      return false;
+    }
+    return Boolean(fallbackValue);
+  }
+
+  function start() {
+    this.component.running = true;
+    this.component.started();
+  }
+
+  function stop() {
+    this.component.running = false;
+    this.component.stopped();
+  }
+
+  function end() {
+    this.component.running = false;
+    this.component.ended();
+  }
+
+  function restart() {
+    this.component.stop();
+    this.component.start();
+  }
+}
+
+q-component q-property-animation extends q-abstract-animation {
   q-signal started()
   q-signal stopped()
   q-signal stepped(value, currentStep, progress)
@@ -24,6 +73,48 @@ q-component q-property-animation {
   }
 
   q-connect { animationTimer.timeout this.component.advance }
+
+  function getAnimationTimer() {
+    if (typeof animationTimer !== "undefined" && animationTimer) {
+      return animationTimer;
+    }
+    if (this.component.animationTimer) {
+      return this.component.animationTimer;
+    }
+    return null;
+  }
+
+  function stopFallbackTimer() {
+    if (this.component.__qhtmlPropertyAnimationFallbackTimer) {
+      clearInterval(this.component.__qhtmlPropertyAnimationFallbackTimer);
+      this.component.__qhtmlPropertyAnimationFallbackTimer = 0;
+    }
+  }
+
+  function startFallbackTimer() {
+    var host = this.component;
+    host.stopFallbackTimer();
+    host.__qhtmlPropertyAnimationFallbackTimer = setInterval(function runFallbackAnimationStep() {
+      host.advance();
+    }, Math.max(1, Number(host.stepInterval || 16)));
+  }
+
+  function stopAnimationClock() {
+    var timer = this.component.getAnimationTimer();
+    if (timer && typeof timer.stop === "function") {
+      timer.stop();
+    }
+    this.component.stopFallbackTimer();
+  }
+
+  function startAnimationClock() {
+    var timer = this.component.getAnimationTimer();
+    if (timer && typeof timer.start === "function") {
+      timer.start();
+      return;
+    }
+    this.component.startFallbackTimer();
+  }
 
   function normalizeNumber(value, fallbackValue) {
     var number = Number(value);
@@ -79,10 +170,13 @@ q-component q-property-animation {
     var stepCount = this.component.normalizePositiveInteger(this.component.steps, 60);
     var interval = Math.max(1, Math.floor(durationValue / stepCount));
     this.component.stepInterval = interval;
-    animationTimer.interval = interval;
+    var timer = this.component.getAnimationTimer();
+    if (timer) {
+      timer.interval = interval;
+    }
     if (this.component.normalizeBoolean(this.component.running, false)) {
-      animationTimer.stop();
-      animationTimer.start();
+      this.component.stopAnimationClock();
+      this.component.startAnimationClock();
     }
   }
 
@@ -225,7 +319,7 @@ q-component q-property-animation {
   function start() {
     if (!String(this.component.to == null ? "" : this.component.to).trim()) {
       this.component.running = false;
-      animationTimer.stop();
+      this.component.stopAnimationClock();
       return;
     }
     this.component.refreshTimerInterval();
@@ -234,12 +328,12 @@ q-component q-property-animation {
     this.component.running = true;
     this.component.started();
     this.component.writeTargetValue(this.component.computeStepValue());
-    animationTimer.start();
+    this.component.startAnimationClock();
   }
 
   function stop() {
     this.component.running = false;
-    animationTimer.stop();
+    this.component.stopAnimationClock();
     this.component.stopped();
   }
 
@@ -251,7 +345,7 @@ q-component q-property-animation {
   function end() {
     this.component.writeTargetValue(this.component.stripQuotes(this.component.to));
     this.component.running = false;
-    animationTimer.stop();
+    this.component.stopAnimationClock();
     this.component.ended();
   }
 
@@ -266,7 +360,7 @@ q-component q-property-animation {
 
   function advance() {
     if (!this.component.normalizeBoolean(this.component.running, false)) {
-      animationTimer.stop();
+      this.component.stopAnimationClock();
       return;
     }
     var stepCount = this.component.normalizePositiveInteger(this.component.steps, 60);
@@ -298,11 +392,317 @@ q-component q-property-animation {
 
   onrunningchanged {
     if (this.component.normalizeBoolean(this.component.running, false)) {
-      if (!animationTimer.running) {
-        animationTimer.start();
+      var timer = this.component.getAnimationTimer();
+      if (timer && !timer.running) {
+        timer.start();
+      } else if (!timer && !this.component.__qhtmlPropertyAnimationFallbackTimer) {
+        this.component.startFallbackTimer();
       }
     } else {
-      animationTimer.stop();
+      this.component.stopAnimationClock();
     }
+  }
+}
+
+q-component q-parallel-animation-group extends q-abstract-animation {
+  q-signal started()
+  q-signal stopped()
+  q-signal ended()
+
+  q-property running: false
+  q-property completedCount: 0
+
+  slot { default }
+
+  function normalizeBoolean(value, fallbackValue) {
+    if (value === true || value === false) {
+      return value;
+    }
+    if (value === 1 || value === "1") {
+      return true;
+    }
+    if (value === 0 || value === "0") {
+      return false;
+    }
+    var text = String(value == null ? "" : value).trim().toLowerCase();
+    if (text === "true" || text === "yes" || text === "on") {
+      return true;
+    }
+    if (text === "false" || text === "no" || text === "off" || text === "") {
+      return false;
+    }
+    return Boolean(fallbackValue);
+  }
+
+  function ownsAnimation(animationElement) {
+    var host = this.component;
+    var cursor = animationElement && animationElement.parentElement;
+    while (cursor && cursor !== host) {
+      var tagName = String(cursor.tagName || "").toLowerCase();
+      if (tagName === "q-parallel-animation-group" || tagName === "q-sequential-animation-group") {
+        return false;
+      }
+      cursor = cursor.parentElement;
+    }
+    return cursor === host;
+  }
+
+  function animations() {
+    var host = this.component;
+    return Array.prototype.slice.call(host.querySelectorAll("q-property-animation")).filter(function keepOwnedAnimation(node) {
+      return host.ownsAnimation(node);
+    });
+  }
+
+  function bindChildEndedEvents() {
+    var host = this.component;
+    if (host.__qhtmlParallelAnimationEndedHandler) {
+      return;
+    }
+    host.__qhtmlParallelAnimationEndedHandler = function onParallelAnimationChildEnded(event) {
+      var target = event && event.target ? event.target : null;
+      if (!target || target === host || String(target.tagName || "").toLowerCase() !== "q-property-animation") {
+        return;
+      }
+      if (!host.ownsAnimation(target)) {
+        return;
+      }
+      host.noteChildEnded(target);
+    };
+    host.addEventListener("ended", host.__qhtmlParallelAnimationEndedHandler);
+  }
+
+  function connectChildEndedEvents(items) {
+    var host = this.component;
+    if (!host.__qhtmlParallelAnimationChildEndedHandlers) {
+      host.__qhtmlParallelAnimationChildEndedHandlers = typeof WeakMap === "function" ? new WeakMap() : [];
+    }
+    var store = host.__qhtmlParallelAnimationChildEndedHandlers;
+    items.forEach(function connectChildEnded(animationElement) {
+      if (!animationElement || !animationElement.ended || typeof animationElement.ended.connect !== "function") {
+        return;
+      }
+      if (store instanceof WeakMap) {
+        if (store.has(animationElement)) {
+          return;
+        }
+        var weakHandler = function onConnectedChildEnded() {
+          host.noteChildEnded(animationElement);
+        };
+        store.set(animationElement, weakHandler);
+        animationElement.ended.connect(weakHandler);
+        return;
+      }
+      for (var i = 0; i < store.length; i += 1) {
+        if (store[i] && store[i].element === animationElement) {
+          return;
+        }
+      }
+      var arrayHandler = function onConnectedChildEnded() {
+        host.noteChildEnded(animationElement);
+      };
+      store.push({ element: animationElement, handler: arrayHandler });
+      animationElement.ended.connect(arrayHandler);
+    });
+  }
+
+  function resetCompletionState() {
+    this.component.completedCount = 0;
+    this.component.__qhtmlParallelAnimationCompleted = typeof WeakSet === "function" ? new WeakSet() : [];
+  }
+
+  function markCompleted(animationElement) {
+    var store = this.component.__qhtmlParallelAnimationCompleted;
+    if (!store) {
+      this.component.resetCompletionState();
+      store = this.component.__qhtmlParallelAnimationCompleted;
+    }
+    if (store instanceof WeakSet) {
+      if (store.has(animationElement)) {
+        return false;
+      }
+      store.add(animationElement);
+      return true;
+    }
+    if (store.indexOf(animationElement) >= 0) {
+      return false;
+    }
+    store.push(animationElement);
+    return true;
+  }
+
+  function noteChildEnded(animationElement) {
+    var host = this.component;
+    if (host.__qhtmlParallelAnimationEnding || !host.normalizeBoolean(host.running, false)) {
+      return;
+    }
+    if (!host.markCompleted(animationElement)) {
+      return;
+    }
+    host.completedCount = Number(host.completedCount || 0) + 1;
+    if (host.completedCount >= host.animations().length) {
+      host.__qhtmlParallelAnimationChangingRunning = true;
+      host.running = false;
+      host.__qhtmlParallelAnimationChangingRunning = false;
+      host.ended();
+    }
+  }
+
+  function start() {
+    var host = this.component;
+    if (host.__qhtmlParallelAnimationStarting) {
+      return;
+    }
+    host.__qhtmlParallelAnimationStarting = true;
+    host.bindChildEndedEvents();
+    host.resetCompletionState();
+    var items = host.animations();
+    host.connectChildEndedEvents(items);
+    host.__qhtmlParallelAnimationChangingRunning = true;
+    host.running = true;
+    host.__qhtmlParallelAnimationChangingRunning = false;
+    host.started();
+    if (!items.length) {
+      host.running = false;
+      host.ended();
+      host.__qhtmlParallelAnimationStarting = false;
+      return;
+    }
+    items.forEach(function startChildAnimation(animationElement) {
+      if (animationElement && typeof animationElement.start === "function") {
+        animationElement.start();
+      } else if (animationElement) {
+        animationElement.running = true;
+      }
+    });
+    host.__qhtmlParallelAnimationStarting = false;
+  }
+
+  function stop() {
+    var host = this.component;
+    if (host.__qhtmlParallelAnimationStopping) {
+      return;
+    }
+    host.__qhtmlParallelAnimationStopping = true;
+    host.animations().forEach(function stopChildAnimation(animationElement) {
+      if (animationElement && typeof animationElement.stop === "function") {
+        animationElement.stop();
+      } else if (animationElement) {
+        animationElement.running = false;
+      }
+    });
+    host.__qhtmlParallelAnimationChangingRunning = true;
+    host.running = false;
+    host.__qhtmlParallelAnimationChangingRunning = false;
+    host.stopped();
+    host.__qhtmlParallelAnimationStopping = false;
+  }
+
+  function end() {
+    var host = this.component;
+    if (host.__qhtmlParallelAnimationEnding) {
+      return;
+    }
+    host.__qhtmlParallelAnimationEnding = true;
+    host.animations().forEach(function endChildAnimation(animationElement) {
+      if (animationElement && typeof animationElement.end === "function") {
+        animationElement.end();
+      } else if (animationElement) {
+        animationElement.running = false;
+      }
+    });
+    host.__qhtmlParallelAnimationChangingRunning = true;
+    host.running = false;
+    host.__qhtmlParallelAnimationChangingRunning = false;
+    host.ended();
+    host.__qhtmlParallelAnimationEnding = false;
+  }
+
+  function restart() {
+    this.component.stop();
+    this.component.start();
+  }
+
+  onready {
+    this.component.bindChildEndedEvents();
+    if (this.component.normalizeBoolean(this.component.running, false)) {
+      var host = this.component;
+      setTimeout(function startParallelGroupAfterBindings() {
+        if (host.normalizeBoolean(host.running, false)) {
+          host.start();
+        }
+      }, 0);
+    }
+  }
+
+  onrunningchanged {
+    if (this.component.__qhtmlParallelAnimationChangingRunning) {
+      return;
+    }
+    if (this.component.normalizeBoolean(this.component.running, false)) {
+      this.component.start();
+    } else {
+      this.component.stop();
+    }
+  }
+}
+
+q-component q-sequential-animation-group extends q-parallel-animation-group {
+  function start() {
+    var host = this.component;
+    if (host.__qhtmlParallelAnimationStarting) {
+      return;
+    }
+    host.__qhtmlParallelAnimationStarting = true;
+    host.bindChildEndedEvents();
+    host.resetCompletionState();
+    var items = host.animations();
+    host.connectChildEndedEvents(items);
+    host.__qhtmlParallelAnimationChangingRunning = true;
+    host.running = true;
+    host.__qhtmlParallelAnimationChangingRunning = false;
+    host.started();
+    if (!items.length) {
+      host.running = false;
+      host.ended();
+      host.__qhtmlParallelAnimationStarting = false;
+      return;
+    }
+    var index = 0;
+    var startNext = function startNextSequentialChild() {
+      if (!host.normalizeBoolean(host.running, false)) {
+        host.__qhtmlParallelAnimationStarting = false;
+        return;
+      }
+      if (index >= items.length) {
+        host.__qhtmlParallelAnimationChangingRunning = true;
+        host.running = false;
+        host.__qhtmlParallelAnimationChangingRunning = false;
+        host.ended();
+        host.__qhtmlParallelAnimationStarting = false;
+        return;
+      }
+      var animationElement = items[index];
+      index += 1;
+      if (!animationElement) {
+        startNext();
+        return;
+      }
+      var endedHandler = function onSequentialChildEnded() {
+        if (animationElement.ended && typeof animationElement.ended.disconnect === "function") {
+          animationElement.ended.disconnect(endedHandler);
+        }
+        startNext();
+      };
+      if (animationElement.ended && typeof animationElement.ended.connect === "function") {
+        animationElement.ended.connect(endedHandler);
+      }
+      if (typeof animationElement.start === "function") {
+        animationElement.start();
+      } else {
+        animationElement.running = true;
+      }
+    };
+    startNext();
   }
 }

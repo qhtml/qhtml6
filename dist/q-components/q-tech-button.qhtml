@@ -1,0 +1,362 @@
+q-painter q-tech-button-painter {
+  q-property accent: "#1dff39"
+  q-property glow: "0.36"
+  q-property pressed: "0"
+  q-property focused: "0"
+  q-property disabled: "0"
+  q-property detail: "1"
+  q-property density: "1"
+
+  onpaint {
+    function number(value, fallback) {
+      var parsed = Number.parseFloat(String(value == null ? "" : value));
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function rgba(color, alpha) {
+      var value = String(color || "#1dff39").trim();
+      var a = clamp(number(alpha, 1), 0, 1);
+      if (value.charAt(0) === "#" && value.length === 7) {
+        var r = Number.parseInt(value.slice(1, 3), 16);
+        var g = Number.parseInt(value.slice(3, 5), 16);
+        var b = Number.parseInt(value.slice(5, 7), 16);
+        return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+      }
+      if (value.charAt(0) === "#" && value.length === 4) {
+        var rr = Number.parseInt(value.charAt(1) + value.charAt(1), 16);
+        var gg = Number.parseInt(value.charAt(2) + value.charAt(2), 16);
+        var bb = Number.parseInt(value.charAt(3) + value.charAt(3), 16);
+        return "rgba(" + rr + "," + gg + "," + bb + "," + a + ")";
+      }
+      return value;
+    }
+
+    function panelPath(x, y, w, h, cut) {
+      var c = clamp(cut, 4, Math.min(w, h) * 0.46);
+      var bite = clamp(h * 0.3, 8, w * 0.22);
+      this.beginPath();
+      this.moveTo(x + c, y);
+      this.lineTo(x + w - c, y);
+      this.lineTo(x + w, y + c);
+      this.lineTo(x + w, y + h - c);
+      this.lineTo(x + w - c, y + h);
+      this.lineTo(x + c, y + h);
+      this.lineTo(x, y + h - c);
+      this.lineTo(x, y + h * 0.5 + bite * 0.5);
+      this.lineTo(x + bite * 0.28, y + h * 0.5);
+      this.lineTo(x, y + h * 0.5 - bite * 0.5);
+      this.lineTo(x, y + c);
+      this.closePath();
+    }
+
+    function strokeLine(x1, y1, x2, y2) {
+      this.beginPath();
+      this.moveTo(x1, y1);
+      this.lineTo(x2, y2);
+      this.stroke();
+    }
+
+    function screw(x, y, r, accent, active) {
+      this.save();
+      var metal = this.createRadialGradient(x - r * 0.35, y - r * 0.45, 0, x, y, r * 1.35);
+      metal.addColorStop(0, "rgba(230,234,220,.78)");
+      metal.addColorStop(0.34, "rgba(74,80,78,.94)");
+      metal.addColorStop(0.72, "rgba(7,8,9,.98)");
+      metal.addColorStop(1, "rgba(0,0,0,1)");
+      this.fillStyle = metal;
+      this.strokeStyle = "rgba(0,0,0,.92)";
+      this.lineWidth = Math.max(1, r * 0.2);
+      this.beginPath();
+      this.arc(x, y, r, 0, Math.PI * 2);
+      this.fill();
+      this.stroke();
+      this.strokeStyle = "rgba(220,230,210,.28)";
+      this.lineWidth = Math.max(0.7, r * 0.12);
+      strokeLine.call(this, x - r * 0.55, y, x + r * 0.55, y);
+      if (active > 0.01) {
+        this.strokeStyle = rgba(accent, 0.25 * active);
+        this.lineWidth = Math.max(1, r * 0.16);
+        this.beginPath();
+        this.arc(x, y, r * 1.65, 0, Math.PI * 2);
+        this.stroke();
+      }
+      this.restore();
+    }
+
+    var w = Math.max(1, this.width);
+    var h = Math.max(1, this.height);
+    var accent = String(this.accent || "#1dff39");
+    var glow = clamp(number(this.glow, 0.36), 0, 1);
+    var pressed = clamp(number(this.pressed, 0), 0, 1);
+    var focused = clamp(number(this.focused, 0), 0, 1);
+    var disabled = clamp(number(this.disabled, 0), 0, 1);
+    var detail = clamp(number(this.detail, 1), 0, 1);
+    var density = clamp(number(this.density, 1), 0.25, 2);
+    var active = Math.max(focused, pressed * 0.82) * (1 - disabled * 0.5);
+    var inset = Math.max(3, Math.min(w, h) * 0.08);
+    var cut = Math.max(8, Math.min(w, h) * 0.24);
+    var lift = pressed * Math.max(1, h * 0.035);
+
+    this.save();
+    this.clearRect(0, 0, w, h);
+    this.globalAlpha = 1 - disabled * 0.42;
+
+    if (glow + active > 0.01) {
+      this.save();
+      this.shadowColor = rgba(accent, 0.8);
+      this.shadowBlur = h * (0.22 * glow + 0.16 * active);
+      this.strokeStyle = rgba(accent, 0.16 + active * 0.34);
+      this.lineWidth = Math.max(1, h * 0.05);
+      panelPath.call(this, inset + 1, inset + 1 + lift, w - inset * 2 - 2, h - inset * 2 - 2, cut);
+      this.stroke();
+      this.restore();
+    }
+
+    this.save();
+    this.translate(0, lift);
+    panelPath.call(this, inset, inset, w - inset * 2, h - inset * 2, cut);
+    var body = this.createLinearGradient(0, inset, 0, h - inset);
+    body.addColorStop(0, "rgba(94,100,94,.98)");
+    body.addColorStop(0.11, "rgba(18,20,21,.99)");
+    body.addColorStop(0.38, "rgba(37,42,40,.98)");
+    body.addColorStop(0.64, "rgba(7,8,9,.99)");
+    body.addColorStop(0.88, "rgba(45,50,46,.98)");
+    body.addColorStop(1, "rgba(4,5,6,.99)");
+    this.fillStyle = body;
+    this.fill();
+    this.strokeStyle = "rgba(0,0,0,.96)";
+    this.lineWidth = Math.max(2, h * 0.075);
+    this.lineJoin = "round";
+    this.stroke();
+
+    this.strokeStyle = "rgba(230,236,220,.24)";
+    this.lineWidth = Math.max(0.75, h * 0.018);
+    panelPath.call(this, inset + 2.5, inset + 2.5, w - inset * 2 - 5, h - inset * 2 - 5, cut * 0.82);
+    this.stroke();
+
+    var railX = inset + w * 0.2;
+    var railW = w - railX * 2;
+    var ribCount = Math.max(3, Math.floor((5 + 8 * density) * detail));
+    var gap = railW / (ribCount + 1);
+    this.lineCap = "round";
+    for (var i = 1; i <= ribCount; i += 1) {
+      var x = railX + gap * i;
+      this.strokeStyle = "rgba(0,0,0,.58)";
+      this.lineWidth = Math.max(1, h * 0.09);
+      strokeLine.call(this, x, h * 0.22, x, h * 0.34);
+      strokeLine.call(this, x, h * 0.66, x, h * 0.78);
+      this.strokeStyle = "rgba(235,240,220,.10)";
+      this.lineWidth = 1;
+      strokeLine.call(this, x + 1, h * 0.23, x + 1, h * 0.33);
+      strokeLine.call(this, x + 1, h * 0.67, x + 1, h * 0.77);
+    }
+
+    var screwR = Math.max(2.2, Math.min(w, h) * 0.055);
+    screw.call(this, inset + w * 0.11, h * 0.29, screwR, accent, active);
+    screw.call(this, inset + w * 0.11, h * 0.71, screwR, accent, active);
+    screw.call(this, w - inset - w * 0.11, h * 0.29, screwR, accent, active);
+    screw.call(this, w - inset - w * 0.11, h * 0.71, screwR, accent, active);
+
+    this.globalAlpha = 0.14 + active * 0.2;
+    this.strokeStyle = rgba(accent, 0.95);
+    this.lineWidth = Math.max(1, h * 0.018);
+    strokeLine.call(this, railX + railW * 0.08, h * 0.5, railX + railW * 0.92, h * 0.5);
+
+    this.globalAlpha = 0.18 * detail;
+    var sheen = this.createLinearGradient(inset, inset, w - inset, h - inset);
+    sheen.addColorStop(0, "rgba(255,255,240,.32)");
+    sheen.addColorStop(0.16, "rgba(255,255,240,.04)");
+    sheen.addColorStop(0.52, "rgba(0,0,0,.2)");
+    sheen.addColorStop(0.82, "rgba(255,255,240,.08)");
+    sheen.addColorStop(1, "rgba(0,0,0,.38)");
+    this.fillStyle = sheen;
+    panelPath.call(this, inset + 4, inset + 4, w - inset * 2 - 8, h - inset * 2 - 8, cut * 0.7);
+    this.fill();
+
+    if (pressed > 0.01) {
+      this.globalAlpha = pressed * 0.3;
+      this.fillStyle = "rgba(0,0,0,.95)";
+      panelPath.call(this, inset + 6, inset + 6, w - inset * 2 - 12, h - inset * 2 - 12, cut * 0.6);
+      this.fill();
+    }
+
+    this.restore();
+
+    if (disabled > 0.01) {
+      this.globalAlpha = disabled * 0.3;
+      this.strokeStyle = "rgba(210,215,205,.35)";
+      this.lineWidth = 1;
+      for (var d = -h; d < w + h; d += 9) {
+        strokeLine.call(this, d, h, d + h, 0);
+      }
+    }
+
+    this.restore();
+  }
+}
+
+q-style qtechbuttonsurface {
+  backgroundRepeat: no-repeat;
+  backgroundSize: 100% 100%;
+  backgroundPosition: center;
+  q-style-painter {
+    background { q-tech-button-painter }
+  }
+}
+
+q-style qtechbuttonlabel {
+  display: inline-flex;
+  position: relative;
+  zIndex: 2;
+  alignItems: center;
+  justifyContent: center;
+  minWidth: 4ch;
+  minHeight: 1em;
+  pointerEvents: none;
+  transform: translateY(-0.02em);
+}
+
+q-default-theme q-tech-button-theme {
+  button.q-tech-button-surface { qtechbuttonsurface }
+  .q-tech-button-label { qtechbuttonlabel }
+}
+
+q-component q-tech-button {
+  q-property width: ""
+  q-property height: "46px"
+  q-property minWidth: "128px"
+  q-property accent: "#1dff39"
+  q-property glow: "0.36"
+  q-property disabled: false
+  q-property detail: "1"
+  q-property density: "1"
+  q-property type: "button"
+
+  function surface() {
+    return this.querySelector("button.q-tech-button-surface");
+  }
+
+  function bool(value) {
+    if (value === true || value === false) {
+      return value;
+    }
+    var text = String(value == null ? "" : value).trim().toLowerCase();
+    return text === "true" || text === "1" || text === "yes" || text === "disabled";
+  }
+
+  function cssSize(value, fallback) {
+    var text = String(value == null ? "" : value).trim();
+    if (!text) {
+      return fallback;
+    }
+    if (/^-?\d+(?:\.\d+)?$/.test(text)) {
+      return text + "px";
+    }
+    return text;
+  }
+
+  function syncPainterVars() {
+    var target = this.surface();
+    if (!target || !target.style) {
+      return;
+    }
+    var isDisabled = this.bool(this.disabled);
+    target.style.setProperty("--accent", String(this.accent || "#1dff39"));
+    target.style.setProperty("--glow", String(this.glow == null ? "0.36" : this.glow));
+    target.style.setProperty("--disabled", isDisabled ? "1" : "0");
+    target.style.setProperty("--detail", String(this.detail == null ? "1" : this.detail));
+    target.style.setProperty("--density", String(this.density == null ? "1" : this.density));
+    target.style.height = this.cssSize(this.height, "46px");
+    target.style.minWidth = this.cssSize(this.minWidth, "128px");
+    target.type = String(this.type || "button");
+    target.disabled = isDisabled;
+    target.setAttribute("aria-disabled", isDisabled ? "true" : "false");
+    target.style.cursor = isDisabled ? "not-allowed" : "pointer";
+    target.style.opacity = isDisabled ? ".72" : "1";
+    target.style.filter = isDisabled ? "grayscale(.45) saturate(.72)" : "none";
+    if (String(this.width || "").trim()) {
+      target.style.width = this.cssSize(this.width, "");
+    } else {
+      target.style.removeProperty("width");
+    }
+  }
+
+  function setState(name, value) {
+    var target = this.surface();
+    if (target && target.style) {
+      target.style.setProperty(name, String(value));
+    }
+  }
+
+  onReady {
+    this.syncPainterVars();
+  }
+
+  onwidthchanged { this.component.syncPainterVars(); }
+  onheightchanged { this.component.syncPainterVars(); }
+  onminWidthchanged { this.component.syncPainterVars(); }
+  onaccentchanged { this.component.syncPainterVars(); }
+  onglowchanged { this.component.syncPainterVars(); }
+  ondisabledchanged { this.component.syncPainterVars(); }
+  ondetailchanged { this.component.syncPainterVars(); }
+  ondensitychanged { this.component.syncPainterVars(); }
+  ontypechanged { this.component.syncPainterVars(); }
+
+  q-slot-default buttonText {
+    text { Button }
+  }
+
+  q-tech-button-theme {
+    button.q-tech-button-surface {
+      type: "button"
+      style {
+        display: inline-flex;
+        position: relative;
+        align-items: center;
+        justify-content: center;
+        min-width: 128px;
+        height: 46px;
+        padding: 0 24px;
+        box-sizing: border-box;
+        border: 0;
+        outline: 0;
+        border-radius: 7px;
+        background-color: transparent;
+        background-repeat: no-repeat;
+        background-size: 100% 100%;
+        background-position: center;
+        color: #eef2ea;
+        font-family: inherit;
+        font-size: 0.93rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        line-height: 1;
+        text-transform: uppercase;
+        text-shadow: 0 1px 2px rgba(0,0,0,.95);
+        cursor: pointer;
+        user-select: none;
+        vertical-align: middle;
+        transition: transform 90ms ease, filter 120ms ease, opacity 120ms ease;
+      }
+      onmousedown { this.component.setState("--pressed", "1"); }
+      onmouseup { this.component.setState("--pressed", "0"); }
+      onmouseleave { this.component.setState("--pressed", "0"); }
+      ontouchstart { this.component.setState("--pressed", "1"); }
+      ontouchend { this.component.setState("--pressed", "0"); }
+      ontouchcancel { this.component.setState("--pressed", "0"); }
+      onfocus { this.component.setState("--focused", "1"); }
+      onblur {
+        this.component.setState("--focused", "0");
+        this.component.setState("--pressed", "0");
+      }
+
+      span.q-tech-button-label {
+        slot { buttonText }
+      }
+    }
+  }
+}

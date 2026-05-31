@@ -114,11 +114,14 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - separators supported in the block: newline, `;`, `,`
     - behavior directives:
       - `behavior on propertyName { NumberAnimation { duration: 100 easing: "linear" } }`
+      - `behavior on propertyName { q-parallel-animation-group { q-property-animation { ... } ... } }`
+      - `behavior on propertyName { q-sequential-animation-group { q-property-animation { ... } ... } }`
       - normalized as direct owner metadata in `node.meta.__qhtmlBehaviors`
       - equivalent internal `q-behavior propertyName { q-number-animation { ... } }` syntax is accepted
       - normal element children and runtime-capable component/worker definition children may own behaviors
       - a target may declare only one behavior per normalized property name
       - `NumberAnimation` config accepts `duration`, `easing`, `from`, `to`, and `running`
+      - behavior animation configs preserve nested animation-group children plus animation hook blocks such as `onstepped { ... }`
     - layout keywords:
       - `q-layout`, `q-row`, and `q-col` parse as framework layout element nodes, not component invocations
       - layout nodes store `meta.__qhtmlLayoutKeyword = true` and `meta.__qhtmlLayoutRole`
@@ -185,7 +188,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
   - Serializes array/object assignment values using typed container syntax (`q-array { ... }` / `q-map { ... }`) instead of stringifying them.
   - Serializes dirty `q-state-machine` component-instance nodes back to named state-machine block syntax using stored state metadata.
   - Serializes `struct` and `struct-instance` QDom nodes back to `q-struct` and typed instance syntax.
-- Serializes behavior metadata back to `behavior on <property> { NumberAnimation { ... } }`.
+- Serializes behavior metadata back to `behavior on <property> { NumberAnimation { ... } }` or the nested group/property-animation form originally parsed.
 - Serializes `q-bind-css` metadata back to `q-bind-css { source target }`.
 - `parseQScript(source)`
   - Parses q-script rules of form `selector.on("event"): { ... }`.

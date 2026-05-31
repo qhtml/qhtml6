@@ -10,7 +10,12 @@ q-import { q-components/q-dom-tree.qhtml cache }
 q-import { q-components/q-estore.qhtml cache }
 q-import { q-components/q-spritesheet.qhtml cache }
 q-import { q-components/q-factory.qhtml cache }
+q-import { q-components/q-animation.qhtml cache }
 q-import { q-components/q-sidebar.qhtml cache }
 q-import { q-components/lcars-sidebar.qhtml cache }
 q-import { q-components/q-popup-menu.qhtml cache }
 q-import { q-components/sdml-object.qhtml cache }
+q-import { q-components/q-particle-emitter.qhtml cache }
+q-import { q-components/q-tech-button.qhtml cache }
+q-import { q-components/q-control-arm-screen.qhtml cache }
+q-import { q-components/q-vid-player.qhtml cache }

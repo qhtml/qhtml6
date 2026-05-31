@@ -9518,6 +9518,15 @@
     if (normalized === "numberanimation" || normalized === "q-number-animation") {
       return "NumberAnimation";
     }
+    if (normalized === "q-property-animation" || normalized === "propertyanimation" || normalized === "property-animation") {
+      return "q-property-animation";
+    }
+    if (normalized === "q-parallel-animation-group" || normalized === "q-parallel-animation" || normalized === "parallelanimationgroup" || normalized === "parallel-animation-group") {
+      return "q-parallel-animation-group";
+    }
+    if (normalized === "q-sequential-animation-group" || normalized === "q-sequential-animation" || normalized === "sequentialanimationgroup" || normalized === "sequential-animation-group") {
+      return "q-sequential-animation-group";
+    }
     return "";
   }
 
@@ -9536,22 +9545,50 @@
     const config = {
       type: animationType,
     };
+    const childAnimations = [];
+    const hooks = {};
     const nestedItems = Array.isArray(item.items) ? item.items : [];
     for (let i = 0; i < nestedItems.length; i += 1) {
       const child = nestedItems[i];
-      if (!child || child.type !== "Property") {
+      if (!child) {
         continue;
       }
-      const assignment = parseAssignmentName(child.name);
-      const key = normalizePropertyName(assignment.name);
-      if (!key) {
+      if (child.type === "Property") {
+        const assignment = parseAssignmentName(child.name);
+        const key = normalizePropertyName(assignment.name);
+        if (!key) {
+          continue;
+        }
+        config[key] = resolveScopedPropertyValueReferences(
+          coercePropertyValue(child.value),
+          scopedMaps,
+          null
+        );
         continue;
       }
-      config[key] = resolveScopedPropertyValueReferences(
-        coercePropertyValue(child.value),
-        scopedMaps,
-        null
-      );
+      if (child.type === "EventBlock") {
+        const hookName = String(child.name || "").trim().toLowerCase();
+        if (hookName) {
+          hooks[hookName] = {
+            name: String(child.name || "").trim(),
+            script: String(child.script || ""),
+            parameters: Array.isArray(child.parameters) ? child.parameters.slice() : [],
+            thenBodies: Array.isArray(child.thenBodies) ? child.thenBodies.slice() : [],
+            raw: typeof child.raw === "string" ? child.raw : "",
+          };
+        }
+        continue;
+      }
+      const convertedChild = convertBehaviorAnimationItem(child, scopedMaps);
+      if (convertedChild) {
+        childAnimations.push(convertedChild);
+      }
+    }
+    if (Object.keys(hooks).length > 0) {
+      config.hooks = hooks;
+    }
+    if (childAnimations.length > 0) {
+      config.children = childAnimations;
     }
     return config;
   }
@@ -14769,16 +14806,42 @@
     const animationType = animation && String(animation.type || "").trim() ? String(animation.type || "").trim() : "NumberAnimation";
     const lines = [indent + "behavior on " + propertyName + " {"];
     if (animation) {
-      lines.push(indent + "  " + animationType + " {");
-      const keys = Object.keys(animation);
-      for (let i = 0; i < keys.length; i += 1) {
-        const key = keys[i];
-        if (!key || key === "type") {
-          continue;
-        }
-        lines.push(indent + "    " + key + ": " + serializeAssignmentValue(animation[key]));
+      lines.push(serializeBehaviorAnimationBlock(animation, indentLevel + 1));
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
+  function serializeBehaviorAnimationBlock(animation, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    const animationType = animation && String(animation.type || "").trim() ? String(animation.type || "").trim() : "NumberAnimation";
+    const lines = [indent + animationType + " {"];
+    const keys = Object.keys(animation || {});
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      if (!key || key === "type" || key === "children" || key === "hooks") {
+        continue;
+      }
+      lines.push(indent + "  " + key + ": " + serializeAssignmentValue(animation[key]));
+    }
+    const hooks = animation && animation.hooks && typeof animation.hooks === "object" ? animation.hooks : {};
+    Object.keys(hooks).forEach(function serializeAnimationHook(key) {
+      const hook = hooks[key] || {};
+      const name = String(hook.name || key || "").trim();
+      const script = String(hook.script || "");
+      if (!name || !script.trim()) {
+        return;
+      }
+      lines.push(indent + "  " + name + " {");
+      const chunks = script.split("\n");
+      for (let i = 0; i < chunks.length; i += 1) {
+        lines.push(indent + "    " + chunks[i]);
       }
       lines.push(indent + "  }");
+    });
+    const children = Array.isArray(animation && animation.children) ? animation.children : [];
+    for (let i = 0; i < children.length; i += 1) {
+      lines.push(serializeBehaviorAnimationBlock(children[i], indentLevel + 1));
     }
     lines.push(indent + "}");
     return lines.join("\n");

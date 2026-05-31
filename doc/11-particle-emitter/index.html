@@ -17,14 +17,16 @@ q-import { wiki-common.qhtml }
 wiki-shell {
   sectionKey: "particle-emitter"
   pageTitle: "Particle Emitter"
-  pageIntro: "particle-emitter is a native custom element registered by qhtml.js. q-particle-emitter is an alias for the same emitter system. It creates a transparent canvas layer inside its parent and simulates particles without creating one DOM node per particle."
+  pageIntro: "particle-emitter is a native custom element registered by qhtml.js. q-particle-emitter is a QHTML component wrapper that exposes the same emitter settings as q-properties and forwards control methods to a native particle-emitter child."
   main {
     wiki-example-card {
       title: "1. Mental model"
       summary: "Use particle-emitter when you want a visual particle effect from declarative QHTML attributes."
-      note: "The element is not a q-component. It is a framework-registered custom element, so it works in plain HTML and in QHTML-rendered markup. Use particle-emitter or q-particle-emitter interchangeably. Each emitter owns one canvas, one particle array, one seeded random generator, and one animation loop."
+      note: "Use particle-emitter directly when you want the native element. Use q-particle-emitter from q-components/q-particle-emitter.qhtml when you want q-properties and component-style start, stop, clear, and burst methods."
       details {
-        html { <q-editor>div#field {
+        html { <q-editor>q-import { q-components/q-particle-emitter.qhtml }
+
+div#field {
   style {
     position: relative;
     width: 420px;
@@ -33,7 +35,7 @@ wiki-shell {
     background: #07111f;
   }
 
-  particle-emitter#energy {
+  q-particle-emitter#energy {
     running: "false"
     src: "particle.png"
   }

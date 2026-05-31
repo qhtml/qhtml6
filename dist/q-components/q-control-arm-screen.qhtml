@@ -1,0 +1,744 @@
+q-painter q-control-arm-screen-painter {
+  q-property frame: "0"
+  q-property frames: "150"
+  q-property detail: "1"
+  q-property greenAccent: "#1dff39"
+  q-property glassAlpha: "0.95"
+
+  onpaint {
+    function asNumber(value, fallback) {
+      var n = Number.parseFloat(String(value == null ? "" : value));
+      return Number.isFinite(n) ? n : fallback;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function lerp(a, b, t) {
+      return a + ((b - a) * t);
+    }
+
+    function smoothstep(edge0, edge1, value) {
+      var x = clamp((value - edge0) / Math.max(0.000001, edge1 - edge0), 0, 1);
+      return x * x * (3 - (2 * x));
+    }
+
+    function smoother(t) {
+      var x = clamp(t, 0, 1);
+      return x * x * x * (x * ((x * 6) - 15) + 10);
+    }
+
+    function keyValue(points, t) {
+      if (!points.length) {
+        return 0;
+      }
+      if (t <= points[0][0]) {
+        return points[0][1];
+      }
+      for (var i = 0; i < points.length - 1; i += 1) {
+        var a = points[i];
+        var b = points[i + 1];
+        if (t <= b[0]) {
+          return lerp(a[1], b[1], smoother((t - a[0]) / Math.max(0.000001, b[0] - a[0])));
+        }
+      }
+      return points[points.length - 1][1];
+    }
+
+    function withAlpha(color, alpha) {
+      if (String(color).charAt(0) === "#" && String(color).length === 7) {
+        var r = Number.parseInt(String(color).slice(1, 3), 16);
+        var g = Number.parseInt(String(color).slice(3, 5), 16);
+        var b = Number.parseInt(String(color).slice(5, 7), 16);
+        return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+      }
+      return color;
+    }
+
+    function line(ctx, x1, y1, x2, y2) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    function roundedPath(ctx, x, y, w, h, r) {
+      var rr = Math.max(0, Math.min(r, w / 2, h / 2));
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.lineTo(x + w - rr, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+      ctx.lineTo(x + w, y + h - rr);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+      ctx.lineTo(x + rr, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+      ctx.lineTo(x, y + rr);
+      ctx.quadraticCurveTo(x, y, x + rr, y);
+      ctx.closePath();
+    }
+
+    function bevelPanelPath(ctx, x, y, w, h, c) {
+      var cc = Math.max(0, Math.min(c, w * 0.28, h * 0.28));
+      ctx.beginPath();
+      ctx.moveTo(x + cc, y);
+      ctx.lineTo(x + w - cc, y);
+      ctx.lineTo(x + w, y + cc);
+      ctx.lineTo(x + w, y + h - cc);
+      ctx.lineTo(x + w - cc, y + h);
+      ctx.lineTo(x + cc, y + h);
+      ctx.lineTo(x, y + h - cc);
+      ctx.lineTo(x, y + cc);
+      ctx.closePath();
+    }
+
+    function screenShellPath(ctx) {
+      ctx.beginPath();
+      ctx.moveTo(38, 0);
+      ctx.lineTo(106, 0);
+      ctx.lineTo(112, 8);
+      ctx.lineTo(176, 8);
+      ctx.lineTo(184, 0);
+      ctx.lineTo(356, 0);
+      ctx.lineTo(364, 8);
+      ctx.lineTo(423, 8);
+      ctx.lineTo(431, 0);
+      ctx.lineTo(452, 0);
+      ctx.lineTo(462, 12);
+      ctx.lineTo(462, 106);
+      ctx.lineTo(454, 118);
+      ctx.lineTo(454, 210);
+      ctx.lineTo(462, 222);
+      ctx.lineTo(462, 276);
+      ctx.lineTo(440, 300);
+      ctx.lineTo(366, 300);
+      ctx.lineTo(358, 292);
+      ctx.lineTo(184, 292);
+      ctx.lineTo(176, 300);
+      ctx.lineTo(38, 300);
+      ctx.lineTo(0, 264);
+      ctx.lineTo(0, 36);
+      ctx.closePath();
+    }
+
+    function glassPath(ctx) {
+      roundedPath(ctx, 43, 55, 372, 190, 8);
+    }
+
+    function strokePath(ctx, pathFn, width, color, alpha) {
+      ctx.save();
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.lineWidth = width;
+      ctx.strokeStyle = alpha == null ? color : withAlpha(color, alpha);
+      pathFn();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function fillPath(ctx, pathFn, fill) {
+      ctx.save();
+      ctx.fillStyle = fill;
+      pathFn();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawRivet(ctx, x, y, r, alpha) {
+      ctx.save();
+      ctx.globalAlpha = alpha == null ? 1 : alpha;
+      var g = ctx.createRadialGradient(x - (r * 0.45), y - (r * 0.45), 0, x, y, r * 1.6);
+      g.addColorStop(0, "#c9cac4");
+      g.addColorStop(0.24, "#777a76");
+      g.addColorStop(0.68, "#17191a");
+      g.addColorStop(1, "#030405");
+      ctx.fillStyle = g;
+      ctx.strokeStyle = "rgba(0,0,0,.95)";
+      ctx.lineWidth = Math.max(0.8, r * 0.28);
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawCable(ctx, x1, y1, cx1, cy1, cx2, cy2, x2, y2, width, alpha) {
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = "rgba(0,0,0,.92)";
+      ctx.lineWidth = width + 4;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.bezierCurveTo(cx1, cy1, cx2, cy2, x2, y2);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(55,62,57,.95)";
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.bezierCurveTo(cx1, cy1, cx2, cy2, x2, y2);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(180,190,178,.18)";
+      ctx.lineWidth = Math.max(1, width * 0.22);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1 - 1);
+      ctx.bezierCurveTo(cx1, cy1 - 1, cx2, cy2 - 1, x2, y2 - 1);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawBoom(ctx, x1, y1, x2, y2, thick, alpha) {
+      var dx = x2 - x1;
+      var dy = y2 - y1;
+      var len = Math.max(0.001, Math.sqrt((dx * dx) + (dy * dy)));
+      var nx = -dy / len;
+      var ny = dx / len;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.moveTo(x1 + (nx * thick), y1 + (ny * thick));
+      ctx.lineTo(x2 + (nx * thick * 0.62), y2 + (ny * thick * 0.62));
+      ctx.lineTo(x2 - (nx * thick * 0.62), y2 - (ny * thick * 0.62));
+      ctx.lineTo(x1 - (nx * thick), y1 - (ny * thick));
+      ctx.closePath();
+      var g = ctx.createLinearGradient(x1, y1 - thick, x1, y1 + thick);
+      g.addColorStop(0, "#585b58");
+      g.addColorStop(0.18, "#17191a");
+      g.addColorStop(0.58, "#343735");
+      g.addColorStop(1, "#050607");
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(0,0,0,.9)";
+      ctx.stroke();
+      ctx.lineWidth = 1.3;
+      ctx.strokeStyle = "rgba(210,215,204,.25)";
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawHub(ctx, x, y, r, alpha) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      var ring = ctx.createRadialGradient(x - (r * 0.28), y - (r * 0.36), 0, x, y, r * 1.1);
+      ring.addColorStop(0, "#eeeeea");
+      ring.addColorStop(0.18, "#b8bab3");
+      ring.addColorStop(0.34, "#333637");
+      ring.addColorStop(0.55, "#060708");
+      ring.addColorStop(0.74, "#9b9d98");
+      ring.addColorStop(1, "#0d0f10");
+      ctx.fillStyle = ring;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.95)";
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      var inner = ctx.createRadialGradient(x - (r * 0.18), y - (r * 0.18), 0, x, y, r * 0.52);
+      inner.addColorStop(0, "#b7b9b2");
+      inner.addColorStop(0.3, "#555b59");
+      inner.addColorStop(0.72, "#111315");
+      inner.addColorStop(1, "#010203");
+      ctx.fillStyle = inner;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.48, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(230,230,220,.45)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(0,0,0,.58)";
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.68, -0.2, Math.PI * 1.42);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(255,255,245,.24)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x - 1, y - 1, r * 0.78, Math.PI * 1.05, Math.PI * 1.9);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawConnectorBlock(ctx, x, y, w, h, alpha) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      roundedPath(ctx, x, y, w, h, 5);
+      var g = ctx.createLinearGradient(x, y, x + w, y + h);
+      g.addColorStop(0, "#323635");
+      g.addColorStop(0.46, "#111314");
+      g.addColorStop(1, "#050607");
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(0,0,0,.96)";
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(220,220,210,.24)";
+      ctx.stroke();
+      for (var i = 0; i < 4; i += 1) {
+        ctx.fillStyle = "rgba(0,0,0,.68)";
+        ctx.fillRect(x + (w * 0.22), y + 9 + (i * 12), w * 0.57, 4);
+      }
+      ctx.restore();
+    }
+
+    function drawArm(ctx, t, screen) {
+      var deploy = smoothstep(0.02, 0.62, t);
+      var settle = smoothstep(0.55, 0.92, t);
+      var alpha = smoothstep(0, 0.12, t) * 0.98;
+      var pivotX = lerp(152, 118, settle);
+      var pivotY = lerp(228, 215, settle);
+      var boomLead = lerp(-70, -48, deploy);
+      var accent = String(this.greenAccent || "#1dff39");
+
+      drawCable(ctx, boomLead + 18, 169, 25, 132, 92, 163, pivotX + 31, pivotY - 33, 6, alpha * 0.95);
+      drawCable(ctx, boomLead + 40, 300, 42, 346, 100, 332, pivotX + 48, pivotY + 42, 7, alpha * 0.9);
+      drawCable(ctx, boomLead - 14, 219, 42, 212, 70, 260, pivotX + 20, pivotY + 75, 5, alpha * 0.78);
+      drawCable(ctx, boomLead + 78, 168, 92, 148, 120, 172, pivotX + 78, pivotY - 62, 4, alpha * 0.7);
+
+      drawBoom(ctx, boomLead, 225, pivotX + 28, pivotY, 26, alpha);
+      drawBoom(ctx, boomLead + 10, 198, pivotX + 10, pivotY - 32, 11, alpha * 0.82);
+
+      drawConnectorBlock(ctx, pivotX + 33, pivotY - 71, 39, 142, alpha * 0.88);
+      drawHub(ctx, pivotX, pivotY, 44, alpha);
+      drawHub(ctx, pivotX - 62, pivotY - 10, 23, alpha * 0.58);
+
+      ctx.save();
+      ctx.globalAlpha = 0.36 * deploy;
+      ctx.strokeStyle = withAlpha(accent, 0.9);
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      line(ctx, pivotX + 34, pivotY + 55, screen.x + 12, screen.y + screen.h - 29);
+      line(ctx, pivotX + 31, pivotY - 55, screen.x + 18, screen.y + 20);
+      ctx.restore();
+    }
+
+    function screenRect(t) {
+      return {
+        x: keyValue([[0, 183], [0.18, 167], [0.275, 158], [0.55, 50], [0.86, 49], [1, 49]], t),
+        y: keyValue([[0, 162], [0.275, 154], [0.55, 122], [0.86, 113], [1, 113]], t),
+        w: keyValue([[0, 32], [0.16, 72], [0.275, 134], [0.55, 456], [0.86, 462], [1, 462]], t),
+        h: keyValue([[0, 176], [0.275, 203], [0.55, 268], [0.86, 302], [1, 302]], t)
+      };
+    }
+
+    function drawScreenBackGlow(ctx, t) {
+      var accent = String(this.greenAccent || "#1dff39");
+      var a = smoothstep(0.35, 0.84, t);
+      ctx.save();
+      ctx.globalAlpha = 0.12 + (0.3 * a);
+      ctx.translate(-2, 9);
+      strokePath(ctx, screenShellPath, 9, accent, 0.85);
+      ctx.restore();
+
+      if (a > 0.01) {
+        ctx.save();
+        ctx.globalAlpha = 0.28 * a;
+        ctx.fillStyle = withAlpha(accent, 0.9);
+        roundedPath(ctx, 425, 61, 31, 169, 8);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    function drawGlass(ctx, t) {
+      var glassAlpha = clamp(asNumber(this.glassAlpha, 0.95), 0, 1);
+      ctx.save();
+      glassPath(ctx);
+      var g = ctx.createLinearGradient(43, 55, 415, 245);
+      g.addColorStop(0, "rgba(24,26,25," + glassAlpha + ")");
+      g.addColorStop(0.4, "rgba(6,7,7," + glassAlpha + ")");
+      g.addColorStop(1, "rgba(33,35,33," + glassAlpha + ")");
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.clip();
+
+      var glare = ctx.createLinearGradient(55, 70, 405, 212);
+      glare.addColorStop(0, "rgba(255,255,245,.18)");
+      glare.addColorStop(0.22, "rgba(255,255,245,.035)");
+      glare.addColorStop(0.5, "rgba(0,0,0,.18)");
+      glare.addColorStop(0.77, "rgba(255,255,245,.09)");
+      glare.addColorStop(1, "rgba(0,0,0,.22)");
+      ctx.fillStyle = glare;
+      ctx.fillRect(43, 55, 372, 190);
+
+      ctx.save();
+      ctx.globalAlpha = 0.23 * smoothstep(0.52, 0.9, t);
+      var leftBloom = ctx.createRadialGradient(103, 91, 0, 103, 91, 114);
+      leftBloom.addColorStop(0, "rgba(255,255,245,.28)");
+      leftBloom.addColorStop(1, "rgba(255,255,245,0)");
+      ctx.fillStyle = leftBloom;
+      ctx.fillRect(43, 55, 160, 190);
+      var rightBloom = ctx.createRadialGradient(309, 93, 0, 309, 93, 128);
+      rightBloom.addColorStop(0, "rgba(255,255,245,.23)");
+      rightBloom.addColorStop(1, "rgba(255,255,245,0)");
+      ctx.fillStyle = rightBloom;
+      ctx.fillRect(203, 55, 212, 190);
+      ctx.restore();
+
+      ctx.restore();
+      strokePath(ctx, glassPath, 6, "#020303", 1);
+      strokePath(ctx, function() { roundedPath(ctx, 49, 61, 360, 178, 6); }, 2, "#676a65", 0.34);
+      strokePath(ctx, function() { roundedPath(ctx, 55, 67, 348, 166, 4); }, 1, "#000000", 0.9);
+    }
+
+    function drawGrip(ctx, x, y, w, h, vertical, alpha) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      roundedPath(ctx, x, y, w, h, 3);
+      ctx.fillStyle = "#101213";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(180,185,175,.24)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = "rgba(0,0,0,.86)";
+      var i;
+      if (vertical) {
+        for (i = 0; i < 5; i += 1) {
+          ctx.fillRect(x + 3, y + 5 + (i * 9), w - 6, 3);
+        }
+      } else {
+        for (i = 0; i < 5; i += 1) {
+          ctx.fillRect(x + 5 + (i * 11), y + 3, 4, h - 6);
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawCornerPlate(ctx, x, y, w, h, flipX, flipY, alpha) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(x + (flipX ? w : 0), y + (flipY ? h : 0));
+      ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
+      ctx.beginPath();
+      ctx.moveTo(0, 21);
+      ctx.lineTo(21, 0);
+      ctx.lineTo(w, 0);
+      ctx.lineTo(w, 14);
+      ctx.lineTo(41, 14);
+      ctx.lineTo(27, 29);
+      ctx.lineTo(27, h);
+      ctx.lineTo(10, h);
+      ctx.lineTo(10, 38);
+      ctx.lineTo(0, 38);
+      ctx.closePath();
+      var g = ctx.createLinearGradient(0, 0, w, h);
+      g.addColorStop(0, "#565a56");
+      g.addColorStop(0.28, "#1b1e1f");
+      g.addColorStop(0.72, "#0a0b0c");
+      g.addColorStop(1, "#383c39");
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(0,0,0,.92)";
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(220,220,210,.22)";
+      ctx.lineWidth = 0.9;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawEdgeDetails(ctx, t, lod) {
+      var alpha = 0.45 + (0.55 * lod);
+      drawCornerPlate(ctx, 8, 11, 76, 69, false, false, alpha);
+      drawCornerPlate(ctx, 378, 11, 76, 69, true, false, alpha);
+      drawCornerPlate(ctx, 8, 220, 76, 69, false, true, alpha);
+      drawCornerPlate(ctx, 378, 220, 76, 69, true, true, alpha);
+
+      drawGrip(ctx, 94, 7, 61, 17, false, alpha);
+      drawGrip(ctx, 306, 7, 61, 17, false, alpha);
+      drawGrip(ctx, 109, 276, 68, 17, false, alpha);
+      drawGrip(ctx, 283, 276, 68, 17, false, alpha);
+      drawGrip(ctx, 429, 118, 18, 67, true, alpha * 0.86);
+      drawGrip(ctx, 17, 105, 16, 72, true, alpha * 0.6);
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = "rgba(215,220,210,.34)";
+      ctx.lineWidth = 1;
+      line(ctx, 64, 28, 397, 28);
+      line(ctx, 62, 269, 385, 269);
+      line(ctx, 24, 84, 24, 212);
+      line(ctx, 438, 55, 438, 235);
+      ctx.strokeStyle = "rgba(0,0,0,.75)";
+      line(ctx, 70, 37, 389, 37);
+      line(ctx, 69, 259, 389, 259);
+      ctx.restore();
+
+      var rivets = [
+        [88, 28, 2.3], [177, 28, 2.1], [282, 28, 2.1], [370, 28, 2.3],
+        [83, 267, 2.3], [178, 267, 2.1], [283, 267, 2.1], [379, 267, 2.3],
+        [24, 95, 2.4], [24, 206, 2.4], [437, 87, 2.6], [437, 223, 2.6]
+      ];
+      for (var i = 0; i < rivets.length; i += 1) {
+        drawRivet(ctx, rivets[i][0], rivets[i][1], rivets[i][2], alpha);
+      }
+    }
+
+    function drawScreen(ctx, t, rect) {
+      var sx = rect.w / 462;
+      var sy = rect.h / 300;
+      var lod = smoothstep(0.42, 0.86, t) * clamp(asNumber(this.detail, 1), 0, 1);
+      var turnAlpha = smoothstep(0.02, 0.18, t);
+
+      ctx.save();
+      ctx.translate(rect.x, rect.y);
+      ctx.scale(sx, sy);
+
+      drawScreenBackGlow.call(this, ctx, t);
+
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,.55)";
+      ctx.shadowBlur = 22;
+      ctx.shadowOffsetY = 8;
+      fillPath(ctx, screenShellPath, "rgba(0,0,0,.36)");
+      ctx.restore();
+
+      fillPath(ctx, function() { screenShellPath(ctx); }, (function() {
+        var g = ctx.createLinearGradient(0, 0, 462, 300);
+        g.addColorStop(0, "#3f4441");
+        g.addColorStop(0.09, "#151819");
+        g.addColorStop(0.33, "#242827");
+        g.addColorStop(0.62, "#0b0d0e");
+        g.addColorStop(0.86, "#444844");
+        g.addColorStop(1, "#0d0f10");
+        return g;
+      }()));
+
+      strokePath(ctx, screenShellPath, 8, "#050607", 1);
+      strokePath(ctx, function() { bevelPanelPath(ctx, 11, 14, 439, 272, 24); }, 3, "#6f746e", 0.5 + (0.2 * lod));
+      strokePath(ctx, function() { bevelPanelPath(ctx, 20, 25, 418, 250, 18); }, 3, "#0a0b0c", 1);
+      strokePath(ctx, function() { bevelPanelPath(ctx, 30, 36, 397, 226, 12); }, 1.5, "#8c9189", 0.26 + (0.18 * lod));
+
+      drawGlass.call(this, ctx, t);
+      drawEdgeDetails(ctx, t, Math.max(turnAlpha * 0.2, lod));
+
+      if (t < 0.44) {
+        ctx.save();
+        ctx.globalAlpha = 0.28 * (1 - smoothstep(0.18, 0.44, t));
+        var edge = ctx.createLinearGradient(402, 20, 462, 280);
+        edge.addColorStop(0, "rgba(255,255,245,.3)");
+        edge.addColorStop(0.4, "rgba(0,0,0,.05)");
+        edge.addColorStop(1, "rgba(0,0,0,.42)");
+        ctx.fillStyle = edge;
+        bevelPanelPath(ctx, 398, 20, 58, 260, 16);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      ctx.restore();
+    }
+
+    function setupViewport(ctx, width, height) {
+      var scale = Math.min(width / 512, height / 512);
+      var x = (width - (512 * scale)) / 2;
+      var y = (height - (512 * scale)) / 2;
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+    }
+
+    var ctx = this.context;
+    var width = this.width;
+    var height = this.height;
+    var totalFrames = Math.max(1, asNumber(this.frames, 150));
+    var frame = clamp(asNumber(this.frame, 0), 0, totalFrames);
+    var t = clamp(frame / totalFrames, 0, 1);
+    var rect = screenRect(t);
+
+    ctx.save();
+    ctx.clearRect(0, 0, width, height);
+    setupViewport(ctx, width, height);
+    drawArm.call(this, ctx, t, rect);
+    drawScreen.call(this, ctx, t, rect);
+    ctx.restore();
+  }
+}
+
+q-style q-control-arm-screen-stage-style {
+  q-style-class { q-control-arm-screen-stage }
+  display: block
+  position: relative
+  width: 512px
+  height: 512px
+  background-repeat: no-repeat
+  background-size: 100% 100%
+  background-position: center
+  q-style-painter {
+    background { q-control-arm-screen-painter }
+  }
+}
+
+q-theme q-control-arm-screen-theme {
+  .q-control-arm-screen-stage-primer { q-control-arm-screen-stage-style }
+}
+
+q-component q-control-arm-screen {
+  q-property frame: "0"
+  q-property frames: "150"
+  q-property durationMs: "5000"
+  q-property width: "512px"
+  q-property height: "512px"
+  q-property autoplay: "true"
+  q-property loop: "false"
+  q-property detail: "1"
+  q-property greenAccent: "#1dff39"
+  q-property glassAlpha: "0.95"
+
+  function hostElement() {
+    return this.component || this;
+  }
+
+  function parseBool(value, fallback) {
+    var text = String(value == null ? "" : value).trim().toLowerCase();
+    if (text === "true" || text === "1" || text === "yes") {
+      return true;
+    }
+    if (text === "false" || text === "0" || text === "no") {
+      return false;
+    }
+    return fallback;
+  }
+
+  function asNumber(value, fallback) {
+    var n = Number.parseFloat(String(value == null ? "" : value));
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  function stageElement() {
+    var host = this.hostElement();
+    return host && typeof host.querySelector === "function" ? host.querySelector("[q-control-arm-screen-stage='1']") : null;
+  }
+
+  function painterBackgroundImage() {
+    var stage = this.stageElement();
+    var existing = stage && stage.style ? String(stage.style.backgroundImage || "") : "";
+    if (existing.indexOf("paint(") >= 0) {
+      return existing;
+    }
+    var registry = typeof globalThis !== "undefined" ? globalThis.__qhtmlPainterRegistry : null;
+    if (registry && typeof registry.forEach === "function") {
+      var found = "";
+      registry.forEach(function(value, key) {
+        var name = String(key || "");
+        if (!found && name.indexOf("q-control-arm-screen-painter") >= 0) {
+          found = "paint(" + name + ")";
+        }
+      });
+      if (found) {
+        return found;
+      }
+    }
+    return "paint(q-control-arm-screen-painter)";
+  }
+
+  function propertyMap() {
+    var host = this.hostElement();
+    return {
+      frame: host.frame,
+      frames: host.frames,
+      detail: host.detail,
+      greenAccent: host.greenAccent,
+      glassAlpha: host.glassAlpha
+    };
+  }
+
+  function applyPainterProperties() {
+    var host = this.hostElement();
+    var stage = this.stageElement();
+    if (!stage || !stage.style) {
+      return;
+    }
+    var props = this.propertyMap();
+    var names = Object.keys(props);
+    for (var i = 0; i < names.length; i += 1) {
+      var name = names[i];
+      stage.style.setProperty("--" + name, String(props[name] == null ? "" : props[name]));
+    }
+    stage.style.setProperty("width", String(host.width || "512px"));
+    stage.style.setProperty("height", String(host.height || "512px"));
+    stage.style.setProperty("background-image", this.painterBackgroundImage());
+    stage.style.setProperty("background-color", "transparent");
+    stage.style.setProperty("background-repeat", "no-repeat");
+    stage.style.setProperty("background-size", "100% 100%");
+    stage.style.setProperty("background-position", "center");
+  }
+
+  function setFrame(value) {
+    var host = this.hostElement();
+    var total = Math.max(1, this.asNumber(host.frames, 150));
+    var frame = Math.max(0, Math.min(total, this.asNumber(value, 0)));
+    host.frame = String(frame);
+    this.applyPainterProperties();
+  }
+
+  function stop() {
+    var host = this.hostElement();
+    host.__qControlArmScreenRun = (Number(host.__qControlArmScreenRun || 0) + 1);
+  }
+
+  function start() {
+    var host = this.hostElement();
+    var component = this;
+    var total = Math.max(1, component.asNumber(host.frames, 150));
+    var duration = Math.max(16, component.asNumber(host.durationMs, 5000));
+    var startFrame = Math.max(0, Math.min(total, component.asNumber(host.frame, 0)));
+    var token = Number(host.__qControlArmScreenRun || 0) + 1;
+    host.__qControlArmScreenRun = token;
+    var startAt = performance.now() - ((startFrame / total) * duration);
+
+    function step(now) {
+      if (Number(host.__qControlArmScreenRun || 0) !== token) {
+        return;
+      }
+      var elapsed = Math.max(0, now - startAt);
+      var frame = Math.min(total, (elapsed / duration) * total);
+      host.frame = String(frame);
+      component.applyPainterProperties();
+      if (frame < total) {
+        requestAnimationFrame(step);
+        return;
+      }
+      host.frame = String(total);
+      component.applyPainterProperties();
+      if (component.parseBool(host.loop, false)) {
+        host.frame = "0";
+        component.start();
+      }
+    }
+
+    requestAnimationFrame(step);
+  }
+
+  function replay() {
+    this.setFrame(0);
+    this.start();
+  }
+
+  onready {
+    this.component.applyPainterProperties();
+    if (this.component.parseBool(this.component.hostElement().autoplay, true)) {
+      this.component.start();
+    }
+  }
+
+  onframechanged { this.component.applyPainterProperties(); }
+  onframeschanged { this.component.applyPainterProperties(); }
+  ondurationMschanged { this.component.applyPainterProperties(); }
+  onwidthchanged { this.component.applyPainterProperties(); }
+  onheightchanged { this.component.applyPainterProperties(); }
+  ondetailchanged { this.component.applyPainterProperties(); }
+  ongreenAccentchanged { this.component.applyPainterProperties(); }
+  onglassAlphachanged { this.component.applyPainterProperties(); }
+
+  q-control-arm-screen-theme {
+    q-control-arm-screen-stage-style,div.q-control-arm-screen-stage-primer {
+      q-control-arm-screen-stage: "1"
+      aria-label: "animated mechanical control arm screen"
+      text { }
+    }
+  }
+}

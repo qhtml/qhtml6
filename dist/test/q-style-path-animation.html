@@ -10,21 +10,72 @@
     body {
       margin: 0;
       min-height: 100vh;
-      background: #f8fafc;
+      background: #0f172a;
+      color: #e2e8f0;
       font-family: system-ui, sans-serif;
+    }
+
+    q-html {
+      display: block;
+      min-height: 100vh;
     }
   </style>
 </head>
 <body data-status="pending">
   <q-html>
-q-style mover {
-  width: 40px;
-  height: 40px;
-  background: red;
+q-style path-blue {
+  width: 42px;
+  height: 42px;
+  background: #1d4ed8;
+  color: #ffffff;
+  borderRadius: 999px;
+  display: grid;
+  placeItems: center;
+  fontWeight: 800;
 
   q-style-path-animation {
-    path: "M 50 50 C 400 50, 50 300, 400 300"
-    duration: 1200
+    path: "M 50 90 C 280 20, 160 260, 430 180"
+    duration: 1800
+    easing: "ease-in-out"
+    anchorPoint: "center"
+    rotation: "auto"
+    repeat: "true"
+  }
+}
+
+q-style path-green {
+  width: 54px;
+  height: 54px;
+  background: #0f766e;
+  color: #ffffff;
+  borderRadius: 0.5rem;
+  display: grid;
+  placeItems: center;
+  fontWeight: 800;
+
+  q-style-path-animation {
+    path: "M 70 260 C 180 120, 340 360, 520 90"
+    duration: 2400
+    easing: "linear"
+    anchorPoint: "center"
+    rotation: "auto"
+    repeat: "true"
+  }
+}
+
+q-style path-orange {
+  width: 46px;
+  height: 46px;
+  background: #d97706;
+  color: #ffffff;
+  borderRadius: 0px;
+  display: grid;
+  placeItems: center;
+  fontWeight: 800;
+
+  q-style-path-animation {
+    path: "M 120 120 C 500 120, 80 420, 580 420"
+    duration: 3000
     easing: "ease-in-out"
     anchorPoint: "center"
     rotation: "auto"
@@ -33,37 +84,70 @@ q-style mover {
 }
 
 q-theme motion-theme {
-  .box { mover }
+  .path-blue { path-blue }
+  .path-green { path-green }
+  .path-orange { path-orange }
 }
 
 motion-theme {
-  div#path-box.box {
-    text { path }
+  section.path-animation-stage {
+    style { position: relative; min-height: 100vh; overflow: hidden; padding: 1.25rem; box-sizing: border-box; }
+
+    header {
+      style { position: relative; z-index: 2; max-width: 48rem; margin-bottom: 1rem; }
+      h1 { text { q-style-path-animation } }
+      p {
+        style { color: #cbd5e1; line-height: 1.5; }
+        text { Three q-style path animations inject motion-path inline declarations and generated keyframes. }
+      }
+    }
+
+    div#path-box-a.path-blue {
+      text { A }
+    }
+
+    div#path-box-b.path-green {
+      text { B }
+    }
+
+    div#path-box-c.path-orange {
+      text { C }
+    }
   }
 }
   </q-html>
   <script>
     setTimeout(function checkPathAnimation() {
-      var box = document.getElementById("path-box");
-      var keyframes = document.querySelector("style[data-qhtml-path-animation]");
-      var styleText = box ? String(box.getAttribute("style") || "") : "";
+      var boxes = [
+        document.getElementById("path-box-a"),
+        document.getElementById("path-box-b"),
+        document.getElementById("path-box-c")
+      ];
+      var keyframes = Array.prototype.slice.call(document.querySelectorAll("style[data-qhtml-path-animation]"));
+      var allHaveMotionPath = boxes.every(function(box) {
+        var styleText = box ? String(box.getAttribute("style") || "") : "";
+        return !!(
+          box &&
+          /offset-path:\s*path/.test(styleText) &&
+          /offset-distance:\s*0%/.test(styleText) &&
+          /offset-anchor:\s*center/.test(styleText) &&
+          /offset-rotate:\s*auto/.test(styleText) &&
+          /animation:/.test(styleText) &&
+          /infinite/.test(styleText)
+        );
+      });
+      var keyframeText = keyframes.map(function(style) {
+        return String(style.textContent || "");
+      }).join("\n");
       var ok = !!(
-        box &&
-        keyframes &&
-        /width:\s*40px/.test(styleText) &&
-        /height:\s*40px/.test(styleText) &&
-        /offset-path:\s*path/.test(styleText) &&
-        /offset-distance:\s*0%/.test(styleText) &&
-        /offset-anchor:\s*center/.test(styleText) &&
-        /offset-rotate:\s*auto/.test(styleText) &&
-        /animation:/.test(styleText) &&
-        /1200ms/.test(styleText) &&
-        /ease-in-out/.test(styleText) &&
-        /infinite/.test(styleText) &&
-        /@keyframes/.test(keyframes.textContent || "")
+        boxes.every(Boolean) &&
+        allHaveMotionPath &&
+        keyframes.length >= 1 &&
+        /@keyframes/.test(keyframeText) &&
+        /offset-distance:\s*100%/.test(keyframeText)
       );
       document.body.dataset.status = ok ? "pass" : "fail";
-    }, 80);
+    }, 120);
   </script>
 </body>
 </html>

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML Behavior Animation Groups Test</title>
+  <script src="qhtml.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+
+    q-html {
+      display: block;
+      min-height: 100vh;
+    }
+  </style>
+</head>
+<body data-status="pending">
+  <q-html>
+q-component parallel-size-behavior-box {
+  q-property widthValue: "80px"
+  q-property heightValue: "40px"
+
+  q-bind-css { this.component.widthValue this.component.style.width }
+  q-bind-css { this.component.heightValue this.component.style.height }
+
+  behavior on widthValue {
+    q-parallel-animation-group {
+      onended {
+        this.component.groupEnded = Number(this.component.groupEnded || 0) + 1;
+      }
+
+      q-property-animation {
+        duration: 900
+        easing: "linear"
+
+        onstepped {
+          this.component.stepCount = Number(this.component.stepCount || 0) + 1;
+        }
+      }
+
+      q-property-animation {
+        target: "this.component.heightValue"
+        duration: 900
+        easing: "linear"
+        from: "40px"
+        to: "112px"
+      }
+    }
+  }
+
+  style { display: grid; place-items: center; width: 80px; height: 40px; background: #1d4ed8; color: #ffffff; border-radius: 0.5rem; font-weight: 800; margin-bottom: 0.75rem; }
+  text { parallel size }
+
+  onready {
+    var host = this.component;
+    setTimeout(function changeParallelSize() {
+      host.widthValue = "280px";
+    }, 80);
+  }
+}
+
+q-component parallel-position-behavior-box {
+  q-property leftValue: "20px"
+  q-property topValue: "320px"
+
+  q-bind-css { this.component.leftValue this.component.style.left }
+  q-bind-css { this.component.topValue this.component.style.top }
+
+  behavior on leftValue {
+    q-parallel-animation-group {
+      onended {
+        this.component.groupEnded = Number(this.component.groupEnded || 0) + 1;
+      }
+
+      q-property-animation {
+        duration: 1000
+        easing: "ease-in-out"
+
+        onstepped {
+          this.component.stepCount = Number(this.component.stepCount || 0) + 1;
+        }
+      }
+
+      q-property-animation {
+        target: "this.component.topValue"
+        duration: 1000
+        easing: "ease-in-out"
+        from: "320px"
+        to: "480px"
+      }
+    }
+  }
+
+  style { position: absolute; left: 20px; top: 320px; width: 72px; height: 72px; display: grid; place-items: center; background: #7c3aed; color: #ffffff; border-radius: 999px; font-weight: 800; box-shadow: 0 18px 40px rgba(0,0,0,.28); }
+  text { parallel xy }
+
+  onready {
+    var host = this.component;
+    setTimeout(function changeParallelPosition() {
+      host.leftValue = "520px";
+    }, 80);
+  }
+}
+
+q-component sequential-size-behavior-box {
+  q-property widthValue: "90px"
+  q-property heightValue: "36px"
+
+  q-bind-css { this.component.widthValue this.component.style.width }
+  q-bind-css { this.component.heightValue this.component.style.height }
+
+  behavior on widthValue {
+    q-sequential-animation-group {
+      onended {
+        this.component.groupEnded = Number(this.component.groupEnded || 0) + 1;
+      }
+
+      q-property-animation {
+        duration: 700
+        easing: "linear"
+
+        onstepped {
+          this.component.stepCount = Number(this.component.stepCount || 0) + 1;
+        }
+      }
+
+      q-property-animation {
+        target: "this.component.heightValue"
+        duration: 700
+        easing: "linear"
+        from: "36px"
+        to: "104px"
+      }
+    }
+  }
+
+  style { display: grid; place-items: center; width: 90px; height: 36px; background: #0f766e; color: #ffffff; border-radius: 0.5rem; font-weight: 800; margin-bottom: 0.75rem; }
+  text { sequential size }
+
+  onready {
+    var host = this.component;
+    setTimeout(function changeSequentialSize() {
+      host.widthValue = "260px";
+    }, 80);
+  }
+}
+
+q-component sequential-shape-behavior-box {
+  q-property opacityValue: 0.25
+  q-property radiusValue: "0px"
+
+  q-bind-css { this.component.opacityValue this.component.style.opacity }
+  q-bind-css { this.component.radiusValue this.component.style.borderRadius }
+
+  behavior on opacityValue {
+    q-sequential-animation-group {
+      onended {
+        this.component.groupEnded = Number(this.component.groupEnded || 0) + 1;
+      }
+
+      q-property-animation {
+        duration: 700
+        easing: "linear"
+
+        onstepped {
+          this.component.stepCount = Number(this.component.stepCount || 0) + 1;
+        }
+      }
+
+      q-property-animation {
+        target: "this.component.radiusValue"
+        duration: 700
+        easing: "ease-in-out"
+        from: "0px"
+        to: "42px"
+      }
+    }
+  }
+
+  style { display: grid; place-items: center; width: 170px; height: 54px; background: #d97706; color: #ffffff; opacity: 0.25; border-radius: 0px; font-weight: 800; }
+  text { sequential shape }
+
+  onready {
+    var host = this.component;
+    setTimeout(function changeSequentialShape() {
+      host.opacityValue = 1;
+    }, 80);
+  }
+}
+
+section.behavior-animation-group-stage {
+  style { position: relative; min-height: 100vh; overflow: hidden; padding: 1.25rem; box-sizing: border-box; }
+
+  header {
+    style { position: relative; z-index: 2; max-width: 48rem; margin-bottom: 1rem; }
+    h1 { text { behavior animation groups } }
+    p {
+      style { color: #cbd5e1; line-height: 1.5; }
+      text { Four behavior-driven animation group cases exercise parallel, sequential, alternate target, and per-step hook behavior. }
+    }
+  }
+
+  parallel-size-behavior-box parallelSizeBox { }
+  sequential-size-behavior-box sequentialSizeBox { }
+  sequential-shape-behavior-box sequentialShapeBox { }
+  parallel-position-behavior-box parallelPositionBox { }
+}
+  </q-html>
+  <script>
+    setTimeout(function runBehaviorAnimationGroupTest() {
+      var parallelSize = document.querySelector("parallel-size-behavior-box");
+      var parallelPosition = document.querySelector("parallel-position-behavior-box");
+      var sequentialSize = document.querySelector("sequential-size-behavior-box");
+      var sequentialShape = document.querySelector("sequential-shape-behavior-box");
+      var boxes = [parallelSize, parallelPosition, sequentialSize, sequentialShape];
+      var ok = !!(
+        boxes.every(Boolean) &&
+        parallelSize.style.width === "280px" &&
+        parallelSize.style.height === "112px" &&
+        parallelPosition.style.left === "520px" &&
+        parallelPosition.style.top === "480px" &&
+        sequentialSize.style.width === "260px" &&
+        sequentialSize.style.height === "104px" &&
+        Number(sequentialShape.style.opacity || 0) === 1 &&
+        sequentialShape.style.borderRadius === "42px" &&
+        boxes.every(function(box) { return Number(box.stepCount || 0) > 0; }) &&
+        boxes.every(function(box) { return Number(box.groupEnded || 0) >= 1; })
+      );
+      document.body.dataset.status = ok ? "pass" : "fail";
+    }, 2100);
+  </script>
+</body>
+</html>

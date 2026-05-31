@@ -1,5 +1,14 @@
 # QHTML.js Change Log
 
+## Whats New in v6.9.8
+
+- Bumped the release line to `6.9.8`.
+- Added grouped behavior animation support, including behavior-compatible `q-property-animation`, `q-parallel-animation-group`, and `q-sequential-animation-group`.
+- Added q-vid playback support with `.qvid` tooling, sample HUD assets, `q-vid-source`, `q-vid-painter`, and mediated `q-vid-player` canvas playback.
+- Added HUD/control-arm visual components and manual visual tests for q-vid playback and animation timing.
+- Added the `q-particle-emitter` QHTML component wrapper and refreshed particle visual tests/documentation.
+- Added documentation for the q-vid/HUD component bundle in `doc/16-q-vid-hud/`.
+
 ## Whats New in v6.9.2
 
 - Bumped the release line to `6.9.2` and refreshed the HUD documentation index assets.
