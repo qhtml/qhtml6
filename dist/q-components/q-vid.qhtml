@@ -880,16 +880,6 @@ q-component q-vid-painter {
 
   q-connect { renderTimer.timeout this.component.tick }
 
-  function getRenderTimer() {
-    if (typeof renderTimer !== "undefined" && renderTimer) {
-      return renderTimer;
-    }
-    if (this.component.renderTimer) {
-      return this.component.renderTimer;
-    }
-    return null;
-  }
-
   function normalizeBoolean(value, fallbackValue) {
     if (value === true || value === false) {
       return value;
@@ -971,25 +961,7 @@ q-component q-vid-painter {
   }
 
   function syncTimerInterval() {
-    var timer = this.component.getRenderTimer();
-    if (timer) {
-      timer.interval = this.component.positiveNumber(this.component.frameDuration, 40);
-    }
-  }
-
-  function stopFallbackTimer() {
-    if (this.component.__qvidPainterFallbackTimer) {
-      clearInterval(this.component.__qvidPainterFallbackTimer);
-      this.component.__qvidPainterFallbackTimer = 0;
-    }
-  }
-
-  function startFallbackTimer() {
-    var host = this.component;
-    host.stopFallbackTimer();
-    host.__qvidPainterFallbackTimer = setInterval(function qvidPainterFallbackTick() {
-      host.tick();
-    }, host.positiveNumber(host.frameDuration, 40));
+    renderTimer.interval = this.component.positiveNumber(this.component.frameDuration, 40);
   }
 
   function tick() {
@@ -1038,26 +1010,21 @@ q-component q-vid-painter {
     this.component.__qvidPainterWaiting = false;
     this.component.frameId = this.component.clampFrame(this.component.frameId);
     this.component.syncTimerInterval();
-    var timer = this.component.getRenderTimer();
-    if (timer && typeof timer.start === "function") {
-      timer.start();
-    }
-    this.component.startFallbackTimer();
+    renderTimer.start();
     this.component.started();
     return true;
   }
 
   function stop() {
+    var wasRunning = this.component.normalizeBoolean(this.component.running, false);
     this.component.__qvidPainterInternalRunningWrite = true;
     this.component.running = false;
     this.component.__qvidPainterInternalRunningWrite = false;
     this.component.__qvidPainterWaiting = false;
-    var timer = this.component.getRenderTimer();
-    if (timer && typeof timer.stop === "function") {
-      timer.stop();
+    renderTimer.stop();
+    if (wasRunning) {
+      this.component.stopped();
     }
-    this.component.stopFallbackTimer();
-    this.component.stopped();
     return true;
   }
 
@@ -1065,7 +1032,6 @@ q-component q-vid-painter {
     this.component.style.display = "none";
     this.component.__qvidPainterInternalRunningWrite = false;
     this.component.__qvidPainterWaiting = false;
-    this.component.__qvidPainterFallbackTimer = 0;
     this.component.syncTimerInterval();
   }
 
@@ -1083,11 +1049,7 @@ q-component q-vid-painter {
   onframeDurationChanged(value) {
     this.component.syncTimerInterval();
     if (this.component.normalizeBoolean(this.component.running, false)) {
-      var timer = this.component.getRenderTimer();
-      if (timer && typeof timer.restart === "function") {
-        timer.restart();
-      }
-      this.component.startFallbackTimer();
+      renderTimer.restart();
     }
   }
 
@@ -1269,8 +1231,11 @@ q-component q-vid-player {
     canvas.style.objectFit = String(host.fit || "contain");
   }
 
-  function stopClock() {
+  function stopClock(silent) {
     var videoPainter = this.component.getPainter();
+    if (silent) {
+      this.component.__qvidSuppressNextPainterStopped = true;
+    }
     videoPainter.stop();
   }
 
@@ -1309,7 +1274,7 @@ q-component q-vid-player {
     if (!asset || !canvas || !context) {
       return Promise.reject(new Error("q-vid-player cannot install asset without a canvas context."));
     }
-    host.stopClock();
+    host.stopClock(true);
     host.__qvidAsset = asset;
     host.__qvidUrl = host.normalizeSourceUrl(asset.src || host.src);
     host.__qvidRenderToken = Number(host.__qvidRenderToken || 0) + 1;
@@ -1550,6 +1515,10 @@ q-component q-vid-player {
   }
 
   function handlePainterStopped() {
+    if (this.component.__qvidSuppressNextPainterStopped) {
+      this.component.__qvidSuppressNextPainterStopped = false;
+      return;
+    }
     if (!this.component.normalizeBoolean(this.component.running, false)) {
       return;
     }
@@ -1567,6 +1536,7 @@ q-component q-vid-player {
     this.component.__qvidRenderToken = 0;
     this.component.__qvidInternalFrameWrite = false;
     this.component.__qvidInternalRunningWrite = false;
+    this.component.__qvidSuppressNextPainterStopped = false;
     this.component.applyResponsiveSize();
     this.component.syncPainterState();
     if (this.component.src) {
@@ -1579,7 +1549,7 @@ q-component q-vid-player {
   }
 
   onsrcChanged(value) {
-    this.component.stopClock();
+    this.component.stopClock(true);
     if (value) {
       this.component.load(value).catch(function() {});
     }

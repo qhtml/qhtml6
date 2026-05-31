@@ -38,16 +38,6 @@ q-component q-vid-player {
     return canvas ? canvas.getContext("2d", { willReadFrequently: true }) : null;
   }
 
-  function getFrameTimer() {
-    if (typeof qvidFrameTimer !== "undefined" && qvidFrameTimer) {
-      return qvidFrameTimer;
-    }
-    if (this.component.qvidFrameTimer) {
-      return this.component.qvidFrameTimer;
-    }
-    return null;
-  }
-
   function normalizeBoolean(value, fallbackValue) {
     if (value === true || value === false) {
       return value;
@@ -597,39 +587,16 @@ q-component q-vid-player {
 
   function updateTimerInterval() {
     var interval = this.component.normalizePositiveNumber(this.component.frameDuration, 30);
-    var timer = this.component.getFrameTimer();
-    if (timer) {
-      timer.interval = interval;
-    }
+    qvidFrameTimer.interval = interval;
   }
 
   function startClock() {
     this.component.updateTimerInterval();
-    var timer = this.component.getFrameTimer();
-    if (timer && typeof timer.start === "function") {
-      timer.start();
-      return;
-    }
-    this.component.stopFallbackTimer();
-    var host = this.component;
-    host.__qvidFallbackTimer = setInterval(function runQVidFallbackTimer() {
-      host.step();
-    }, Math.max(1, Number(host.frameDuration || 30)));
-  }
-
-  function stopFallbackTimer() {
-    if (this.component.__qvidFallbackTimer) {
-      clearInterval(this.component.__qvidFallbackTimer);
-      this.component.__qvidFallbackTimer = 0;
-    }
+    qvidFrameTimer.start();
   }
 
   function stopClock() {
-    var timer = this.component.getFrameTimer();
-    if (timer && typeof timer.stop === "function") {
-      timer.stop();
-    }
-    this.component.stopFallbackTimer();
+    qvidFrameTimer.stop();
   }
 
   function start() {
@@ -729,7 +696,7 @@ q-component q-vid-player {
 
   onframeDurationChanged(value) {
     this.component.updateTimerInterval();
-    if (this.component.__qvidFallbackTimer) {
+    if (this.component.__qvidRunning) {
       this.component.startClock();
     }
   }
