@@ -1112,14 +1112,6 @@ q-component q-vid-player {
     return canvas ? canvas.getContext("2d", { willReadFrequently: false }) : null;
   }
 
-  function source() {
-    return vidSource;
-  }
-
-  function getPainter() {
-    return painter;
-  }
-
   function normalizeBoolean(value, fallbackValue) {
     if (value === true || value === false) {
       return value;
@@ -1193,17 +1185,16 @@ q-component q-vid-player {
 
   function syncPainterState() {
     var host = this.component;
-    var videoPainter = host.getPainter();
     var asset = host.__qvidAsset;
-    videoPainter.url = String(host.__qvidUrl || host.src || "");
-    videoPainter.frameDuration = host.positiveNumber(host.frameDuration, 40);
-    videoPainter.frameCount = asset ? Number(asset.frameCount || 1) : 1;
-    videoPainter.startFrame = host.resolveStartFrame();
-    videoPainter.endFrame = host.resolveEndFrame();
-    videoPainter.currentFrame = host.clampFrame(host.currentFrame);
-    videoPainter.frameId = host.clampFrame(host.currentFrame);
-    videoPainter.reverse = host.reverse;
-    videoPainter.repeat = host.repeat;
+    painter.url = String(host.__qvidUrl || host.src || "");
+    painter.frameDuration = host.positiveNumber(host.frameDuration, 40);
+    painter.frameCount = asset ? Number(asset.frameCount || 1) : 1;
+    painter.startFrame = host.resolveStartFrame();
+    painter.endFrame = host.resolveEndFrame();
+    painter.currentFrame = host.clampFrame(host.currentFrame);
+    painter.frameId = host.clampFrame(host.currentFrame);
+    painter.reverse = host.reverse;
+    painter.repeat = host.repeat;
   }
 
   function applyResponsiveSize() {
@@ -1232,19 +1223,17 @@ q-component q-vid-player {
   }
 
   function stopClock(silent) {
-    var videoPainter = this.component.getPainter();
     if (silent) {
       this.component.__qvidSuppressNextPainterStopped = true;
     }
-    videoPainter.stop();
+    painter.stop();
   }
 
   function startClock() {
     var host = this.component;
-    var videoPainter = host.getPainter();
     if (host.__qvidAsset) {
       host.syncPainterState();
-      videoPainter.start();
+      painter.start();
     }
   }
 
@@ -1263,8 +1252,7 @@ q-component q-vid-player {
   }
 
   function normalizeSourceUrl(srcValue) {
-    var source = this.component.source();
-    return source.normalizeUrl(srcValue);
+    return vidSource.normalizeUrl(srcValue);
   }
 
   function installAsset(asset) {
@@ -1317,7 +1305,6 @@ q-component q-vid-player {
 
   function load(srcValue) {
     var host = this.component;
-    var source = host.source();
     var url = String(srcValue == null ? host.src : srcValue || "").trim();
     if (!url) {
       return Promise.resolve(null);
@@ -1326,8 +1313,8 @@ q-component q-vid-player {
       return host.__qvidLoadPromise;
     }
     host.__qvidLoadingSrc = url;
-    source.src = url;
-    host.__qvidLoadPromise = source.load(url).then(function(asset) {
+    vidSource.src = url;
+    host.__qvidLoadPromise = vidSource.load(url).then(function(asset) {
       return host.installAsset(asset);
     }).catch(function(error) {
       host.__qvidLoadingSrc = "";
@@ -1344,39 +1331,38 @@ q-component q-vid-player {
   function requestFrame(frameIndex) {
     var host = this.component;
     var asset = host.__qvidAsset;
-    var videoPainter = host.getPainter();
     if (!asset) {
       return Promise.resolve();
     }
     var target = host.clampFrame(frameIndex);
     host.syncPainterState();
-    videoPainter.frameId = target;
-    videoPainter.currentFrame = target;
-    videoPainter.getReadyState(String(videoPainter.url || host.__qvidUrl || host.src || ""), target);
+    painter.frameId = target;
+    painter.currentFrame = target;
+    painter.getReadyState(String(painter.url || host.__qvidUrl || host.src || ""), target);
     return Promise.resolve(target);
   }
 
   function handlePainterReadyStateRequest(url, frameId) {
-    this.component.source().isFrameReady(url, frameId);
+    vidSource.isFrameReady(url, frameId);
   }
 
   function handlePainterFrameDataRequested(url, frameId) {
     var host = this.component;
-    host.source().requestFrameData(url, frameId).catch(function(error) {
+    vidSource.requestFrameData(url, frameId).catch(function(error) {
       host.notifyError(error && error.message ? error.message : String(error));
     });
   }
 
   function handleSourceFrameReady(url, frameId) {
-    this.component.getPainter().requestFrameData(url, frameId);
+    painter.requestFrameData(url, frameId);
   }
 
   function handleSourceFrameData(url, frameId, frameBytes) {
-    this.component.getPainter().acceptFrameData(url, frameId, frameBytes);
+    painter.acceptFrameData(url, frameId, frameBytes);
   }
 
   function handleSourceFrameNotReady(url, frameId) {
-    this.component.getPainter().skipFrame(url, frameId);
+    painter.skipFrame(url, frameId);
   }
 
   function paintFrame(url, frameId, frameBytes) {
@@ -1389,8 +1375,7 @@ q-component q-vid-player {
     host.__qvidImageData.data.set(bytes);
     context.putImageData(host.__qvidImageData, 0, 0);
     var actualFrame = host.setCurrentFrameInternal(frameId);
-    var videoPainter = host.getPainter();
-    videoPainter.currentFrame = actualFrame;
+    painter.currentFrame = actualFrame;
     host.stepped(actualFrame);
     host.dispatchEvent(new CustomEvent("q-vid-frame", {
       detail: { currentFrame: actualFrame },
@@ -1574,10 +1559,7 @@ q-component q-vid-player {
   }
 
   onframeDurationChanged(value) {
-    var videoPainter = this.component.getPainter();
-    if (videoPainter) {
-      videoPainter.frameDuration = this.component.positiveNumber(value, 40);
-    }
+    painter.frameDuration = this.component.positiveNumber(value, 40);
   }
 
   onscaleChanged(value) {
