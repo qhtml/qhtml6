@@ -242,16 +242,25 @@ div.visual-shell {
     button {
       id: "qvid-start-button"
       type: "button"
+      onclick {
+        document.querySelector("q-vid-player").start();
+      }
       text { Start }
     }
     button {
       id: "qvid-stop-button"
       type: "button"
+      onclick {
+        document.querySelector("q-vid-player").stop();
+      }
       text { Stop }
     }
     button {
       id: "qvid-step-button"
       type: "button"
+      onclick {
+        document.querySelector("q-vid-player").step();
+      }
       text { Step }
     }
     button {

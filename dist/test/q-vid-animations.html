@@ -87,7 +87,6 @@
     </header>
     <section class="test-stage">
 <q-html>
-q-import { q-components.qhtml }
 q-import { ./q-components/q-animation.qhtml }
 q-import { ./q-components/q-hud.qhtml }
 q-import { ./q-components/q-vid-player.qhtml }
@@ -221,45 +220,51 @@ q-component reveal-tech-panel {
   }
 }
 
-hudTheme {
-  div#stage {
-    div#vid {
-      q-vid-player demoVid {
-        src: "./assets/hud-extend.qvid"
-        frameDuration: 20
-        scale: 3.2
-        startFrame: 0
-        endFrame: 125
-        repeat: false
-        reverse: false
-        onstepped(frame) {
-        console.log(frame)
-          }
-          oncurrentFrameChanged {
-            console.log(this.component.currentFrame)
-          }
+q-component q-vid-animation-stage {
+  q-timer revealDelay {
+    interval: 1200
+    repeat: false
+    running: false
+    ontimeout {
+      hudPanel.reveal();
+    }
+  }
+
+  function playSequence() {
+    this.querySelector("q-tech-button").style.opacity = 0;
+    demoVid.stop();
+    revealDelay.restart();
+    demoVid.start();
+  }
+
+  hudTheme {
+    div#stage {
+      div#vid {
+        q-vid-player demoVid {
+          src: "./assets/hud-extend.qvid"
+          frameDuration: 20
+          scale: 3.2
+          startFrame: 0
+          endFrame: 125
+          repeat: false
+          reverse: false
         }
       }
-    }
 
-    reveal-tech-panel#panel hudPanel { }
+      reveal-tech-panel#panel hudPanel { }
 
-    q-tech-button {
-      onclick {
-         this.component.style.opacity = 0;
-           demoVid.stop();
+      q-tech-button {
+        onclick {
+          this.closest("q-vid-animation-stage").playSequence();
+        }
 
-        setTimeout(function() {  document.querySelector("reveal-tech-panel").reveal(); }, 20 * 60)
-
-   demoVid.start();
-
-
+        text { Click here }
       }
-
-      text { Click here }
     }
   }
 }
+
+q-vid-animation-stage { }
 
 </q-html>
     </section>
