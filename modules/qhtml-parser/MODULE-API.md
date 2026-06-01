@@ -122,6 +122,10 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - a target may declare only one behavior per normalized property name
       - `NumberAnimation` config accepts `duration`, `easing`, `from`, `to`, and `running`
       - behavior animation configs preserve nested animation-group children plus animation hook blocks such as `onstepped { ... }`
+    - script actions:
+      - `q-script-action { ... }` parses as a `q-script-action` element with the raw JavaScript block assigned to `scriptBody`
+      - script actions are intended for `q-parallel-animation-group` / `q-sequential-animation-group` workflows and may also appear as normal content
+      - `q-script-action` is distinct from `q-script`; it does not preprocess-replace source text and is executed by the runtime component when the action starts
     - layout keywords:
       - `q-layout`, `q-row`, and `q-col` parse as framework layout element nodes, not component invocations
       - layout nodes store `meta.__qhtmlLayoutKeyword = true` and `meta.__qhtmlLayoutRole`

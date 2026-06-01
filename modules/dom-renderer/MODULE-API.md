@@ -163,7 +163,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - unresolved references are coerced to empty string.
   - unresolved/overwrite warnings are emitted only when `q-logger { q-property }` is enabled in scope.
 - `q-component ... extends ... extends ...` chains are resolved at render time:
-  - inherited properties/methods/signals/aliases/lifecycle hooks are merged base→child.
+  - inherited properties/methods/signals/aliases/timers/lifecycle hooks are merged base→child.
   - multiple bases are merged in declaration order (`extends baseA extends baseB`, then child).
   - child definitions override inherited entries with the same name.
   - template nodes/children from all inherited components are included (base declarations first, child last).

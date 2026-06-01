@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.9.8
+# QHTML.js v6.9.9
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,9 +12,10 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v6.9.8
+## Whats New in v6.9.9
 
-- Bumped the release line to `6.9.8`.
+- Bumped the release line to `6.9.9`.
+- Added `q-script-action { ... }` for scoped JavaScript actions that can run standalone or participate in sequential and parallel animation groups.
 - Added QML-style `behavior on <property>` with `NumberAnimation` as a property-write interceptor.
 - Added behavior-aware property writes through `QHtml.qSet()` and bypassed animation-frame commits so animations do not recursively trigger themselves.
 - Expanded dimensional animation support so `px`, `%`, `vh`, and other matching CSS units interpolate while intermediate values are mirrored as CSS-valid property strings.
@@ -218,6 +219,29 @@ q-component grouped-panel {
 ```
 
 Inside a behavior, a `q-property-animation` without `target`, `from`, or `to` defaults to the intercepted property, the current live value, and the requested value. `q-parallel-animation-group` starts nested animations together; `q-sequential-animation-group` starts each nested animation after the previous one ends.
+
+Animation groups can also run scoped script actions:
+
+```qhtml
+q-component scripted-panel {
+  q-property status: "idle"
+
+  q-sequential-animation-group flow {
+    q-property-animation {
+      target: "this.component.status"
+      from: "idle"
+      to: "animating"
+      duration: 250
+    }
+
+    q-script-action {
+      this.closest("scripted-panel").status = "script complete";
+    }
+  }
+}
+```
+
+`q-script-action { ... }` is treated as an animation item. In a sequential group it completes before the next animation starts; in a parallel group it runs alongside the other child animations. Outside a group, it autoruns when its DOM element is created. If the script returns a Promise, the action ends after the Promise settles.
 
 Use `q-bind-css` inside a component when the property can be projected directly to a writable CSS reference:
 

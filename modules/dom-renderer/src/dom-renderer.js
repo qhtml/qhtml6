@@ -2401,6 +2401,7 @@
       aliasDeclarations: [],
       varDeclarations: [],
       switchDeclarations: [],
+      qTimerDefinitions: [],
       wasmConfig: null,
       lifecycleScripts: [],
       attributes: {},
@@ -2417,6 +2418,7 @@
     const aliasIndex = new Map();
     const varIndex = new Map();
     const switchIndex = new Map();
+    const qTimerIndex = new Map();
     const lifecycleIndex = new Map();
     const behaviorIndex = new Map();
     const cssBindingIndex = new Map();
@@ -2476,6 +2478,25 @@
       mergeNamedEntries(merged.aliasDeclarations, node.aliasDeclarations, aliasIndex);
       mergeNamedEntries(merged.varDeclarations, node.varDeclarations, varIndex);
       mergeNamedEntries(merged.switchDeclarations, node.switchDeclarations, switchIndex);
+      const timerDefinitions = Array.isArray(node.qTimerDefinitions) ? node.qTimerDefinitions : [];
+      for (let qti = 0; qti < timerDefinitions.length; qti += 1) {
+        const timerDefinition = timerDefinitions[qti];
+        if (!timerDefinition || typeof timerDefinition !== "object") {
+          continue;
+        }
+        const timerName = normalizeComponentKey(timerDefinition.timerId || timerDefinition.name || timerDefinition.id);
+        const clonedTimerDefinition = Object.assign({}, timerDefinition);
+        if (!timerName) {
+          merged.qTimerDefinitions.push(clonedTimerDefinition);
+          continue;
+        }
+        if (qTimerIndex.has(timerName)) {
+          merged.qTimerDefinitions[qTimerIndex.get(timerName)] = clonedTimerDefinition;
+        } else {
+          qTimerIndex.set(timerName, merged.qTimerDefinitions.length);
+          merged.qTimerDefinitions.push(clonedTimerDefinition);
+        }
+      }
 
       if (Array.isArray(node.lifecycleScripts) && node.lifecycleScripts.length > 0) {
         for (let li = 0; li < node.lifecycleScripts.length; li += 1) {

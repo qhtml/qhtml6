@@ -46,6 +46,32 @@ wiki-shell {
         }
       }
     }
+
+    wiki-example-card {
+      title: "Script action"
+      summary: "Use q-script-action when JavaScript should run as an action instead of replacing source text."
+      note: "Inside animation groups, q-script-action behaves like an animation item. In sequential groups it advances after the script completes; in parallel groups it runs with the other children."
+      details {
+        html {
+          <q-editor>q-import { q-components/q-animation.qhtml }
+
+q-component action-demo {
+  q-property status: "idle"
+
+  q-sequential-animation-group flow {
+    q-script-action {
+      this.closest("action-demo").status = "script ran";
+    }
+  }
+
+  button {
+    text { Run }
+    onclick { flow.start(); }
+  }
+}</q-editor>
+        }
+      }
+    }
   }
 }
     </q-html>

@@ -1078,6 +1078,27 @@
     return parseBareValue(parser);
   }
 
+  function createQScriptActionElementItem(scriptBody, keywordSnapshot, itemStart, itemEnd, rawSource) {
+    return {
+      type: "Element",
+      selectors: ["q-script-action"],
+      prefixDirectives: [],
+      items: [{
+        type: "Property",
+        name: "scriptBody",
+        value: String(scriptBody || ""),
+        keywords: keywordSnapshot,
+        start: itemStart,
+        end: itemEnd,
+        raw: rawSource,
+      }],
+      keywords: keywordSnapshot,
+      start: itemStart,
+      end: itemEnd,
+      raw: rawSource,
+    };
+  }
+
   function parseSelectorList(parser, firstSelector) {
     const selectors = [firstSelector || parseSelectorToken(parser)];
     skipWhitespace(parser);
@@ -3989,6 +4010,19 @@
             continue;
           }
 
+          if (nameLower === "q-script-action") {
+            consume(parser);
+            const scriptBody = readBalancedBlockContent(parser);
+            items.push(createQScriptActionElementItem(
+              scriptBody,
+              keywordSnapshot,
+              itemStart,
+              parser.index,
+              parser.source.slice(itemStart, parser.index)
+            ));
+            continue;
+          }
+
           if (nameLower === "qhtml" && nextChar === "(") {
             consume(parser);
             const expressionBody = readBalancedParenthesizedContent(parser);
@@ -4551,7 +4585,9 @@
           const extendsComponentIdExpressions = [];
 
           function parseComponentReferenceExpression(exprStart, contextLabel) {
-            if (parser.source.slice(parser.index, parser.index + 8).toLowerCase() === "q-script") {
+            const qScriptPrefix = parser.source.slice(parser.index, parser.index + 8).toLowerCase();
+            const qScriptNext = parser.source.charAt(parser.index + 8);
+            if (qScriptPrefix === "q-script" && !isIdentifierChar(qScriptNext)) {
               const keyword = parseIdentifier(parser);
               skipWhitespace(parser);
               if (peek(parser) !== "{") {

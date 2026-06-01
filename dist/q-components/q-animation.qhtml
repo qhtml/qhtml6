@@ -70,50 +70,17 @@ q-component q-property-animation extends q-abstract-animation {
     interval: 16
     repeat: true
     running: false
-  }
-
-  q-connect { animationTimer.timeout this.component.advance }
-
-  function getAnimationTimer() {
-    if (typeof animationTimer !== "undefined" && animationTimer) {
-      return animationTimer;
+    ontimeout {
+      this.component.advance();
     }
-    if (this.component.animationTimer) {
-      return this.component.animationTimer;
-    }
-    return null;
-  }
-
-  function stopFallbackTimer() {
-    if (this.component.__qhtmlPropertyAnimationFallbackTimer) {
-      clearInterval(this.component.__qhtmlPropertyAnimationFallbackTimer);
-      this.component.__qhtmlPropertyAnimationFallbackTimer = 0;
-    }
-  }
-
-  function startFallbackTimer() {
-    var host = this.component;
-    host.stopFallbackTimer();
-    host.__qhtmlPropertyAnimationFallbackTimer = setInterval(function runFallbackAnimationStep() {
-      host.advance();
-    }, Math.max(1, Number(host.stepInterval || 16)));
   }
 
   function stopAnimationClock() {
-    var timer = this.component.getAnimationTimer();
-    if (timer && typeof timer.stop === "function") {
-      timer.stop();
-    }
-    this.component.stopFallbackTimer();
+    this.component.animationTimer.stop();
   }
 
   function startAnimationClock() {
-    var timer = this.component.getAnimationTimer();
-    if (timer && typeof timer.start === "function") {
-      timer.start();
-      return;
-    }
-    this.component.startFallbackTimer();
+    this.component.animationTimer.start();
   }
 
   function normalizeNumber(value, fallbackValue) {
@@ -170,10 +137,7 @@ q-component q-property-animation extends q-abstract-animation {
     var stepCount = this.component.normalizePositiveInteger(this.component.steps, 60);
     var interval = Math.max(1, Math.floor(durationValue / stepCount));
     this.component.stepInterval = interval;
-    var timer = this.component.getAnimationTimer();
-    if (timer) {
-      timer.interval = interval;
-    }
+    this.component.animationTimer.interval = interval;
     if (this.component.normalizeBoolean(this.component.running, false)) {
       this.component.stopAnimationClock();
       this.component.startAnimationClock();
@@ -392,14 +356,130 @@ q-component q-property-animation extends q-abstract-animation {
 
   onrunningchanged {
     if (this.component.normalizeBoolean(this.component.running, false)) {
-      var timer = this.component.getAnimationTimer();
-      if (timer && !timer.running) {
-        timer.start();
-      } else if (!timer && !this.component.__qhtmlPropertyAnimationFallbackTimer) {
-        this.component.startFallbackTimer();
-      }
+      this.component.animationTimer.start();
     } else {
       this.component.stopAnimationClock();
+    }
+  }
+}
+
+q-component q-script-action extends q-abstract-animation {
+  q-signal started()
+  q-signal stopped()
+  q-signal ended()
+  q-signal error(message)
+
+  q-property running: false
+  q-property autorun: true
+  q-property result: null
+  q-property scriptBody: ""
+
+  function isInsideAnimationGroup() {
+    var cursor = this.component.parentElement;
+    while (cursor) {
+      var tagName = String(cursor.tagName || "").toLowerCase();
+      if (tagName === "q-parallel-animation-group" || tagName === "q-sequential-animation-group") {
+        return true;
+      }
+      cursor = cursor.parentElement;
+    }
+    return false;
+  }
+
+  function executionContext() {
+    var cursor = this.component.parentElement;
+    var topGroup = null;
+    while (cursor) {
+      var tagName = String(cursor.tagName || "").toLowerCase();
+      if (tagName === "q-parallel-animation-group" || tagName === "q-sequential-animation-group") {
+        topGroup = cursor;
+      }
+      cursor = cursor.parentElement;
+    }
+    return topGroup || this.component.parentElement || this.component;
+  }
+
+  function runScriptAction() {
+    var body = String(this.component.scriptBody || "");
+    if (!body.trim()) {
+      return null;
+    }
+    var context = this.component.executionContext();
+    var action = this.component;
+    var fn = new Function("action", "component", "document", "window", body);
+    return fn.call(context, action, context, document, window);
+  }
+
+  function start() {
+    var host = this.component;
+    if (host.__qhtmlScriptActionStarting) {
+      return;
+    }
+    host.__qhtmlScriptActionStarting = true;
+    host.running = true;
+    host.__qhtmlScriptActionStarting = false;
+    host.started();
+    var actionResult = null;
+    try {
+      actionResult = host.runScriptAction();
+      host.result = actionResult;
+    } catch (error) {
+      host.__qhtmlScriptActionStopping = true;
+      host.running = false;
+      host.__qhtmlScriptActionStopping = false;
+      host.error(error && error.message ? error.message : String(error));
+      host.ended();
+      return;
+    }
+    if (actionResult && typeof actionResult.then === "function") {
+      actionResult.then(function scriptActionResolved(value) {
+        host.result = value;
+        host.end();
+      }).catch(function scriptActionRejected(error) {
+        host.__qhtmlScriptActionStopping = true;
+        host.running = false;
+        host.__qhtmlScriptActionStopping = false;
+        host.error(error && error.message ? error.message : String(error));
+        host.ended();
+      });
+      return;
+    }
+    host.end();
+  }
+
+  function stop() {
+    this.component.__qhtmlScriptActionStopping = true;
+    this.component.running = false;
+    this.component.__qhtmlScriptActionStopping = false;
+    this.component.stopped();
+  }
+
+  function end() {
+    this.component.__qhtmlScriptActionStopping = true;
+    this.component.running = false;
+    this.component.__qhtmlScriptActionStopping = false;
+    this.component.ended();
+  }
+
+  function restart() {
+    this.component.stop();
+    this.component.start();
+  }
+
+  onready {
+    if (this.component.normalizeBoolean(this.component.autorun, true) && !this.component.isInsideAnimationGroup()) {
+      this.component.start();
+    }
+  }
+
+  onrunningchanged {
+    if (this.component.__qhtmlScriptActionStarting || this.component.__qhtmlScriptActionStopping) {
+      return;
+    }
+    if (this.component.normalizeBoolean(this.component.running, false)) {
+      this.component.start();
+    } else {
+      this.component.stop();
     }
   }
 }
@@ -447,10 +527,20 @@ q-component q-parallel-animation-group extends q-abstract-animation {
     return cursor === host;
   }
 
+  function isAnimationElement(animationElement) {
+    var tagName = String(animationElement && animationElement.tagName || "").toLowerCase();
+    return tagName === "q-property-animation" ||
+      tagName === "q-script-action" ||
+      tagName === "q-parallel-animation-group" ||
+      tagName === "q-sequential-animation-group" ||
+      tagName === "numberanimation" ||
+      tagName === "q-number-animation";
+  }
+
   function animations() {
     var host = this.component;
-    return Array.prototype.slice.call(host.querySelectorAll("q-property-animation")).filter(function keepOwnedAnimation(node) {
-      return host.ownsAnimation(node);
+    return Array.prototype.slice.call(host.querySelectorAll("q-property-animation, q-script-action, q-parallel-animation-group, q-sequential-animation-group, NumberAnimation, q-number-animation")).filter(function keepOwnedAnimation(node) {
+      return host.isAnimationElement(node) && host.ownsAnimation(node);
     });
   }
 
@@ -461,7 +551,7 @@ q-component q-parallel-animation-group extends q-abstract-animation {
     }
     host.__qhtmlParallelAnimationEndedHandler = function onParallelAnimationChildEnded(event) {
       var target = event && event.target ? event.target : null;
-      if (!target || target === host || String(target.tagName || "").toLowerCase() !== "q-property-animation") {
+      if (!target || target === host || !host.isAnimationElement(target)) {
         return;
       }
       if (!host.ownsAnimation(target)) {
@@ -626,12 +716,7 @@ q-component q-parallel-animation-group extends q-abstract-animation {
   onready {
     this.component.bindChildEndedEvents();
     if (this.component.normalizeBoolean(this.component.running, false)) {
-      var host = this.component;
-      setTimeout(function startParallelGroupAfterBindings() {
-        if (host.normalizeBoolean(host.running, false)) {
-          host.start();
-        }
-      }, 0);
+      this.component.start();
     }
   }
 

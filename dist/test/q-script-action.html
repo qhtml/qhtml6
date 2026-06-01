@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML q-script-action Test</title>
+  <script src="qhtml.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #101820;
+      color: #f5f7fa;
+    }
+
+    q-html {
+      display: block;
+      min-height: 100vh;
+    }
+  </style>
+</head>
+<body data-status="pending">
+  <q-html>
+q-import { q-components/q-animation.qhtml }
+
+q-component script-action-stage {
+  q-property marker: ""
+
+  section {
+    style { min-height: 100vh; padding: 1.5rem; box-sizing: border-box; display: grid; gap: 1rem; align-content: start; }
+
+    h1 { text { q-script-action } }
+
+    div#standaloneBox {
+      style { width: 240px; min-height: 48px; display: grid; place-items: center; background: #1f7a8c; color: #ffffff; font-weight: 800; }
+      text { waiting }
+    }
+
+    div#sequenceBox {
+      style { width: 240px; min-height: 48px; display: grid; place-items: center; background: #bf7b2c; color: #ffffff; font-weight: 800; }
+      text { sequence pending }
+    }
+
+    div#parallelBox {
+      style { width: 240px; min-height: 48px; display: grid; place-items: center; background: #6b5dd3; color: #ffffff; font-weight: 800; }
+      text { parallel pending }
+    }
+  }
+
+  q-script-action {
+    this.closest("script-action-stage").marker = "standalone";
+    document.querySelector("#standaloneBox").textContent = "standalone ran";
+  }
+
+  q-sequential-animation-group seqGroup {
+    q-script-action {
+      document.body.setAttribute("data-seq", "one");
+      document.querySelector("#sequenceBox").textContent = "sequence one";
+    }
+
+    q-script-action {
+      document.body.setAttribute("data-seq", document.body.getAttribute("data-seq") + ",two");
+      document.querySelector("#sequenceBox").textContent = "sequence one,two";
+    }
+  }
+
+  q-parallel-animation-group parallelGroup {
+    q-script-action {
+      document.body.setAttribute("data-parallel-a", "1");
+    }
+
+    q-script-action {
+      document.body.setAttribute("data-parallel-b", "1");
+      document.querySelector("#parallelBox").textContent = "parallel ran";
+    }
+  }
+}
+
+script-action-stage stage { }
+
+q-timer startActionGroups {
+  interval: 100
+  repeat: false
+  running: true
+  ontimeout {
+    document.querySelector("q-sequential-animation-group").start();
+    document.querySelector("q-parallel-animation-group").start();
+  }
+}
+
+q-timer verifyScriptActions {
+  interval: 500
+  repeat: false
+  running: true
+  ontimeout {
+    var host = document.querySelector("script-action-stage");
+    var pass = host.marker === "standalone" &&
+      document.body.getAttribute("data-seq") === "one,two" &&
+      document.body.getAttribute("data-parallel-a") === "1" &&
+      document.body.getAttribute("data-parallel-b") === "1";
+    document.body.setAttribute("data-status", pass ? "pass" : "fail");
+  }
+}
+  </q-html>
+</body>
+</html>

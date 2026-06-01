@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-05-31T09:35:37Z */
+/* generated: 2026-06-01T01:09:41Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -2580,6 +2580,27 @@
       return typedContainer.value;
     }
     return parseBareValue(parser);
+  }
+
+  function createQScriptActionElementItem(scriptBody, keywordSnapshot, itemStart, itemEnd, rawSource) {
+    return {
+      type: "Element",
+      selectors: ["q-script-action"],
+      prefixDirectives: [],
+      items: [{
+        type: "Property",
+        name: "scriptBody",
+        value: String(scriptBody || ""),
+        keywords: keywordSnapshot,
+        start: itemStart,
+        end: itemEnd,
+        raw: rawSource,
+      }],
+      keywords: keywordSnapshot,
+      start: itemStart,
+      end: itemEnd,
+      raw: rawSource,
+    };
   }
 
   function parseSelectorList(parser, firstSelector) {
@@ -5493,6 +5514,19 @@
             continue;
           }
 
+          if (nameLower === "q-script-action") {
+            consume(parser);
+            const scriptBody = readBalancedBlockContent(parser);
+            items.push(createQScriptActionElementItem(
+              scriptBody,
+              keywordSnapshot,
+              itemStart,
+              parser.index,
+              parser.source.slice(itemStart, parser.index)
+            ));
+            continue;
+          }
+
           if (nameLower === "qhtml" && nextChar === "(") {
             consume(parser);
             const expressionBody = readBalancedParenthesizedContent(parser);
@@ -6055,7 +6089,9 @@
           const extendsComponentIdExpressions = [];
 
           function parseComponentReferenceExpression(exprStart, contextLabel) {
-            if (parser.source.slice(parser.index, parser.index + 8).toLowerCase() === "q-script") {
+            const qScriptPrefix = parser.source.slice(parser.index, parser.index + 8).toLowerCase();
+            const qScriptNext = parser.source.charAt(parser.index + 8);
+            if (qScriptPrefix === "q-script" && !isIdentifierChar(qScriptNext)) {
               const keyword = parseIdentifier(parser);
               skipWhitespace(parser);
               if (peek(parser) !== "{") {
@@ -19613,6 +19649,7 @@
       aliasDeclarations: [],
       varDeclarations: [],
       switchDeclarations: [],
+      qTimerDefinitions: [],
       wasmConfig: null,
       lifecycleScripts: [],
       attributes: {},
@@ -19629,6 +19666,7 @@
     const aliasIndex = new Map();
     const varIndex = new Map();
     const switchIndex = new Map();
+    const qTimerIndex = new Map();
     const lifecycleIndex = new Map();
     const behaviorIndex = new Map();
     const cssBindingIndex = new Map();
@@ -19688,6 +19726,25 @@
       mergeNamedEntries(merged.aliasDeclarations, node.aliasDeclarations, aliasIndex);
       mergeNamedEntries(merged.varDeclarations, node.varDeclarations, varIndex);
       mergeNamedEntries(merged.switchDeclarations, node.switchDeclarations, switchIndex);
+      const timerDefinitions = Array.isArray(node.qTimerDefinitions) ? node.qTimerDefinitions : [];
+      for (let qti = 0; qti < timerDefinitions.length; qti += 1) {
+        const timerDefinition = timerDefinitions[qti];
+        if (!timerDefinition || typeof timerDefinition !== "object") {
+          continue;
+        }
+        const timerName = normalizeComponentKey(timerDefinition.timerId || timerDefinition.name || timerDefinition.id);
+        const clonedTimerDefinition = Object.assign({}, timerDefinition);
+        if (!timerName) {
+          merged.qTimerDefinitions.push(clonedTimerDefinition);
+          continue;
+        }
+        if (qTimerIndex.has(timerName)) {
+          merged.qTimerDefinitions[qTimerIndex.get(timerName)] = clonedTimerDefinition;
+        } else {
+          qTimerIndex.set(timerName, merged.qTimerDefinitions.length);
+          merged.qTimerDefinitions.push(clonedTimerDefinition);
+        }
+      }
 
       if (Array.isArray(node.lifecycleScripts) && node.lifecycleScripts.length > 0) {
         for (let li = 0; li < node.lifecycleScripts.length; li += 1) {
@@ -31431,7 +31488,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.9.8";
+  const RUNTIME_VERSION = "6.9.9";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -50367,7 +50424,7 @@
   }
 
   const api = runtime;
-  api.version = "6.9.8";
+  api.version = "6.9.9";
   global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {

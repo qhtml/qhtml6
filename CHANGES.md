@@ -1,8 +1,9 @@
 # QHTML.js Change Log
 
-## Whats New in v6.9.8
+## Whats New in v6.9.9
 
-- Bumped the release line to `6.9.8`.
+- Bumped the release line to `6.9.9`.
+- Added `q-script-action { ... }` for scoped JavaScript actions that can run standalone or as child actions in `q-parallel-animation-group` and `q-sequential-animation-group`.
 - Added grouped behavior animation support, including behavior-compatible `q-property-animation`, `q-parallel-animation-group`, and `q-sequential-animation-group`.
 - Added q-vid playback support with `.qvid` tooling, sample HUD assets, `q-vid-source`, `q-vid-painter`, and mediated `q-vid-player` canvas playback.
 - Added HUD/control-arm visual components and manual visual tests for q-vid playback and animation timing.
