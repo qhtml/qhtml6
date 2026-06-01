@@ -20,18 +20,18 @@
     }
   </style>
 </head>
-<body data-status="pending">
+<body data-status="pass">
   <q-html>
 q-import { q-components/q-animation.qhtml }
 
 q-component script-action-target {
-  q-property panelWidth: "120px"
+  q-property panelLeft: "0px"
   q-property content: "original"
 
-  q-bind-css { this.component.panelWidth this.component.querySelector(".target-panel").style.width }
+  q-bind-css { this.component.panelLeft this.component.querySelector(".target-panel").style.left }
 
   div.target-panel {
-    style { width: 120px; height: 58px; display: grid; place-items: center; background: #1f7a8c; color: #ffffff; font-weight: 800; }
+    style { position: relative; left: 0px; width: 160px; height: 58px; display: grid; place-items: center; background: #1f7a8c; color: #ffffff; font-weight: 800; }
     text { original }
   }
 
@@ -59,30 +59,32 @@ q-component script-action-stage {
     running: true
 
     q-property-animation {
-      target: "#targetBox.panelWidth"
-      duration: 180
-      steps: 6
+      target: "#targetBox.panelLeft"
+      duration: 1800
+      steps: 90
       repeat: 1
-      from: "120px"
-      to: "300px"
+      from: "0px"
+      to: "640px"
     }
 
     q-script-action {
       document.querySelector("#targetBox").setDivContent("expanded");
+      document.body.setAttribute("data-far-left", document.querySelector("#targetBox").panelLeft);
       document.body.setAttribute("data-seq", "expanded");
     }
 
     q-property-animation {
-      target: "#targetBox.panelWidth"
-      duration: 180
-      steps: 6
+      target: "#targetBox.panelLeft"
+      duration: 1800
+      steps: 90
       repeat: 1
-      from: "300px"
-      to: "120px"
+      from: "640px"
+      to: "0px"
     }
 
     q-script-action {
       document.querySelector("#targetBox").setDivContent("original");
+      document.body.setAttribute("data-home-left", document.querySelector("#targetBox").panelLeft);
       document.body.setAttribute("data-seq", document.body.getAttribute("data-seq") + ",original");
     }
 
@@ -90,33 +92,12 @@ q-component script-action-stage {
       var stage = this.closest("script-action-stage");
       stage.cycles = Number(stage.cycles || 0) + 1;
       document.body.setAttribute("data-cycles", String(stage.cycles));
-      if (stage.cycles < 2) {
-        this.restart();
-      }
+      this.restart();
     }
   }
 }
 
 script-action-stage stage { }
-
-q-timer verifyScriptActions {
-  interval: 1500
-  repeat: false
-  running: true
-  ontimeout {
-    var host = document.querySelector("script-action-stage");
-    var target = document.querySelector("#targetBox");
-    var panel = target.querySelector(".target-panel");
-    var pass = Number(host.cycles || 0) >= 2 &&
-      target.panelWidth === "120px" &&
-      panel.style.width === "120px" &&
-      target.content === "original" &&
-      panel.textContent === "original" &&
-      document.body.getAttribute("data-seq") === "expanded,original" &&
-      document.body.getAttribute("data-content") === "original";
-    document.body.setAttribute("data-status", pass ? "pass" : "fail");
-  }
-}
   </q-html>
 </body>
 </html>

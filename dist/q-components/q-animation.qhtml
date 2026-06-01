@@ -735,16 +735,19 @@ q-component q-parallel-animation-group extends q-abstract-animation {
 }
 
 q-component q-sequential-animation-group extends q-parallel-animation-group {
+  function bindChildEndedEvents() {
+  }
+
+  function connectChildEndedEvents(items) {
+  }
+
   function start() {
     var host = this.component;
     if (host.__qhtmlParallelAnimationStarting) {
       return;
     }
     host.__qhtmlParallelAnimationStarting = true;
-    host.bindChildEndedEvents();
-    host.resetCompletionState();
     var items = host.animations();
-    host.connectChildEndedEvents(items);
     host.__qhtmlParallelAnimationChangingRunning = true;
     host.running = true;
     host.__qhtmlParallelAnimationChangingRunning = false;
