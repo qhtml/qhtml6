@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-06-01T01:45:16Z */
+/* generated: 2026-06-01T14:21:40Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -12223,7 +12223,8 @@
     return registry;
   }
 
-  function normalizeNodeForDefinitions(node, definitionRegistry) {
+  function normalizeNodeForDefinitions(node, definitionRegistry, options) {
+    const normalizeOptions = options && typeof options === "object" ? options : {};
     if (!node || typeof node !== "object") {
       return node;
     }
@@ -12242,14 +12243,18 @@
       for (let si = 0; si < targetNode.meta.__qhtmlStateMachine.states.length; si += 1) {
         const state = targetNode.meta.__qhtmlStateMachine.states[si];
         if (state && Array.isArray(state.nodes)) {
-          state.nodes = normalizeNodesForDefinitions(state.nodes, definitionRegistry);
+          state.nodes = normalizeNodesForDefinitions(state.nodes, definitionRegistry, normalizeOptions);
         }
       }
     }
 
     if (node.kind === core.NODE_TYPES.component || isStructDefinitionNode(node)) {
       if (Array.isArray(node.templateNodes)) {
-        node.templateNodes = normalizeNodesForDefinitions(node.templateNodes, definitionRegistry);
+        node.templateNodes = normalizeNodesForDefinitions(
+          node.templateNodes,
+          definitionRegistry,
+          Object.assign({}, normalizeOptions, { deferUnknownTypedInstances: true })
+        );
       }
       normalizeStateMachineMeta(node);
       return node;
@@ -12261,7 +12266,7 @@
       node.meta.__qhtmlStateMachineComponent &&
       typeof node.meta.__qhtmlStateMachineComponent === "object"
     ) {
-      normalizeNodeForDefinitions(node.meta.__qhtmlStateMachineComponent, definitionRegistry);
+      normalizeNodeForDefinitions(node.meta.__qhtmlStateMachineComponent, definitionRegistry, normalizeOptions);
       normalizeStateMachineMeta(node);
     }
 
@@ -12277,24 +12282,24 @@
       for (let i = 0; i < slotNodes.length; i += 1) {
         const slotNode = slotNodes[i];
         if (slotNode && slotNode.kind === core.NODE_TYPES.slot && Array.isArray(slotNode.children)) {
-          slotNode.children = normalizeNodesForDefinitions(slotNode.children, definitionRegistry);
+          slotNode.children = normalizeNodesForDefinitions(slotNode.children, definitionRegistry, normalizeOptions);
         }
       }
       if (Array.isArray(node.children)) {
-        node.children = normalizeNodesForDefinitions(node.children, definitionRegistry);
+        node.children = normalizeNodesForDefinitions(node.children, definitionRegistry, normalizeOptions);
       }
       return node;
     }
 
     if (node.kind === core.NODE_TYPES.slot && Array.isArray(node.children)) {
-      node.children = normalizeNodesForDefinitions(node.children, definitionRegistry);
+      node.children = normalizeNodesForDefinitions(node.children, definitionRegistry, normalizeOptions);
       return node;
     }
 
     if (node.kind === core.NODE_TYPES.element) {
       normalizeStateMachineMeta(node);
       if (Array.isArray(node.children)) {
-        node.children = normalizeNodesForDefinitions(node.children, definitionRegistry);
+        node.children = normalizeNodesForDefinitions(node.children, definitionRegistry, normalizeOptions);
       }
       const tag = String(node.tagName || "").trim().toLowerCase();
       if (LAYOUT_KEYWORDS.has(tag)) {
@@ -12320,6 +12325,13 @@
         return convertElementInvocationToInstance(node, definitionNode, definitionRegistry);
       }
       if (instanceAlias) {
+        if (normalizeOptions.deferUnknownTypedInstances) {
+          if (!node.meta || typeof node.meta !== "object") {
+            node.meta = {};
+          }
+          node.meta.__qhtmlDeferredTypedInstance = true;
+          return node;
+        }
         throw new Error("Named typed instance syntax requires a known instantiable definition: '" + tag + "'.");
       }
       return node;
@@ -12328,11 +12340,11 @@
     return node;
   }
 
-  function normalizeNodesForDefinitions(nodes, definitionRegistry) {
+  function normalizeNodesForDefinitions(nodes, definitionRegistry, options) {
     const out = [];
     const list = Array.isArray(nodes) ? nodes : [];
     for (let i = 0; i < list.length; i += 1) {
-      const normalized = normalizeNodeForDefinitions(list[i], definitionRegistry);
+      const normalized = normalizeNodeForDefinitions(list[i], definitionRegistry, options);
       if (normalized) {
         out.push(normalized);
       }

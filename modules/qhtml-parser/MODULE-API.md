@@ -40,7 +40,8 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
         - `q-canvas myCanvas { ... }`
         - normalized into a concrete `canvas` element node with `q-canvas="1"` and `q-canvas-name="myCanvas"`
         - avoids unknown-instantiable normalization errors while preserving named-canvas runtime export semantics
-      - unknown typed targets with an instance alias throw a parse-time normalization error
+      - unknown typed targets with an instance alias still throw a parse-time normalization error at normal document scope
+      - inside `q-component` definitions, unknown typed targets with an instance alias are preserved as deferred typed instances so definitions can reference types supplied later by the instance render context
     - q-struct data definitions:
       - `q-struct Name { field { defaultValue } ... }` emits QDom `kind: "struct"` with `structId` and field descriptors
       - `Name instanceName { field { overrideValue } ... }` emits QDom `kind: "struct-instance"` with alias metadata and override fields
