@@ -112,6 +112,10 @@ Runtime mount/update engine for `<q-html>` in browser environments.
     - model-like objects with `toArray()`
   - Fallback for unsupported inputs is an empty array model.
   - Exposed as both `QHtml.createQArray(...)` and global `QArray(...)`.
+- `createQPoint(x, y)` / `QPoint(x, y)`
+  - Convenience constructor for coordinate maps.
+  - Returns the same model shape as `QMap({ x: x, y: y })`, with object-like `.x` and `.y` access.
+  - Exposed as `QHtml.createQPoint(...)`, `QHtml.QPoint(...)`, and global `QPoint(...)`.
 - `createQCallback(fn, options?)`
   - Wraps a function as a QHTML callback object with creator-context preservation.
   - Options:

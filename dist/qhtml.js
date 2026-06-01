@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-06-01T01:09:41Z */
+/* generated: 2026-06-01T01:45:16Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -32543,6 +32543,13 @@
     return createQModel([]);
   }
 
+  function createQPoint(xval, yval) {
+    return createQModel({
+      x: Number(xval || 0),
+      y: Number(yval || 0),
+    });
+  }
+
   function coerceQHtmlFragmentSource(source) {
     if (source == null) {
       return "";
@@ -50333,6 +50340,8 @@
     printEventLoopSnapshot: printEventLoopSnapshot,
     createQModel: createQModel,
     createQArray: createQArray,
+    createQPoint: createQPoint,
+    QPoint: createQPoint,
     createQCallback: createQCallback,
     QSignal: renderer && renderer.QSignal ? renderer.QSignal : null,
     QProperty: renderer && renderer.QProperty ? renderer.QProperty : null,
@@ -50388,6 +50397,7 @@
   global.QMap = function qMapFactory(value) {
     return createQModel(value || {});
   };
+  global.QPoint = createQPoint;
   global.QCallback = createQCallback;
   if (runtimeApi.QSignal) {
     global.QSignal = runtimeApi.QSignal;

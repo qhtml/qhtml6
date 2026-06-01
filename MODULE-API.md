@@ -48,6 +48,7 @@ Root integration module wires lower-level modules for browser consumers, exposes
     - `q-popup-menu` / `q-context-menu` (scoped context menu UI with item/submenu/text/separator primitives).
     - `q-spritesheet` (declarative spritesheet player component with `frameStart`, `frameEnd`, `frameWidth`, `frameHeight`, `width`, `height`, `interpolate`, `running`, and `currentFrame` runtime controls).
     - `q-factory` (hidden template component whose `create(options?)` method clones its default-slot QHTML into a target QDOM/builder target, refreshes only that target scope, and returns the created DOM/component instance).
+    - `q-mouse-area` (positioned mouse hit area with overlapping-area enter/exit detection, button signals, and `QPoint` local/global coordinate helpers).
     - `particle-emitter` / `q-particle-emitter` (native custom element aliases registered by the framework; own a canvas layer, particle simulation, seeded variation, reflected boolean `running` property, `start()`, `stop()`, `clear()`, and `burst(num, x, y)` methods, with configuration through particle attributes such as `emitRate`, `lifetime`, position, velocity, acceleration, size, opacity, active/total limits, `color`, `colorOpacity` / `color-opacity`, `src`, `mask`, `emitterMask` / `emitter-mask`, and `seed`).
 
 ## Side Effects and Dependencies

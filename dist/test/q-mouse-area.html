@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML q-mouse-area Test</title>
+  <script src="qhtml.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #111827;
+      color: #f8fafc;
+    }
+
+    q-html {
+      display: block;
+      min-height: 100vh;
+    }
+  </style>
+</head>
+<body data-status="pending">
+  <q-html>
+q-import { q-components/q-mouse-area.qhtml }
+
+section {
+  style { position: relative; min-height: 100vh; padding: 1.5rem; box-sizing: border-box; overflow: hidden; }
+
+  h1 { text { q-mouse-area } }
+
+  div#mouse-log {
+    style { position: absolute; left: 24px; top: 320px; min-width: 32rem; min-height: 5rem; padding: 1rem; background: rgba(15, 23, 42, 0.88); border: 1px solid #38bdf8; white-space: pre-line; }
+    text { waiting }
+  }
+
+  q-mouse-area firstArea {
+    width: "340px"
+    height: "190px"
+    x: "80px"
+    y: "90px"
+
+    style { background: rgba(14, 165, 233, 0.34); border: 2px solid #38bdf8; }
+
+    text { first area }
+
+    onmoentered {
+      var p = this.component.pos();
+      var g = this.component.globalPos();
+      document.body.setAttribute("data-first-entered", String(Math.round(p.x)) + "," + String(Math.round(p.y)));
+      document.body.setAttribute("data-first-global", String(Math.round(g.x)) + "," + String(Math.round(g.y)));
+    }
+
+    onexited {
+      document.body.setAttribute("data-first-exited", "1");
+    }
+
+    onpressed(button) {
+      document.body.setAttribute("data-first-pressed", String(button));
+    }
+
+    onreleased(button) {
+      document.body.setAttribute("data-first-released", String(button));
+    }
+
+    onclicked(button) {
+      document.body.setAttribute("data-first-clicked", String(button));
+    }
+  }
+
+  q-mouse-area secondArea {
+    width: "300px"
+    height: "170px"
+    x: "240px"
+    y: "150px"
+
+    style { background: rgba(168, 85, 247, 0.32); border: 2px solid #c084fc; }
+
+    text { overlapping area }
+
+    onmoentered {
+      var p = this.component.pos();
+      document.body.setAttribute("data-second-entered", String(Math.round(p.x)) + "," + String(Math.round(p.y)));
+    }
+  }
+}
+
+q-timer driveMouseArea {
+  interval: 1000
+  repeat: false
+  running: true
+  ontimeout {
+    function fire(type, x, y, button) {
+      document.dispatchEvent(new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        clientX: x,
+        clientY: y,
+        button: button || 0,
+        buttons: type === "mouseup" || type === "click" ? 0 : 1
+      }));
+    }
+    fire("mousemove", 260, 170, 0);
+    fire("mousedown", 260, 170, 0);
+    fire("mouseup", 260, 170, 0);
+    fire("click", 260, 170, 0);
+    fire("mousemove", 760, 520, 0);
+  }
+}
+
+q-timer verifyMouseArea {
+  interval: 1300
+  repeat: false
+  running: true
+  ontimeout {
+    var pass = document.body.getAttribute("data-first-entered") === "180,80" &&
+      document.body.getAttribute("data-second-entered") === "20,20" &&
+      document.body.getAttribute("data-first-global") === "260,170" &&
+      document.body.getAttribute("data-first-pressed") === "left" &&
+      document.body.getAttribute("data-first-released") === "left" &&
+      document.body.getAttribute("data-first-clicked") === "left" &&
+      document.body.getAttribute("data-first-exited") === "1" &&
+      QPoint(1, 1).x === QMap({ x: 1, y: 1 }).x &&
+      QPoint(1, 1).y === QMap({ x: 1, y: 1 }).y;
+    document.querySelector("#mouse-log").textContent = [
+      "first entered: " + document.body.getAttribute("data-first-entered"),
+      "second entered: " + document.body.getAttribute("data-second-entered"),
+      "button: " + document.body.getAttribute("data-first-clicked"),
+      "exited: " + document.body.getAttribute("data-first-exited")
+    ].join("\n");
+    document.body.setAttribute("data-status", pass ? "pass" : "fail");
+  }
+}
+  </q-html>
+</body>
+</html>

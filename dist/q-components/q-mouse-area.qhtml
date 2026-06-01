@@ -1,0 +1,177 @@
+q-component q-mouse-area {
+  q-signal moentered()
+  q-signal exited()
+  q-signal clicked(button)
+  q-signal pressed(button)
+  q-signal released(button)
+
+  q-property width: "100px"
+  q-property height: "100px"
+  q-property x: "0px"
+  q-property y: "0px"
+
+  slot { default }
+
+  function readNumber(value) {
+    var number = Number(value);
+    if (Number.isFinite(number)) {
+      return number;
+    }
+    var match = String(value == null ? "" : value).match(/-?(?:\d+|\d*\.\d+)/);
+    return match ? Number(match[0]) : 0;
+  }
+
+  function qpoint(xval, yval) {
+    if (typeof QPoint === "function") {
+      return QPoint(xval, yval);
+    }
+    if (typeof QMap === "function") {
+      return QMap({ x: Number(xval || 0), y: Number(yval || 0) });
+    }
+    return { x: Number(xval || 0), y: Number(yval || 0) };
+  }
+
+  function buttonName(event) {
+    var button = event && event.button != null ? Number(event.button) : 0;
+    if (button === 0) {
+      return "left";
+    }
+    if (button === 1) {
+      return "middle";
+    }
+    if (button === 2) {
+      return "right";
+    }
+    if (button === 3) {
+      return "back";
+    }
+    if (button === 4) {
+      return "forward";
+    }
+    return "button-" + String(button);
+  }
+
+  function rememberEvent(event) {
+    this.__qhtmlMouseAreaLastEvent = event || null;
+  }
+
+  function rect() {
+    return this.getBoundingClientRect();
+  }
+
+  function containsGlobal(xval, yval) {
+    var box = this.rect();
+    var x = Number(xval || 0);
+    var y = Number(yval || 0);
+    return x >= Number(box.left || 0) &&
+      y >= Number(box.top || 0) &&
+      x <= Number(box.right || 0) &&
+      y <= Number(box.bottom || 0);
+  }
+
+  function pos() {
+    var event = this.__qhtmlMouseAreaLastEvent || {};
+    var box = this.rect();
+    return this.qpoint(
+      Number(event.clientX || 0) - Number(box.left || 0),
+      Number(event.clientY || 0) - Number(box.top || 0)
+    );
+  }
+
+  function globalPos() {
+    var event = this.__qhtmlMouseAreaLastEvent || {};
+    return this.qpoint(Number(event.clientX || 0), Number(event.clientY || 0));
+  }
+
+  function updateHover(event) {
+    var host = this;
+    var inside = host.containsGlobal(event.clientX, event.clientY);
+    if (inside && !host.__qhtmlMouseAreaInside) {
+      host.rememberEvent(event);
+      host.__qhtmlMouseAreaInside = true;
+      host.moentered();
+    } else if (inside) {
+      host.rememberEvent(event);
+    } else if (!inside && host.__qhtmlMouseAreaInside) {
+      host.__qhtmlMouseAreaInside = false;
+      host.exited();
+    }
+  }
+
+  function handlePress(event) {
+    this.rememberEvent(event);
+    if (this.containsGlobal(event.clientX, event.clientY)) {
+      this.pressed(this.buttonName(event));
+    }
+  }
+
+  function handleRelease(event) {
+    this.rememberEvent(event);
+    if (this.containsGlobal(event.clientX, event.clientY)) {
+      this.released(this.buttonName(event));
+    }
+  }
+
+  function handleClick(event) {
+    this.rememberEvent(event);
+    if (this.containsGlobal(event.clientX, event.clientY)) {
+      this.clicked(this.buttonName(event));
+    }
+  }
+
+  function applyGeometry() {
+    this.style.position = "absolute";
+    this.style.left = String(this.x || "0px");
+    this.style.top = String(this.y || "0px");
+    this.style.width = String(this.width || "100px");
+    this.style.height = String(this.height || "100px");
+    this.style.display = this.style.display || "block";
+    this.style.boxSizing = this.style.boxSizing || "border-box";
+  }
+
+  function setupMouseArea() {
+    if (this.__qhtmlMouseAreaReady) {
+      return;
+    }
+    this.__qhtmlMouseAreaReady = true;
+    var host = this;
+    var doc = host.ownerDocument || document;
+    host.__qhtmlMouseMoveHandler = function(event) {
+      host.updateHover(event);
+    };
+    host.__qhtmlMouseDownHandler = function(event) {
+      host.handlePress(event);
+    };
+    host.__qhtmlMouseUpHandler = function(event) {
+      host.handleRelease(event);
+    };
+    host.__qhtmlMouseClickHandler = function(event) {
+      host.handleClick(event);
+    };
+    doc.addEventListener("mousemove", host.__qhtmlMouseMoveHandler, true);
+    doc.addEventListener("mousedown", host.__qhtmlMouseDownHandler, true);
+    doc.addEventListener("mouseup", host.__qhtmlMouseUpHandler, true);
+    doc.addEventListener("click", host.__qhtmlMouseClickHandler, true);
+  }
+
+  onready {
+    this.component.applyGeometry();
+    this.component.setupMouseArea();
+  }
+
+  onwidthchanged {
+    this.component.applyGeometry();
+  }
+
+  onheightchanged {
+    this.component.applyGeometry();
+  }
+
+  onxchanged {
+    this.component.applyGeometry();
+  }
+
+  onychanged {
+    this.component.applyGeometry();
+  }
+}

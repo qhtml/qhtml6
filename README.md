@@ -593,6 +593,29 @@ button {
 }
 ```
 
+`QPoint(x, y)` creates the same model shape as `QMap({ x: x, y: y })` and is used by coordinate APIs such as `q-mouse-area.pos()` and `q-mouse-area.globalPos()`.
+
+### `q-mouse-area`
+
+`q-mouse-area` defines a positioned mouse hit area that can overlap other mouse areas. It emits `moentered()` the first time the cursor enters, `exited()` when it leaves, and `pressed(button)`, `released(button)`, and `clicked(button)` for mouse buttons inside the area.
+
+```qhtml
+q-import { q-components/q-mouse-area.qhtml }
+
+q-mouse-area myarea {
+  width: "45vw"
+  height: "25vh"
+  x: "0px"
+  y: "0px"
+
+  onpressed(button) {
+    console.log("mouse pressed here", button, this.component.pos(), this.component.globalPos());
+  }
+}
+```
+
+`pos()` returns a `QPoint` relative to the area, where the top-left corner is `{ x: 0, y: 0 }`. `globalPos()` returns a `QPoint` in viewport coordinates.
+
 `property <name>: ...` also works as shorthand inside `q-component`, while `property <name> { ... }` still means "bind this child node to a component property".
 
 ### `q-model` basics
