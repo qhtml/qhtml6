@@ -30,11 +30,12 @@ section {
   h1 { text { q-mouse-area } }
 
   div#mouse-log {
-    style { position: absolute; left: 24px; top: 320px; min-width: 32rem; min-height: 5rem; padding: 1rem; background: rgba(15, 23, 42, 0.88); border: 1px solid #38bdf8; white-space: pre-line; }
+    style { position: absolute; left: 24px; top: 340px; min-width: 42rem; min-height: 17rem; padding: 1rem; background: rgba(15, 23, 42, 0.88); border: 1px solid #38bdf8; white-space: pre-line; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.45; }
     text { waiting }
   }
 
   q-mouse-area firstArea {
+    id: "firstArea"
     width: "340px"
     height: "190px"
     x: "80px"
@@ -47,28 +48,34 @@ section {
     onmoentered {
       var p = this.component.pos();
       var g = this.component.globalPos();
+      document.body.setAttribute("data-first-enter-count", String(Number(document.body.getAttribute("data-first-enter-count") || 0) + 1));
       document.body.setAttribute("data-first-entered", String(Math.round(p.x)) + "," + String(Math.round(p.y)));
       document.body.setAttribute("data-first-global", String(Math.round(g.x)) + "," + String(Math.round(g.y)));
     }
 
     onexited {
+      document.body.setAttribute("data-first-exit-count", String(Number(document.body.getAttribute("data-first-exit-count") || 0) + 1));
       document.body.setAttribute("data-first-exited", "1");
     }
 
     onpressed(button) {
+      document.body.setAttribute("data-first-press-count", String(Number(document.body.getAttribute("data-first-press-count") || 0) + 1));
       document.body.setAttribute("data-first-pressed", String(button));
     }
 
     onreleased(button) {
+      document.body.setAttribute("data-first-release-count", String(Number(document.body.getAttribute("data-first-release-count") || 0) + 1));
       document.body.setAttribute("data-first-released", String(button));
     }
 
     onclicked(button) {
+      document.body.setAttribute("data-first-click-count", String(Number(document.body.getAttribute("data-first-click-count") || 0) + 1));
       document.body.setAttribute("data-first-clicked", String(button));
     }
   }
 
   q-mouse-area secondArea {
+    id: "secondArea"
     width: "300px"
     height: "170px"
     x: "240px"
@@ -80,7 +87,28 @@ section {
 
     onmoentered {
       var p = this.component.pos();
+      document.body.setAttribute("data-second-enter-count", String(Number(document.body.getAttribute("data-second-enter-count") || 0) + 1));
       document.body.setAttribute("data-second-entered", String(Math.round(p.x)) + "," + String(Math.round(p.y)));
+    }
+
+    onexited {
+      document.body.setAttribute("data-second-exit-count", String(Number(document.body.getAttribute("data-second-exit-count") || 0) + 1));
+      document.body.setAttribute("data-second-exited", "1");
+    }
+
+    onpressed(button) {
+      document.body.setAttribute("data-second-press-count", String(Number(document.body.getAttribute("data-second-press-count") || 0) + 1));
+      document.body.setAttribute("data-second-pressed", String(button));
+    }
+
+    onreleased(button) {
+      document.body.setAttribute("data-second-release-count", String(Number(document.body.getAttribute("data-second-release-count") || 0) + 1));
+      document.body.setAttribute("data-second-released", String(button));
+    }
+
+    onclicked(button) {
+      document.body.setAttribute("data-second-click-count", String(Number(document.body.getAttribute("data-second-click-count") || 0) + 1));
+      document.body.setAttribute("data-second-clicked", String(button));
     }
   }
 }
@@ -108,6 +136,45 @@ q-timer driveMouseArea {
   }
 }
 
+q-timer updateMouseAreaLog {
+  interval: 120
+  repeat: true
+  running: true
+  ontimeout {
+    var body = document.body;
+    var log = document.querySelector("#mouse-log");
+    var areas = [
+      { label: "first", el: document.querySelector("#firstArea") },
+      { label: "second", el: document.querySelector("#secondArea") }
+    ];
+    var lines = ["q-mouse-area live properties"];
+    areas.forEach(function(area) {
+      var el = area.el;
+      if (!el) {
+        lines.push(area.label + ": missing");
+        return;
+      }
+      var box = el.getBoundingClientRect();
+      var pos = el.pos();
+      var global = el.globalPos();
+      lines.push("");
+      lines.push(area.label + " area");
+      lines.push("  size: " + el.width + " x " + el.height);
+      lines.push("  q-position: x=" + el.x + " y=" + el.y);
+      lines.push("  rect: left=" + Math.round(box.left) + " top=" + Math.round(box.top) + " right=" + Math.round(box.right) + " bottom=" + Math.round(box.bottom));
+      lines.push("  inside: " + String(el.__qhtmlMouseAreaInside === true));
+      lines.push("  pos(): QPoint(" + Math.round(pos.x) + ", " + Math.round(pos.y) + ")");
+      lines.push("  globalPos(): QPoint(" + Math.round(global.x) + ", " + Math.round(global.y) + ")");
+      lines.push("  entered: " + (body.getAttribute("data-" + area.label + "-entered") || "-") + " count=" + (body.getAttribute("data-" + area.label + "-enter-count") || "0"));
+      lines.push("  exited: " + (body.getAttribute("data-" + area.label + "-exited") || "0") + " count=" + (body.getAttribute("data-" + area.label + "-exit-count") || "0"));
+      lines.push("  pressed: " + (body.getAttribute("data-" + area.label + "-pressed") || "-") + " count=" + (body.getAttribute("data-" + area.label + "-press-count") || "0"));
+      lines.push("  released: " + (body.getAttribute("data-" + area.label + "-released") || "-") + " count=" + (body.getAttribute("data-" + area.label + "-release-count") || "0"));
+      lines.push("  clicked: " + (body.getAttribute("data-" + area.label + "-clicked") || "-") + " count=" + (body.getAttribute("data-" + area.label + "-click-count") || "0"));
+    });
+    log.textContent = lines.join("\n");
+  }
+}
+
 q-timer verifyMouseArea {
   interval: 1300
   repeat: false
@@ -122,12 +189,6 @@ q-timer verifyMouseArea {
       document.body.getAttribute("data-first-exited") === "1" &&
       QPoint(1, 1).x === QMap({ x: 1, y: 1 }).x &&
       QPoint(1, 1).y === QMap({ x: 1, y: 1 }).y;
-    document.querySelector("#mouse-log").textContent = [
-      "first entered: " + document.body.getAttribute("data-first-entered"),
-      "second entered: " + document.body.getAttribute("data-second-entered"),
-      "button: " + document.body.getAttribute("data-first-clicked"),
-      "exited: " + document.body.getAttribute("data-first-exited")
-    ].join("\n");
     document.body.setAttribute("data-status", pass ? "pass" : "fail");
   }
 }
