@@ -11521,6 +11521,8 @@
     next.slotStack = Array.isArray(current.slotStack) ? current.slotStack : [];
     next.capture = current.capture || null;
     next.rootHostElement = current.rootHostElement || source.rootHostElement || null;
+    next.disableComponentRuntime = !!(current.disableComponentRuntime || source.disableComponentRuntime);
+    next.disableLifecycleHooks = !!(current.disableLifecycleHooks || source.disableLifecycleHooks || next.disableComponentRuntime);
     ensureInstanceAliasScopeStack(next);
     return next;
   }
@@ -12785,6 +12787,9 @@
       }
 
       if (String(node.kind || "").trim().toLowerCase() === Q_TIMER_NODE_KIND) {
+        if (context.disableComponentRuntime) {
+          return;
+        }
         registerQTimerDeclarationNode(node, parent, targetDocument, context);
         return;
       }
@@ -12919,8 +12924,10 @@
       ) {
         applyPathAnimationsToElement(element, node.meta.__qhtmlStylePathAnimations, targetDocument);
       }
-      attachQBehaviorsToTarget(element, node);
-      initializeBehaviorTargetProperties(element, node);
+      if (!context.disableComponentRuntime) {
+        attachQBehaviorsToTarget(element, node);
+        initializeBehaviorTargetProperties(element, node);
+      }
 
       if (context.capture) {
         if (context.capture.nodeMap) {
@@ -13395,10 +13402,12 @@
       }
     }
 
-    bindComponentMethods(componentNode, hostElement, instanceNode);
-    attachQBehaviorsToTarget(hostElement, componentNode);
-    initializeBehaviorTargetProperties(hostElement, instanceNode);
-    installQStateMachineStateBridge(componentNode, instanceNode, hostElement, targetDocument, context);
+    if (!context.disableComponentRuntime) {
+      bindComponentMethods(componentNode, hostElement, instanceNode);
+      attachQBehaviorsToTarget(hostElement, componentNode);
+      initializeBehaviorTargetProperties(hostElement, instanceNode);
+      installQStateMachineStateBridge(componentNode, instanceNode, hostElement, targetDocument, context);
+    }
 
     stack.push(key);
     context.componentHostStack.push(hostElement);
@@ -13437,7 +13446,9 @@
     stripRenderedSlotElements(hostElement);
     applyRuntimeThemeRulesToHost(hostElement, instanceNode);
     registerQAnchorTarget(hostElement, [componentNode, instanceNode], context);
-    bindDeclaredComponentPropertyNodes(componentNode, hostElement, context);
+    if (!context.disableComponentRuntime) {
+      bindDeclaredComponentPropertyNodes(componentNode, hostElement, context);
+    }
 
     if (!context.disableLifecycleHooks) {
       runLifecycleHooks(instanceNode, hostElement, targetDocument);
@@ -13609,7 +13620,9 @@
     );
     hydrateHostNamedRuntimeScope(workerHost, context);
     registerNamedInstanceAlias(context, workerHost, componentNode, instanceNode);
-    bindComponentMethods(componentNode, workerHost, instanceNode);
+    if (!context.disableComponentRuntime) {
+      bindComponentMethods(componentNode, workerHost, instanceNode);
+    }
     if (!context.disableLifecycleHooks) {
       runLifecycleHooks(instanceNode, workerHost, targetDocument);
       runComponentLifecycleHooks(componentNode, workerHost, targetDocument);
@@ -13922,7 +13935,8 @@
         opts && opts.rootHostElement && opts.rootHostElement.nodeType === 1
           ? opts.rootHostElement
           : null,
-      disableLifecycleHooks: !!opts.disableLifecycleHooks,
+      disableComponentRuntime: !!(opts.disableComponentRuntime || opts.staticPreview),
+      disableLifecycleHooks: !!(opts.disableLifecycleHooks || opts.disableComponentRuntime || opts.staticPreview),
       suppressModelViewWrapper: !!opts.suppressModelViewWrapper,
       capture: opts.capture ? opts.capture : null,
     };
@@ -13949,7 +13963,7 @@
       Array.isArray(documentNode.meta.qTimers)
         ? documentNode.meta.qTimers
         : [];
-    if (rootTimers.length > 0 && context.rootHostElement && context.rootHostElement.nodeType === 1) {
+    if (!context.disableComponentRuntime && rootTimers.length > 0 && context.rootHostElement && context.rootHostElement.nodeType === 1) {
       for (let ti = 0; ti < rootTimers.length; ti += 1) {
         registerQTimerDeclarationNode(
           Object.assign({ kind: Q_TIMER_NODE_KIND }, rootTimers[ti]),
@@ -14117,7 +14131,8 @@
           ? Object.assign({}, opts.inlineScope)
           : {},
       instanceAliasScopeStack: [Object.create(null)],
-      disableLifecycleHooks: !!opts.disableLifecycleHooks,
+      disableComponentRuntime: !!(opts.disableComponentRuntime || opts.staticPreview),
+      disableLifecycleHooks: !!(opts.disableLifecycleHooks || opts.disableComponentRuntime || opts.staticPreview),
     };
     ensureContextFrames(context);
     if (opts && opts.namedRuntimeValues && typeof opts.namedRuntimeValues === "object") {
@@ -14148,7 +14163,9 @@
       }
     }
 
-    bindComponentMethods(effectiveComponentNode, hostElement, instanceNode);
+    if (!context.disableComponentRuntime) {
+      bindComponentMethods(effectiveComponentNode, hostElement, instanceNode);
+    }
 
     if (
       context.componentStack.indexOf(key) !== -1 &&

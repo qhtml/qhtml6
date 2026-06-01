@@ -11,8 +11,9 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - Returns `Map<componentId, componentDefinitionNode>`.
   - Also includes `q-struct` definitions keyed by `structId`.
   - Walks nested definition locations including repeater template/model payloads.
-- `renderDocumentToFragment(documentNode, targetDocument?)`
+- `renderDocumentToFragment(documentNode, targetDocument?, options?)`
   - Renders top-level runtime nodes into a `DocumentFragment`.
+  - `options.staticPreview` / `options.disableComponentRuntime` renders component markup without installing runtime methods, behaviors, timers, state-machine bridges, declared-property bindings, or lifecycle hooks. This is intended for inert thumbnails/previews such as page-builder palette rendering.
 - `renderIntoElement(documentNode, hostElement, targetDocument?)`
   - Replaces host content with rendered fragment.
 - `renderComponentElement(componentNode, hostElement, targetDocument?, options?)`

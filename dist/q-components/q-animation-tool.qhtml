@@ -1,6 +1,6 @@
 q-component q-animation-tool {
   q-property selectedKind: ""
-  q-property targetExpression: "this.component"
+  q-property targetExpression: ""
   q-property componentSource: ""
 
   q-timer propertyScanTimer {

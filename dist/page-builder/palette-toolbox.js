@@ -799,7 +799,10 @@
     try {
       doc = parseQHtmlSource(source);
       if (doc && renderer && typeof renderer.renderDocumentToFragment === "function") {
-        fragment = renderer.renderDocumentToFragment(doc, document);
+        fragment = renderer.renderDocumentToFragment(doc, document, {
+          staticPreview: true,
+          disableComponentRuntime: true,
+        });
         target.appendChild(fragment);
         return true;
       }
