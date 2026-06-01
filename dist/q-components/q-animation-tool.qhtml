@@ -1,13 +1,14 @@
 q-component q-animation-tool {
   q-property selectedKind: ""
-  q-property selectedTarget: ""
+  q-property targetExpression: "this.component"
+  q-property componentSource: ""
 
-  q-timer overlayRefreshTimer {
+  q-timer propertyScanTimer {
     interval: 500
     repeat: true
     running: true
     ontimeout {
-      this.component.refreshToolButtons();
+      this.component.scanBuilderSource();
     }
   }
 
@@ -47,150 +48,96 @@ q-component q-animation-tool {
     return String(number);
   }
 
-  function targetLabel(element) {
-    var tag = String(element.tagName || "element").toLowerCase();
-    if (element.id) {
-      return tag + "#" + element.id;
+  function indentScript(source) {
+    var text = String(source == null ? "" : source).replace(/\s+$/g, "");
+    if (!text) {
+      return "  ";
     }
-    return tag;
+    return text.split("\n").map(function(line) {
+      return "  " + line;
+    }).join("\n");
   }
 
-  function targetPath(element) {
-    var tag = String(element.tagName || "element").toLowerCase();
-    var id = String(element.id || "").trim();
-    if (/^[A-Za-z][A-Za-z0-9_-]*$/.test(id)) {
-      return "#" + id + ".style.left";
-    }
-    return tag + ".style.left";
+  function targetRoot() {
+    return String(this.component.targetExpression || "this.component").trim() || "this.component";
   }
 
-  function animationName(element) {
-    var base = element.id || String(element.tagName || "target").toLowerCase();
-    return this.component.safeName(base, "target") + "PropertyAnimation";
-  }
-
-  function buttonStyle(btn) {
-    btn.type = "button";
-    btn.setAttribute("aria-label", "Open animation tool");
-    btn.title = "Animation tool";
-    btn.innerHTML = "&#127913;";
-    btn.style.position = "fixed";
-    btn.style.zIndex = "2147483646";
-    btn.style.width = "28px";
-    btn.style.height = "28px";
-    btn.style.border = "1px solid rgba(15, 23, 42, 0.35)";
-    btn.style.borderRadius = "999px";
-    btn.style.background = "#ffffff";
-    btn.style.color = "#0f172a";
-    btn.style.boxShadow = "0 10px 24px rgba(15, 23, 42, 0.22)";
-    btn.style.cursor = "pointer";
-    btn.style.display = "grid";
-    btn.style.placeItems = "center";
-    btn.style.fontSize = "17px";
-    btn.style.lineHeight = "1";
-    btn.style.padding = "0";
-  }
-
-  function shouldDecorate(element) {
-    if (element === this.component) {
-      return false;
-    }
-    if (String(element.tagName || "").toLowerCase() === "q-animation-tool") {
-      return false;
-    }
-    if (element.closest("q-animation-tool")) {
-      return false;
-    }
-    return true;
-  }
-
-  function ensureToolState() {
-    if (!this.component.__qAnimationToolButtons) {
-      this.component.__qAnimationToolButtons = {};
-    }
-    if (!this.component.__qAnimationToolCounter) {
-      this.component.__qAnimationToolCounter = 1;
-    }
-  }
-
-  function cleanupToolHost() {
-    this.component.removeAttribute("data-q-animation-tool-button");
-    this.component.removeAttribute("type");
-    this.component.removeAttribute("aria-label");
-    this.component.removeAttribute("title");
-    this.component.style.cssText = "display: contents;";
-  }
-
-  function ensureTargetId(element) {
-    var toolId = element.getAttribute("data-q-animation-tool-id");
-    if (!toolId) {
-      toolId = "qat-" + String(this.component.__qAnimationToolCounter);
-      this.component.__qAnimationToolCounter = Number(this.component.__qAnimationToolCounter || 1) + 1;
-      element.setAttribute("data-q-animation-tool-id", toolId);
-    }
-    return toolId;
-  }
-
-  function createToolButton(toolId, target) {
-    var host = this.component;
-    var btn = document.createElement("button");
-    btn.setAttribute("data-q-animation-tool-button", toolId);
-    host.buttonStyle(btn);
-    btn.onclick = function(event) {
-      event.preventDefault();
-      event.stopPropagation();
-      host.openForElement(target);
-    };
-    host.querySelector("[data-role='overlay-root']").appendChild(btn);
-    return btn;
-  }
-
-  function refreshToolButtons() {
-    this.component.ensureToolState();
-    var targets = document.querySelectorAll("[qhtml-component-instance='1']");
-    var live = {};
-    for (var i = 0; i < targets.length; i += 1) {
-      var target = targets[i];
-      if (!this.component.shouldDecorate(target)) {
-        continue;
+  function scanProperties(source) {
+    var list = [];
+    var seen = {};
+    String(source || "").replace(/q-property\s+([A-Za-z_][A-Za-z0-9_-]*)/g, function(match, name) {
+      if (!seen[name]) {
+        seen[name] = true;
+        list.push({ name: name, path: this.component.targetRoot() + "." + name, kind: "q-property" });
       }
-      var toolId = this.component.ensureTargetId(target);
-      live[toolId] = true;
-      var btn = this.component.__qAnimationToolButtons[toolId];
-      if (!btn) {
-        btn = this.component.createToolButton(toolId, target);
-        this.component.__qAnimationToolButtons[toolId] = btn;
-      }
-      var rect = target.getBoundingClientRect();
-      btn.style.left = String(Math.max(0, Math.round(rect.right - 32))) + "px";
-      btn.style.top = String(Math.max(0, Math.round(rect.top + 4))) + "px";
-      btn.style.display = rect.width > 0 && rect.height > 0 ? "grid" : "none";
-    }
-    Object.keys(this.component.__qAnimationToolButtons).forEach(function(toolId) {
-      if (live[toolId]) {
-        return;
-      }
-      var btn = this.component.__qAnimationToolButtons[toolId];
-      if (btn && btn.parentNode) {
-        btn.parentNode.removeChild(btn);
-      }
-      delete this.component.__qAnimationToolButtons[toolId];
-    }, this);
-    this.component.cleanupToolHost();
+      return match;
+    }.bind(this));
+    return list;
   }
 
-  function openForElement(element) {
-    this.component.__qAnimationToolTarget = element;
-    this.component.selectedTarget = this.component.targetLabel(element);
-    this.component.field("target-summary").textContent = this.component.selectedTarget;
-    this.component.setValue("animation-name", this.component.animationName(element));
-    this.component.setValue("target-path", this.component.targetPath(element));
+  function defaultTargetOptions(source) {
+    var root = this.component.targetRoot();
+    var props = this.component.scanProperties(source);
+    var options = [
+      { name: "style.height", path: root + ".style.height", kind: "style" },
+      { name: "style.width", path: root + ".style.width", kind: "style" },
+      { name: "style.left", path: root + ".style.left", kind: "style" },
+      { name: "style.top", path: root + ".style.top", kind: "style" },
+      { name: "style.opacity", path: root + ".style.opacity", kind: "style" },
+      { name: "style.borderRadius", path: root + ".style.borderRadius", kind: "style" }
+    ];
+    return props.concat(options);
+  }
+
+  function populateTargetSelect(source) {
+    var select = this.component.field("target-property");
+    var current = select.value || this.component.valueFor("target-path");
+    var options = this.component.defaultTargetOptions(source);
+    select.innerHTML = "";
+    options.forEach(function(item) {
+      var option = document.createElement("option");
+      option.value = item.path;
+      option.textContent = item.kind + ": " + item.name + " -> " + item.path;
+      select.appendChild(option);
+    });
+    if (current) {
+      select.value = current;
+    }
+    if (!select.value && options.length) {
+      select.value = options[0].path;
+    }
+    this.component.setValue("target-path", select.value || this.component.targetRoot() + ".style.height");
+  }
+
+  function scanBuilderSource() {
+    if (!this.component.panel("dialog") || this.component.panel("dialog").style.display === "none") {
+      return;
+    }
+    if (window.QPageBuilder && typeof window.QPageBuilder.getComponentBuilderSource === "function") {
+      var nextSource = window.QPageBuilder.getComponentBuilderSource();
+      if (String(nextSource || "") !== String(this.component.componentSource || "")) {
+        this.component.componentSource = String(nextSource || "");
+        this.component.populateTargetSelect(this.component.componentSource);
+      }
+    }
+  }
+
+  function openForBuilder(source) {
+    this.component.targetExpression = "this.component";
+    this.component.componentSource = String(source || "");
+    this.component.field("target-summary").textContent = "target: this.component";
+    this.component.setValue("animation-name", "myanim");
     this.component.setValue("duration", "1000");
     this.component.setValue("steps", "60");
     this.component.setValue("from-value", "0px");
     this.component.setValue("to-value", "240px");
+    this.component.field("repeat").checked = false;
     this.component.field("running").checked = true;
+    this.component.field("on-started").value = "";
+    this.component.field("on-stepped").value = "";
+    this.component.field("on-stopped").value = "";
     this.component.cancelOptions();
+    this.component.populateTargetSelect(this.component.componentSource);
     this.component.panel("dialog").style.display = "flex";
   }
 
@@ -206,33 +153,6 @@ q-component q-animation-tool {
     this.component.field("generated-code").value = "";
   }
 
-  function addCode() {
-    var name = this.component.safeName(this.component.valueFor("animation-name"), "propertyAnimation");
-    var target = this.component.valueFor("target-path") || "#target.style.left";
-    var duration = this.component.numberText(this.component.valueFor("duration"), 1000);
-    var steps = this.component.numberText(this.component.valueFor("steps"), 60);
-    var easing = this.component.valueFor("easing") || "linear";
-    var repeat = this.component.valueFor("repeat") || "1";
-    var fromValue = this.component.valueFor("from-value");
-    var toValue = this.component.valueFor("to-value");
-    var running = this.component.field("running").checked;
-    var code = "";
-    code += "q-property-animation " + name + " {\n";
-    code += "  target: " + '"' + target + '"' + "\n";
-    code += "  duration: " + duration + "\n";
-    code += "  steps: " + steps + "\n";
-    code += "  easing: " + '"' + easing + '"' + "\n";
-    code += "  repeat: " + repeat + "\n";
-    code += "  from: " + '"' + fromValue + '"' + "\n";
-    code += "  to: " + '"' + toValue + '"' + "\n";
-    code += "  running: " + (running ? "true" : "false") + "\n";
-    code += "}";
-    this.component.field("generated-code").value = code;
-    this.component.field("generated-code").focus();
-    this.component.field("generated-code").select();
-    return code;
-  }
-
   function selectAnimationKind(kind) {
     this.component.selectedKind = String(kind || "");
     this.component.field("generated-code").value = "";
@@ -243,14 +163,46 @@ q-component q-animation-tool {
     }
   }
 
-  onready {
-    this.component.cleanupToolHost();
-    this.component.refreshToolButtons();
+  function chooseTargetPath(path) {
+    this.component.setValue("target-path", path || this.component.targetRoot() + ".style.height");
   }
 
-  div {
-    data-role: "overlay-root"
-    style { position: fixed; inset: 0; z-index: 2147483645; pointer-events: none; }
+  function addCode() {
+    var name = this.component.safeName(this.component.valueFor("animation-name"), "myanim");
+    var target = this.component.valueFor("target-path") || this.component.targetRoot() + ".style.height";
+    var duration = this.component.numberText(this.component.valueFor("duration"), 1000);
+    var steps = this.component.numberText(this.component.valueFor("steps"), 60);
+    var easing = this.component.valueFor("easing") || "linear";
+    var repeat = this.component.field("repeat").checked ? "true" : "false";
+    var fromValue = this.component.valueFor("from-value");
+    var toValue = this.component.valueFor("to-value");
+    var running = this.component.field("running").checked;
+    var started = this.component.indentScript(this.component.field("on-started").value);
+    var stepped = this.component.indentScript(this.component.field("on-stepped").value);
+    var stopped = this.component.indentScript(this.component.field("on-stopped").value);
+    var code = "";
+    code += "q-property-animation " + name + " {\n";
+    code += "  target: " + '"' + target + '"' + "\n";
+    code += "  duration: " + duration + "\n";
+    code += "  steps: " + steps + "\n";
+    code += "  easing: " + '"' + easing + '"' + "\n";
+    code += "  repeat: " + repeat + "\n";
+    code += "  from: " + '"' + fromValue + '"' + "\n";
+    code += "  to: " + '"' + toValue + '"' + "\n";
+    code += "  running: " + (running ? "true" : "false") + "\n\n";
+    code += "  onStarted {\n" + started + "\n  }\n\n";
+    code += "  onStepped(value, currentStep, progress) {\n" + stepped + "\n  }\n\n";
+    code += "  onStopped {\n" + stopped + "\n  }\n";
+    code += "}";
+    this.component.field("generated-code").value = code;
+    this.component.field("generated-code").focus();
+    this.component.field("generated-code").select();
+    return code;
+  }
+
+  onready {
+    this.component.style.display = "contents";
+    this.component.populateTargetSelect("");
   }
 
   div {
@@ -260,7 +212,7 @@ q-component q-animation-tool {
     style { position: fixed; inset: 0; z-index: 2147483647; display: none; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; background: rgba(15, 23, 42, 0.45); }
 
     div {
-      style { width: min(760px, 100%); max-height: min(760px, 92vh); overflow: auto; background: #f8fafc; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 28px 80px rgba(15, 23, 42, 0.35); }
+      style { width: min(820px, 100%); max-height: min(820px, 92vh); overflow: auto; background: #f8fafc; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 28px 80px rgba(15, 23, 42, 0.35); }
 
       div {
         style { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid #e2e8f0; background: #ffffff; }
@@ -270,7 +222,7 @@ q-component q-animation-tool {
           span {
             data-role: "target-summary"
             style { color: #64748b; font-size: 13px; }
-            text { No target selected }
+            text { target: this.component }
           }
         }
         button {
@@ -320,6 +272,11 @@ q-component q-animation-tool {
             }
             label {
               style { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
+              text { q-property / target }
+              select { data-role: "target-property" onchange { this.closest("q-animation-tool").chooseTargetPath(this.value); } style { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font: inherit; background: #ffffff; } }
+            }
+            label {
+              style { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; grid-column: 1 / -1; }
               text { Target path }
               input { data-role: "target-path" type: "text" style { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font: inherit; } }
             }
@@ -345,11 +302,6 @@ q-component q-animation-tool {
             }
             label {
               style { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
-              text { Repeat }
-              input { data-role: "repeat" type: "text" value: "1" style { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font: inherit; } }
-            }
-            label {
-              style { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
               text { From }
               input { data-role: "from-value" type: "text" style { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font: inherit; } }
             }
@@ -360,10 +312,37 @@ q-component q-animation-tool {
             }
           }
 
-          label {
-            style { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #334155; }
-            input { data-role: "running" type: "checkbox" }
-            text { running }
+          div {
+            style { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+            label {
+              style { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #334155; }
+              input { data-role: "repeat" type: "checkbox" }
+              text { repeat }
+            }
+            label {
+              style { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #334155; }
+              input { data-role: "running" type: "checkbox" }
+              text { running }
+            }
+          }
+
+          div {
+            style { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+            label {
+              style { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
+              text { onStarted }
+              textarea { data-role: "on-started" rows: "5" placeholder: "console.log('started');" style { resize: vertical; min-height: 86px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; } }
+            }
+            label {
+              style { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
+              text { onStepped(value, currentStep, progress) }
+              textarea { data-role: "on-stepped" rows: "5" placeholder: "this.component.currentValue = value;" style { resize: vertical; min-height: 86px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; } }
+            }
+            label {
+              style { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
+              text { onStopped }
+              textarea { data-role: "on-stopped" rows: "5" placeholder: "console.log('stopped');" style { resize: vertical; min-height: 86px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; } }
+            }
           }
 
           div {
@@ -417,8 +396,8 @@ q-component q-animation-tool {
           textarea {
             data-role: "generated-code"
             readonly: "readonly"
-            rows: "10"
-            style { width: 100%; min-height: 190px; box-sizing: border-box; resize: vertical; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; background: #0f172a; color: #e2e8f0; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+            rows: "12"
+            style { width: 100%; min-height: 220px; box-sizing: border-box; resize: vertical; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; background: #0f172a; color: #e2e8f0; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
           }
         }
       }

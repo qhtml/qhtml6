@@ -24,29 +24,9 @@
   <q-html>
 q-import { q-components/q-animation-tool.qhtml }
 
-q-component animation-tool-card {
-  q-property title: "Animation target"
-
-  div {
-    style { width: 280px; min-height: 128px; padding: 18px; border-radius: 8px; background: #ffffff; border: 1px solid #cbd5e1; box-shadow: 0 18px 45px rgba(15, 23, 42, 0.10); }
-    h2 {
-      style { margin: 0 0 10px 0; font-size: 20px; }
-      text { ${this.component.title} }
-    }
-    p {
-      style { margin: 0; color: #475569; line-height: 1.45; }
-      text { The animation tool should place a top-hat button on this component instance. }
-    }
-  }
-}
-
 section {
   style { min-height: 100vh; padding: 32px; box-sizing: border-box; display: grid; gap: 18px; align-content: start; }
   h1 { text { q-animation-tool } }
-  animation-tool-card toolTarget {
-    id: "toolTarget"
-    title: "Tool target"
-  }
 }
 
 q-animation-tool tool { }
@@ -59,17 +39,34 @@ q-timer exerciseAnimationTool {
     try {
       document.body.setAttribute("data-status", "running");
       var tool = document.querySelector("q-animation-tool");
-      var target = document.querySelector("#toolTarget");
-      tool.openForElement(target);
+      var source = [
+        "q-component sample-card {",
+        "  q-property panelHeight: \"120px\"",
+        "  q-property accentOpacity: 0.5",
+        "  div { text { sample } }",
+        "}"
+      ].join("\n");
+      tool.openForBuilder(source);
       tool.selectAnimationKind("q-property-animation");
+      tool.querySelector("[data-role='target-property']").value = "this.component.panelHeight";
+      tool.chooseTargetPath("this.component.panelHeight");
       tool.querySelector("[data-role='duration']").value = "1800";
       tool.querySelector("[data-role='steps']").value = "90";
-      tool.querySelector("[data-role='from-value']").value = "0px";
+      tool.querySelector("[data-role='from-value']").value = "120px";
       tool.querySelector("[data-role='to-value']").value = "480px";
+      tool.querySelector("[data-role='repeat']").checked = true;
+      tool.querySelector("[data-role='on-stepped']").value = "this.component.panelHeight = value;";
       var code = tool.addCode();
-      var pass = code.indexOf("q-property-animation toolTargetPropertyAnimation") >= 0 &&
-        code.indexOf("target: \"#toolTarget.style.left\"") >= 0 &&
-        document.querySelector("[data-q-animation-tool-button]");
+      var optionText = tool.querySelector("[data-role='target-property']").textContent;
+      var pass = code.indexOf("q-property-animation myanim") >= 0 &&
+        code.indexOf("target: \"this.component.panelHeight\"") >= 0 &&
+        code.indexOf("repeat: true") >= 0 &&
+        code.indexOf("onStarted") >= 0 &&
+        code.indexOf("onStepped(value, currentStep, progress)") >= 0 &&
+        code.indexOf("onStopped") >= 0 &&
+        code.indexOf("this.component.panelHeight = value;") >= 0 &&
+        optionText.indexOf("panelHeight") >= 0 &&
+        optionText.indexOf("accentOpacity") >= 0;
       document.body.setAttribute("data-generated-code", code);
       document.body.setAttribute("data-status", pass ? "pass" : "fail");
     } catch (error) {

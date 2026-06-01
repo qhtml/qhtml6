@@ -338,6 +338,12 @@ q-component page-builder-component-builder {
         }
         button {
           type: "button"
+          data-pb-builder-tab: "animation"
+          onclick { if (window.QPageBuilder) { window.QPageBuilder.switchComponentBuilderTab("animation"); } }
+          text { Animation }
+        }
+        button {
+          type: "button"
           data-pb-builder-tab: "preview"
           onclick { if (window.QPageBuilder) { window.QPageBuilder.switchComponentBuilderTab("preview"); } }
           text { Preview }
@@ -423,6 +429,22 @@ q-component page-builder-component-builder {
         div.pb-component-builder-preview {
           q-editor {
             id: "pb-component-builder-preview"
+          }
+        }
+      }
+
+      section.pb-component-builder-panel {
+        data-pb-builder-panel: "animation"
+        hidden: "hidden"
+        div.pb-component-animation-panel {
+          p { text { Generate animation boilerplate for this component. The dialog targets this.component and scans current q-property declarations. } }
+          button.pb-action.primary {
+            type: "button"
+            onclick { if (window.QPageBuilder) { window.QPageBuilder.openComponentBuilderAnimationTool(); } }
+            text { Open Animation Tool }
+          }
+          q-animation-tool {
+            id: "pb-component-animation-tool"
           }
         }
       }

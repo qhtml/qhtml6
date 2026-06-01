@@ -11,6 +11,7 @@ q-import { q-components/q-estore.qhtml cache }
 q-import { q-components/q-spritesheet.qhtml cache }
 q-import { q-components/q-factory.qhtml cache }
 q-import { q-components/q-animation.qhtml cache }
+q-import { q-components/q-animation-tool.qhtml cache }
 q-import { q-components/q-mouse-area.qhtml cache }
 q-import { q-components/q-sidebar.qhtml cache }
 q-import { q-components/lcars-sidebar.qhtml cache }
