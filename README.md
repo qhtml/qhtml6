@@ -243,6 +243,8 @@ q-component scripted-panel {
 
 `q-script-action { ... }` is treated as an animation item. In a sequential group it completes before the next animation starts; in a parallel group it runs alongside the other child animations. Outside a group, it autoruns when its DOM element is created. If the script returns a Promise, the action ends after the Promise settles.
 
+`q-sequential-animation` and `q-parallel-animation` are component aliases for `q-sequential-animation-group` and `q-parallel-animation-group`.
+
 Use `q-bind-css` inside a component when the property can be projected directly to a writable CSS reference:
 
 ```qhtml

@@ -24,81 +24,96 @@
   <q-html>
 q-import { q-components/q-animation.qhtml }
 
+q-component script-action-target {
+  q-property panelWidth: "120px"
+  q-property content: "original"
+
+  q-bind-css { this.component.panelWidth this.component.querySelector(".target-panel").style.width }
+
+  div.target-panel {
+    style { width: 120px; height: 58px; display: grid; place-items: center; background: #1f7a8c; color: #ffffff; font-weight: 800; }
+    text { original }
+  }
+
+  function setDivContent(value) {
+    var text = String(value == null ? "" : value);
+    this.component.content = text;
+    this.component.querySelector(".target-panel").textContent = text;
+    document.body.setAttribute("data-content", text);
+  }
+}
+
 q-component script-action-stage {
-  q-property marker: ""
+  q-property cycles: 0
 
   section {
     style { min-height: 100vh; padding: 1.5rem; box-sizing: border-box; display: grid; gap: 1rem; align-content: start; }
 
     h1 { text { q-script-action } }
-
-    div#standaloneBox {
-      style { width: 240px; min-height: 48px; display: grid; place-items: center; background: #1f7a8c; color: #ffffff; font-weight: 800; }
-      text { waiting }
-    }
-
-    div#sequenceBox {
-      style { width: 240px; min-height: 48px; display: grid; place-items: center; background: #bf7b2c; color: #ffffff; font-weight: 800; }
-      text { sequence pending }
-    }
-
-    div#parallelBox {
-      style { width: 240px; min-height: 48px; display: grid; place-items: center; background: #6b5dd3; color: #ffffff; font-weight: 800; }
-      text { parallel pending }
+    script-action-target targetBox {
+      id: "targetBox"
     }
   }
 
-  q-script-action {
-    this.closest("script-action-stage").marker = "standalone";
-    document.querySelector("#standaloneBox").textContent = "standalone ran";
-  }
+  q-sequential-animation flow {
+    running: true
 
-  q-sequential-animation-group seqGroup {
-    q-script-action {
-      document.body.setAttribute("data-seq", "one");
-      document.querySelector("#sequenceBox").textContent = "sequence one";
+    q-property-animation {
+      target: "#targetBox.panelWidth"
+      duration: 180
+      steps: 6
+      repeat: 1
+      from: "120px"
+      to: "300px"
     }
 
     q-script-action {
-      document.body.setAttribute("data-seq", document.body.getAttribute("data-seq") + ",two");
-      document.querySelector("#sequenceBox").textContent = "sequence one,two";
-    }
-  }
-
-  q-parallel-animation-group parallelGroup {
-    q-script-action {
-      document.body.setAttribute("data-parallel-a", "1");
+      document.querySelector("#targetBox").setDivContent("expanded");
+      document.body.setAttribute("data-seq", "expanded");
     }
 
+    q-property-animation {
+      target: "#targetBox.panelWidth"
+      duration: 180
+      steps: 6
+      repeat: 1
+      from: "300px"
+      to: "120px"
+    }
+
     q-script-action {
-      document.body.setAttribute("data-parallel-b", "1");
-      document.querySelector("#parallelBox").textContent = "parallel ran";
+      document.querySelector("#targetBox").setDivContent("original");
+      document.body.setAttribute("data-seq", document.body.getAttribute("data-seq") + ",original");
+    }
+
+    q-script-action {
+      var stage = this.closest("script-action-stage");
+      stage.cycles = Number(stage.cycles || 0) + 1;
+      document.body.setAttribute("data-cycles", String(stage.cycles));
+      if (stage.cycles < 2) {
+        this.restart();
+      }
     }
   }
 }
 
 script-action-stage stage { }
 
-q-timer startActionGroups {
-  interval: 100
-  repeat: false
-  running: true
-  ontimeout {
-    document.querySelector("q-sequential-animation-group").start();
-    document.querySelector("q-parallel-animation-group").start();
-  }
-}
-
 q-timer verifyScriptActions {
-  interval: 500
+  interval: 1500
   repeat: false
   running: true
   ontimeout {
     var host = document.querySelector("script-action-stage");
-    var pass = host.marker === "standalone" &&
-      document.body.getAttribute("data-seq") === "one,two" &&
-      document.body.getAttribute("data-parallel-a") === "1" &&
-      document.body.getAttribute("data-parallel-b") === "1";
+    var target = document.querySelector("#targetBox");
+    var panel = target.querySelector(".target-panel");
+    var pass = Number(host.cycles || 0) >= 2 &&
+      target.panelWidth === "120px" &&
+      panel.style.width === "120px" &&
+      target.content === "original" &&
+      panel.textContent === "original" &&
+      document.body.getAttribute("data-seq") === "expanded,original" &&
+      document.body.getAttribute("data-content") === "original";
     document.body.setAttribute("data-status", pass ? "pass" : "fail");
   }
 }

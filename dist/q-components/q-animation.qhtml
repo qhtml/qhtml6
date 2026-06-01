@@ -378,7 +378,7 @@ q-component q-script-action extends q-abstract-animation {
     var cursor = this.component.parentElement;
     while (cursor) {
       var tagName = String(cursor.tagName || "").toLowerCase();
-      if (tagName === "q-parallel-animation-group" || tagName === "q-sequential-animation-group") {
+      if (tagName === "q-parallel-animation-group" || tagName === "q-sequential-animation-group" || tagName === "q-parallel-animation" || tagName === "q-sequential-animation") {
         return true;
       }
       cursor = cursor.parentElement;
@@ -391,7 +391,7 @@ q-component q-script-action extends q-abstract-animation {
     var topGroup = null;
     while (cursor) {
       var tagName = String(cursor.tagName || "").toLowerCase();
-      if (tagName === "q-parallel-animation-group" || tagName === "q-sequential-animation-group") {
+      if (tagName === "q-parallel-animation-group" || tagName === "q-sequential-animation-group" || tagName === "q-parallel-animation" || tagName === "q-sequential-animation") {
         topGroup = cursor;
       }
       cursor = cursor.parentElement;
@@ -519,7 +519,7 @@ q-component q-parallel-animation-group extends q-abstract-animation {
     var cursor = animationElement && animationElement.parentElement;
     while (cursor && cursor !== host) {
       var tagName = String(cursor.tagName || "").toLowerCase();
-      if (tagName === "q-parallel-animation-group" || tagName === "q-sequential-animation-group") {
+      if (tagName === "q-parallel-animation-group" || tagName === "q-sequential-animation-group" || tagName === "q-parallel-animation" || tagName === "q-sequential-animation") {
         return false;
       }
       cursor = cursor.parentElement;
@@ -533,13 +533,15 @@ q-component q-parallel-animation-group extends q-abstract-animation {
       tagName === "q-script-action" ||
       tagName === "q-parallel-animation-group" ||
       tagName === "q-sequential-animation-group" ||
+      tagName === "q-parallel-animation" ||
+      tagName === "q-sequential-animation" ||
       tagName === "numberanimation" ||
       tagName === "q-number-animation";
   }
 
   function animations() {
     var host = this.component;
-    return Array.prototype.slice.call(host.querySelectorAll("q-property-animation, q-script-action, q-parallel-animation-group, q-sequential-animation-group, NumberAnimation, q-number-animation")).filter(function keepOwnedAnimation(node) {
+    return Array.prototype.slice.call(host.querySelectorAll("q-property-animation, q-script-action, q-parallel-animation-group, q-sequential-animation-group, q-parallel-animation, q-sequential-animation, NumberAnimation, q-number-animation")).filter(function keepOwnedAnimation(node) {
       return host.isAnimationElement(node) && host.ownsAnimation(node);
     });
   }
@@ -760,11 +762,16 @@ q-component q-sequential-animation-group extends q-parallel-animation-group {
         return;
       }
       if (index >= items.length) {
+        var shouldRestart = host.__qhtmlSequentialAnimationRestartRequested === true;
+        host.__qhtmlSequentialAnimationRestartRequested = false;
         host.__qhtmlParallelAnimationChangingRunning = true;
         host.running = false;
         host.__qhtmlParallelAnimationChangingRunning = false;
         host.ended();
         host.__qhtmlParallelAnimationStarting = false;
+        if (shouldRestart) {
+          host.start();
+        }
         return;
       }
       var animationElement = items[index];
@@ -790,4 +797,19 @@ q-component q-sequential-animation-group extends q-parallel-animation-group {
     };
     startNext();
   }
+
+  function restart() {
+    if (this.component.__qhtmlParallelAnimationStarting) {
+      this.component.__qhtmlSequentialAnimationRestartRequested = true;
+      return;
+    }
+    this.component.stop();
+    this.component.start();
+  }
+}
+
+q-component q-parallel-animation extends q-parallel-animation-group {
+}
+
+q-component q-sequential-animation extends q-sequential-animation-group {
 }
