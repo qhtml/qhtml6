@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML q-animation-tool Test</title>
+  <script src="qhtml.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+
+    q-html {
+      display: block;
+      min-height: 100vh;
+    }
+  </style>
+</head>
+<body data-status="pending">
+  <q-html>
+q-import { q-components/q-animation-tool.qhtml }
+
+q-component animation-tool-card {
+  q-property title: "Animation target"
+
+  div {
+    style { width: 280px; min-height: 128px; padding: 18px; border-radius: 8px; background: #ffffff; border: 1px solid #cbd5e1; box-shadow: 0 18px 45px rgba(15, 23, 42, 0.10); }
+    h2 {
+      style { margin: 0 0 10px 0; font-size: 20px; }
+      text { ${this.component.title} }
+    }
+    p {
+      style { margin: 0; color: #475569; line-height: 1.45; }
+      text { The animation tool should place a top-hat button on this component instance. }
+    }
+  }
+}
+
+section {
+  style { min-height: 100vh; padding: 32px; box-sizing: border-box; display: grid; gap: 18px; align-content: start; }
+  h1 { text { q-animation-tool } }
+  animation-tool-card toolTarget {
+    id: "toolTarget"
+    title: "Tool target"
+  }
+}
+
+q-animation-tool tool { }
+
+q-timer exerciseAnimationTool {
+  interval: 1000
+  repeat: false
+  running: true
+  ontimeout {
+    try {
+      document.body.setAttribute("data-status", "running");
+      var tool = document.querySelector("q-animation-tool");
+      var target = document.querySelector("#toolTarget");
+      tool.openForElement(target);
+      tool.selectAnimationKind("q-property-animation");
+      tool.querySelector("[data-role='duration']").value = "1800";
+      tool.querySelector("[data-role='steps']").value = "90";
+      tool.querySelector("[data-role='from-value']").value = "0px";
+      tool.querySelector("[data-role='to-value']").value = "480px";
+      var code = tool.addCode();
+      var pass = code.indexOf("q-property-animation toolTargetPropertyAnimation") >= 0 &&
+        code.indexOf("target: \"#toolTarget.style.left\"") >= 0 &&
+        document.querySelector("[data-q-animation-tool-button]");
+      document.body.setAttribute("data-generated-code", code);
+      document.body.setAttribute("data-status", pass ? "pass" : "fail");
+    } catch (error) {
+      document.body.setAttribute("data-error", error && error.message ? error.message : String(error));
+      document.body.setAttribute("data-status", "error");
+    }
+  }
+}
+  </q-html>
+</body>
+</html>

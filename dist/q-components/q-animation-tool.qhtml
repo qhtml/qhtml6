@@ -1,0 +1,427 @@
+q-component q-animation-tool {
+  q-property selectedKind: ""
+  q-property selectedTarget: ""
+
+  q-timer overlayRefreshTimer {
+    interval: 500
+    repeat: true
+    running: true
+    ontimeout {
+      this.component.refreshToolButtons();
+    }
+  }
+
+  function field(role) {
+    return this.component.querySelector("[data-role='" + role + "']");
+  }
+
+  function panel(role) {
+    return this.component.querySelector("[data-panel='" + role + "']");
+  }
+
+  function valueFor(role) {
+    return this.component.field(role).value;
+  }
+
+  function setValue(role, value) {
+    this.component.field(role).value = String(value == null ? "" : value);
+  }
+
+  function safeName(value, fallbackValue) {
+    var text = String(value == null ? "" : value).trim().replace(/[^A-Za-z0-9_]+/g, "_");
+    text = text.replace(/^_+|_+$/g, "");
+    if (!text) {
+      text = String(fallbackValue || "animation");
+    }
+    if (!/^[A-Za-z_]/.test(text)) {
+      text = "anim_" + text;
+    }
+    return text;
+  }
+
+  function numberText(value, fallbackValue) {
+    var number = Number(value);
+    if (!Number.isFinite(number)) {
+      number = Number(fallbackValue || 0);
+    }
+    return String(number);
+  }
+
+  function targetLabel(element) {
+    var tag = String(element.tagName || "element").toLowerCase();
+    if (element.id) {
+      return tag + "#" + element.id;
+    }
+    return tag;
+  }
+
+  function targetPath(element) {
+    var tag = String(element.tagName || "element").toLowerCase();
+    var id = String(element.id || "").trim();
+    if (/^[A-Za-z][A-Za-z0-9_-]*$/.test(id)) {
+      return "#" + id + ".style.left";
+    }
+    return tag + ".style.left";
+  }
+
+  function animationName(element) {
+    var base = element.id || String(element.tagName || "target").toLowerCase();
+    return this.component.safeName(base, "target") + "PropertyAnimation";
+  }
+
+  function buttonStyle(btn) {
+    btn.type = "button";
+    btn.setAttribute("aria-label", "Open animation tool");
+    btn.title = "Animation tool";
+    btn.innerHTML = "&#127913;";
+    btn.style.position = "fixed";
+    btn.style.zIndex = "2147483646";
+    btn.style.width = "28px";
+    btn.style.height = "28px";
+    btn.style.border = "1px solid rgba(15, 23, 42, 0.35)";
+    btn.style.borderRadius = "999px";
+    btn.style.background = "#ffffff";
+    btn.style.color = "#0f172a";
+    btn.style.boxShadow = "0 10px 24px rgba(15, 23, 42, 0.22)";
+    btn.style.cursor = "pointer";
+    btn.style.display = "grid";
+    btn.style.placeItems = "center";
+    btn.style.fontSize = "17px";
+    btn.style.lineHeight = "1";
+    btn.style.padding = "0";
+  }
+
+  function shouldDecorate(element) {
+    if (element === this.component) {
+      return false;
+    }
+    if (String(element.tagName || "").toLowerCase() === "q-animation-tool") {
+      return false;
+    }
+    if (element.closest("q-animation-tool")) {
+      return false;
+    }
+    return true;
+  }
+
+  function ensureToolState() {
+    if (!this.component.__qAnimationToolButtons) {
+      this.component.__qAnimationToolButtons = {};
+    }
+    if (!this.component.__qAnimationToolCounter) {
+      this.component.__qAnimationToolCounter = 1;
+    }
+  }
+
+  function cleanupToolHost() {
+    this.component.removeAttribute("data-q-animation-tool-button");
+    this.component.removeAttribute("type");
+    this.component.removeAttribute("aria-label");
+    this.component.removeAttribute("title");
+    this.component.style.cssText = "display: contents;";
+  }
+
+  function ensureTargetId(element) {
+    var toolId = element.getAttribute("data-q-animation-tool-id");
+    if (!toolId) {
+      toolId = "qat-" + String(this.component.__qAnimationToolCounter);
+      this.component.__qAnimationToolCounter = Number(this.component.__qAnimationToolCounter || 1) + 1;
+      element.setAttribute("data-q-animation-tool-id", toolId);
+    }
+    return toolId;
+  }
+
+  function createToolButton(toolId, target) {
+    var host = this.component;
+    var btn = document.createElement("button");
+    btn.setAttribute("data-q-animation-tool-button", toolId);
+    host.buttonStyle(btn);
+    btn.onclick = function(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      host.openForElement(target);
+    };
+    host.querySelector("[data-role='overlay-root']").appendChild(btn);
+    return btn;
+  }
+
+  function refreshToolButtons() {
+    this.component.ensureToolState();
+    var targets = document.querySelectorAll("[qhtml-component-instance='1']");
+    var live = {};
+    for (var i = 0; i < targets.length; i += 1) {
+      var target = targets[i];
+      if (!this.component.shouldDecorate(target)) {
+        continue;
+      }
+      var toolId = this.component.ensureTargetId(target);
+      live[toolId] = true;
+      var btn = this.component.__qAnimationToolButtons[toolId];
+      if (!btn) {
+        btn = this.component.createToolButton(toolId, target);
+        this.component.__qAnimationToolButtons[toolId] = btn;
+      }
+      var rect = target.getBoundingClientRect();
+      btn.style.left = String(Math.max(0, Math.round(rect.right - 32))) + "px";
+      btn.style.top = String(Math.max(0, Math.round(rect.top + 4))) + "px";
+      btn.style.display = rect.width > 0 && rect.height > 0 ? "grid" : "none";
+    }
+    Object.keys(this.component.__qAnimationToolButtons).forEach(function(toolId) {
+      if (live[toolId]) {
+        return;
+      }
+      var btn = this.component.__qAnimationToolButtons[toolId];
+      if (btn && btn.parentNode) {
+        btn.parentNode.removeChild(btn);
+      }
+      delete this.component.__qAnimationToolButtons[toolId];
+    }, this);
+    this.component.cleanupToolHost();
+  }
+
+  function openForElement(element) {
+    this.component.__qAnimationToolTarget = element;
+    this.component.selectedTarget = this.component.targetLabel(element);
+    this.component.field("target-summary").textContent = this.component.selectedTarget;
+    this.component.setValue("animation-name", this.component.animationName(element));
+    this.component.setValue("target-path", this.component.targetPath(element));
+    this.component.setValue("duration", "1000");
+    this.component.setValue("steps", "60");
+    this.component.setValue("from-value", "0px");
+    this.component.setValue("to-value", "240px");
+    this.component.field("running").checked = true;
+    this.component.cancelOptions();
+    this.component.panel("dialog").style.display = "flex";
+  }
+
+  function closeDialog() {
+    this.component.panel("dialog").style.display = "none";
+  }
+
+  function cancelOptions() {
+    this.component.selectedKind = "";
+    this.component.field("animation-kind").value = "";
+    this.component.panel("property-options").style.display = "none";
+    this.component.panel("placeholder-options").style.display = "none";
+    this.component.field("generated-code").value = "";
+  }
+
+  function addCode() {
+    var name = this.component.safeName(this.component.valueFor("animation-name"), "propertyAnimation");
+    var target = this.component.valueFor("target-path") || "#target.style.left";
+    var duration = this.component.numberText(this.component.valueFor("duration"), 1000);
+    var steps = this.component.numberText(this.component.valueFor("steps"), 60);
+    var easing = this.component.valueFor("easing") || "linear";
+    var repeat = this.component.valueFor("repeat") || "1";
+    var fromValue = this.component.valueFor("from-value");
+    var toValue = this.component.valueFor("to-value");
+    var running = this.component.field("running").checked;
+    var code = "";
+    code += "q-property-animation " + name + " {\n";
+    code += "  target: " + '"' + target + '"' + "\n";
+    code += "  duration: " + duration + "\n";
+    code += "  steps: " + steps + "\n";
+    code += "  easing: " + '"' + easing + '"' + "\n";
+    code += "  repeat: " + repeat + "\n";
+    code += "  from: " + '"' + fromValue + '"' + "\n";
+    code += "  to: " + '"' + toValue + '"' + "\n";
+    code += "  running: " + (running ? "true" : "false") + "\n";
+    code += "}";
+    this.component.field("generated-code").value = code;
+    this.component.field("generated-code").focus();
+    this.component.field("generated-code").select();
+    return code;
+  }
+
+  function selectAnimationKind(kind) {
+    this.component.selectedKind = String(kind || "");
+    this.component.field("generated-code").value = "";
+    this.component.panel("property-options").style.display = this.component.selectedKind === "q-property-animation" ? "grid" : "none";
+    this.component.panel("placeholder-options").style.display = this.component.selectedKind && this.component.selectedKind !== "q-property-animation" ? "grid" : "none";
+    if (this.component.selectedKind && this.component.selectedKind !== "q-property-animation") {
+      this.component.field("placeholder-title").textContent = this.component.selectedKind + " options";
+    }
+  }
+
+  onready {
+    this.component.cleanupToolHost();
+    this.component.refreshToolButtons();
+  }
+
+  div {
+    data-role: "overlay-root"
+    style { position: fixed; inset: 0; z-index: 2147483645; pointer-events: none; }
+  }
+
+  div {
+    data-panel: "dialog"
+    role: "dialog"
+    aria-modal: "true"
+    style { position: fixed; inset: 0; z-index: 2147483647; display: none; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; background: rgba(15, 23, 42, 0.45); }
+
+    div {
+      style { width: min(760px, 100%); max-height: min(760px, 92vh); overflow: auto; background: #f8fafc; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 28px 80px rgba(15, 23, 42, 0.35); }
+
+      div {
+        style { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid #e2e8f0; background: #ffffff; }
+        div {
+          style { display: grid; gap: 3px; min-width: 0; }
+          strong { text { Animation Tool } }
+          span {
+            data-role: "target-summary"
+            style { color: #64748b; font-size: 13px; }
+            text { No target selected }
+          }
+        }
+        button {
+          type: "button"
+          title: "Close"
+          onclick { this.closest("q-animation-tool").closeDialog(); }
+          style { width: 34px; height: 34px; border-radius: 999px; border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a; cursor: pointer; font-size: 20px; line-height: 1; }
+          text { x }
+        }
+      }
+
+      div {
+        style { display: grid; gap: 16px; padding: 18px; }
+
+        label {
+          style { display: grid; gap: 7px; font-size: 13px; font-weight: 700; color: #334155; }
+          text { Animation type }
+          select {
+            data-role: "animation-kind"
+            onchange { this.closest("q-animation-tool").selectAnimationKind(this.value); }
+            style { min-height: 40px; width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; background: #ffffff; color: #0f172a; font: inherit; }
+            option { value: ""; text { Select an animation option } }
+            option { value: "q-property-animation"; text { q-property-animation } }
+            option { value: "q-path-animation"; text { q-path-animation } }
+            option { value: "q-sequential-animation"; text { q-sequential-animation } }
+            option { value: "q-parallel-animation"; text { q-parallel-animation } }
+            option { value: "q-script-action"; text { q-script-action } }
+            option { value: "q-particle-emitter"; text { q-particle-emitter } }
+            option { value: "behavior"; text { behavior } }
+            option { value: "q-style-transition"; text { q-style-transition } }
+            option { value: "q-painter"; text { q-painter (CSS Houdini painter) } }
+            option { value: "q-canvas"; text { q-canvas (javascript painter) } }
+          }
+        }
+
+        div {
+          data-panel: "property-options"
+          style { display: none; gap: 12px; padding: 14px; border: 1px solid #dbeafe; border-radius: 8px; background: #eff6ff; }
+
+          div {
+            style { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+            label {
+              style { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
+              text { Animation name }
+              input { data-role: "animation-name" type: "text" style { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font: inherit; } }
+            }
+            label {
+              style { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
+              text { Target path }
+              input { data-role: "target-path" type: "text" style { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font: inherit; } }
+            }
+            label {
+              style { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
+              text { Duration }
+              input { data-role: "duration" type: "number" min: "1" step: "1" style { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font: inherit; } }
+            }
+            label {
+              style { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
+              text { Steps }
+              input { data-role: "steps" type: "number" min: "1" step: "1" style { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font: inherit; } }
+            }
+            label {
+              style { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
+              text { Easing }
+              select { data-role: "easing" style { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font: inherit; background: #ffffff; }
+                option { value: "linear"; text { linear } }
+                option { value: "ease-in"; text { ease-in } }
+                option { value: "ease-out"; text { ease-out } }
+                option { value: "ease-in-out"; text { ease-in-out } }
+              }
+            }
+            label {
+              style { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
+              text { Repeat }
+              input { data-role: "repeat" type: "text" value: "1" style { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font: inherit; } }
+            }
+            label {
+              style { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
+              text { From }
+              input { data-role: "from-value" type: "text" style { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font: inherit; } }
+            }
+            label {
+              style { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
+              text { To }
+              input { data-role: "to-value" type: "text" style { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font: inherit; } }
+            }
+          }
+
+          label {
+            style { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #334155; }
+            input { data-role: "running" type: "checkbox" }
+            text { running }
+          }
+
+          div {
+            style { display: flex; justify-content: flex-end; gap: 10px; }
+            button {
+              type: "button"
+              onclick { this.closest("q-animation-tool").cancelOptions(); }
+              style { min-height: 38px; padding: 0 14px; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a; cursor: pointer; font-weight: 700; }
+              text { Cancel }
+            }
+            button {
+              type: "button"
+              onclick { this.closest("q-animation-tool").addCode(); }
+              style { min-height: 38px; padding: 0 16px; border-radius: 6px; border: 1px solid #2563eb; background: #2563eb; color: #ffffff; cursor: pointer; font-weight: 800; }
+              text { Add }
+            }
+          }
+        }
+
+        div {
+          data-panel: "placeholder-options"
+          style { display: none; gap: 12px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; }
+          strong {
+            data-role: "placeholder-title"
+            text { Animation options }
+          }
+          p {
+            style { margin: 0; color: #64748b; line-height: 1.5; }
+            text { This generator panel will be added in a later pass. }
+          }
+          div {
+            style { display: flex; justify-content: flex-end; gap: 10px; }
+            button {
+              type: "button"
+              onclick { this.closest("q-animation-tool").cancelOptions(); }
+              style { min-height: 38px; padding: 0 14px; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a; cursor: pointer; font-weight: 700; }
+              text { Cancel }
+            }
+            button {
+              type: "button"
+              disabled: "disabled"
+              style { min-height: 38px; padding: 0 16px; border-radius: 6px; border: 1px solid #94a3b8; background: #cbd5e1; color: #475569; cursor: not-allowed; font-weight: 800; }
+              text { Add }
+            }
+          }
+        }
+
+        label {
+          style { display: grid; gap: 7px; font-size: 13px; font-weight: 700; color: #334155; }
+          text { Generated QHTML }
+          textarea {
+            data-role: "generated-code"
+            readonly: "readonly"
+            rows: "10"
+            style { width: 100%; min-height: 190px; box-sizing: border-box; resize: vertical; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; background: #0f172a; color: #e2e8f0; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+          }
+        }
+      }
+    }
+  }
+}
