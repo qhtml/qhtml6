@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-06-01T23:44:57Z */
+/* generated: 2026-06-02T04:04:15Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -21647,6 +21647,7 @@
 
       const shorthandSlot = String(child.tagName || "").trim();
       if (shorthandSlot && hasKnownSlotName(shorthandSlot)) {
+        ensureFill(shorthandSlot, null, true);
         if (Array.isArray(child.children) && child.children.length > 0) {
           for (let j = 0; j < child.children.length; j += 1) {
             pushFill(shorthandSlot, child.children[j], null, true);

@@ -166,7 +166,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - Component slot projection prefers normalized component-instance `slots` over raw instance children when present. This keeps shorthand slot wrappers (`slotName { ... }`) out of rendered output and allows projected `q-layout`, `q-row`, and `q-col` nodes to render normally inside slots.
 - Projected slot content preserves the caller's lexical render context while retaining the receiving component's slot ownership metadata. This means `q-var`, named aliases, inline expressions, and `for (...)` model sources declared on the component that supplies slot content remain visible after that content is projected through another component such as `q-tabs`.
 - Slot fill lookup is case-insensitive after exact lookup. This preserves declared slot names such as `slot { heroTitle }` while allowing shorthand invocation wrappers like `heroTitle { ... }`, whose tag names are normalized by HTML/QDom parsing, to project into the intended slot.
-- Component `slotDefaults` (`kind: "slot-default"`) provide fallback projected QDom only when an instance omits that slot; an explicit empty slot suppresses the default.
+- Component `slotDefaults` (`kind: "slot-default"`) provide fallback projected QDom only when an instance omits that slot; an explicit empty, whitespace-only, or comment-only slot suppresses the default.
 - `component-instance.attributes` map to DOM attributes.
 - `component-instance.props` map to direct host element property assignment (`host[propName] = value`).
 - For declared component properties only, bare dotted references (for example `myinstance.myprop1`) are resolved against interpolation scope without `${...}`.

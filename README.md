@@ -353,7 +353,7 @@ Resulting HTML:
 
 ### Slot defaults
 
-Use `q-slot-default` inside a component definition to provide fallback QHTML for a slot when the instance does not supply that slot. An explicit empty slot suppresses the default.
+Use `q-slot-default` inside a component definition to provide fallback QHTML for a slot when the instance does not supply that slot. An explicit empty, whitespace-only, or comment-only slot suppresses the default.
 
 ```qhtml
 q-component notice-card {
@@ -374,6 +374,8 @@ notice-card {
   body { }
 }
 ```
+
+In page-builder's QHTML Instance editor, selecting a missing or effectively blank slot preloads the slot's `q-slot-default` body into the editor as a starting point. Saving still writes the result into the selected slot on the instance.
 
 ### `q-component` instantiation (typed named-instance syntax)
 

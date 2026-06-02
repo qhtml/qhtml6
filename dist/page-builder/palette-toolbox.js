@@ -939,8 +939,27 @@
     }
 
     function skipWhitespace(index) {
-      while (index < source.length && /\s/.test(source.charAt(index))) {
-        index += 1;
+      while (index < source.length) {
+        if (/\s/.test(source.charAt(index))) {
+          index += 1;
+          continue;
+        }
+        if (source.charAt(index) === "/" && source.charAt(index + 1) === "/") {
+          index += 2;
+          while (index < source.length && source.charAt(index) !== "\n" && source.charAt(index) !== "\r") {
+            index += 1;
+          }
+          continue;
+        }
+        if (source.charAt(index) === "/" && source.charAt(index + 1) === "*") {
+          index += 2;
+          while (index < source.length && !(source.charAt(index) === "*" && source.charAt(index + 1) === "/")) {
+            index += 1;
+          }
+          index += 2;
+          continue;
+        }
+        break;
       }
       return index;
     }
@@ -963,6 +982,21 @@
         }
         if (ch === "\"" || ch === "'") {
           quote = ch;
+          continue;
+        }
+        if (ch === "/" && source.charAt(j + 1) === "/") {
+          j += 2;
+          while (j < source.length && source.charAt(j) !== "\n" && source.charAt(j) !== "\r") {
+            j += 1;
+          }
+          continue;
+        }
+        if (ch === "/" && source.charAt(j + 1) === "*") {
+          j += 2;
+          while (j < source.length && !(source.charAt(j) === "*" && source.charAt(j + 1) === "/")) {
+            j += 1;
+          }
+          j += 1;
           continue;
         }
         if (ch === "{") {
@@ -1035,6 +1069,21 @@
         quote = ch;
         continue;
       }
+      if (ch === "/" && source.charAt(i + 1) === "/") {
+        i += 2;
+        while (i < source.length && source.charAt(i) !== "\n" && source.charAt(i) !== "\r") {
+          i += 1;
+        }
+        continue;
+      }
+      if (ch === "/" && source.charAt(i + 1) === "*") {
+        i += 2;
+        while (i < source.length && !(source.charAt(i) === "*" && source.charAt(i + 1) === "/")) {
+          i += 1;
+        }
+        i += 1;
+        continue;
+      }
       if (ch === "{") {
         depth += 1;
       } else if (ch === "}") {
@@ -1052,10 +1101,82 @@
   }
 
   function qhtmlSourceSkipWhitespace(source, index) {
-    while (index < source.length && /\s/.test(source.charAt(index))) {
-      index += 1;
+    while (index < source.length) {
+      if (/\s/.test(source.charAt(index))) {
+        index += 1;
+        continue;
+      }
+      if (source.charAt(index) === "/" && source.charAt(index + 1) === "/") {
+        index += 2;
+        while (index < source.length && source.charAt(index) !== "\n" && source.charAt(index) !== "\r") {
+          index += 1;
+        }
+        continue;
+      }
+      if (source.charAt(index) === "/" && source.charAt(index + 1) === "*") {
+        index += 2;
+        while (index < source.length && !(source.charAt(index) === "*" && source.charAt(index + 1) === "/")) {
+          index += 1;
+        }
+        index += 2;
+        continue;
+      }
+      break;
     }
     return index;
+  }
+
+  function qhtmlSourceStripComments(source) {
+    var text = String(source || "");
+    var out = "";
+    var quote = "";
+    var escaped = false;
+    var i;
+    var ch;
+    for (i = 0; i < text.length; i += 1) {
+      ch = text.charAt(i);
+      if (quote) {
+        out += ch;
+        if (escaped) {
+          escaped = false;
+        } else if (ch === "\\") {
+          escaped = true;
+        } else if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+      if (ch === "\"" || ch === "'") {
+        quote = ch;
+        out += ch;
+        continue;
+      }
+      if (ch === "/" && text.charAt(i + 1) === "/") {
+        i += 2;
+        while (i < text.length && text.charAt(i) !== "\n" && text.charAt(i) !== "\r") {
+          i += 1;
+        }
+        out += "\n";
+        continue;
+      }
+      if (ch === "/" && text.charAt(i + 1) === "*") {
+        i += 2;
+        while (i < text.length && !(text.charAt(i) === "*" && text.charAt(i + 1) === "/")) {
+          if (text.charAt(i) === "\n" || text.charAt(i) === "\r") {
+            out += text.charAt(i);
+          }
+          i += 1;
+        }
+        i += 1;
+        continue;
+      }
+      out += ch;
+    }
+    return out;
+  }
+
+  function qhtmlSourceIsBlankOrComments(source) {
+    return !qhtmlSourceStripComments(source).trim();
   }
 
   function slotSourceInInstanceBlock(instanceSource, slotName) {
@@ -1758,6 +1879,69 @@
     return names;
   }
 
+  function readQSlotDefaultBlock(source, wantedSlotName) {
+    var text = String(source || "");
+    var wanted = String(wantedSlotName || "").trim().toLowerCase();
+    var i = 0;
+    var index;
+    var nameStart;
+    var name;
+    var blockOpen;
+    var blockClose;
+    if (!wanted) {
+      return null;
+    }
+    while (i < text.length) {
+      index = text.indexOf("q-slot-default", i);
+      if (index < 0) {
+        return null;
+      }
+      if (index > 0 && qhtmlSourceNameChar(text.charAt(index - 1))) {
+        i = index + 1;
+        continue;
+      }
+      i = index + "q-slot-default".length;
+      if (qhtmlSourceNameChar(text.charAt(i))) {
+        continue;
+      }
+      i = qhtmlSourceSkipWhitespace(text, i);
+      nameStart = i;
+      while (i < text.length && qhtmlSourceNameChar(text.charAt(i))) {
+        i += 1;
+      }
+      name = text.slice(nameStart, i);
+      i = qhtmlSourceSkipWhitespace(text, i);
+      if (text.charAt(i) !== "{") {
+        continue;
+      }
+      blockOpen = i;
+      blockClose = qhtmlSourceMatchingBrace(text, blockOpen);
+      if (blockClose < 0) {
+        return null;
+      }
+      if (name.toLowerCase() === wanted) {
+        return {
+          name: name,
+          start: index,
+          open: blockOpen,
+          end: blockClose,
+          bodyStart: blockOpen + 1,
+          bodyEnd: blockClose,
+          source: text.slice(index, blockClose + 1)
+        };
+      }
+      i = blockClose + 1;
+    }
+    return null;
+  }
+
+  function qSlotDefaultSourceForComponent(component, slotName) {
+    var button = paletteButtonForComponent(component);
+    var source = button ? qhtmlDefinitionSource(button) : "";
+    var block = readQSlotDefaultBlock(source, slotName);
+    return block ? source.slice(block.bodyStart, block.bodyEnd).trim() : "";
+  }
+
   function slotNamesForComponent(component) {
     var button = paletteButtonForComponent(component);
     var source = button ? qhtmlDefinitionSource(button) : "";
@@ -1765,6 +1949,13 @@
     var slots = [];
     var match;
     var re = /\bslot\s*\{\s*([A-Za-z_][A-Za-z0-9_-]*)\s*\}/g;
+    while ((match = re.exec(source))) {
+      if (!seen[match[1]]) {
+        seen[match[1]] = true;
+        slots.push(match[1]);
+      }
+    }
+    re = /\bq-slot-default\s+([A-Za-z_][A-Za-z0-9_-]*)\s*\{/g;
     while ((match = re.exec(source))) {
       if (!seen[match[1]]) {
         seen[match[1]] = true;
@@ -4279,13 +4470,18 @@
       var editorSource = "";
       var contextHost = null;
       var editor = this.sourceInput();
+      var draftSource = null;
       if (entry && this.currentSlot) {
         editorSource = slotSourceForEntry(source, entry, this.currentSlot);
+        if (qhtmlSourceIsBlankOrComments(editorSource)) {
+          editorSource = qSlotDefaultSourceForComponent(entry.component, this.currentSlot);
+        }
       } else if (entry) {
         editorSource = source.slice(entry.block.start, entry.block.end + 1).trim();
       }
-      if (this.draftFor(this.currentPath, this.currentSlot) !== null) {
-        editorSource = this.draftFor(this.currentPath, this.currentSlot);
+      draftSource = this.draftFor(this.currentPath, this.currentSlot);
+      if (draftSource !== null) {
+        editorSource = draftSource;
       }
       contextHost = renderedComponentHostForEntry(item, entry) || item;
       setQEditorPreviewContext(editor, qContextSourceForElement(contextHost));

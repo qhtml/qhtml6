@@ -4264,6 +4264,7 @@
 
       const shorthandSlot = String(child.tagName || "").trim();
       if (shorthandSlot && hasKnownSlotName(shorthandSlot)) {
+        ensureFill(shorthandSlot, null, true);
         if (Array.isArray(child.children) && child.children.length > 0) {
           for (let j = 0; j < child.children.length; j += 1) {
             pushFill(shorthandSlot, child.children[j], null, true);

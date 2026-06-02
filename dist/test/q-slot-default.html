@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>q-slot-default test</title>
+  <script src="../qhtml.js?v=6.9.7"></script>
+  <style>
+    body { font: 14px/1.4 system-ui, sans-serif; padding: 24px; color: #172033; }
+    .result { margin: 8px 0; padding: 8px 10px; border: 1px solid #b8c4d8; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>q-slot-default Test</h1>
+  <p>Missing slots render q-slot-default content. Explicit empty and comment-only slots suppress the default. <a href="../test.html">Back to test index</a></p>
+  <q-html>
+q-component notice-card {
+  q-slot-default body {
+    span.default-marker { text { Default body } }
+  }
+
+  div.result {
+    slot { body }
+  }
+}
+
+notice-card missingDefault { }
+notice-card explicitEmpty {
+  body { }
+}
+notice-card commentOnly {
+  body {
+    // intentionally empty
+    /* comment-only body */
+  }
+}
+notice-card explicitContent {
+  body {
+    span.explicit-marker { text { Explicit body } }
+  }
+}
+  </q-html>
+</body>
+</html>
