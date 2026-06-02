@@ -1,0 +1,117 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>q-context test</title>
+  <script src="../qhtml.js?v=6.9.7"></script>
+  <style>
+    body { font: 14px/1.4 system-ui, sans-serif; padding: 24px; color: #172033; }
+    .result { margin: 8px 0; padding: 8px 10px; border: 1px solid #b8c4d8; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>q-context Test</h1>
+  <p>Context composition, source ordering, direct imports, dot-walked overlays, and self-loop skipping. <a href="../test.html">Back to test index</a></p>
+  <q-html>
+q-component context-source {
+  q-property label: "source"
+  q-var helper { function() { return "helper-" + this.component.label; } }
+  function makeText() {
+    return "method-" + this.component.label;
+  }
+  context-child nestedSource { value: "nested" }
+  div { text { source } }
+}
+
+q-component context-child {
+  q-property value: "child"
+}
+
+q-component context-middle {
+  q-context { sourceOne }
+  q-property label: "middle"
+  q-var middleOnly { "middle" }
+  div { text { middle } }
+}
+
+q-component context-target {
+  q-context { middleOne sourceTwo }
+  q-property own: "target"
+  div.result#target-context-output {
+    text { ${label}|${middleOnly}|${helper()}|${makeText()} }
+  }
+}
+
+q-component context-transitive-target {
+  q-context { middleOne }
+  div.result#transitive-context-output {
+    text { ${middleOnly}|${typeof nestedSource} }
+  }
+}
+
+q-component self-context-target {
+  q-context { this.component }
+  q-property label: "self"
+  div.result#self-context-output {
+    text { ${label} }
+  }
+}
+
+q-component comp1 {
+  q-property myprop: "hello world"
+  div,span { text { ${myprop} } }
+}
+
+q-component comp2 {
+  q-context { this.component mycomp1 }
+  q-property secondprop: mycomp1
+  div,span { text { ${secondprop} } }
+}
+
+context-source sourceOne { label: "one" }
+context-source sourceTwo { label: "two" }
+context-middle middleOne { }
+context-target targetOne { }
+context-transitive-target transitiveOne { }
+self-context-target selfOne { }
+comp1 mycomp1 { }
+comp2 mycomp2 { }
+
+div.result#external-context-output {
+  text { ${targetOne.middleOnly}|${targetOne.helper()} }
+}
+  </q-html>
+  <div id="uuid-context-host"></div>
+  <script>
+    (function () {
+      var mounted = false;
+      document.addEventListener("QHTMLContentLoaded", function () {
+        var sourceHost;
+        var uuid;
+        var previewHost;
+        var qhtml;
+        if (mounted) {
+          return;
+        }
+        mounted = true;
+        sourceHost = document.querySelector("comp1");
+        if (!sourceHost || !sourceHost.closest) {
+          return;
+        }
+        qhtml = sourceHost.closest("q-html");
+        uuid = qhtml && typeof qhtml.uuidFor === "function" ? qhtml.uuidFor(sourceHost) : "";
+        previewHost = document.getElementById("uuid-context-host");
+        if (!uuid || !previewHost) {
+          return;
+        }
+        qhtml = document.createElement("q-html");
+        qhtml.textContent = "q-context { " + uuid + " }\ndiv.result#uuid-context-output { text { ${myprop} } }";
+        previewHost.appendChild(qhtml);
+        if (window.QHtml && typeof window.QHtml.mountQHtmlElement === "function") {
+          window.QHtml.mountQHtmlElement(qhtml, { preferTemplate: false });
+        }
+      });
+    }());
+  </script>
+</body>
+</html>

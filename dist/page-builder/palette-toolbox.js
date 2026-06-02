@@ -566,6 +566,87 @@
     }
   }
 
+  function qContextUuidForElement(element) {
+    var host;
+    var uuid = "";
+    var lookupMap;
+    var pointerMap;
+    var lookup;
+    if (!element || element.nodeType !== 1) {
+      return "";
+    }
+    host = element.qhtmlRoot && typeof element.qhtmlRoot === "function"
+      ? element.qhtmlRoot()
+      : element.closest && element.closest("q-html");
+    if (host && typeof host.uuidFor === "function") {
+      try {
+        uuid = String(host.uuidFor(element) || "").trim();
+      } catch (error) {
+        uuid = "";
+      }
+    }
+    if (!uuid && element.__pbQContextUuid) {
+      uuid = String(element.__pbQContextUuid || "").trim();
+    }
+    if (!uuid) {
+      uuid = window.crypto && typeof window.crypto.randomUUID === "function"
+        ? window.crypto.randomUUID()
+        : "pb-preview-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+      element.__pbQContextUuid = uuid;
+    }
+    lookupMap = window.QHTML_UUID_LOOKUP_MAP;
+    if (!lookupMap || typeof lookupMap.set !== "function") {
+      lookupMap = new Map();
+      window.QHTML_UUID_LOOKUP_MAP = lookupMap;
+    }
+    pointerMap = window.QHTML_UUID_MAP;
+    if (!pointerMap || typeof pointerMap.set !== "function") {
+      pointerMap = new Map();
+      window.QHTML_UUID_MAP = pointerMap;
+    }
+    if (!pointerMap.has(uuid)) {
+      pointerMap.set(uuid, element);
+    }
+    lookup = lookupMap.get(uuid);
+    if (lookup && typeof lookup === "object") {
+      if (!lookup.dom) {
+        lookup.dom = element;
+      }
+      if (!lookup.host) {
+        lookup.host = host || null;
+      }
+    } else {
+      lookupMap.set(uuid, {
+        pointer: element,
+        dom: element,
+        host: host || null,
+        entityType: "page-builder-preview-context"
+      });
+    }
+    return uuid;
+  }
+
+  function qContextSourceForElement(element) {
+    var uuid = qContextUuidForElement(element);
+    return uuid ? "q-context { " + uuid + " }" : "";
+  }
+
+  function setQEditorPreviewContext(editor, source) {
+    var text = String(source || "");
+    if (!editor) {
+      return;
+    }
+    if (typeof editor.setPreviewContextSource === "function") {
+      editor.setPreviewContextSource(text);
+      return;
+    }
+    if (text) {
+      editor.setAttribute("preview-context", text);
+    } else {
+      editor.removeAttribute("preview-context");
+    }
+  }
+
   function readQEditorRawSource(editor) {
     if (!editor) {
       return "";
@@ -1868,6 +1949,24 @@
       return String(entry.component || "").toLowerCase() === component;
     });
     return matches[ordinal] || matches[0] || null;
+  }
+
+  function renderedComponentHostForEntry(owner, entry) {
+    var preview = owner && owner.querySelector ? owner.querySelector(":scope > .q-builder-item-preview") : null;
+    var hosts;
+    var i;
+    var candidate;
+    if (!preview || !entry) {
+      return null;
+    }
+    hosts = arr(preview.querySelectorAll("[q-component]"));
+    for (i = 0; i < hosts.length; i += 1) {
+      candidate = entryForRenderedComponentHost(owner, hosts[i]);
+      if (candidate && candidate.path === entry.path) {
+        return hosts[i];
+      }
+    }
+    return null;
   }
 
   function enhanceRenderedInstanceEditors(owner) {
@@ -4074,6 +4173,7 @@
       } else if (modal) {
         modal.removeAttribute("open");
       }
+      setQEditorPreviewContext(this.sourceInput(), "");
       this.currentItem = null;
       this.currentPath = "";
       this.currentSlot = "";
@@ -4177,6 +4277,8 @@
       var entry = this.selectedEntry();
       var source = item ? qhtmlInstanceSource(item) : "";
       var editorSource = "";
+      var contextHost = null;
+      var editor = this.sourceInput();
       if (entry && this.currentSlot) {
         editorSource = slotSourceForEntry(source, entry, this.currentSlot);
       } else if (entry) {
@@ -4185,7 +4287,9 @@
       if (this.draftFor(this.currentPath, this.currentSlot) !== null) {
         editorSource = this.draftFor(this.currentPath, this.currentSlot);
       }
-      setPaletteEditorSource(this.sourceInput(), editorSource);
+      contextHost = renderedComponentHostForEntry(item, entry) || item;
+      setQEditorPreviewContext(editor, qContextSourceForElement(contextHost));
+      setPaletteEditorSource(editor, editorSource);
     },
     selectInstance: function (path) {
       this.commitCurrentDraft();

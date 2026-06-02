@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-06-01T14:42:54Z */
+/* generated: 2026-06-01T23:44:57Z */
 
 /*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -1545,6 +1545,7 @@
     "q-bind-css",
     "q-var",
     "q-switch",
+    "q-context",
     "q-property",
     "q-signal",
     "q-callback",
@@ -2601,6 +2602,19 @@
       end: itemEnd,
       raw: rawSource,
     };
+  }
+
+  function parseQContextSourceList(source) {
+    const body = String(source || "").trim();
+    if (!body) {
+      return [];
+    }
+    return body
+      .split(/[\s,;]+/g)
+      .map(function trimQContextSource(entry) {
+        return String(entry || "").trim();
+      })
+      .filter(Boolean);
   }
 
   function parseSelectorList(parser, firstSelector) {
@@ -4802,6 +4816,20 @@
           });
           continue;
         }
+        if (nameLower === "q-context" && nextChar === "{") {
+          consume(parser);
+          const contextBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "QContextDeclaration",
+            body: String(contextBody || ""),
+            sources: parseQContextSourceList(contextBody),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (nameLower === "q-connect" && nextChar === "{") {
           consume(parser);
           const connectBody = readBalancedBlockContent(parser);
@@ -6255,6 +6283,21 @@
             name: normalizedSwitchName,
             body: String(switchBody || ""),
             cases: parseQSwitchDeclarationBody(String(switchBody || "")),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-context" && peek(parser) === "{") {
+          consume(parser);
+          const contextBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QContextDeclaration",
+            body: String(contextBody || ""),
+            sources: parseQContextSourceList(contextBody),
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -14406,6 +14449,7 @@
     const aliasDeclarations = [];
     const varDeclarations = [];
     const switchDeclarations = [];
+    const contextDeclarations = [];
     let componentLoggerCategories = null;
     let componentPerfCategories = null;
     let componentAnchorRules = null;
@@ -14863,6 +14907,30 @@
         }
         continue;
       }
+      if (item.type === "QContextDeclaration") {
+        if (supportsRuntimeDefinition) {
+          const contextSources = Array.isArray(item.sources)
+            ? item.sources.map(function mapContextSource(entry) { return String(entry || "").trim(); }).filter(Boolean)
+            : parseQContextSourceList(item.body);
+          const declarationMeta = createDeclarationMeta({
+            declarationKind: "q-context",
+            declarationName: "q-context",
+          });
+          contextDeclarations.push({
+            body: String(item.body || ""),
+            sources: contextSources,
+            uuid: declarationMeta.uuid,
+            meta: Object.assign({}, declarationMeta, {
+              originalSource: item.raw || "",
+              sourceRange:
+                typeof item.start === "number" && typeof item.end === "number"
+                  ? [item.start, item.end]
+                  : null,
+            }),
+          });
+        }
+        continue;
+      }
       if (item.type === "QWasmBlock") {
         if (definitionType !== "component") {
           throw new Error("q-wasm is only valid inside q-component definitions.");
@@ -15026,6 +15094,12 @@
         componentNode.meta = {};
       }
       componentNode.meta.__qhtmlCssBindings = cssBindings.slice();
+    }
+    if (contextDeclarations.length > 0) {
+      if (!componentNode.meta || typeof componentNode.meta !== "object") {
+        componentNode.meta = {};
+      }
+      componentNode.meta.__qhtmlContextDeclarations = contextDeclarations.slice();
     }
     if (Object.keys(componentEventAttributeParams).length > 0) {
       if (!componentNode.meta || typeof componentNode.meta !== "object") {
@@ -15601,6 +15675,31 @@
       };
       applyKeywordAliasesToNode(switchNode, item.keywords);
       return switchNode;
+    }
+
+    if (item.type === "QContextDeclaration") {
+      const contextSources = Array.isArray(item.sources)
+        ? item.sources.map(function mapContextSource(entry) { return String(entry || "").trim(); }).filter(Boolean)
+        : parseQContextSourceList(item.body);
+      const declarationMeta = createDeclarationMeta({
+        declarationKind: "q-context",
+        declarationName: "q-context",
+      });
+      const contextNode = {
+        kind: "q-context",
+        body: String(item.body || ""),
+        sources: contextSources,
+        uuid: declarationMeta.uuid,
+        meta: Object.assign({}, declarationMeta, {
+          originalSource: item.raw || "",
+          sourceRange:
+            typeof item.start === "number" && typeof item.end === "number"
+              ? [item.start, item.end]
+              : null,
+        }),
+      };
+      applyKeywordAliasesToNode(contextNode, item.keywords);
+      return contextNode;
     }
 
     if (item.type === "QTimerDefinition") {
@@ -16214,6 +16313,26 @@
     return lines.join("\n");
   }
 
+  function serializeQContextDeclarationBlock(contextDecl, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    if (!contextDecl || typeof contextDecl !== "object") {
+      return "";
+    }
+    const sources = Array.isArray(contextDecl.sources)
+      ? contextDecl.sources.map(function mapQContextSource(entry) { return String(entry || "").trim(); }).filter(Boolean)
+      : parseQContextSourceList(contextDecl.body);
+    const body = sources.length > 0 ? sources.join(" ") : String(contextDecl.body || "").trim();
+    const lines = [indent + "q-context {"];
+    if (body) {
+      const chunks = body.split("\n");
+      for (let i = 0; i < chunks.length; i += 1) {
+        lines.push(indent + "  " + chunks[i]);
+      }
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
   function serializeQAnchorRulesBlock(anchorRules, indentLevel) {
     const indent = "  ".repeat(indentLevel);
     const list = Array.isArray(anchorRules) ? anchorRules : [];
@@ -16711,6 +16830,10 @@
 
     if (String(node.kind || "").trim().toLowerCase() === "q-switch") {
       return serializeQSwitchDeclarationBlock(node, indentLevel);
+    }
+
+    if (String(node.kind || "").trim().toLowerCase() === "q-context") {
+      return serializeQContextDeclarationBlock(node, indentLevel);
     }
 
     function serializeStructField(field, fieldIndentLevel) {
@@ -17284,6 +17407,7 @@
   const QCONTEXT_OWNER_PARENT_HANDLE_KEY = "__qhtmlContextOwnerParentHandle";
   const Q_VAR_NODE_KIND = "q-var";
   const Q_SWITCH_NODE_KIND = "q-switch";
+  const Q_CONTEXT_NODE_KIND = "q-context";
   const Q_TIMER_NODE_KIND = "q-timer";
   const QHTML_QVAR_HANDLE_FLAG = "__qhtmlVarHandle";
   const Q_MODEL_VIEW_INSTANCE_ATTR = "q-model-view-instance";
@@ -17300,6 +17424,8 @@
   const Q_SIGNAL_META_KEY = "__qhtmlSignalMeta";
   const Q_PROPERTY_INSTANCES_KEY = "__qhtmlPropertyInstances";
   const Q_PROPERTY_META_KEY = "__qhtmlPropertyMeta";
+  const Q_CONTEXT_DIRECT_VALUES_KEY = "__qhtmlDirectContextValues";
+  const Q_CONTEXT_OVERLAY_VALUES_KEY = "__qhtmlContextOverlayValues";
   const Q_PROPERTY_MODEL_LISTENER_STORE_KEY = "__qhtmlDeclaredPropertyModelListeners";
   const Q_COMPONENT_INSTANCE_META_KEY = "__qhtmlComponentInstanceMeta";
   const Q_COMPONENT_TIMER_STORE_KEY = "__qhtmlComponentTimers";
@@ -17425,6 +17551,7 @@
   class QComponentInstance {
     constructor(host, componentNode) {
       this.host = host && host.nodeType === 1 ? host : null;
+      this.componentNode = componentNode && typeof componentNode === "object" ? componentNode : null;
       this.componentId = String(componentNode && componentNode.componentId || this.host && this.host.tagName || "").trim().toLowerCase();
       this.definitionType = inferDefinitionType(componentNode);
     }
@@ -17751,6 +17878,7 @@
         hostElement[Q_COMPONENT_INSTANCE_META_KEY] = instance;
       }
     }
+    instance.componentNode = componentNode && typeof componentNode === "object" ? componentNode : instance.componentNode || null;
     return instance;
   }
 
@@ -20881,6 +21009,10 @@
       }
     }
     try {
+      const overlay = readContextOverlayValue(cursor, pathKey);
+      if (overlay.found) {
+        return { found: true, value: overlay.value, ambiguous: false };
+      }
       const direct = cursor[pathKey];
       if (typeof direct !== "undefined") {
         return { found: true, value: direct, ambiguous: false };
@@ -25931,6 +26063,7 @@
       runtimeFrame.set(timerName, runtime.handle);
     }
     exportNamedAliasToHost(hostElement, timerName, runtime.handle);
+    recordDirectContextSymbol(hostElement, timerName, runtime.handle);
     if (runtime.running === true) {
       runtime.start();
     } else {
@@ -26273,7 +26406,10 @@
         literalDefault = undefined;
       } else if (typeof literalDefault === "string" && !hasInlineReferenceExpressions(literalDefault)) {
         const literalReference = String(literalDefault || "").trim();
+        const isPotentialBareReferenceExpression =
+          /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(literalReference);
         const isPotentialReferenceExpression =
+          isPotentialBareReferenceExpression ||
           /^this\.[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(literalReference) ||
           /^component\.[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(literalReference) ||
           /^[A-Za-z_$][A-Za-z0-9_$]*\.[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(literalReference);
@@ -26338,14 +26474,25 @@
             }
             if (declaredReferenceExpression) {
               const scope = resolveInlineExpressionScope(this, { component: this });
-              const resolvedReference = evaluateInlineReferenceExpression(
-                declaredReferenceExpression,
-                this,
-                scope,
-                "qhtml declared property reference evaluation failed:",
-                { pathFallbackLiteral: true, scriptLiteral: false }
-              );
-              return resolveCallbackReferenceValue(resolvedReference);
+              let resolvedReference = literalDefault;
+              if (
+                declaredReferenceExpression.indexOf(".") === -1 &&
+                scope &&
+                typeof scope === "object" &&
+                Object.prototype.hasOwnProperty.call(scope, declaredReferenceExpression)
+              ) {
+                resolvedReference = scope[declaredReferenceExpression];
+              } else if (declaredReferenceExpression.indexOf(".") !== -1) {
+                resolvedReference = evaluateInlineReferenceExpression(
+                  declaredReferenceExpression,
+                  this,
+                  scope,
+                  "qhtml declared property reference evaluation failed:",
+                  { pathFallbackLiteral: true, scriptLiteral: false }
+                );
+              }
+              const singlePropertyValue = readSingleDeclaredComponentPropertyValue(resolvedReference);
+              return resolveCallbackReferenceValue(singlePropertyValue.matched ? singlePropertyValue.value : resolvedReference);
             }
             return resolveCallbackReferenceValue(literalDefault);
           },
@@ -26681,6 +26828,7 @@
       } else {
         hostElement[callbackName] = callbackExecutor;
       }
+      recordDirectContextSymbol(hostElement, callbackName, hostElement[callbackName]);
     }
 
     for (let i = 0; i < methods.length; i += 1) {
@@ -26700,6 +26848,7 @@
             arguments
           );
         };
+        recordDirectContextSymbol(hostElement, name, hostElement[name]);
         continue;
       }
       const params = method && typeof method.parameters === "string" ? method.parameters : "";
@@ -26747,6 +26896,7 @@
           return compiled.apply(invocationHost, invocationArgs);
         });
       };
+      recordDirectContextSymbol(hostElement, name, hostElement[name]);
     }
 
     function buildConnectedSignalArgs(detail, parameterNames, fallbackEvent) {
@@ -27348,6 +27498,7 @@
         ? signalDecl.parameters.map(function mapName(entry) { return String(entry || "").trim(); }).filter(Boolean)
         : [];
       hostElement[signalName] = createComponentSignalEmitter(signalName, parameterNames);
+      recordDirectContextSymbol(hostElement, signalName, hostElement[signalName]);
     }
 
     bindComponentCssBindings(componentNode, hostElement, declaredPropertiesSeen);
@@ -27815,6 +27966,68 @@
     );
   }
 
+  function isProtectedQContextSymbol(name) {
+    const key = String(name || "").trim();
+    return key === "this" || key === "component";
+  }
+
+  function ensureContextValueStore(hostElement, storeKey) {
+    if (!hostElement || (typeof hostElement !== "object" && typeof hostElement !== "function")) {
+      return null;
+    }
+    if (!hostElement[storeKey] || typeof hostElement[storeKey] !== "object") {
+      try {
+        Object.defineProperty(hostElement, storeKey, {
+          configurable: true,
+          enumerable: false,
+          writable: true,
+          value: Object.create(null),
+        });
+      } catch (error) {
+        hostElement[storeKey] = Object.create(null);
+      }
+    }
+    return hostElement[storeKey];
+  }
+
+  function readContextOverlayValue(target, name) {
+    const key = String(name || "").trim();
+    if (!key || !target || (typeof target !== "object" && typeof target !== "function")) {
+      return { found: false, value: undefined };
+    }
+    const store = target[Q_CONTEXT_OVERLAY_VALUES_KEY];
+    if (store && typeof store === "object" && Object.prototype.hasOwnProperty.call(store, key)) {
+      return { found: true, value: store[key] };
+    }
+    return { found: false, value: undefined };
+  }
+
+  function recordDirectContextSymbol(hostElement, name, value) {
+    const key = String(name || "").trim();
+    if (!key || isProtectedQContextSymbol(key) || !hostElement || (typeof hostElement !== "object" && typeof hostElement !== "function")) {
+      return false;
+    }
+    const store = ensureContextValueStore(hostElement, Q_CONTEXT_DIRECT_VALUES_KEY);
+    if (!store) {
+      return false;
+    }
+    store[key] = value;
+    return true;
+  }
+
+  function recordContextOverlaySymbol(hostElement, name, value) {
+    const key = String(name || "").trim();
+    if (!key || isProtectedQContextSymbol(key) || !hostElement || (typeof hostElement !== "object" && typeof hostElement !== "function")) {
+      return false;
+    }
+    const store = ensureContextValueStore(hostElement, Q_CONTEXT_OVERLAY_VALUES_KEY);
+    if (!store) {
+      return false;
+    }
+    store[key] = value;
+    return true;
+  }
+
   function readOwnerTypeSymbolName(value) {
     if (!isOwnerTypeSymbolHandle(value)) {
       return "";
@@ -27938,6 +28151,10 @@
         const resolvedTarget = readHandleResolutionTarget(target);
         if (!resolvedTarget) {
           return undefined;
+        }
+        const overlay = readContextOverlayValue(resolvedTarget, prop);
+        if (overlay.found) {
+          return overlay.value;
         }
         const value = resolvedTarget[prop];
         if (typeof value === "function") {
@@ -28166,12 +28383,14 @@
     context[QCONTEXT_RUNTIME_FRAME_KEY].set(alias, aliasHandle);
     if (ownerHost) {
       exportNamedAliasToHost(ownerHost, alias, aliasHandle);
+      recordDirectContextSymbol(ownerHost, alias, aliasHandle);
     } else {
       if (context && context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
         context.namedRuntimeValues[alias] = aliasHandle;
       }
       if (context && context.rootHostElement) {
         exportNamedAliasToHost(context.rootHostElement, alias, aliasHandle);
+        recordDirectContextSymbol(context.rootHostElement, alias, aliasHandle);
       }
     }
   }
@@ -29404,8 +29623,10 @@
     declaredScope[callbackName] = resolvedCallback;
     if (creatorHost) {
       exportNamedAliasToHost(creatorHost, callbackName, resolvedCallback);
+      recordDirectContextSymbol(creatorHost, callbackName, resolvedCallback);
     } else if (context && context.rootHostElement) {
       exportNamedAliasToHost(context.rootHostElement, callbackName, resolvedCallback);
+      recordDirectContextSymbol(context.rootHostElement, callbackName, resolvedCallback);
     }
     registerNamedCallbackRuntime(callbackName, resolvedCallback);
     return true;
@@ -29527,6 +29748,7 @@
     }
     if (ownerHost && ownerHost.nodeType === 1) {
       exportNamedAliasToHost(ownerHost, key, handle);
+      recordDirectContextSymbol(ownerHost, key, handle);
       try {
         Object.defineProperty(ownerHost, key, {
           configurable: true,
@@ -29543,6 +29765,7 @@
       }
     } else if (context && context.rootHostElement) {
       exportNamedAliasToHost(context.rootHostElement, key, handle);
+      recordDirectContextSymbol(context.rootHostElement, key, handle);
       try {
         Object.defineProperty(context.rootHostElement, key, {
           configurable: true,
@@ -29639,11 +29862,345 @@
     }
     if (ownerHost && ownerHost.nodeType === 1) {
       exportNamedAliasToHost(ownerHost, key, value);
+      recordDirectContextSymbol(ownerHost, key, value);
     } else if (context && context.rootHostElement) {
       exportNamedAliasToHost(context.rootHostElement, key, value);
+      recordDirectContextSymbol(context.rootHostElement, key, value);
       if (context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
         context.namedRuntimeValues[key] = value;
       }
+    }
+  }
+
+  function readQContextDeclarationSources(node) {
+    const rawSources = Array.isArray(node && node.sources) ? node.sources : [];
+    const sources = [];
+    for (let i = 0; i < rawSources.length; i += 1) {
+      const source = String(rawSources[i] || "").trim();
+      if (source) {
+        sources.push(source);
+      }
+    }
+    if (sources.length > 0) {
+      return sources;
+    }
+    return String(node && node.body || "")
+      .split(/[\s,;]+/g)
+      .map(function trimQContextBodySource(entry) { return String(entry || "").trim(); })
+      .filter(Boolean);
+  }
+
+  function addQContextSymbol(target, name, value, ownerUuid) {
+    const key = String(name || "").trim();
+    if (!key || isProtectedQContextSymbol(key)) {
+      return;
+    }
+    if (ownerUuid) {
+      const valueUuid = resolveAliasUuid(value);
+      if (valueUuid && valueUuid === ownerUuid) {
+        return;
+      }
+    }
+    target[key] = value;
+  }
+
+  function collectComponentPropertyNamesForContext(componentNode) {
+    const out = [];
+    const seen = new Set();
+    const names = Array.isArray(componentNode && componentNode.properties) ? componentNode.properties : [];
+    for (let i = 0; i < names.length; i += 1) {
+      const name = String(names[i] || "").trim();
+      const key = name.toLowerCase();
+      if (!name || seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      out.push(name);
+    }
+    return out;
+  }
+
+  function readSingleDeclaredComponentPropertyValue(value) {
+    const target = isContextSymbolHandle(value)
+      ? readHandleResolutionTarget(value) || value
+      : value;
+    if (!target || target.nodeType !== 1) {
+      return { matched: false, value: value };
+    }
+    const componentMeta = target[Q_COMPONENT_INSTANCE_META_KEY] instanceof QComponentInstance
+      ? target[Q_COMPONENT_INSTANCE_META_KEY]
+      : null;
+    const componentNode = componentMeta && componentMeta.componentNode ? componentMeta.componentNode : null;
+    const propertyNames = collectComponentPropertyNamesForContext(componentNode);
+    if (propertyNames.length !== 1) {
+      return { matched: false, value: value };
+    }
+    const propertyName = propertyNames[0];
+    try {
+      return { matched: true, value: target[propertyName] };
+    } catch (error) {
+      return { matched: false, value: value };
+    }
+  }
+
+  function collectDirectQContextSymbols(sourceValue, ownerUuid) {
+    const out = Object.create(null);
+    const target = isContextSymbolHandle(sourceValue)
+      ? readHandleResolutionTarget(sourceValue) || sourceValue
+      : sourceValue;
+    if (!target || (typeof target !== "object" && typeof target !== "function")) {
+      return out;
+    }
+
+    if (target.nodeType === 1) {
+      const componentMeta = target[Q_COMPONENT_INSTANCE_META_KEY] instanceof QComponentInstance
+        ? target[Q_COMPONENT_INSTANCE_META_KEY]
+        : null;
+      const componentNode = componentMeta && componentMeta.componentNode ? componentMeta.componentNode : null;
+      const propertyNames = collectComponentPropertyNamesForContext(componentNode);
+      for (let i = 0; i < propertyNames.length; i += 1) {
+        const name = propertyNames[i];
+        try {
+          addQContextSymbol(out, name, target[name], ownerUuid);
+        } catch (error) {
+          // Skip getters that fail during context import.
+        }
+      }
+      const directValues = target[Q_CONTEXT_DIRECT_VALUES_KEY];
+      if (directValues && typeof directValues === "object") {
+        const directNames = Object.keys(directValues);
+        for (let i = 0; i < directNames.length; i += 1) {
+          const name = directNames[i];
+          addQContextSymbol(out, name, directValues[name], ownerUuid);
+        }
+      }
+      return out;
+    }
+
+    const keys = Object.keys(target);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      try {
+        addQContextSymbol(out, key, target[key], ownerUuid);
+      } catch (error) {
+        // Skip unreadable properties.
+      }
+    }
+    return out;
+  }
+
+  function isQContextUuidSource(sourceExpression) {
+    const source = String(sourceExpression || "").trim();
+    if (!source) {
+      return false;
+    }
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(source) ||
+      /^qdom-[A-Za-z0-9_-]+$/.test(source);
+  }
+
+  function readUuidLookupElement(lookup) {
+    if (!lookup || typeof lookup !== "object") {
+      return null;
+    }
+    if (lookup.dom && lookup.dom.nodeType === 1) {
+      return lookup.dom;
+    }
+    if (typeof lookup.element === "function") {
+      try {
+        const element = lookup.element();
+        if (element && element.nodeType === 1) {
+          return element;
+        }
+      } catch (error) {
+        // Ignore stale lookup facades.
+      }
+    }
+    return null;
+  }
+
+  function readUuidLookupPointer(lookup) {
+    if (!lookup || typeof lookup !== "object") {
+      return null;
+    }
+    const element = readUuidLookupElement(lookup);
+    if (element) {
+      return element;
+    }
+    if (lookup.pointer && typeof lookup.pointer === "object") {
+      return lookup.pointer;
+    }
+    if (typeof lookup.qdom === "function") {
+      try {
+        const qdom = lookup.qdom();
+        if (qdom && typeof qdom === "object") {
+          return qdom;
+        }
+      } catch (error) {
+        // Ignore stale lookup facades.
+      }
+    }
+    return null;
+  }
+
+  function resolveQContextUuidSource(uuid, parent, context) {
+    const sourceUuid = String(uuid || "").trim();
+    let host = context && context.rootHostElement && context.rootHostElement.nodeType === 1
+      ? context.rootHostElement
+      : null;
+    if (!sourceUuid) {
+      return null;
+    }
+    if (!host) {
+      host = parent && parent.nodeType === 1 && typeof parent.closest === "function"
+        ? parent.closest("q-html")
+        : null;
+    }
+    if (host && typeof host.elementForUuid === "function") {
+      try {
+        const element = host.elementForUuid(sourceUuid);
+        if (element && element.nodeType === 1) {
+          return element;
+        }
+      } catch (error) {
+        // Fall through to global lookup maps.
+      }
+    }
+    if (host && typeof host.lookupUuid === "function") {
+      try {
+        const lookupPointer = readUuidLookupPointer(host.lookupUuid(sourceUuid));
+        if (lookupPointer) {
+          return lookupPointer;
+        }
+      } catch (error) {
+        // Fall through to global lookup maps.
+      }
+    }
+    if (host && typeof host.qdomForUuid === "function") {
+      try {
+        const qdom = host.qdomForUuid(sourceUuid);
+        if (qdom && typeof qdom === "object") {
+          return qdom;
+        }
+      } catch (error) {
+        // Fall through to global lookup maps.
+      }
+    }
+    if (global.QHTML_UUID_LOOKUP_MAP && typeof global.QHTML_UUID_LOOKUP_MAP.get === "function") {
+      const lookupPointer = readUuidLookupPointer(global.QHTML_UUID_LOOKUP_MAP.get(sourceUuid));
+      if (lookupPointer) {
+        return lookupPointer;
+      }
+    }
+    if (global.QHTML_UUID_MAP && typeof global.QHTML_UUID_MAP.get === "function") {
+      const pointer = global.QHTML_UUID_MAP.get(sourceUuid);
+      if (pointer && typeof pointer === "object") {
+        return pointer;
+      }
+    }
+    if (global.QHTML_QDOM && typeof global.QHTML_QDOM.get === "function") {
+      const qdom = global.QHTML_QDOM.get(sourceUuid);
+      if (qdom && typeof qdom === "object") {
+        return qdom;
+      }
+    }
+    return null;
+  }
+
+  function resolveQContextSource(sourceExpression, parent, context) {
+    const source = String(sourceExpression || "").trim();
+    if (!source) {
+      return undefined;
+    }
+    if (isQContextUuidSource(source)) {
+      return resolveQContextUuidSource(source, parent, context);
+    }
+    const scope = buildInterpolationScope(context, parent && parent.nodeType === 1 ? parent : null);
+    return evaluateInlineReferenceExpression(
+      source,
+      parent && parent.nodeType === 1 ? parent : null,
+      scope,
+      "qhtml q-context source evaluation failed:",
+      {
+        pathFallbackLiteral: false,
+        allowBareDotWalk: true,
+        resolutionContext: createPathResolutionContext(),
+      }
+    );
+  }
+
+  function applyQContextSourcesToContext(sources, parent, targetDocument, context, ownerHostOverride) {
+    const sourceList = Array.isArray(sources)
+      ? sources.map(function mapQContextSource(entry) { return String(entry || "").trim(); }).filter(Boolean)
+      : [];
+    if (sourceList.length === 0) {
+      return false;
+    }
+    ensureContextFrames(context);
+    const ownerHost = resolveContextOwnerHost(parent, context, ownerHostOverride);
+    const ownerUuid = resolveAliasUuid(ownerHost);
+    const baseScope = context[QCONTEXT_SCOPE_FRAME_KEY];
+    const baseRuntime = context[QCONTEXT_RUNTIME_FRAME_KEY];
+    const scopeFrame = baseScope && typeof baseScope.child === "function"
+      ? baseScope.child("q-context", ownerHost || null)
+      : createContextFrame(baseScope || null, "q-context", ownerHost || null);
+    const runtimeFrame = baseRuntime && typeof baseRuntime.child === "function"
+      ? baseRuntime.child("q-context", ownerHost || null)
+      : createContextFrame(baseRuntime || null, "q-context", ownerHost || null);
+    context[QCONTEXT_SCOPE_FRAME_KEY] = scopeFrame;
+    context[QCONTEXT_RUNTIME_FRAME_KEY] = runtimeFrame;
+    ensureInstanceAliasScopeStack(context);
+
+    for (let i = 0; i < sourceList.length; i += 1) {
+      const sourceValue = resolveQContextSource(sourceList[i], parent, context);
+      if (!sourceValue || (typeof sourceValue !== "object" && typeof sourceValue !== "function")) {
+        continue;
+      }
+      const sourceUuid = resolveAliasUuid(sourceValue);
+      if (ownerUuid && sourceUuid && sourceUuid === ownerUuid) {
+        continue;
+      }
+      const symbols = collectDirectQContextSymbols(sourceValue, ownerUuid);
+      const names = Object.keys(symbols);
+      for (let ni = 0; ni < names.length; ni += 1) {
+        const name = names[ni];
+        const value = symbols[name];
+        scopeFrame.set(name, value);
+        runtimeFrame.set(name, value);
+        if (ownerHost && ownerHost.nodeType === 1) {
+          recordContextOverlaySymbol(ownerHost, name, value);
+        }
+      }
+    }
+    return true;
+  }
+
+  function registerQContextDeclarationNode(node, parent, targetDocument, context, ownerHostOverride) {
+    if (!node || String(node.kind || "").trim().toLowerCase() !== Q_CONTEXT_NODE_KIND) {
+      return false;
+    }
+    return applyQContextSourcesToContext(
+      readQContextDeclarationSources(node),
+      parent,
+      targetDocument,
+      context,
+      ownerHostOverride
+    );
+  }
+
+  function applyComponentQContextDeclarations(componentNode, parent, targetDocument, context, ownerHost) {
+    const declarations =
+      componentNode && componentNode.meta && Array.isArray(componentNode.meta.__qhtmlContextDeclarations)
+        ? componentNode.meta.__qhtmlContextDeclarations
+        : [];
+    for (let i = 0; i < declarations.length; i += 1) {
+      const declaration = declarations[i] || {};
+      applyQContextSourcesToContext(
+        readQContextDeclarationSources(declaration),
+        parent,
+        targetDocument,
+        context,
+        ownerHost
+      );
     }
   }
 
@@ -29953,6 +30510,14 @@
         }
         continue;
       }
+      const overlay = readContextOverlayValue(cursor, key);
+      if (overlay.found) {
+        cursor = overlay.value;
+        if (markPathResolutionVisit(cursor, context)) {
+          return { found: false, value: undefined, cycle: true };
+        }
+        continue;
+      }
       let nextValue;
       try {
         nextValue = cursor[key];
@@ -30043,6 +30608,11 @@
 
       if (String(node.kind || "").trim().toLowerCase() === Q_SWITCH_NODE_KIND) {
         registerQSwitchDeclarationNode(node, parent, targetDocument, context);
+        return;
+      }
+
+      if (String(node.kind || "").trim().toLowerCase() === Q_CONTEXT_NODE_KIND) {
+        registerQContextDeclarationNode(node, parent, targetDocument, context);
         return;
       }
 
@@ -30676,6 +31246,7 @@
       scopeFrame: componentScopeFrame,
       runtimeFrame: componentRuntimeFrame,
     });
+    applyComponentQContextDeclarations(componentNode, hostElement, targetDocument, componentContext, hostElement);
     const varDeclarations = Array.isArray(componentNode.varDeclarations) ? componentNode.varDeclarations : [];
     for (let vi = 0; vi < varDeclarations.length; vi += 1) {
       registerQVarDeclarationNode(
@@ -30883,6 +31454,7 @@
     if (!context.disableComponentRuntime) {
       bindComponentMethods(componentNode, workerHost, instanceNode);
     }
+    applyComponentQContextDeclarations(componentNode, workerHost, targetDocument, context, workerHost);
     if (!context.disableLifecycleHooks) {
       runLifecycleHooks(instanceNode, workerHost, targetDocument);
       runComponentLifecycleHooks(componentNode, workerHost, targetDocument);
@@ -31438,6 +32010,7 @@
     context.componentStack.push(key);
     context.componentHostStack.push(hostElement);
     context.componentQdomStack.push(instanceNode);
+    applyComponentQContextDeclarations(effectiveComponentNode, hostElement, doc, context, hostElement);
     const varDeclarations = Array.isArray(effectiveComponentNode.varDeclarations) ? effectiveComponentNode.varDeclarations : [];
     for (let vi = 0; vi < varDeclarations.length; vi += 1) {
       registerQVarDeclarationNode(
@@ -31563,6 +32136,7 @@
   const QCONTEXT_SYMBOL_UUID_KEY = "__qhtmlContextSymbolUuid";
   const QCONTEXT_SYMBOL_KIND_KEY = "__qhtmlContextSymbolKind";
   const QCONTEXT_SYMBOL_HEAD_ONLY_KEY = "__qhtmlContextSymbolHeadOnly";
+  const Q_CONTEXT_OVERLAY_VALUES_KEY = "__qhtmlContextOverlayValues";
   const Q_MODEL_VIEW_INSTANCE_ATTR = "q-model-view-instance";
   const Q_MODEL_VIEW_SCOPE_TAG = "q-model-view-scope";
   const QDOM_UPDATE_EVENT_NAME = "qhtml:update";
@@ -34585,6 +35159,18 @@
     return String(value[QCONTEXT_SYMBOL_KIND_KEY] || "").trim().toLowerCase();
   }
 
+  function readContextOverlayValue(target, name) {
+    const key = String(name || "").trim();
+    if (!key || !target || (typeof target !== "object" && typeof target !== "function")) {
+      return { found: false, value: undefined };
+    }
+    const store = target[Q_CONTEXT_OVERLAY_VALUES_KEY];
+    if (store && typeof store === "object" && Object.prototype.hasOwnProperty.call(store, key)) {
+      return { found: true, value: store[key] };
+    }
+    return { found: false, value: undefined };
+  }
+
   function isContextHandleHeadOnly(value) {
     return !!(isContextSymbolHandle(value) && value[QCONTEXT_SYMBOL_HEAD_ONLY_KEY] === true);
   }
@@ -34743,6 +35329,14 @@
         return { found: false, value: undefined, cycle: false };
       }
       const resolvedCursor = resolveContextHandleTarget(cursor);
+      const overlay = readContextOverlayValue(resolvedCursor, parts[i]);
+      if (overlay.found) {
+        cursor = overlay.value;
+        if (markPathResolutionVisit(cursor, context)) {
+          return { found: false, value: undefined, cycle: true };
+        }
+        continue;
+      }
       let nextValue;
       try {
         nextValue = resolvedCursor[parts[i]];

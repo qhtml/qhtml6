@@ -59,6 +59,7 @@
   const QCONTEXT_SYMBOL_UUID_KEY = "__qhtmlContextSymbolUuid";
   const QCONTEXT_SYMBOL_KIND_KEY = "__qhtmlContextSymbolKind";
   const QCONTEXT_SYMBOL_HEAD_ONLY_KEY = "__qhtmlContextSymbolHeadOnly";
+  const Q_CONTEXT_OVERLAY_VALUES_KEY = "__qhtmlContextOverlayValues";
   const Q_MODEL_VIEW_INSTANCE_ATTR = "q-model-view-instance";
   const Q_MODEL_VIEW_SCOPE_TAG = "q-model-view-scope";
   const QDOM_UPDATE_EVENT_NAME = "qhtml:update";
@@ -3081,6 +3082,18 @@
     return String(value[QCONTEXT_SYMBOL_KIND_KEY] || "").trim().toLowerCase();
   }
 
+  function readContextOverlayValue(target, name) {
+    const key = String(name || "").trim();
+    if (!key || !target || (typeof target !== "object" && typeof target !== "function")) {
+      return { found: false, value: undefined };
+    }
+    const store = target[Q_CONTEXT_OVERLAY_VALUES_KEY];
+    if (store && typeof store === "object" && Object.prototype.hasOwnProperty.call(store, key)) {
+      return { found: true, value: store[key] };
+    }
+    return { found: false, value: undefined };
+  }
+
   function isContextHandleHeadOnly(value) {
     return !!(isContextSymbolHandle(value) && value[QCONTEXT_SYMBOL_HEAD_ONLY_KEY] === true);
   }
@@ -3239,6 +3252,14 @@
         return { found: false, value: undefined, cycle: false };
       }
       const resolvedCursor = resolveContextHandleTarget(cursor);
+      const overlay = readContextOverlayValue(resolvedCursor, parts[i]);
+      if (overlay.found) {
+        cursor = overlay.value;
+        if (markPathResolutionVisit(cursor, context)) {
+          return { found: false, value: undefined, cycle: true };
+        }
+        continue;
+      }
       let nextValue;
       try {
         nextValue = resolvedCursor[parts[i]];

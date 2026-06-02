@@ -215,6 +215,13 @@
     return text;
   }
 
+  function joinPreviewContextSource(contextSource, source) {
+    const context = String(contextSource || '').trim();
+    const body = String(source || '');
+    if (!context) return body;
+    return context + '\n\n' + body;
+  }
+
   function resolveImportBaseUrl() {
     if (document && typeof document.baseURI === 'string' && document.baseURI.trim()) {
       return document.baseURI.trim();
@@ -2155,6 +2162,19 @@
       this._semanticCacheModel = null;
       this._autoFormatEnabled = true;
       this._autoFormatToggle = null;
+      this._previewContextSource = '';
+    }
+
+    static get observedAttributes() {
+      return ['preview-context'];
+    }
+
+    attributeChangedCallback(name, oldValue, newValue) {
+      if (oldValue === newValue) return;
+      if (name === 'preview-context') {
+        this._previewContextSource = String(newValue || '');
+        this._scheduleRender(0);
+      }
     }
 
     connectedCallback() {
@@ -2232,6 +2252,20 @@
 
     getQhtmlSource() {
       return this._source;
+    }
+
+    setPreviewContextSource(source) {
+      this._previewContextSource = String(source || '');
+      if (this._previewContextSource) {
+        this.setAttribute('preview-context', this._previewContextSource);
+      } else {
+        this.removeAttribute('preview-context');
+      }
+      this._scheduleRender(0);
+    }
+
+    getPreviewContextSource() {
+      return String(this._previewContextSource || this.getAttribute('preview-context') || '');
     }
 
     _clearTimer(timerKey) {
@@ -3007,7 +3041,7 @@
       if (!this.isConnected) return;
       const version = ++this._renderVersion;
       const source = String(this._source || '');
-      const runtimeSource = normalizeImportedSource(source);
+      const runtimeSource = joinPreviewContextSource(this.getPreviewContextSource(), normalizeImportedSource(source));
       const shouldPopulateHtml = this._activeTab === 'html';
       const shouldPopulateQDom = this._activeTab === 'qdom';
       const shouldPopulatePreview = this._activeTab === 'preview';

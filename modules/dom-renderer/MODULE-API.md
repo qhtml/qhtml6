@@ -102,6 +102,15 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - case bodies evaluate with the current inherited QContext and q-var references resolve to their stored JavaScript values
   - no property binding or listener behavior is installed; dynamic behavior must come from the caller or from expressions/functions returned by cases
   - returned QHTML source strings can be passed into `qhtml(name(value))`
+- `q-context` declarations augment the current QContext from direct symbols on one or more source contexts:
+  - declaration form: `q-context { this.component otherComponent.someChild thirdComponent }`
+  - source entries can also be live QHTML UUIDs; UUIDs resolve through the current `<q-html>` host and global QHTML UUID lookup maps before normal expression evaluation
+  - source order controls collisions; later sources overwrite earlier imported symbols
+  - `this` and `component` are never imported or overwritten
+  - component-local q-context declarations apply only to the declaring component, not through `extends`
+  - referenced components contribute only their direct properties, functions, signals, q-vars, q-switches, q-timers, callbacks, and directly owned child aliases; their own q-context overlays are not re-exported
+  - a bare q-property default naming a source component with exactly one declared q-property resolves to that property value
+  - UUID loop detection skips self/cyclic imports instead of walking indefinitely
 - `q-timer` declarations can be registered at document scope or inside anonymous DOM/theme/style containers:
   - anonymous containers inherit the current QContext instead of creating a new named scope
   - root timers are registered before document nodes render so handlers and expressions can resolve them by name

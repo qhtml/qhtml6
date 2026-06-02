@@ -795,6 +795,59 @@ qhtml(cardHead) {
 }
 ```
 
+### `q-context` (context composition)
+
+`q-context` augments the current QContext from one or more dot-walked source contexts. It renders no DOM. Use it when a component or block should see another component's direct named symbols without manually forwarding each property, function, signal, q-var, q-switch, q-timer, callback, or child alias.
+
+```qhtml
+q-component context-source {
+  q-property label: "source"
+  q-var helper { function() { return "helper-" + this.component.label; } }
+  function makeText() { return "method-" + this.component.label; }
+}
+
+q-component context-target {
+  q-context { sourceOne sourceTwo }
+  div {
+    text { ${label} / ${helper()} / ${makeText()} }
+  }
+}
+
+context-source sourceOne { label: "one" }
+context-source sourceTwo { label: "two" }
+context-target targetOne { }
+```
+
+When names collide, source order wins: later sources override earlier imported names. `this` and `this.component` are never overwritten.
+
+`q-context` imports only direct symbols from each source. If `object2` has its own `q-context { object3 }`, then `q-context { object2 }` imports `object2`'s direct symbols but not `object3` through `object2`. This prevents context loops such as `object1 -> object2 -> object3 -> object1` from recursively expanding forever.
+
+Sources can also be live QHTML UUIDs. A UUID source is resolved through the current `<q-html>` host and the global QHTML UUID lookup maps before normal dot-walk expression evaluation, which lets tools such as page-builder preview fragments with the context of an existing rendered component:
+
+```qhtml
+q-context { 11111111-2222-3333-4444-555555555555 }
+div { text { ${somePropertyFromThatComponent} } }
+```
+
+When a bare q-property default names a context source instance with exactly one declared q-property, it resolves to that single property value:
+
+```qhtml
+q-component comp1 {
+  q-property myprop: "hello world"
+  div,span { text { ${myprop} } }
+}
+
+comp1 mycomp1 { }
+
+q-component comp2 {
+  q-context { this.component mycomp1 }
+  q-property secondprop: mycomp1
+  div,span { text { ${secondprop} } }
+}
+
+comp2 mycomp2 { }
+```
+
 ### `q-switch` / `switch` (named lookup function)
 
 `q-switch` declares a named runtime function that maps primitive keys to JavaScript expression results. The shorthand `switch` parses the same way.
@@ -2128,6 +2181,8 @@ this.component.root().update(); // whole <q-html>
   h3 { text { Hello from q-editor } }
 </q-editor>
 ```
+
+For embedded tool previews, `<q-editor preview-context="q-context { ... }">` prepends that context only to the runtime parse/preview path. The editor text remains unchanged, but the preview can resolve names from a live component UUID or any other valid `q-context` source.
 
 ### `q-import { ... }` (include QHTML files)
 

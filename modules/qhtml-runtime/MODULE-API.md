@@ -193,6 +193,7 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 
 ## Scope and Context Resolution
 - Runtime resolves symbol paths through layered scope/context frames.
+- Runtime dot-walk resolution also checks `q-context` overlay values exposed by the renderer before falling back to normal object property reads.
 - General resolution order for simple symbol paths:
   1. expression-local scope values (inline/event/lifecycle scope object)
   2. lexical QHTML scope frame (named instances declared in the active QHTML scope)

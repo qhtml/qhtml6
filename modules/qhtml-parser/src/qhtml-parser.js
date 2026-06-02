@@ -41,6 +41,7 @@
     "q-bind-css",
     "q-var",
     "q-switch",
+    "q-context",
     "q-property",
     "q-signal",
     "q-callback",
@@ -1097,6 +1098,19 @@
       end: itemEnd,
       raw: rawSource,
     };
+  }
+
+  function parseQContextSourceList(source) {
+    const body = String(source || "").trim();
+    if (!body) {
+      return [];
+    }
+    return body
+      .split(/[\s,;]+/g)
+      .map(function trimQContextSource(entry) {
+        return String(entry || "").trim();
+      })
+      .filter(Boolean);
   }
 
   function parseSelectorList(parser, firstSelector) {
@@ -3298,6 +3312,20 @@
           });
           continue;
         }
+        if (nameLower === "q-context" && nextChar === "{") {
+          consume(parser);
+          const contextBody = readBalancedBlockContent(parser);
+          items.push({
+            type: "QContextDeclaration",
+            body: String(contextBody || ""),
+            sources: parseQContextSourceList(contextBody),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (nameLower === "q-connect" && nextChar === "{") {
           consume(parser);
           const connectBody = readBalancedBlockContent(parser);
@@ -4751,6 +4779,21 @@
             name: normalizedSwitchName,
             body: String(switchBody || ""),
             cases: parseQSwitchDeclarationBody(String(switchBody || "")),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-context" && peek(parser) === "{") {
+          consume(parser);
+          const contextBody = readBalancedBlockContent(parser);
+          body.push({
+            type: "QContextDeclaration",
+            body: String(contextBody || ""),
+            sources: parseQContextSourceList(contextBody),
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -12902,6 +12945,7 @@
     const aliasDeclarations = [];
     const varDeclarations = [];
     const switchDeclarations = [];
+    const contextDeclarations = [];
     let componentLoggerCategories = null;
     let componentPerfCategories = null;
     let componentAnchorRules = null;
@@ -13359,6 +13403,30 @@
         }
         continue;
       }
+      if (item.type === "QContextDeclaration") {
+        if (supportsRuntimeDefinition) {
+          const contextSources = Array.isArray(item.sources)
+            ? item.sources.map(function mapContextSource(entry) { return String(entry || "").trim(); }).filter(Boolean)
+            : parseQContextSourceList(item.body);
+          const declarationMeta = createDeclarationMeta({
+            declarationKind: "q-context",
+            declarationName: "q-context",
+          });
+          contextDeclarations.push({
+            body: String(item.body || ""),
+            sources: contextSources,
+            uuid: declarationMeta.uuid,
+            meta: Object.assign({}, declarationMeta, {
+              originalSource: item.raw || "",
+              sourceRange:
+                typeof item.start === "number" && typeof item.end === "number"
+                  ? [item.start, item.end]
+                  : null,
+            }),
+          });
+        }
+        continue;
+      }
       if (item.type === "QWasmBlock") {
         if (definitionType !== "component") {
           throw new Error("q-wasm is only valid inside q-component definitions.");
@@ -13522,6 +13590,12 @@
         componentNode.meta = {};
       }
       componentNode.meta.__qhtmlCssBindings = cssBindings.slice();
+    }
+    if (contextDeclarations.length > 0) {
+      if (!componentNode.meta || typeof componentNode.meta !== "object") {
+        componentNode.meta = {};
+      }
+      componentNode.meta.__qhtmlContextDeclarations = contextDeclarations.slice();
     }
     if (Object.keys(componentEventAttributeParams).length > 0) {
       if (!componentNode.meta || typeof componentNode.meta !== "object") {
@@ -14097,6 +14171,31 @@
       };
       applyKeywordAliasesToNode(switchNode, item.keywords);
       return switchNode;
+    }
+
+    if (item.type === "QContextDeclaration") {
+      const contextSources = Array.isArray(item.sources)
+        ? item.sources.map(function mapContextSource(entry) { return String(entry || "").trim(); }).filter(Boolean)
+        : parseQContextSourceList(item.body);
+      const declarationMeta = createDeclarationMeta({
+        declarationKind: "q-context",
+        declarationName: "q-context",
+      });
+      const contextNode = {
+        kind: "q-context",
+        body: String(item.body || ""),
+        sources: contextSources,
+        uuid: declarationMeta.uuid,
+        meta: Object.assign({}, declarationMeta, {
+          originalSource: item.raw || "",
+          sourceRange:
+            typeof item.start === "number" && typeof item.end === "number"
+              ? [item.start, item.end]
+              : null,
+        }),
+      };
+      applyKeywordAliasesToNode(contextNode, item.keywords);
+      return contextNode;
     }
 
     if (item.type === "QTimerDefinition") {
@@ -14710,6 +14809,26 @@
     return lines.join("\n");
   }
 
+  function serializeQContextDeclarationBlock(contextDecl, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    if (!contextDecl || typeof contextDecl !== "object") {
+      return "";
+    }
+    const sources = Array.isArray(contextDecl.sources)
+      ? contextDecl.sources.map(function mapQContextSource(entry) { return String(entry || "").trim(); }).filter(Boolean)
+      : parseQContextSourceList(contextDecl.body);
+    const body = sources.length > 0 ? sources.join(" ") : String(contextDecl.body || "").trim();
+    const lines = [indent + "q-context {"];
+    if (body) {
+      const chunks = body.split("\n");
+      for (let i = 0; i < chunks.length; i += 1) {
+        lines.push(indent + "  " + chunks[i]);
+      }
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
   function serializeQAnchorRulesBlock(anchorRules, indentLevel) {
     const indent = "  ".repeat(indentLevel);
     const list = Array.isArray(anchorRules) ? anchorRules : [];
@@ -15207,6 +15326,10 @@
 
     if (String(node.kind || "").trim().toLowerCase() === "q-switch") {
       return serializeQSwitchDeclarationBlock(node, indentLevel);
+    }
+
+    if (String(node.kind || "").trim().toLowerCase() === "q-context") {
+      return serializeQContextDeclarationBlock(node, indentLevel);
     }
 
     function serializeStructField(field, fieldIndentLevel) {

@@ -99,6 +99,10 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - top-level `q-switch name { key: { expression } *: defaultExpression }` emitted as QDom `kind: "q-switch"` nodes
       - component-local `q-switch` declarations emitted in `component.switchDeclarations`
       - case bodies are preserved as JavaScript source text for runtime on-demand evaluation
+    - q-context declarations:
+      - top-level `q-context { sourceA sourceB.child }` emitted as QDom `kind: "q-context"` nodes with `sources`
+      - component-local `q-context` declarations emitted in `component.meta.__qhtmlContextDeclarations`
+      - context sources are preserved as dot-walk source strings for render-time QContext composition
     - q-perf directives:
       - `q-perf { q-timer q-signal q-property q-worker function }` is direct-child metadata only and does not render a DOM node
       - normal element children store flags in `node.meta.__qhtmlPerfFlags`
