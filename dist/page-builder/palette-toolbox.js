@@ -1942,6 +1942,79 @@
     return block ? source.slice(block.bodyStart, block.bodyEnd).trim() : "";
   }
 
+  function qSlotDefaultEntriesFromDefinition(source) {
+    var text = String(source || "");
+    var entries = [];
+    var seen = Object.create(null);
+    var i = 0;
+    var index;
+    var nameStart;
+    var name;
+    var blockOpen;
+    var blockClose;
+    while (i < text.length) {
+      index = text.indexOf("q-slot-default", i);
+      if (index < 0) {
+        break;
+      }
+      if (index > 0 && qhtmlSourceNameChar(text.charAt(index - 1))) {
+        i = index + 1;
+        continue;
+      }
+      i = index + "q-slot-default".length;
+      if (qhtmlSourceNameChar(text.charAt(i))) {
+        continue;
+      }
+      i = qhtmlSourceSkipWhitespace(text, i);
+      nameStart = i;
+      while (i < text.length && qhtmlSourceNameChar(text.charAt(i))) {
+        i += 1;
+      }
+      name = text.slice(nameStart, i);
+      i = qhtmlSourceSkipWhitespace(text, i);
+      if (!name || text.charAt(i) !== "{") {
+        continue;
+      }
+      blockOpen = i;
+      blockClose = qhtmlSourceMatchingBrace(text, blockOpen);
+      if (blockClose < 0) {
+        break;
+      }
+      seen[name.toLowerCase()] = {
+        name: name,
+        source: text.slice(blockOpen + 1, blockClose).trim()
+      };
+      i = blockClose + 1;
+    }
+    Object.keys(seen).forEach(function (key) {
+      entries.push(seen[key]);
+    });
+    return entries;
+  }
+
+  function materializeSlotDefaultsInInstanceSource(component, definitionSource, instanceSource) {
+    var componentNameValue = String(component || "").trim();
+    var source = normalizeBareInstanceTextSource(instanceSource || (componentNameValue || "pb-item") + " { }");
+    var entries = qSlotDefaultEntriesFromDefinition(definitionSource);
+    var i;
+    var entry;
+    var current;
+    if (!componentNameValue || entries.length === 0) {
+      return source;
+    }
+    if (!readQHtmlBlocks(source, 0, source.length).length) {
+      source = componentNameValue + " { }";
+    }
+    for (i = 0; i < entries.length; i += 1) {
+      entry = entries[i];
+      current = slotSourceInInstanceBlock(source, entry.name);
+      if (qhtmlSourceIsBlankOrComments(current)) {
+        source = replaceInstanceSlotSource(source, entry.name, entry.source);
+      }
+    }
+    return formatQHtmlSource(source);
+  }
+
   function slotNamesForComponent(component) {
     var button = paletteButtonForComponent(component);
     var source = button ? qhtmlDefinitionSource(button) : "";
@@ -2182,13 +2255,16 @@
   function createBuilderItem(opts) {
     var options = opts || {};
     var item = document.createElement(Q.item);
+    var component = options.component || "pb-item";
+    var definition = options.qhtml || "";
+    var instance = materializeSlotDefaultsInInstanceSource(component, definition, options.instance || component + " { }");
     item.setAttribute("name", options.name || "Item");
-    item.setAttribute("component", options.component || "pb-item");
-    item.setAttribute("qhtml", options.qhtml || "");
+    item.setAttribute("component", component);
+    item.setAttribute("qhtml", definition);
     if (options.support) {
       item.setAttribute("support", options.support);
     }
-    item.setAttribute("instance", options.instance || (options.component || "pb-item") + " { }");
+    item.setAttribute("instance", instance);
     item.appendPreview(options.preview || null);
     return item;
   }
@@ -2299,6 +2375,8 @@
   function addPaletteButtonRecord(record) {
     var data = record || {};
     var component = String(data.component || "").trim().toLowerCase();
+    var definition = data.qhtml || data.definition || "";
+    var instance = materializeSlotDefaultsInInstanceSource(component, definition, data.instance || component + " { }");
     var existing;
     var button;
     var preview;
@@ -2309,8 +2387,10 @@
     existing = paletteButtonForComponent(component);
     if (existing) {
       existing.setAttribute("name", data.name || existing.getAttribute("name") || component);
-      existing.setAttribute("qhtml", data.qhtml || data.definition || qhtmlDefinitionSource(existing));
-      existing.setAttribute("instance", data.instance || qhtmlInstanceSource(existing));
+      definition = definition || qhtmlDefinitionSource(existing);
+      instance = materializeSlotDefaultsInInstanceSource(component, definition, data.instance || qhtmlInstanceSource(existing));
+      existing.setAttribute("qhtml", definition);
+      existing.setAttribute("instance", instance);
       existing.setAttribute("data-pb-imported", "page");
       if (data.support) {
         existing.setAttribute("support", data.support);
@@ -2330,8 +2410,8 @@
     button = document.createElement(Q.button);
     button.setAttribute("name", data.name || component);
     button.setAttribute("component", component);
-    button.setAttribute("qhtml", data.qhtml || data.definition || "");
-    button.setAttribute("instance", data.instance || component + " { }");
+    button.setAttribute("qhtml", definition);
+    button.setAttribute("instance", instance);
     button.setAttribute("data-pb-imported", "page");
     if (data.support) {
       button.setAttribute("support", data.support);
@@ -2756,6 +2836,17 @@
       }
     }
 
+    materializeSlotDefaults() {
+      var nextInstance = materializeSlotDefaultsInInstanceSource(
+        componentName(this),
+        qhtmlDefinitionSource(this),
+        qhtmlInstanceSource(this)
+      );
+      if (nextInstance && nextInstance !== qhtmlInstanceSource(this)) {
+        this.setAttribute("instance", nextInstance);
+      }
+    }
+
     renderChrome() {
       var name = this.getAttribute("name") || "Item";
       var existing = arr(this.childNodes);
@@ -2764,11 +2855,13 @@
       var preview = document.createElement("div");
 
       if (this.querySelector(":scope > .q-builder-item-bar")) {
+        this.materializeSlotDefaults();
         this.ensureInstanceEditButton();
         enhanceRenderedInstanceEditors(this);
         return;
       }
 
+      this.materializeSlotDefaults();
       label.textContent = name;
       bar.className = "q-builder-item-bar";
       bar.appendChild(label);
@@ -4577,7 +4670,11 @@
         }
         source = nextInstance;
       }
-      item.setAttribute("instance", formatQHtmlSource(source));
+      item.setAttribute("instance", materializeSlotDefaultsInInstanceSource(
+        item.getAttribute("component") || entry.component,
+        qhtmlDefinitionSource(item),
+        source
+      ));
       if (typeof item.refreshSourcePreview === "function") {
         item.refreshSourcePreview();
       }
@@ -4598,6 +4695,11 @@
       return String(item.getAttribute("component") || "") === component;
     }).forEach(function (item) {
       item.setAttribute("qhtml", normalizedSource);
+      item.setAttribute("instance", materializeSlotDefaultsInInstanceSource(
+        component,
+        normalizedSource,
+        qhtmlInstanceSource(item)
+      ));
       if (typeof item.refreshSourcePreview === "function") {
         item.refreshSourcePreview();
       }

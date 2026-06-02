@@ -375,7 +375,7 @@ notice-card {
 }
 ```
 
-In page-builder's QHTML Instance editor, selecting a missing or effectively blank slot preloads the slot's `q-slot-default` body into the editor as a starting point. Saving still writes the result into the selected slot on the instance.
+For page-builder palette items, missing or effectively blank slots are materialized from the component's `q-slot-default` body into the item instance source itself. The QHTML Instance editor then edits that concrete slot content directly.
 
 ### `q-component` instantiation (typed named-instance syntax)
 
