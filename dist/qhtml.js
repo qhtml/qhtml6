@@ -1,7 +1,7 @@
 /* qhtml.js release bundle */
-/* generated: 2026-06-02T04:04:15Z */
+/* generated: 2026-06-03T23:22:38Z */
 
-/*** BEGIN: modules/qdom-core/src/qdom-core.js ***/
+/*** BEGIN: src/modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
   const modules = global.QHtmlModules || (global.QHtmlModules = {});
 
@@ -17,6 +17,8 @@
     templateInstance: "template-instance",
     struct: "struct",
     structInstance: "struct-instance",
+    viewport: "viewport",
+    viewportInstance: "viewport-instance",
     slot: "slot",
     slotDefault: "slot-default",
     scriptRule: "script-rule",
@@ -269,6 +271,39 @@
         return undefined;
       }
       return Object.prototype.hasOwnProperty.call(this.props, name) ? this.props[name] : undefined;
+    }
+  }
+
+  class QViewportNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      const id = String(opts.viewportId || opts.componentId || "").trim().toLowerCase();
+      super(NODE_TYPES.viewport, opts.meta);
+      this.viewportId = id;
+      this.componentId = id;
+      this.definitionType = "viewport";
+      this.constraints =
+        opts.constraints && typeof opts.constraints === "object" && !Array.isArray(opts.constraints)
+          ? Object.assign({}, opts.constraints)
+          : {};
+    }
+  }
+
+  class QViewportInstanceNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      const id = String(opts.viewportId || opts.componentId || opts.tagName || "").trim().toLowerCase();
+      super(NODE_TYPES.viewportInstance, opts.meta);
+      this.viewportId = id;
+      this.componentId = id;
+      this.tagName = id || "q-viewport";
+      this.constraints =
+        opts.constraints && typeof opts.constraints === "object" && !Array.isArray(opts.constraints)
+          ? Object.assign({}, opts.constraints)
+          : {};
+      this.children = Array.isArray(opts.children) ? opts.children : [];
+      this.selectorMode = opts.selectorMode || "single";
+      this.selectorChain = Array.isArray(opts.selectorChain) ? opts.selectorChain.slice() : [this.tagName];
     }
   }
 
@@ -552,6 +587,14 @@
     return new QStructInstanceNode(options || {});
   }
 
+  function createViewportNode(options) {
+    return new QViewportNode(options || {});
+  }
+
+  function createViewportInstanceNode(options) {
+    return new QViewportInstanceNode(options || {});
+  }
+
   function normalizeInstanceKind(kind) {
     const value = String(kind || "").trim().toLowerCase();
     if (value === NODE_TYPES.templateInstance || value === "template") {
@@ -647,6 +690,9 @@
           }
           walkNodes(field.nodes, visitor, node, path.concat("fields", j, "nodes"));
         }
+      }
+      if (node.kind === NODE_TYPES.viewportInstance && Array.isArray(node.children)) {
+        walkNodes(node.children, visitor, node, path.concat("children"));
       }
       if (node.kind === NODE_TYPES.model && Array.isArray(node.entries)) {
         for (let j = 0; j < node.entries.length; j += 1) {
@@ -1087,6 +1133,26 @@
         meta: reviveQDomTree(value.meta || {}),
       });
     }
+    if (kind === NODE_TYPES.viewport) {
+      return createViewportNode({
+        viewportId: value.viewportId || value.componentId,
+        componentId: value.componentId,
+        constraints: reviveQDomTree(value.constraints || {}),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
+    if (kind === NODE_TYPES.viewportInstance) {
+      return createViewportInstanceNode({
+        viewportId: value.viewportId || value.componentId || value.tagName,
+        componentId: value.componentId,
+        tagName: value.tagName,
+        constraints: reviveQDomTree(value.constraints || {}),
+        children: reviveQDomTree(Array.isArray(value.children) ? value.children : []),
+        selectorMode: value.selectorMode,
+        selectorChain: reviveQDomTree(Array.isArray(value.selectorChain) ? value.selectorChain : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
     if (kind === NODE_TYPES.componentInstance || kind === NODE_TYPES.templateInstance) {
       return createComponentInstanceNode({
         kind: kind,
@@ -1454,6 +1520,8 @@
     QComponentNode: QComponentNode,
     QStructNode: QStructNode,
     QStructInstanceNode: QStructInstanceNode,
+    QViewportNode: QViewportNode,
+    QViewportInstanceNode: QViewportInstanceNode,
     QComponentInstanceNode: QComponentInstanceNode,
     QTemplateInstanceNode: QTemplateInstanceNode,
     QSlotNode: QSlotNode,
@@ -1472,6 +1540,8 @@
     createComponentInstanceNode: createComponentInstanceNode,
     createStructNode: createStructNode,
     createStructInstanceNode: createStructInstanceNode,
+    createViewportNode: createViewportNode,
+    createViewportInstanceNode: createViewportInstanceNode,
     createSlotNode: createSlotNode,
     createSlotDefaultNode: createSlotDefaultNode,
     createScriptRule: createScriptRule,
@@ -1499,9 +1569,9 @@
   modules.qdomCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : window);
 
-/*** END: modules/qdom-core/src/qdom-core.js ***/
+/*** END: src/modules/qdom-core/src/qdom-core.js ***/
 
-/*** BEGIN: modules/qhtml-parser/src/qhtml-parser.js ***/
+/*** BEGIN: src/modules/qhtml-parser/src/qhtml-parser.js ***/
 (function attachQHtmlParser(global) {
   const modules = global.QHtmlModules || (global.QHtmlModules = {});
   const core = modules.qdomCore;
@@ -1536,6 +1606,7 @@
   const CANONICAL_KEYWORD_TARGETS = new Set([
     "q-component",
     "q-struct",
+    "q-viewport",
     "q-worker",
     "q-template",
     "q-macro",
@@ -3954,7 +4025,7 @@
       if (eof(parser)) {
         break;
       }
-      const selector = parseQColorIdentifier(parser, "q-theme");
+      const selector = parseQThemeSelector(parser);
       skipWhitespace(parser);
       if (peek(parser) !== "{") {
         throw ParseError("Expected '{...}' inside q-theme", parser.index);
@@ -3973,6 +4044,67 @@
       }
     }
     return out;
+  }
+
+  function parseQThemeSelector(parser) {
+    skipWhitespace(parser);
+    const start = parser.index;
+    let quote = "";
+    let escaped = false;
+    let parenDepth = 0;
+    let bracketDepth = 0;
+    while (!eof(parser)) {
+      const ch = peek(parser);
+      if (quote) {
+        parser.index += 1;
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === "`") {
+        quote = ch;
+        parser.index += 1;
+        continue;
+      }
+      if (ch === "(") {
+        parenDepth += 1;
+        parser.index += 1;
+        continue;
+      }
+      if (ch === ")" && parenDepth > 0) {
+        parenDepth -= 1;
+        parser.index += 1;
+        continue;
+      }
+      if (ch === "[") {
+        bracketDepth += 1;
+        parser.index += 1;
+        continue;
+      }
+      if (ch === "]" && bracketDepth > 0) {
+        bracketDepth -= 1;
+        parser.index += 1;
+        continue;
+      }
+      if (parenDepth === 0 && bracketDepth === 0 && ch === "{") {
+        break;
+      }
+      parser.index += 1;
+    }
+    const selector = parser.source.slice(start, parser.index).trim();
+    if (!selector) {
+      throw ParseError("Expected selector inside q-theme", parser.index);
+    }
+    return selector.replace(/\s+/g, " ");
   }
 
   function createAnonymousQThemeStyleName() {
@@ -12027,6 +12159,16 @@
     );
   }
 
+  function isViewportDefinitionNode(node) {
+    return !!(
+      node &&
+      typeof node === "object" &&
+      core.NODE_TYPES &&
+      core.NODE_TYPES.viewport &&
+      node.kind === core.NODE_TYPES.viewport
+    );
+  }
+
   function normalizeStructFieldName(value) {
     const source = String(value || "").trim();
     if (!source) {
@@ -12212,6 +12354,101 @@
     return structNode;
   }
 
+  const VIEWPORT_CONSTRAINT_NAMES = new Set([
+    "minWidth",
+    "minHeight",
+    "maxWidth",
+    "maxHeight",
+    "x",
+    "y",
+    "width",
+    "height",
+    "scale",
+    "offsetLeft",
+    "offsetTop",
+    "right",
+    "bottom",
+    "type",
+  ]);
+
+  function normalizeViewportConstraintName(value) {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return "";
+    }
+    const assignment = parseAssignmentName(raw);
+    const name = String(assignment.name || raw).trim();
+    if (!name) {
+      return "";
+    }
+    const lower = name.toLowerCase();
+    if (lower === "minwidth" || lower === "min-width") {
+      return "minWidth";
+    }
+    if (lower === "minheight" || lower === "min-height") {
+      return "minHeight";
+    }
+    if (lower === "maxwidth" || lower === "max-width") {
+      return "maxWidth";
+    }
+    if (lower === "maxheight" || lower === "max-height") {
+      return "maxHeight";
+    }
+    if (lower === "offsetleft" || lower === "offset-left") {
+      return "offsetLeft";
+    }
+    if (lower === "offsettop" || lower === "offset-top") {
+      return "offsetTop";
+    }
+    for (const candidate of VIEWPORT_CONSTRAINT_NAMES) {
+      if (String(candidate).toLowerCase() === lower) {
+        return candidate;
+      }
+    }
+    return "";
+  }
+
+  function readViewportConstraintsFromAstItems(items, ownerLabel) {
+    const constraints = {};
+    const list = Array.isArray(items) ? items : [];
+    for (let i = 0; i < list.length; i += 1) {
+      const item = list[i];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.type !== "Property") {
+        const typeName = String(item.type || "").trim() || "item";
+        throw new Error("q-viewport only allows property entries in " + ownerLabel + "; found " + typeName + ".");
+      }
+      const name = normalizeViewportConstraintName(item.name);
+      if (!name) {
+        continue;
+      }
+      constraints[name] = coercePropertyValue(item.value);
+    }
+    return constraints;
+  }
+
+  function buildViewportNodeFromAst(astElement) {
+    const viewportId = String(astElement && astElement.instanceAlias || "").trim();
+    if (!viewportId) {
+      throw new Error("q-viewport definition requires a name.");
+    }
+    const viewportNode = core.createViewportNode({
+      viewportId: viewportId,
+      constraints: readViewportConstraintsFromAstItems(astElement.items, "q-viewport '" + viewportId + "'"),
+      meta: {
+        originalSource: astElement.raw || "",
+        sourceRange:
+          typeof astElement.start === "number" && typeof astElement.end === "number"
+            ? [astElement.start, astElement.end]
+            : null,
+      },
+    });
+    applyKeywordAliasesToNode(viewportNode, astElement.keywords);
+    return viewportNode;
+  }
+
   function convertElementInvocationToStructInstance(elementNode, definitionNode) {
     const instanceMeta = Object.assign({}, elementNode.meta || {});
     const instanceAlias =
@@ -12241,6 +12478,26 @@
     });
   }
 
+  function convertElementInvocationToViewportInstance(elementNode, definitionNode) {
+    const viewportId = String(definitionNode.viewportId || definitionNode.componentId || elementNode.tagName || "")
+      .trim()
+      .toLowerCase();
+    return core.createViewportInstanceNode({
+      viewportId: viewportId,
+      componentId: viewportId,
+      tagName: String(elementNode.tagName || definitionNode.viewportId || definitionNode.componentId || "q-viewport")
+        .trim()
+        .toLowerCase(),
+      constraints: Object.assign({}, definitionNode.constraints || {}),
+      children: Array.isArray(elementNode.children) ? elementNode.children : [],
+      selectorMode: elementNode.selectorMode || "single",
+      selectorChain: Array.isArray(elementNode.selectorChain)
+        ? elementNode.selectorChain.slice()
+        : [String(elementNode.tagName || definitionNode.viewportId || "").trim().toLowerCase()],
+      meta: Object.assign({}, elementNode.meta || {}),
+    });
+  }
+
   function buildDefinitionRegistry(nodes) {
     const registry = new Map();
     const list = Array.isArray(nodes) ? nodes : [];
@@ -12257,6 +12514,11 @@
         }
       } else if (isStructDefinitionNode(node)) {
         const key = String(node.structId || node.componentId || "").trim().toLowerCase();
+        if (key) {
+          registry.set(key, node);
+        }
+      } else if (isViewportDefinitionNode(node)) {
+        const key = String(node.viewportId || node.componentId || "").trim().toLowerCase();
         if (key) {
           registry.set(key, node);
         }
@@ -12291,7 +12553,7 @@
       }
     }
 
-    if (node.kind === core.NODE_TYPES.component || isStructDefinitionNode(node)) {
+    if (node.kind === core.NODE_TYPES.component || isStructDefinitionNode(node) || isViewportDefinitionNode(node)) {
       if (Array.isArray(node.templateNodes)) {
         node.templateNodes = normalizeNodesForDefinitions(
           node.templateNodes,
@@ -12300,6 +12562,13 @@
         );
       }
       normalizeStateMachineMeta(node);
+      return node;
+    }
+
+    if (core.NODE_TYPES.viewportInstance && node.kind === core.NODE_TYPES.viewportInstance) {
+      if (Array.isArray(node.children)) {
+        node.children = normalizeNodesForDefinitions(node.children, definitionRegistry, normalizeOptions);
+      }
       return node;
     }
 
@@ -12362,6 +12631,9 @@
           : "";
       if (tag && tag !== "slot" && definitionRegistry.has(tag)) {
         const definitionNode = definitionRegistry.get(tag);
+        if (isViewportDefinitionNode(definitionNode)) {
+          return convertElementInvocationToViewportInstance(node, definitionNode);
+        }
         if (isStructDefinitionNode(definitionNode)) {
           return convertElementInvocationToStructInstance(node, definitionNode);
         }
@@ -15341,6 +15613,9 @@
       if (definitionSelector === "q-struct") {
         return buildStructNodeFromAst(astElement);
       }
+      if (definitionSelector === "q-viewport") {
+        return buildViewportNodeFromAst(astElement);
+      }
       if (definitionSelector === "q-component" || definitionSelector === "q-worker") {
         return buildComponentNodeFromAst(astElement, source, {
           definitionType: definitionSelector === "q-worker" ? "worker" : "component",
@@ -16738,6 +17013,41 @@
     return lines.join("\n");
   }
 
+  function serializeViewportConstraintLines(constraints, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    const source = constraints && typeof constraints === "object" && !Array.isArray(constraints) ? constraints : {};
+    const orderedNames = [
+      "minWidth",
+      "minHeight",
+      "maxWidth",
+      "maxHeight",
+      "x",
+      "y",
+      "width",
+      "height",
+      "scale",
+      "offsetLeft",
+      "offsetTop",
+      "right",
+      "bottom",
+      "type",
+    ];
+    const emitted = new Set();
+    const lines = [];
+    function emitConstraint(name) {
+      if (!Object.prototype.hasOwnProperty.call(source, name) || emitted.has(name)) {
+        return;
+      }
+      emitted.add(name);
+      lines.push(indent + name + ": " + serializeAssignmentValue(source[name]));
+    }
+    for (let i = 0; i < orderedNames.length; i += 1) {
+      emitConstraint(orderedNames[i]);
+    }
+    Object.keys(source).forEach(emitConstraint);
+    return lines;
+  }
+
   function serializeNode(node, indentLevel) {
     const indent = "  ".repeat(indentLevel);
     if (!node || typeof node !== "object") {
@@ -16891,6 +17201,28 @@
         if (serializedField) {
           lines.push(serializedField);
         }
+      }
+      lines.push(indent + "}");
+      return lines.join("\n");
+    }
+
+    if (core.NODE_TYPES.viewport && node.kind === core.NODE_TYPES.viewport) {
+      const viewportId = String(node.viewportId || node.componentId || "").trim();
+      const lines = [indent + "q-viewport " + viewportId + " {"];
+      const constraints = serializeViewportConstraintLines(node.constraints, indentLevel + 1);
+      for (let i = 0; i < constraints.length; i += 1) {
+        lines.push(constraints[i]);
+      }
+      lines.push(indent + "}");
+      return lines.join("\n");
+    }
+
+    if (core.NODE_TYPES.viewportInstance && node.kind === core.NODE_TYPES.viewportInstance) {
+      const viewportId = String(node.viewportId || node.componentId || node.tagName || "").trim().toLowerCase();
+      const lines = [indent + viewportId + " {"];
+      const children = Array.isArray(node.children) ? node.children : [];
+      for (let i = 0; i < children.length; i += 1) {
+        lines.push(serializeNode(children[i], indentLevel + 1));
       }
       lines.push(indent + "}");
       return lines.join("\n");
@@ -17378,9 +17710,9 @@
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);
 
-/*** END: modules/qhtml-parser/src/qhtml-parser.js ***/
+/*** END: src/modules/qhtml-parser/src/qhtml-parser.js ***/
 
-/*** BEGIN: modules/dom-renderer/src/dom-renderer.js ***/
+/*** BEGIN: src/modules/dom-renderer/src/dom-renderer.js ***/
 (function attachDomRenderer(global) {
   const modules = global.QHtmlModules || (global.QHtmlModules = {});
   const core = modules.qdomCore;
@@ -17415,6 +17747,7 @@
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
   const Q_CALLBACK_NODE_KIND = "callback";
   const QHTML_FRAGMENT_MARKER = "__qhtmlFragment";
+  const Q_VIEWPORT_INSTANCE_ATTR = "q-viewport-instance";
   const QHTML_NAMED_CALLBACKS_KEY = "__qhtmlNamedCallbacks";
   const QHTML_PAINTER_REGISTRY_KEY = "__qhtmlPainterRegistry";
   const QHTML_PAINTER_SCOPE_KEY = "__qhtmlPainterScopeId";
@@ -17441,6 +17774,9 @@
   const qPainterScopeIds = new WeakMap();
   let qPainterScopeCounter = 0;
   let qPainterSupportWarningShown = false;
+  const qViewportInstances = new Set();
+  let qViewportResizeListenersBound = false;
+  let qViewportUpdateScheduled = false;
   const Q_WORKER_IDLE_TERMINATE_MS = 30000;
   let qWorkerFallbackRuntimeCounter = 0;
   let wasmCallSequence = 0;
@@ -20113,6 +20449,11 @@
         }
       } else if (core.NODE_TYPES.struct && node.kind === core.NODE_TYPES.struct) {
         const id = String(node.structId || node.componentId || "").trim().toLowerCase();
+        if (id) {
+          registry.set(id, node);
+        }
+      } else if (core.NODE_TYPES.viewport && node.kind === core.NODE_TYPES.viewport) {
+        const id = String(node.viewportId || node.componentId || "").trim().toLowerCase();
         if (id) {
           registry.set(id, node);
         }
@@ -30573,6 +30914,226 @@
     return { matched: true, found: !!resolvedPath.found, value: resolvedPath.value, cycle: !!resolvedPath.cycle };
   }
 
+  function readQViewportState() {
+    const viewport = global && global.visualViewport ? global.visualViewport : null;
+    if (viewport) {
+      const pageLeft = Number(viewport.pageLeft) || 0;
+      const pageTop = Number(viewport.pageTop) || 0;
+      const width = Number(viewport.width) || 0;
+      const height = Number(viewport.height) || 0;
+      return {
+        x: pageLeft,
+        y: pageTop,
+        width: width,
+        height: height,
+        scale: Number(viewport.scale) || 1,
+        offsetLeft: Number(viewport.offsetLeft) || 0,
+        offsetTop: Number(viewport.offsetTop) || 0,
+        right: pageLeft + width,
+        bottom: pageTop + height,
+        type: "visualViewport",
+      };
+    }
+    const doc = global && global.document ? global.document : null;
+    const docEl = doc && doc.documentElement ? doc.documentElement : null;
+    const pageLeft =
+      Number(global && typeof global.pageXOffset !== "undefined" ? global.pageXOffset : 0) ||
+      Number(docEl && typeof docEl.scrollLeft !== "undefined" ? docEl.scrollLeft : 0) ||
+      0;
+    const pageTop =
+      Number(global && typeof global.pageYOffset !== "undefined" ? global.pageYOffset : 0) ||
+      Number(docEl && typeof docEl.scrollTop !== "undefined" ? docEl.scrollTop : 0) ||
+      0;
+    const width =
+      Number(global && typeof global.innerWidth !== "undefined" ? global.innerWidth : 0) ||
+      Number(docEl && typeof docEl.clientWidth !== "undefined" ? docEl.clientWidth : 0) ||
+      0;
+    const height =
+      Number(global && typeof global.innerHeight !== "undefined" ? global.innerHeight : 0) ||
+      Number(docEl && typeof docEl.clientHeight !== "undefined" ? docEl.clientHeight : 0) ||
+      0;
+    return {
+      x: pageLeft,
+      y: pageTop,
+      width: width,
+      height: height,
+      scale: 1,
+      offsetLeft: 0,
+      offsetTop: 0,
+      right: pageLeft + width,
+      bottom: pageTop + height,
+      type: "layoutViewport",
+    };
+  }
+
+  function parseQViewportLength(value, axis, state) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    const text = String(value == null ? "" : value).trim();
+    if (!text) {
+      return null;
+    }
+    const numeric = Number(text);
+    if (Number.isFinite(numeric)) {
+      return numeric;
+    }
+    const match = text.match(/^(-?(?:\d+|\d*\.\d+))(px|vw|vh|vmin|vmax|%|rem|em)?$/i);
+    if (!match) {
+      return null;
+    }
+    const amount = Number(match[1]);
+    if (!Number.isFinite(amount)) {
+      return null;
+    }
+    const unit = String(match[2] || "px").toLowerCase();
+    const width = Number(state && state.width) || 0;
+    const height = Number(state && state.height) || 0;
+    if (unit === "vw") {
+      return (width * amount) / 100;
+    }
+    if (unit === "vh") {
+      return (height * amount) / 100;
+    }
+    if (unit === "vmin") {
+      return (Math.min(width, height) * amount) / 100;
+    }
+    if (unit === "vmax") {
+      return (Math.max(width, height) * amount) / 100;
+    }
+    if (unit === "%") {
+      return ((axis === "height" ? height : width) * amount) / 100;
+    }
+    if (unit === "rem" || unit === "em") {
+      return amount * 16;
+    }
+    return amount;
+  }
+
+  function qViewportConstraintPasses(constraints, state) {
+    const source = constraints && typeof constraints === "object" && !Array.isArray(constraints) ? constraints : {};
+    const minWidth = parseQViewportLength(source.minWidth, "width", state);
+    const minHeight = parseQViewportLength(source.minHeight, "height", state);
+    const maxWidth = parseQViewportLength(source.maxWidth, "width", state);
+    const maxHeight = parseQViewportLength(source.maxHeight, "height", state);
+    if (minWidth !== null && Number(state.width) < minWidth) {
+      return false;
+    }
+    if (minHeight !== null && Number(state.height) < minHeight) {
+      return false;
+    }
+    if (maxWidth !== null && Number(state.width) > maxWidth) {
+      return false;
+    }
+    if (maxHeight !== null && Number(state.height) > maxHeight) {
+      return false;
+    }
+    return true;
+  }
+
+  function qViewportDataAttributeName(name) {
+    return "data-q-viewport-" + String(name || "").replace(/[A-Z]/g, function dashUpper(match) {
+      return "-" + match.toLowerCase();
+    });
+  }
+
+  function assignQViewportStateProperty(element, name, value) {
+    try {
+      element[name] = value;
+    } catch (error) {
+      // Some DOM element property names can be read-only.
+    }
+    if (typeof element.setAttribute === "function") {
+      element.setAttribute(qViewportDataAttributeName(name), String(value == null ? "" : value));
+    }
+  }
+
+  function applyQViewportElementState(element) {
+    if (!element || element.nodeType !== 1) {
+      return;
+    }
+    const state = readQViewportState();
+    const constraints = element.__qhtmlViewportConstraints || {};
+    const active = qViewportConstraintPasses(constraints, state);
+    element.__qhtmlViewportState = state;
+    element.qViewport = state;
+    assignQViewportStateProperty(element, "x", state.x);
+    assignQViewportStateProperty(element, "y", state.y);
+    assignQViewportStateProperty(element, "width", state.width);
+    assignQViewportStateProperty(element, "height", state.height);
+    assignQViewportStateProperty(element, "scale", state.scale);
+    assignQViewportStateProperty(element, "offsetLeft", state.offsetLeft);
+    assignQViewportStateProperty(element, "offsetTop", state.offsetTop);
+    assignQViewportStateProperty(element, "right", state.right);
+    assignQViewportStateProperty(element, "bottom", state.bottom);
+    assignQViewportStateProperty(element, "type", state.type);
+    element.setAttribute("q-viewport-active", active ? "1" : "0");
+    element.style.display = active ? "contents" : "none";
+  }
+
+  function applyAllQViewportStates() {
+    qViewportUpdateScheduled = false;
+    qViewportInstances.forEach(function updateViewportElement(element) {
+      if (!element || !element.ownerDocument) {
+        qViewportInstances.delete(element);
+        return;
+      }
+      applyQViewportElementState(element);
+    });
+  }
+
+  function scheduleQViewportStateUpdate() {
+    if (qViewportUpdateScheduled) {
+      return;
+    }
+    qViewportUpdateScheduled = true;
+    if (global && typeof global.requestAnimationFrame === "function") {
+      global.requestAnimationFrame(applyAllQViewportStates);
+      return;
+    }
+    applyAllQViewportStates();
+  }
+
+  function bindQViewportResizeListeners() {
+    if (qViewportResizeListenersBound || !global || typeof global.addEventListener !== "function") {
+      return;
+    }
+    qViewportResizeListenersBound = true;
+    global.addEventListener("resize", scheduleQViewportStateUpdate, { passive: true });
+    global.addEventListener("scroll", scheduleQViewportStateUpdate, { passive: true });
+    if (global.visualViewport && typeof global.visualViewport.addEventListener === "function") {
+      global.visualViewport.addEventListener("resize", scheduleQViewportStateUpdate, { passive: true });
+      global.visualViewport.addEventListener("scroll", scheduleQViewportStateUpdate, { passive: true });
+    }
+  }
+
+  function renderQViewportInstance(node, parent, targetDocument, context) {
+    const element = targetDocument.createElement("q-viewport");
+    const viewportId = String(node.viewportId || node.componentId || node.tagName || "").trim().toLowerCase();
+    element.setAttribute(Q_VIEWPORT_INSTANCE_ATTR, "1");
+    if (viewportId) {
+      element.setAttribute("q-viewport-name", viewportId);
+    }
+    element.__qhtmlViewportConstraints =
+      node.constraints && typeof node.constraints === "object" && !Array.isArray(node.constraints)
+        ? Object.assign({}, node.constraints)
+        : {};
+    bindRuntimeContextToTarget(
+      element,
+      context[QCONTEXT_SCOPE_FRAME_KEY],
+      context[QCONTEXT_RUNTIME_FRAME_KEY]
+    );
+    parent.appendChild(element);
+    const childContext = createChildRenderContext(context);
+    const children = Array.isArray(node.children) ? node.children : [];
+    for (let i = 0; i < children.length; i += 1) {
+      renderNode(children[i], element, targetDocument, childContext);
+    }
+    qViewportInstances.add(element);
+    bindQViewportResizeListeners();
+    applyQViewportElementState(element);
+  }
+
   function renderNode(node, parent, targetDocument, context) {
     if (!node || typeof node !== "object") {
       return;
@@ -30671,6 +31232,14 @@
         return;
       }
 
+      if (core.NODE_TYPES.viewport && node.kind === core.NODE_TYPES.viewport) {
+        const viewportId = String(node.viewportId || node.componentId || "").trim().toLowerCase();
+        if (viewportId && context && context.componentRegistry instanceof Map) {
+          context.componentRegistry.set(viewportId, node);
+        }
+        return;
+      }
+
       if (core.NODE_TYPES.structInstance && node.kind === core.NODE_TYPES.structInstance) {
         const registry = context.componentRegistry;
         const key = String(node.structId || node.componentId || node.tagName || "").toLowerCase();
@@ -30678,6 +31247,11 @@
         if (structNode && core.NODE_TYPES.struct && structNode.kind === core.NODE_TYPES.struct) {
           renderStructInstance(structNode, node, parent, targetDocument, context);
         }
+        return;
+      }
+
+      if (core.NODE_TYPES.viewportInstance && node.kind === core.NODE_TYPES.viewportInstance) {
+        renderQViewportInstance(node, parent, targetDocument, context);
         return;
       }
 
@@ -30710,13 +31284,31 @@
 	      const component = registry.get(tagName);
 	
 	      if (component && !isLayoutKeywordElement) {
-	        if (core.NODE_TYPES.struct && component.kind === core.NODE_TYPES.struct) {
-	          renderStructInstance(component, createStructInstanceNodeFromElement(node, component), parent, targetDocument, context);
-	          return;
-	        }
-	        renderComponentInstance(component, node, parent, targetDocument, context);
-	        return;
-	      }
+        if (core.NODE_TYPES.struct && component.kind === core.NODE_TYPES.struct) {
+          renderStructInstance(component, createStructInstanceNodeFromElement(node, component), parent, targetDocument, context);
+          return;
+        }
+        if (core.NODE_TYPES.viewport && component.kind === core.NODE_TYPES.viewport) {
+          renderQViewportInstance(
+            core.createViewportInstanceNode({
+              viewportId: component.viewportId || component.componentId || tagName,
+              componentId: component.componentId || component.viewportId || tagName,
+              tagName: tagName,
+              constraints: Object.assign({}, component.constraints || {}),
+              children: Array.isArray(node.children) ? node.children : [],
+              selectorMode: node.selectorMode,
+              selectorChain: Array.isArray(node.selectorChain) ? node.selectorChain.slice() : [tagName],
+              meta: Object.assign({}, node.meta || {}),
+            }),
+            parent,
+            targetDocument,
+            context
+          );
+          return;
+        }
+        renderComponentInstance(component, node, parent, targetDocument, context);
+        return;
+      }
 	
 	      const element = targetDocument.createElement(tagName);
 	      if (isLayoutKeywordElement) {
@@ -31813,7 +32405,9 @@
       const node = nodes[i];
       if (
         node &&
-        (node.kind === core.NODE_TYPES.component || (core.NODE_TYPES.struct && node.kind === core.NODE_TYPES.struct))
+        (node.kind === core.NODE_TYPES.component ||
+          (core.NODE_TYPES.struct && node.kind === core.NODE_TYPES.struct) ||
+          (core.NODE_TYPES.viewport && node.kind === core.NODE_TYPES.viewport))
       ) {
         continue;
       }
@@ -32073,9 +32667,9 @@
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);
 
-/*** END: modules/dom-renderer/src/dom-renderer.js ***/
+/*** END: src/modules/dom-renderer/src/dom-renderer.js ***/
 
-/*** BEGIN: modules/qhtml-runtime/src/qhtml-runtime.js ***/
+/*** BEGIN: src/modules/qhtml-runtime/src/qhtml-runtime.js ***/
 (function attachQHtmlRuntime(global) {
   const modules = global.QHtmlModules || (global.QHtmlModules = {});
   const core = modules.qdomCore;
@@ -32091,7 +32685,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.9.9";
+  const RUNTIME_VERSION = "6.9.10";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -51046,7 +51640,7 @@
   }
 })(typeof globalThis !== "undefined" ? globalThis : window);
 
-/*** END: modules/qhtml-runtime/src/qhtml-runtime.js ***/
+/*** END: src/modules/qhtml-runtime/src/qhtml-runtime.js ***/
 
 /*** BEGIN: src/root-integration.js ***/
 (function attachRootIntegration(global) {
@@ -51058,7 +51652,7 @@
   }
 
   const api = runtime;
-  api.version = "6.9.9";
+  api.version = "6.9.10";
   global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {

@@ -1,0 +1,1118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>q-vid Encoder</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1117;
+      --panel: #121b24;
+      --panel-2: #0f1720;
+      --text: #dce7f2;
+      --muted: #8fa2b7;
+      --line: #29384a;
+      --accent: #73d0ff;
+      --danger: #ff6f91;
+      --ok: #76e0a8;
+      --warn: #ffd166;
+      --shadow: rgba(0, 0, 0, 0.35);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 20% 0%, rgba(115, 208, 255, 0.12), transparent 30rem),
+        linear-gradient(135deg, #06090d, var(--bg));
+      color: var(--text);
+    }
+
+    main {
+      width: min(1420px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 36px;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.4rem, 3vw, 2.2rem);
+      line-height: 1.1;
+    }
+
+    .subtitle {
+      margin-top: 8px;
+      color: var(--muted);
+      max-width: 82ch;
+      line-height: 1.45;
+    }
+
+    .top-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .top-links a {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 11px;
+      color: var(--text);
+      text-decoration: none;
+      background: rgba(18, 27, 36, 0.8);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(310px, 430px) 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    section,
+    .output-panel {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(18, 27, 36, 0.98), rgba(12, 18, 24, 0.98));
+      border-radius: 18px;
+      box-shadow: 0 20px 50px var(--shadow);
+    }
+
+    section {
+      padding: 16px;
+    }
+
+    .panel-title {
+      margin: 0 0 12px;
+      font-size: 0.88rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      color: var(--muted);
+    }
+
+    .control-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label,
+    .row-label {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      background: var(--panel-2);
+      color: var(--text);
+      outline: none;
+    }
+
+    input[type="file"]::file-selector-button,
+    button,
+    .download-link {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 12px;
+      background: #162535;
+      color: var(--text);
+      cursor: pointer;
+      text-decoration: none;
+      font: inherit;
+    }
+
+    input[type="file"]::file-selector-button:hover,
+    button:hover,
+    .download-link:hover {
+      border-color: var(--accent);
+    }
+
+    button.primary,
+    .download-link.primary {
+      background: linear-gradient(180deg, #1b5c7d, #16445e);
+      border-color: #277ba7;
+    }
+
+    button:disabled,
+    .download-link.disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .status {
+      min-height: 2.4rem;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: rgba(15, 23, 32, 0.78);
+      color: var(--muted);
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .status.ok {
+      color: var(--ok);
+      border-color: rgba(118, 224, 168, 0.42);
+    }
+
+    .status.err {
+      color: var(--danger);
+      border-color: rgba(255, 111, 145, 0.52);
+    }
+
+    .status.warn {
+      color: var(--warn);
+      border-color: rgba(255, 209, 102, 0.52);
+    }
+
+    .progress-wrap {
+      display: grid;
+      gap: 6px;
+    }
+
+    progress {
+      width: 100%;
+      height: 12px;
+      accent-color: var(--accent);
+    }
+
+    .output-panel {
+      min-height: 640px;
+      padding: 16px;
+      display: grid;
+      grid-template-rows: auto auto minmax(280px, 1fr);
+      gap: 14px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(130px, 1fr));
+      gap: 10px;
+    }
+
+    @media (max-width: 1120px) {
+      .metrics {
+        grid-template-columns: repeat(2, minmax(130px, 1fr));
+      }
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: var(--panel-2);
+      min-width: 0;
+    }
+
+    .metric .k {
+      color: var(--muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .metric .v {
+      margin-top: 5px;
+      font-size: 1rem;
+      overflow-wrap: anywhere;
+    }
+
+    textarea {
+      min-height: 360px;
+      resize: vertical;
+      font: 0.82rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #bfe8ff;
+    }
+
+    .preview-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+      gap: 8px;
+      max-height: 220px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: #0a0f14;
+    }
+
+    .thumb {
+      display: grid;
+      gap: 5px;
+      align-content: start;
+      min-width: 0;
+    }
+
+    .thumb img {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: contain;
+      border: 1px solid rgba(115, 208, 255, 0.22);
+      border-radius: 8px;
+      background:
+        linear-gradient(45deg, rgba(255,255,255,0.06) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(255,255,255,0.06) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.06) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.06) 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    }
+
+    .thumb span {
+      color: var(--muted);
+      font-size: 0.72rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>q-vid Encoder</h1>
+        <div class="subtitle">
+          Select PNG/WebP/JPEG frame images, tune resize and delta options, then generate a single downloadable .qvid delta asset.
+          Encoding happens locally in this browser tab.
+        </div>
+      </div>
+      <nav class="top-links" aria-label="Tool links">
+        <a href="./q-vid-player.html">Viewer</a>
+        <a href="./README.md">README</a>
+      </nav>
+    </header>
+
+    <div class="layout">
+      <section aria-label="Encoder controls">
+        <div class="panel-title">Frames</div>
+        <div class="control-grid">
+          <div class="field">
+            <label for="frameFiles">Frame images</label>
+            <input id="frameFiles" type="file" accept="image/png,image/webp,image/jpeg" multiple>
+          </div>
+
+          <div class="two-col">
+            <div class="field">
+              <label for="name">Asset name</label>
+              <input id="name" type="text" value="q_vid_asset" spellcheck="false">
+            </div>
+            <div class="field">
+              <label for="output">Output file</label>
+              <input id="output" type="text" value="output.qvid" spellcheck="false">
+            </div>
+          </div>
+
+          <div class="two-col">
+            <div class="field">
+              <label for="frameDuration">Frame duration ms</label>
+              <input id="frameDuration" type="number" min="1" step="1" value="30">
+            </div>
+            <div class="field">
+              <label for="frameStep">Stored frame stride</label>
+              <input id="frameStep" type="number" min="1" step="1" value="5">
+            </div>
+          </div>
+
+          <div class="two-col">
+            <div class="field">
+              <label for="tileSize">Tile size px</label>
+              <input id="tileSize" type="number" min="1" step="1" value="32">
+            </div>
+            <div class="field">
+              <label for="tolerance">Tolerance</label>
+              <input id="tolerance" type="number" min="0" max="255" step="1" value="0">
+            </div>
+          </div>
+
+          <div class="two-col">
+            <div class="field">
+              <label for="scale">Scale</label>
+              <input id="scale" type="number" min="0.01" step="0.01" value="1">
+            </div>
+          </div>
+
+          <div class="two-col">
+            <div class="field">
+              <label for="resizeWidth">Width override</label>
+              <input id="resizeWidth" type="number" min="1" step="1" placeholder="auto">
+            </div>
+            <div class="field">
+              <label for="resizeHeight">Height override</label>
+              <input id="resizeHeight" type="number" min="1" step="1" placeholder="auto">
+            </div>
+          </div>
+
+          <div class="two-col">
+            <div class="field">
+              <label for="maxWidth">Max width</label>
+              <input id="maxWidth" type="number" min="1" step="1" placeholder="none">
+            </div>
+            <div class="field">
+              <label for="maxHeight">Max height</label>
+              <input id="maxHeight" type="number" min="1" step="1" placeholder="none">
+            </div>
+          </div>
+
+          <div class="two-col">
+            <div class="field">
+              <label for="kernel">Resize kernel</label>
+              <select id="kernel">
+                <option value="bilinear">bilinear</option>
+                <option value="nearest">nearest</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="deltaMode">Delta mode</label>
+              <select id="deltaMode">
+                <option value="hybrid">hybrid</option>
+                <option value="tile">tile</option>
+                <option value="rect">rect</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="two-col">
+            <div class="field">
+              <label for="codec">Codec</label>
+              <select id="codec">
+                <option value="gzip">gzip</option>
+                <option value="raw">raw</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="pretty">Generated file</label>
+              <select id="pretty">
+                <option value="false">compact</option>
+                <option value="true">pretty</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button id="encode" class="primary" type="button">Encode frames</button>
+            <a id="download" class="download-link primary disabled" href="#" download="output.qvid">Download .qvid</a>
+          </div>
+
+          <div class="progress-wrap">
+            <progress id="progress" value="0" max="100"></progress>
+            <div id="status" class="status">Choose frame images to begin.</div>
+          </div>
+
+          <div id="previewStrip" class="preview-strip" aria-label="Selected frame preview"></div>
+        </div>
+      </section>
+
+      <div class="output-panel" aria-label="Generated output">
+        <div class="panel-title">Output</div>
+        <div class="metrics">
+          <div class="metric"><div class="k">Canvas</div><div id="metricCanvas" class="v">-</div></div>
+          <div class="metric"><div class="k">Frames</div><div id="metricFrames" class="v">-</div></div>
+          <div class="metric"><div class="k">Generated .qvid</div><div id="metricJs" class="v">-</div></div>
+          <div class="metric"><div class="k">Delta payloads</div><div id="metricDelta" class="v">-</div></div>
+        </div>
+        <textarea id="outputText" readonly spellcheck="false" placeholder="Generated .qvid text will appear here."></textarea>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    ;(() => {
+      "use strict";
+
+      const FORMAT_V2 = "q-vid-delta-binary-v1";
+
+      const $ = (id) => document.getElementById(id);
+      const controls = {
+        frameFiles: $("frameFiles"),
+        name: $("name"),
+        output: $("output"),
+        frameDuration: $("frameDuration"),
+        frameStep: $("frameStep"),
+        tileSize: $("tileSize"),
+        tolerance: $("tolerance"),
+        scale: $("scale"),
+        resizeWidth: $("resizeWidth"),
+        resizeHeight: $("resizeHeight"),
+        maxWidth: $("maxWidth"),
+        maxHeight: $("maxHeight"),
+        kernel: $("kernel"),
+        deltaMode: $("deltaMode"),
+        codec: $("codec"),
+        pretty: $("pretty"),
+        encode: $("encode"),
+        download: $("download"),
+        progress: $("progress"),
+        status: $("status"),
+        previewStrip: $("previewStrip"),
+        outputText: $("outputText"),
+        metricCanvas: $("metricCanvas"),
+        metricFrames: $("metricFrames"),
+        metricJs: $("metricJs"),
+        metricDelta: $("metricDelta")
+      };
+
+      let currentObjectUrl = "";
+
+      function setStatus(message, kind = "") {
+        controls.status.textContent = message;
+        controls.status.classList.toggle("ok", kind === "ok");
+        controls.status.classList.toggle("err", kind === "err");
+        controls.status.classList.toggle("warn", kind === "warn");
+      }
+
+      function setProgress(value) {
+        controls.progress.value = Math.max(0, Math.min(100, Number(value) || 0));
+      }
+
+      function parseIntegerInput(element, fallback, { min = -Infinity, max = Infinity, nullable = false } = {}) {
+        const text = String(element.value || "").trim();
+        if (!text && nullable) return null;
+        const value = Number.parseInt(text, 10);
+        if (!Number.isFinite(value)) return fallback;
+        return Math.min(max, Math.max(min, value));
+      }
+
+      function parseNumberInput(element, fallback, { min = -Infinity, nullable = false } = {}) {
+        const text = String(element.value || "").trim();
+        if (!text && nullable) return null;
+        const value = Number(text);
+        if (!Number.isFinite(value)) return fallback;
+        return Math.max(min, value);
+      }
+
+      function sortFrameFiles(files) {
+        return Array.from(files || []).sort((a, b) => {
+          const aNumber = firstNumber(a.name);
+          const bNumber = firstNumber(b.name);
+          if (aNumber != null && bNumber != null && aNumber !== bNumber) return aNumber - bNumber;
+          return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+        });
+      }
+
+      function firstNumber(name) {
+        const match = String(name || "").match(/(\d+)/);
+        return match ? Number.parseInt(match[1], 10) : null;
+      }
+
+      function readOptions() {
+        const codec = String(controls.codec.value || "raw");
+        return {
+          name: String(controls.name.value || "q_vid_asset").trim() || "q_vid_asset",
+          output: String(controls.output.value || "output.qvid").trim() || "output.qvid",
+          defaultFrameDuration: parseNumberInput(controls.frameDuration, 30, { min: 1 }),
+          frameStep: parseIntegerInput(controls.frameStep, 5, { min: 1 }),
+          tileSize: parseIntegerInput(controls.tileSize, 32, { min: 1 }),
+          tolerance: parseIntegerInput(controls.tolerance, 0, { min: 0, max: 255 }),
+          scale: parseNumberInput(controls.scale, 1, { min: 0.01 }),
+          resizeWidth: parseIntegerInput(controls.resizeWidth, null, { min: 1, nullable: true }),
+          resizeHeight: parseIntegerInput(controls.resizeHeight, null, { min: 1, nullable: true }),
+          maxWidth: parseIntegerInput(controls.maxWidth, null, { min: 1, nullable: true }),
+          maxHeight: parseIntegerInput(controls.maxHeight, null, { min: 1, nullable: true }),
+          resizeKernel: String(controls.kernel.value || "bilinear"),
+          deltaMode: String(controls.deltaMode.value || "hybrid"),
+          codec,
+          pretty: String(controls.pretty.value || "false") === "true"
+        };
+      }
+
+      function updatePreview() {
+        const files = sortFrameFiles(controls.frameFiles.files);
+        controls.previewStrip.textContent = "";
+        for (const file of files.slice(0, 24)) {
+          const item = document.createElement("div");
+          item.className = "thumb";
+          const img = document.createElement("img");
+          img.alt = file.name;
+          img.src = URL.createObjectURL(file);
+          img.addEventListener("load", () => URL.revokeObjectURL(img.src), { once: true });
+          const label = document.createElement("span");
+          label.textContent = file.name;
+          item.append(img, label);
+          controls.previewStrip.append(item);
+        }
+        if (files.length > 24) {
+          const more = document.createElement("div");
+          more.className = "thumb";
+          more.textContent = `+${files.length - 24} more`;
+          controls.previewStrip.append(more);
+        }
+        setStatus(files.length ? `${files.length} frame image(s) selected.` : "Choose frame images to begin.");
+      }
+
+      async function readImageFrame(file, index, total) {
+        const bitmap = await createImageBitmap(file);
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          ctx.drawImage(bitmap, 0, 0);
+          const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          setProgress(5 + ((index + 1) / total) * 25);
+          return {
+            sourceIndex: index,
+            frameNumber: firstNumber(file.name) ?? index,
+            filename: file.name,
+            compressedPngBytes: file.size,
+            width: canvas.width,
+            height: canvas.height,
+            data: new Uint8Array(image.data.buffer.slice(0))
+          };
+        } finally {
+          bitmap.close();
+        }
+      }
+
+      function assertFrameDimensions(frames) {
+        const first = frames[0];
+        for (const frame of frames) {
+          if (frame.width !== first.width || frame.height !== first.height) {
+            throw new Error(`Frame dimensions differ. Expected ${first.width}x${first.height}, got ${frame.width}x${frame.height} in ${frame.filename}.`);
+          }
+        }
+      }
+
+      function deriveTargetDimensions(width, height, options) {
+        let targetWidth = options.resizeWidth;
+        let targetHeight = options.resizeHeight;
+
+        if (targetWidth != null && targetHeight == null) {
+          targetHeight = Math.max(1, Math.round(height * targetWidth / width));
+        } else if (targetHeight != null && targetWidth == null) {
+          targetWidth = Math.max(1, Math.round(width * targetHeight / height));
+        } else if (targetWidth == null && targetHeight == null && options.scale !== 1) {
+          targetWidth = Math.max(1, Math.round(width * options.scale));
+          targetHeight = Math.max(1, Math.round(height * options.scale));
+        }
+
+        targetWidth ??= width;
+        targetHeight ??= height;
+
+        const maxScale = Math.min(
+          options.maxWidth != null ? options.maxWidth / targetWidth : 1,
+          options.maxHeight != null ? options.maxHeight / targetHeight : 1,
+          1
+        );
+
+        if (maxScale < 1) {
+          targetWidth = Math.max(1, Math.round(targetWidth * maxScale));
+          targetHeight = Math.max(1, Math.round(targetHeight * maxScale));
+        }
+
+        return { width: targetWidth, height: targetHeight };
+      }
+
+      function resizeFrames(frames, options) {
+        if (!frames.length) return frames;
+        const sourceWidth = frames[0].width;
+        const sourceHeight = frames[0].height;
+        const target = deriveTargetDimensions(sourceWidth, sourceHeight, options);
+
+        if (target.width === sourceWidth && target.height === sourceHeight) {
+          return frames.map((frame) => ({ ...frame, sourceWidth, sourceHeight }));
+        }
+
+        return frames.map((frame, index) => {
+          setProgress(30 + ((index + 1) / frames.length) * 15);
+          return {
+            ...frame,
+            sourceWidth,
+            sourceHeight,
+            width: target.width,
+            height: target.height,
+            data: resizeRgba({
+              data: frame.data,
+              width: frame.width,
+              height: frame.height,
+              targetWidth: target.width,
+              targetHeight: target.height,
+              kernel: options.resizeKernel
+            })
+          };
+        });
+      }
+
+      function resizeRgba({ data, width, height, targetWidth, targetHeight, kernel }) {
+        if (width === targetWidth && height === targetHeight) {
+          return new Uint8Array(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
+        }
+        return kernel === "nearest"
+          ? resizeRgbaNearest({ data, width, height, targetWidth, targetHeight })
+          : resizeRgbaBilinear({ data, width, height, targetWidth, targetHeight });
+      }
+
+      function resizeRgbaNearest({ data, width, height, targetWidth, targetHeight }) {
+        const out = new Uint8Array(targetWidth * targetHeight * 4);
+        const scaleX = width / targetWidth;
+        const scaleY = height / targetHeight;
+        for (let y = 0; y < targetHeight; y++) {
+          const srcY = clampInteger(Math.round((y + 0.5) * scaleY - 0.5), 0, height - 1);
+          for (let x = 0; x < targetWidth; x++) {
+            const srcX = clampInteger(Math.round((x + 0.5) * scaleX - 0.5), 0, width - 1);
+            const src = (srcY * width + srcX) * 4;
+            const dst = (y * targetWidth + x) * 4;
+            out[dst] = data[src];
+            out[dst + 1] = data[src + 1];
+            out[dst + 2] = data[src + 2];
+            out[dst + 3] = data[src + 3];
+          }
+        }
+        return out;
+      }
+
+      function resizeRgbaBilinear({ data, width, height, targetWidth, targetHeight }) {
+        const out = new Uint8Array(targetWidth * targetHeight * 4);
+        const scaleX = width / targetWidth;
+        const scaleY = height / targetHeight;
+        for (let y = 0; y < targetHeight; y++) {
+          const srcY = (y + 0.5) * scaleY - 0.5;
+          const y0 = clampInteger(Math.floor(srcY), 0, height - 1);
+          const y1 = clampInteger(y0 + 1, 0, height - 1);
+          const fy = clampNumber(srcY - Math.floor(srcY), 0, 1);
+          for (let x = 0; x < targetWidth; x++) {
+            const srcX = (x + 0.5) * scaleX - 0.5;
+            const x0 = clampInteger(Math.floor(srcX), 0, width - 1);
+            const x1 = clampInteger(x0 + 1, 0, width - 1);
+            const fx = clampNumber(srcX - Math.floor(srcX), 0, 1);
+            const dst = (y * targetWidth + x) * 4;
+            const p00 = (y0 * width + x0) * 4;
+            const p10 = (y0 * width + x1) * 4;
+            const p01 = (y1 * width + x0) * 4;
+            const p11 = (y1 * width + x1) * 4;
+            for (let c = 0; c < 4; c++) {
+              const top = data[p00 + c] * (1 - fx) + data[p10 + c] * fx;
+              const bottom = data[p01 + c] * (1 - fx) + data[p11 + c] * fx;
+              out[dst + c] = Math.round(top * (1 - fy) + bottom * fy);
+            }
+          }
+        }
+        return out;
+      }
+
+      function clampInteger(value, min, max) {
+        return Math.min(max, Math.max(min, value | 0));
+      }
+
+      function clampNumber(value, min, max) {
+        return Math.min(max, Math.max(min, value));
+      }
+
+      function buildStoredFrameIndexes(frameCount, frameStep) {
+        const step = Math.max(1, Math.trunc(Number(frameStep) || 1));
+        const indexes = [];
+        for (let index = 0; index < frameCount; index += step) {
+          indexes.push(index);
+        }
+        if (!indexes.length || indexes[indexes.length - 1] !== frameCount - 1) {
+          indexes.push(frameCount - 1);
+        }
+        return indexes;
+      }
+
+      async function encodeAnimation(frames, options) {
+        assertFrameDimensions(frames);
+        const { width, height } = frames[0];
+        const sourceWidth = frames[0].sourceWidth ?? width;
+        const sourceHeight = frames[0].sourceHeight ?? height;
+        const fullFrameBytes = width * height * 4;
+        const storedFrameNumbers = buildStoredFrameIndexes(frames.length, options.frameStep);
+        const storedFrames = storedFrameNumbers.map((index) => frames[index]);
+        const keyFramePayload = await encodePayload(storedFrames[0].data, options.codec);
+        const deltas = [];
+        const deltaStats = [];
+
+        for (let i = 1; i < storedFrames.length; i++) {
+          setProgress(45 + (i / Math.max(1, storedFrames.length - 1)) * 45);
+          const encoded = await encodeDeltaFrame({
+            previous: storedFrames[i - 1].data,
+            current: storedFrames[i].data,
+            width,
+            height,
+            tileSize: options.tileSize,
+            tolerance: options.tolerance,
+            deltaMode: options.deltaMode,
+            codec: options.codec
+          });
+          deltas.push(encoded.payload);
+          deltaStats.push(encoded.stats);
+          await yieldToBrowser();
+        }
+
+        const sourceCompressedBytes = frames.reduce((sum, frame) => sum + frame.compressedPngBytes, 0);
+        const deltaPayloadBytes = deltas.reduce((sum, delta) => sum + base64ByteLength(delta), 0);
+
+        return {
+          format: FORMAT_V2,
+          name: options.name,
+          width,
+          height,
+          sourceWidth,
+          sourceHeight,
+          resize: {
+            scale: options.scale,
+            width: options.resizeWidth,
+            height: options.resizeHeight,
+            maxWidth: options.maxWidth,
+            maxHeight: options.maxHeight,
+            kernel: options.resizeKernel,
+            applied: width !== sourceWidth || height !== sourceHeight
+          },
+          frameCount: frames.length,
+          storedFrameCount: storedFrames.length,
+          frameStep: Math.max(1, Math.trunc(Number(options.frameStep) || 1)),
+          storedFrameNumbers,
+          interpolation: storedFrames.length < frames.length ? "linear-rgba-v1" : "none",
+          tileSize: options.tileSize,
+          tolerance: options.tolerance,
+          defaultFrameDuration: options.defaultFrameDuration,
+          codec: options.codec,
+          pack: "u32le-tile-stream-v1",
+          deltaMode: options.deltaMode,
+          sourceFrames: frames.map((frame, index) => ({ index, frameNumber: frame.frameNumber, file: frame.filename })),
+          storedFrames: storedFrames.map((frame, index) => ({
+            storedIndex: index,
+            index: storedFrameNumbers[index],
+            frameNumber: frame.frameNumber,
+            file: frame.filename
+          })),
+          keyFrame: keyFramePayload,
+          deltas,
+          stats: {
+            sourceCompressedPngBytes: sourceCompressedBytes,
+            rawFullFrameBytes: fullFrameBytes,
+            rawFullSequenceBytes: fullFrameBytes * frames.length,
+            rawStoredSequenceBytes: fullFrameBytes * storedFrames.length,
+            keyFramePayloadBytes: base64ByteLength(keyFramePayload),
+            deltaPayloadBytes,
+            changedTilesTotal: deltaStats.reduce((sum, stat) => sum + stat.changedTiles, 0),
+            totalTilesPerDelta: deltaStats[0]?.totalTiles ?? 0,
+            selectedRectFrames: deltaStats.filter((stat) => stat.selectedMode === "rect").length,
+            selectedTileFrames: deltaStats.filter((stat) => stat.selectedMode === "tile").length,
+            frameDeltaStats: deltaStats
+          }
+        };
+      }
+
+      async function encodeDeltaFrame({ previous, current, width, height, tileSize, tolerance, deltaMode, codec }) {
+        const candidates = [];
+        if (deltaMode === "tile" || deltaMode === "hybrid") {
+          candidates.push({ selectedMode: "tile", ...buildTileDelta({ previous, current, width, height, tileSize, tolerance }) });
+        }
+        if (deltaMode === "rect" || deltaMode === "hybrid") {
+          candidates.push({ selectedMode: "rect", ...buildRectDelta({ previous, current, width, height, tolerance }) });
+        }
+
+        const encodedCandidates = [];
+        for (const candidate of candidates) {
+          const packed = packTiles(candidate.tiles);
+          const payload = await encodePayload(packed, codec);
+          encodedCandidates.push({
+            ...candidate,
+            rawPackedBytes: packed.byteLength,
+            payload,
+            payloadBytes: base64ByteLength(payload)
+          });
+        }
+        encodedCandidates.sort((a, b) => a.payloadBytes - b.payloadBytes);
+        const best = encodedCandidates[0];
+        return {
+          payload: best.payload,
+          stats: {
+            selectedMode: best.selectedMode,
+            changedTiles: best.tiles.length,
+            totalTiles: Math.ceil(width / tileSize) * Math.ceil(height / tileSize),
+            changedBytes: best.changedBytes,
+            rawPackedBytes: best.rawPackedBytes,
+            payloadBytes: best.payloadBytes,
+            boundingBox: best.boundingBox || null
+          }
+        };
+      }
+
+      function buildTileDelta({ previous, current, width, height, tileSize, tolerance }) {
+        const tiles = [];
+        let changedBytes = 0;
+        for (let y = 0; y < height; y += tileSize) {
+          for (let x = 0; x < width; x += tileSize) {
+            const w = Math.min(tileSize, width - x);
+            const h = Math.min(tileSize, height - y);
+            if (!tileChanged({ previous, current, width, x, y, w, h, tolerance })) continue;
+            const bytes = copyRect({ source: current, width, x, y, w, h });
+            tiles.push({ x, y, w, h, bytes });
+            changedBytes += bytes.byteLength;
+          }
+        }
+        return { tiles, changedBytes };
+      }
+
+      function buildRectDelta({ previous, current, width, height, tolerance }) {
+        const box = findChangedBounds({ previous, current, width, height, tolerance });
+        if (!box) return { tiles: [], changedBytes: 0, boundingBox: null };
+        const bytes = copyRect({ source: current, width, ...box });
+        return { tiles: [{ ...box, bytes }], changedBytes: bytes.byteLength, boundingBox: box };
+      }
+
+      function findChangedBounds({ previous, current, width, height, tolerance }) {
+        let minX = width;
+        let minY = height;
+        let maxX = -1;
+        let maxY = -1;
+        for (let y = 0; y < height; y++) {
+          const rowStart = y * width * 4;
+          for (let x = 0; x < width; x++) {
+            const offset = rowStart + x * 4;
+            if (pixelChanged(previous, current, offset, tolerance)) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+        if (maxX < minX || maxY < minY) return null;
+        return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+      }
+
+      function tileChanged({ previous, current, width, x, y, w, h, tolerance }) {
+        for (let row = 0; row < h; row++) {
+          const start = ((y + row) * width + x) * 4;
+          const end = start + w * 4;
+          for (let offset = start; offset < end; offset += 4) {
+            if (pixelChanged(previous, current, offset, tolerance)) return true;
+          }
+        }
+        return false;
+      }
+
+      function pixelChanged(previous, current, offset, tolerance) {
+        return Math.abs(previous[offset] - current[offset]) > tolerance ||
+          Math.abs(previous[offset + 1] - current[offset + 1]) > tolerance ||
+          Math.abs(previous[offset + 2] - current[offset + 2]) > tolerance ||
+          Math.abs(previous[offset + 3] - current[offset + 3]) > tolerance;
+      }
+
+      function copyRect({ source, width, x, y, w, h }) {
+        const bytes = new Uint8Array(w * h * 4);
+        for (let row = 0; row < h; row++) {
+          const srcStart = ((y + row) * width + x) * 4;
+          const srcEnd = srcStart + w * 4;
+          const dstStart = row * w * 4;
+          bytes.set(source.subarray(srcStart, srcEnd), dstStart);
+        }
+        return bytes;
+      }
+
+      function packTiles(tiles) {
+        const headerBytes = 4;
+        const tileHeaderBytes = 16;
+        const totalBytes = headerBytes + tiles.reduce((sum, tile) => sum + tileHeaderBytes + tile.bytes.byteLength, 0);
+        const out = new Uint8Array(totalBytes);
+        const view = new DataView(out.buffer);
+        let offset = 0;
+        view.setUint32(offset, tiles.length, true);
+        offset += 4;
+        for (const tile of tiles) {
+          view.setUint32(offset, tile.x, true); offset += 4;
+          view.setUint32(offset, tile.y, true); offset += 4;
+          view.setUint32(offset, tile.w, true); offset += 4;
+          view.setUint32(offset, tile.h, true); offset += 4;
+          out.set(tile.bytes, offset);
+          offset += tile.bytes.byteLength;
+        }
+        return out;
+      }
+
+      async function encodePayload(bytes, codec) {
+        const payload = codec === "gzip" ? await gzipBytes(bytes) : bytes;
+        return toBase64(payload);
+      }
+
+      async function gzipBytes(bytes) {
+        if (typeof CompressionStream === "undefined") {
+          throw new Error("gzip output requires CompressionStream. Select codec=raw in this browser.");
+        }
+        const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip"));
+        const buffer = await new Response(stream).arrayBuffer();
+        return new Uint8Array(buffer);
+      }
+
+      function toBase64(bytes) {
+        let binary = "";
+        const chunkSize = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+        }
+        return btoa(binary);
+      }
+
+      function base64ByteLength(base64) {
+        const text = String(base64 || "");
+        const padding = text.endsWith("==") ? 2 : text.endsWith("=") ? 1 : 0;
+        return Math.floor((text.length * 3) / 4) - padding;
+      }
+
+      function buildGeneratedQVid(asset, { pretty }) {
+        const json = JSON.stringify(asset, null, pretty ? 2 : 0);
+        return `/*
+Generated by q-vid-encoder.html
+Format: ${asset.format}
+Frames: ${asset.frameCount}
+Stored frames: ${asset.storedFrameCount}
+Frame step: ${asset.frameStep}
+Size: ${asset.width}x${asset.height}
+Source size: ${asset.sourceWidth || asset.width}x${asset.sourceHeight || asset.height}
+Tile size: ${asset.tileSize}
+Codec: ${asset.codec}
+Delta mode: ${asset.deltaMode}
+*/
+;(function registerQVidDeltaAsset(global) {
+  "use strict";
+
+  const asset = ${json};
+
+  const currentScript = typeof document !== "undefined" ? document.currentScript : null;
+  asset.src = currentScript && currentScript.src ? currentScript.src : asset.name;
+
+  if (global.QVidAssetRegistry && typeof global.QVidAssetRegistry.register === "function") {
+    global.QVidAssetRegistry.register(asset);
+    return;
+  }
+
+  global.__pendingQVidAssets = global.__pendingQVidAssets || [];
+  global.__pendingQVidAssets.push(asset);
+})(globalThis);
+`;
+      }
+
+      function formatBytes(bytes) {
+        const units = ["B", "KB", "MB", "GB"];
+        let value = Number(bytes) || 0;
+        let unit = 0;
+        while (value >= 1024 && unit < units.length - 1) {
+          value /= 1024;
+          unit += 1;
+        }
+        return `${value.toFixed(unit === 0 ? 0 : 2)} ${units[unit]}`;
+      }
+
+      function yieldToBrowser() {
+        return new Promise((resolve) => setTimeout(resolve, 0));
+      }
+
+      function resetDownload() {
+        if (currentObjectUrl) {
+          URL.revokeObjectURL(currentObjectUrl);
+          currentObjectUrl = "";
+        }
+        controls.download.href = "#";
+        controls.download.classList.add("disabled");
+      }
+
+      function setDownload(text, filename) {
+        resetDownload();
+        currentObjectUrl = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+        controls.download.href = currentObjectUrl;
+        controls.download.download = filename;
+        controls.download.classList.remove("disabled");
+      }
+
+      async function encodeSelectedFrames() {
+        const files = sortFrameFiles(controls.frameFiles.files);
+        if (!files.length) {
+          setStatus("Choose at least one frame image.", "err");
+          return;
+        }
+
+        const options = readOptions();
+        resetDownload();
+        controls.outputText.value = "";
+        controls.encode.disabled = true;
+        setProgress(0);
+        setStatus(`Reading ${files.length} frame image(s)...`);
+
+        try {
+          const frames = [];
+          for (let i = 0; i < files.length; i++) {
+            frames.push(await readImageFrame(files[i], i, files.length));
+            await yieldToBrowser();
+          }
+          assertFrameDimensions(frames);
+
+          setStatus("Resizing frames...");
+          const resizedFrames = resizeFrames(frames, options);
+
+          setStatus("Encoding delta asset...");
+          const asset = await encodeAnimation(resizedFrames, options);
+          const qvid = buildGeneratedQVid(asset, options);
+          controls.outputText.value = qvid;
+          setDownload(qvid, options.output);
+          setProgress(100);
+
+          controls.metricCanvas.textContent = `${asset.width} x ${asset.height}`;
+          controls.metricFrames.textContent = `${asset.frameCount} / ${asset.storedFrameCount} stored`;
+          controls.metricJs.textContent = formatBytes(new Blob([qvid]).size);
+          controls.metricDelta.textContent = formatBytes(asset.stats.deltaPayloadBytes);
+
+          const resizeText = asset.resize?.applied ? ` Resized from ${asset.sourceWidth}x${asset.sourceHeight}.` : "";
+          setStatus(`Encoded ${asset.frameCount} timeline frame(s) as ${asset.storedFrameCount} stored frame(s).${resizeText} Download ${options.output} when ready.`, "ok");
+        } catch (error) {
+          setProgress(0);
+          setStatus(error instanceof Error ? error.message : String(error), "err");
+          console.error(error);
+        } finally {
+          controls.encode.disabled = false;
+        }
+      }
+
+      controls.frameFiles.addEventListener("change", updatePreview);
+      controls.encode.addEventListener("click", encodeSelectedFrames);
+      window.addEventListener("pagehide", resetDownload);
+    })();
+  </script>
+</body>
+</html>

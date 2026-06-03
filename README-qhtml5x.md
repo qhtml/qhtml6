@@ -23,7 +23,7 @@ This README is written for builders who want a quick, reliable way to author UI 
 - Inline HTML or plain text blocks where needed.
 - Build reusable runtime components with slots and methods.
 - Build compile-time templates that render to pure HTML.
-- Optional add-ons: `w3-tags.js` and `bs-tags.js` for shorthand UI markup.
+- Optional legacy add-ons: `legacy/w3-tags.js` and `legacy/bs-tags.js` for shorthand UI markup.
 
 ## v5.0 major changes
 
@@ -961,14 +961,14 @@ Notes for `toHTML`:
 - It appends a `<q-html>` host into `document.body` (or `document.documentElement` fallback).
 - Return value may be immediate or async depending on render timing, so `await Promise.resolve(...)` is the safest calling pattern.
 
-## w3-tags.js (W3CSS shorthand)
+## legacy/w3-tags.js (W3CSS shorthand)
 
-`w3-tags.js` lets you write W3CSS classes as tags. It transforms nested `w3-*` elements into real HTML with the right classes.
+`legacy/w3-tags.js` lets you write W3CSS classes as tags. It transforms nested `w3-*` elements into real HTML with the right classes.
 
 Include it:
 
 ```html
-<script src="w3-tags.js"></script>
+<script src="legacy/w3-tags.js"></script>
 <link rel="stylesheet" href="w3.css">
 ```
 
@@ -992,14 +992,14 @@ HTML (result):
 </div>
 ```
 
-## bs-tags.js (Bootstrap shorthand)
+## legacy/bs-tags.js (Bootstrap shorthand)
 
-If you include `bs-tags.js`, you can use Bootstrap class tags the same way. This is a separate add-on, but the syntax mirrors `w3-tags.js`.
+If you include `legacy/bs-tags.js`, you can use Bootstrap class tags the same way. This is a separate add-on, but the syntax mirrors `legacy/w3-tags.js`.
 
 Include it:
 
 ```html
-<script src="bs-tags.js"></script>
+<script src="legacy/bs-tags.js"></script>
 <link rel="stylesheet" href="bootstrap.min.css">
 ```
 

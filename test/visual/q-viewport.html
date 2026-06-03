@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML q-viewport Visual Test</title>
+  <script src="dist/qhtml.js"></script>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --ink: #111827;
+      --muted: #5b6b80;
+      --panel: #ffffff;
+      --edge: #d8e1ec;
+      --nav: #17324d;
+      --accent: #2b7a78;
+      --accent-2: #e07a5f;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, "Segoe UI", system-ui, sans-serif;
+    }
+
+    header.test-header {
+      display: grid;
+      gap: 6px;
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--edge);
+      background: var(--panel);
+    }
+
+    header.test-header h1 {
+      margin: 0;
+      font-size: 22px;
+      color: var(--nav);
+    }
+
+    header.test-header p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .viewport-stage {
+      min-height: calc(100vh - 94px);
+    }
+
+    .app-shell {
+      min-height: calc(100vh - 94px);
+      background: var(--bg);
+    }
+
+    .sidebar-layout {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+    }
+
+    .sidebar {
+      min-height: calc(100vh - 94px);
+      padding: 20px 16px;
+      background: var(--nav);
+      color: #ffffff;
+    }
+
+    .brand {
+      margin: 0 0 22px 0;
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .nav-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .nav-item {
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    .nav-item.active {
+      background: var(--accent);
+    }
+
+    .topbar-layout {
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      background: var(--nav);
+      color: #ffffff;
+    }
+
+    .topbar .brand {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .topbar-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .topbar-actions .nav-item {
+      padding: 7px 9px;
+      font-size: 12px;
+    }
+
+    .content {
+      display: grid;
+      gap: 14px;
+      align-content: start;
+      padding: 20px;
+    }
+
+    .hero-panel {
+      display: grid;
+      gap: 10px;
+      padding: 18px;
+      border: 1px solid var(--edge);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 10px 28px rgba(17, 24, 39, 0.08);
+    }
+
+    .layout-label {
+      width: max-content;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: rgba(43, 122, 120, 0.14);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .topbar-layout .layout-label {
+      background: rgba(224, 122, 95, 0.16);
+      color: var(--accent-2);
+    }
+
+    .hero-panel h2 {
+      margin: 0;
+      font-size: 28px;
+      color: var(--nav);
+    }
+
+    .hero-panel p {
+      margin: 0;
+      max-width: 66ch;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      display: grid;
+      gap: 4px;
+      padding: 12px;
+      border: 1px solid var(--edge);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .metric strong {
+      color: var(--nav);
+      font-size: 22px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 500px) {
+      header.test-header {
+        padding: 14px;
+      }
+
+      .viewport-stage,
+      .app-shell,
+      .sidebar {
+        min-height: calc(100vh - 83px);
+      }
+
+      .content {
+        padding: 14px;
+      }
+
+      .hero-panel h2 {
+        font-size: 22px;
+      }
+
+      .metrics {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="test-header">
+    <h1>q-viewport Layout Swap</h1>
+    <p>Resize across 500px. The page swaps the entire layout, not just styles: sidebar above 500px, top navbar at 500px and below.</p>
+  </header>
+
+  <main class="viewport-stage">
+    <q-html>
+q-viewport sidebarviewport {
+  minWidth: 501px
+}
+
+q-viewport navbarviewport {
+  maxWidth: 500px
+}
+
+sidebarviewport {
+  section.app-shell.sidebar-layout {
+    aside.sidebar {
+      div.brand { text { q-viewport } }
+      nav.nav-list {
+        div.nav-item.active { text { Overview } }
+        div.nav-item { text { Components } }
+        div.nav-item { text { Runtime } }
+        div.nav-item { text { Tests } }
+      }
+    }
+    section.content {
+      article.hero-panel {
+        div.layout-label { text { sidebar layout } }
+        h2 { text { Wide viewport route } }
+        p { text { This branch is rendered by sidebarviewport when the visual viewport is wider than 500px. The navigation is part of this branch QDom tree. } }
+      }
+      section.metrics {
+        div.metric {
+          strong { text { 501px+ } }
+          span { text { minWidth gate } }
+        }
+        div.metric {
+          strong { text { left nav } }
+          span { text { sidebar shell } }
+        }
+        div.metric {
+          strong { text { active } }
+          span { text { q-viewport-active=1 } }
+        }
+      }
+    }
+  }
+}
+
+navbarviewport {
+  section.app-shell.topbar-layout {
+    nav.topbar {
+      div.brand { text { q-viewport } }
+      div.topbar-actions {
+        div.nav-item.active { text { Home } }
+        div.nav-item { text { Docs } }
+        div.nav-item { text { Test } }
+      }
+    }
+    section.content {
+      article.hero-panel {
+        div.layout-label { text { top navbar layout } }
+        h2 { text { Compact viewport route } }
+        p { text { This branch is rendered by navbarviewport when the visual viewport is 500px wide or less. It replaces the sidebar tree with a compact top navigation tree. } }
+      }
+      section.metrics {
+        div.metric {
+          strong { text { <=500px } }
+          span { text { maxWidth gate } }
+        }
+        div.metric {
+          strong { text { top nav } }
+          span { text { compact shell } }
+        }
+        div.metric {
+          strong { text { active } }
+          span { text { q-viewport-active=1 } }
+        }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

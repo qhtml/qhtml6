@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML Test Board - q-style, q-theme, and q-painter</title>
+  <script>window.QHTML_EVENT_LOOP_MODE = "queued";</script>
+  <script src="dist/qhtml.js"></script>
+  <style>
+    :root { --bg:#eef4fb; --panel:#fff; --ink:#10243d; --edge:#d3deec; --pass:#0f7a52; --fail:#b42323; --dep:#6b7280; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:14px; background:var(--bg); color:var(--ink); font-family:"Fira Sans","Segoe UI",sans-serif; }
+    .page { max-width:1600px; margin:0 auto; display:grid; gap:12px; }
+    .panel { background:var(--panel); border:1px solid var(--edge); border-radius:10px; padding:10px 12px; }
+    .summary { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-weight:700; }
+    .summary .pass { color:var(--pass); } .summary .fail { color:var(--fail); } .summary .pending { color:#425b78; }
+    #failed-list { margin:8px 0 0 0; white-space:pre-wrap; font-family:"Fira Code",monospace; font-size:12px; line-height:1.35; color:var(--fail); }
+    .actions { display:flex; gap:8px; margin-top:8px; }
+    .actions button { border:1px solid var(--edge); background:#fff; border-radius:7px; padding:6px 10px; cursor:pointer; }
+    .tests { display:grid; gap:10px; }
+    .test-card { background:var(--panel); border:1px solid var(--edge); border-radius:10px; overflow:hidden; }
+    .test-head { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; background:#f7fbff; border-bottom:1px solid var(--edge); }
+    .test-head h2 { margin:0; font-size:14px; color:#1d4e89; }
+    .badge { font-size:12px; font-weight:700; border-radius:999px; padding:3px 8px; border:1px solid var(--edge); background:#eef4fb; color:#27415f; }
+    .badge.pass { color:var(--pass); border-color:#b7e5d5; background:#f0fdf8; }
+    .badge.fail { color:var(--fail); border-color:#f4b8b8; background:#fff1f1; }
+    .badge.deprecated { color:var(--dep); border-color:#d1d5db; background:#f9fafb; }
+    .test-expected { padding:8px 10px; border-bottom:1px dashed var(--edge); font-size:12px; color:#425b78; }
+    .test-card q-html { display:block; padding:10px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <q-html id="acc-host">
+q-component q-test-accumulator {
+  q-property manifest: q-map { }
+  q-property results: q-map { }
+  q-property manualStatus: q-map { }
+  q-signal refreshRequested()
+  q-signal resultReported(testNo, value)
+  q-signal expectedReported(testNo, expectedList)
+  q-signal passingReported(testNo, isPassing)
+  q-signal outcomeReported(testNo, isPassing, value)
+
+  function normalize(v) {
+    return String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+  }
+
+  function mapKeys(store) {
+    if (store && typeof store.keys === "function") { return store.keys(); }
+    return [];
+  }
+
+  function mapGet(store, key) {
+    if (store && typeof store.value === "function") { return store.value(key); }
+    return undefined;
+  }
+
+  function ensureModelStore(targetProp) {
+    var store = this.component[targetProp];
+    if (store && typeof store.set === "function" && typeof store.value === "function" && typeof store.keys === "function") {
+      return store;
+    }
+    var seed = {};
+    if (store && typeof store === "object") {
+      var keys = Object.keys(store);
+      for (var i = 0; i < keys.length; i += 1) {
+        seed[keys[i]] = store[keys[i]];
+      }
+    }
+    this.component[targetProp] = QModel(seed);
+    return this.component[targetProp];
+  }
+
+  function mapSet(targetProp, key, value) {
+    var store = this.component.ensureModelStore(targetProp);
+    store.set(key, value);
+  }
+
+  function doneMarkerState(testNo) {
+    var key = String(testNo || "");
+    var host = document.querySelector("#host-t" + key);
+    if (!host) { return "none"; }
+    var doneNode = host.querySelector("#t" + key + "-done");
+    if (!doneNode) { return "none"; }
+    var token = String(doneNode.textContent == null ? "" : doneNode.textContent).trim().toLowerCase();
+    if (token === "1" || token === "true" || token === "done" || token === "ok" || token === "pass") {
+      return "done";
+    }
+    return "pending";
+  }
+
+  function bootstrapManifest() {
+    var cards = document.querySelectorAll(".test-card");
+    var data = {};
+    for (var i = 0; i < cards.length; i += 1) {
+      var card = cards[i];
+      var cardId = String(card.getAttribute("id") || "");
+      if (cardId.indexOf("card-") !== 0) { continue; }
+      var key = cardId.slice(5);
+      if (!key) { continue; }
+
+      var titleNode = card.querySelector(".test-head h2");
+      var rawTitle = titleNode ? String(titleNode.textContent || "") : ("Test " + key);
+      var title = rawTitle.replace(/^\s*\d+\.\s*/, "");
+
+      var expectedNode = card.querySelector(".test-expected");
+      var expectedText = expectedNode ? String(expectedNode.textContent || "") : "";
+      expectedText = expectedText.replace(/^Expected:\s*/i, "").trim();
+      var expected = [];
+      if (expectedText) {
+        expected = expectedText.split("|").map(function(part) {
+          return String(part || "").trim();
+        }).filter(function(part) {
+          return part.length > 0;
+        });
+      }
+      var deprecated = expected.length === 1 && expected[0].toLowerCase() === "test has been deprecated";
+      data[key] = { title: title, expected: expected, deprecated: deprecated };
+    }
+    this.component.manifest = QModel(data);
+  }
+
+  function ensureManifest() {
+    var manifest = this.component.ensureModelStore("manifest");
+    var currentKeys = this.component.mapKeys(manifest);
+    var cardCount = document.querySelectorAll(".test-card[id^='card-']").length;
+    if (currentKeys.length === 0 || cardCount > currentKeys.length) {
+      this.component.bootstrapManifest();
+    }
+  }
+
+  function setExpected(testNo, expectedList) {
+    var key = String(testNo);
+    var entry = this.component.mapGet(this.component.manifest, key) || {};
+    if (!entry || typeof entry !== "object") { entry = {}; }
+    entry.expected = Array.isArray(expectedList) ? expectedList.slice() : [String(expectedList || "")];
+    this.component.mapSet("manifest", key, entry);
+  }
+
+  function setResult(testNo, value) {
+    this.component.mapSet("results", String(testNo), String(value == null ? "" : value));
+  }
+
+  function setPassing(testNo, isPassing) {
+    var key = String(testNo);
+    var value = isPassing ? "pass" : "fail";
+    this.component.mapSet("manualStatus", key, value);
+  }
+
+  function report(testNo, isPassing, value) {
+    this.component.setPassing(testNo, isPassing);
+    if (value !== undefined) {
+      this.component.setResult(testNo, value);
+    }
+    this.component.showResults();
+  }
+
+  function evaluateOne(testNo) {
+    var key = String(testNo);
+    var entry = this.component.mapGet(this.component.manifest, key) || {};
+    var expected = Array.isArray(entry.expected) ? entry.expected : [];
+    var deprecated = entry.deprecated === true;
+    var title = String(entry.title || "");
+    var actual = String(this.component.mapGet(this.component.results, key) || "");
+    var manual = this.component.ensureModelStore("manualStatus");
+    var status = "";
+    var hasResult = false;
+    hasResult = this.component.mapKeys(this.component.ensureModelStore("results")).indexOf(key) >= 0;
+    status = this.component.mapGet(manual, key);
+    if (status !== "pass" && status !== "fail" && status !== "deprecated" && deprecated) {
+      status = "deprecated";
+    }
+    if (status !== "pass" && status !== "fail" && status !== "deprecated") {
+      status = hasResult ? "pass" : "pending";
+    }
+    var doneState = this.component.doneMarkerState(key);
+    if (status !== "pass" && status !== "fail" && status !== "deprecated" && doneState === "pending") {
+      status = "pending";
+    }
+    if (status === "pass" && doneState === "pending") {
+      status = "pending";
+    }
+    if (status === "pass" && !deprecated) {
+      var normalizedActual = this.component.normalize(actual);
+      for (var i = 0; i < expected.length; i += 1) {
+        var token = this.component.normalize(expected[i]);
+        if (token && normalizedActual.indexOf(token) < 0) {
+          status = "fail";
+          break;
+        }
+      }
+    }
+    var badge = document.querySelector("#badge-" + key);
+    if (badge) {
+      badge.className = "badge " + status;
+      badge.textContent = status;
+    }
+    return { key: key, title: title, status: status, actual: actual, expected: expected };
+  }
+
+  function evaluateAll() {
+    var hosts = document.querySelectorAll("q-html[data-test-no]");
+    for (var i = 0; i < hosts.length; i += 1) {
+      var host = hosts[i];
+      var no = String(host.getAttribute("data-test-no") || "");
+      if (!no) { continue; }
+      this.component.setResult(no, host.innerHTML);
+    }
+    this.component.showResults();
+  }
+
+  function refresh() {
+    this.component.evaluateAll();
+  }
+
+  function showResults() {
+    this.component.ensureManifest();
+    var keys = this.component.mapKeys(this.component.manifest);
+    var passed = 0;
+    var failed = 0;
+    var pending = 0;
+    var lines = [];
+    for (var i = 0; i < keys.length; i += 1) {
+      var rec = this.component.evaluateOne(keys[i]);
+      if (rec.status === "pass") { passed += 1; }
+      if (rec.status === "fail") {
+        failed += 1;
+        lines.push(rec.key + ". " + rec.title + "\n  expected: " + rec.expected.join(" | ") + "\n  actual: " + this.component.normalize(rec.actual));
+      }
+      if (rec.status !== "pass" && rec.status !== "fail") { pending += 1; }
+    }
+    document.querySelector("#sum-pass").textContent = "Passes: " + String(passed);
+    document.querySelector("#sum-fail").textContent = "Failures: " + String(failed);
+    document.querySelector("#sum-pending").textContent = "Pending: " + String(pending);
+    document.querySelector("#failed-list").textContent = lines.length > 0 ? lines.join("\n\n") : "none";
+  }
+
+  onrefreshRequested {
+    this.component.refresh();
+  }
+
+  onresultReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.setResult(p.testNo, p.value);
+    this.component.showResults();
+  }
+
+  onexpectedReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.setExpected(p.testNo, p.expectedList);
+    this.component.showResults();
+  }
+
+  onpassingReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.setPassing(p.testNo, p.isPassing);
+    this.component.showResults();
+  }
+
+  onoutcomeReported {
+    var p = event && event.detail && event.detail.params ? event.detail.params : {};
+    this.component.report(p.testNo, p.isPassing, p.value);
+  }
+
+  onReady {
+    try {
+      if (!this.component) { return; }
+      if (typeof this.component.bootstrapManifest === "function") {
+        this.component.bootstrapManifest();
+      }
+      if (typeof this.refreshRequested === "function") {
+        this.refreshRequested();
+      } else if (typeof this.component.refresh === "function") {
+        this.component.refresh();
+      }
+      setTimeout(function() {
+        try {
+          if (this.component && typeof this.component.refresh === "function") {
+            this.component.refresh();
+          }
+        } catch (err1) {
+          console.warn("accumulator delayed refresh(250) failed", err1);
+        }
+      }.bind(this), 250);
+      setTimeout(function() {
+        try {
+          if (this.component && typeof this.component.refresh === "function") {
+            this.component.refresh();
+          }
+        } catch (err2) {
+          console.warn("accumulator delayed refresh(1000) failed", err2);
+        }
+      }.bind(this), 1000);
+    } catch (err) {
+      console.warn("accumulator onReady failed", err);
+    }
+  }
+
+  div.panel {
+    div.summary {
+      span#sum-fail.fail { text { Failures: 0 } }
+      span#sum-pending.pending { text { Pending: 0 } }
+      span#sum-pass.pass { text { Passes: 0 } }
+    }
+    div.actions {
+      button#btn-refresh {
+        type: "button"
+        onclick {
+          var acc = document.querySelector("#acc-main");
+          if (!acc) { return; }
+          if (typeof acc.refreshRequested === "function") { acc.refreshRequested(); }
+        }
+        text { Refresh }
+      }
+      button#btn-copy {
+        type: "button"
+        onclick {
+          var txt = document.querySelector("#failed-list").textContent;
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+            navigator.clipboard.writeText(txt);
+          }
+        }
+        text { Copy Failures }
+      }
+      button#btn-loop {
+        type: "button"
+        onclick { QHtml.printEventLoopSnapshot({ limit: 80, includePayload: false }); }
+        text { Print Event Loop }
+      }
+    }
+    pre#failed-list { text { none } }
+  }
+}
+
+q-test-accumulator#acc-main { }
+
+q-timer accRefreshTimer {
+  interval: 5000
+  repeat: true
+  running: false
+  ontimeout {
+    var acc = document.querySelector("#acc-main");
+    if (!acc) { return; }
+    if (typeof acc.refreshRequested === "function") { acc.refreshRequested(); }
+  }
+}
+    </q-html>
+
+    <section class="tests">
+      <article class="test-card" id="section-info-styles-themes-painter">
+        <div class="test-head">
+          <h2>q-style, q-theme, and q-painter</h2>
+          <span class="badge pending">section</span>
+        </div>
+        <div class="test-expected"><strong>Includes:</strong> tests 4, 14, 15, 18, 41, 42, 43, 115, 117, 118</div>
+        <div style="padding:10px; font-size:13px; color:#425b78;">Style blocks, q-style, q-theme, q-style-class, default themes, q-painter, and q-transition coverage. <a href="test/index.html">Back to test index</a>.</div>
+      </article>
+      <article class="test-card" id="card-4">
+        <div class="test-head">
+          <h2>4. Style block + text</h2>
+          <span id="badge-4" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Plain text content | font-size: 20px</div>
+        <q-html id="host-t4" data-test-no="4">
+p { style { font-size: 20px; margin: 0; } text { Plain text content } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(4, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-14">
+        <div class="test-head">
+          <h2>14. q-style direct apply</h2>
+          <span id="badge-14" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Styled panel | border: 1px solid #93c5fd</div>
+        <q-html id="host-t14" data-test-no="14">
+q-style panel { backgroundColor: #eff6ff color: #1e293b border: 1px solid #93c5fd } panel,div { text { Styled panel } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(14, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-15">
+        <div class="test-head">
+          <h2>15. q-theme selector mapping</h2>
+          <span id="badge-15" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Title | Description</div>
+        <q-html id="host-t15" data-test-no="15">
+q-style title-accent { color: #1d4ed8 } q-style body-muted { backgroundColor: #64748b } q-theme article-theme { h3 { title-accent } p { body-muted } } article-theme { div { h3 { text { Title } } p { text { Description } } } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(15, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-18">
+        <div class="test-head">
+          <h2>18. q-default-theme fallback + override</h2>
+          <span id="badge-18" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> themed card</div>
+        <q-html id="host-t18" data-test-no="18">
+q-style panel-base { backgroundColor: #eef3fb color: #0f172a } q-style panel-override { backgroundColor: #ffedd5 color: #7c2d12 } q-default-theme card-theme { .card { panel-base } } q-theme card-demo-theme { card-theme { } .card { panel-override } } card-demo-theme { div.card { text { themed card } } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(18, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-41">
+        <div class="test-head">
+          <h2>41. q-style-class merge</h2>
+          <span id="badge-41" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> class-merge | w3-card</div>
+        <q-html id="host-t41" data-test-no="41">
+q-style card-shell { q-style-class { w3-card w3-round-large w3-padding } borderColor: #cbd5e1 } card-shell,div#card41 { text { class-merge } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(41, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-42">
+        <div class="test-head">
+          <h2>42. q-theme composition</h2>
+          <span id="badge-42" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Remove</div>
+        <q-html id="host-t42" data-test-no="42">
+q-style button-base { backgroundColor: #0f766e color: #ffffff } q-style button-danger { backgroundColor: #b91c1c color: #ffffff } q-theme base-theme { button { button-base } } q-theme admin-theme { base-theme { } .danger { button-danger } } admin-theme { button.danger { text { Remove } } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(42, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-43">
+        <div class="test-head">
+          <h2>43. scoped theme application</h2>
+          <span id="badge-43" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> Scoped Title</div>
+        <q-html id="host-t43" data-test-no="43">
+q-style title-accent { color: #1d4ed8 } q-theme article-theme { h3 { title-accent } } article-theme { div { h3 { text { Scoped Title } } } }
+
+onReady {
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    acc.resultReported(43, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-115">
+        <div class="test-head">
+          <h2>115. q-painter + q-style-painter declarative worklet mapping</h2>
+          <span id="badge-115" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t115-ok</div>
+<q-html id="host-t115" data-test-no="115">
+q-painter painter115 {
+  q-property someprop: "rgba(40,80,160,0.9)"
+  onpaint {
+    this.fillStyle = this.someprop;
+    this.fillRect(0, 0, this.width, this.height);
+  }
+}
+
+q-style style115 {
+  width: 84px
+  height: 26px
+  border: 1px solid #0f172a
+  q-style-painter {
+    background { painter115 }
+  }
+}
+
+q-theme theme115 {
+  .t115-panel { style115 }
+}
+
+theme115 {
+  div#t115-target.t115-panel { text {  } }
+}
+div#t115-out { text { waiting } }
+
+onReady {
+  var host = this;
+  setTimeout(function() {
+    var acc = document.querySelector("#acc-main");
+    var out = host.querySelector("#t115-out");
+    var target = host.querySelector("#t115-target");
+    var support = !!(CSS && CSS.paintWorklet && typeof CSS.paintWorklet.addModule === "function");
+    var bg = target ? String(target.style.backgroundImage || "").trim() : "";
+    var prop = target ? String(target.style.getPropertyValue("--someprop") || "").trim() : "";
+    var ok = support ? (bg.indexOf("paint(") >= 0 && prop.length > 0) : true;
+    var value = (ok ? "t115-ok" : "t115-fail") + "|support=" + String(support ? 1 : 0) + "|bg=" + bg + "|var=" + prop;
+    if (out) {
+      out.textContent = value;
+    }
+    if (acc && typeof acc.outcomeReported === "function") {
+      acc.outcomeReported(115, ok, value);
+    } else if (acc && typeof acc.resultReported === "function") {
+      acc.resultReported(115, value);
+    }
+  }, 520);
+}
+</q-html>
+      </article>
+      <article class="test-card" id="card-117">
+        <div class="test-head">
+          <h2>117. q-transition + q-style-transition declarative transition mapping</h2>
+          <span id="badge-117" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t117-ok | opacity 3000ms ease-in-out 50ms</div>
+<q-html id="host-t117" data-test-no="117">
+q-transition fade117 {
+  property { opacity }
+  delay { 50 }
+  timing { ease-in-out }
+  duration { 3000 }
+}
+
+q-style style117 {
+  q-style-transition { fade117 }
+}
+
+q-theme theme117 {
+  .t117-box { style117 }
+}
+
+theme117 {
+  div#t117-target.t117-box { text { transition-target } }
+}
+button#t117-toggle {
+  text { toggle opacity }
+  onclick {
+    var target = this.closest("q-html").querySelector("#t117-target");
+    if (!target) { return; }
+    var current = String(target.style.opacity || "1").trim();
+    target.style.opacity = (current === "1" || current === "") ? "0.2" : "1";
+  }
+}
+div#t117-out { text { waiting } }
+
+onReady {
+  var host = this;
+  setTimeout(function() {
+    var acc = document.querySelector("#acc-main");
+    var out = host.querySelector("#t117-out");
+    var target = host.querySelector("#t117-target");
+    if (target) {
+      target.style.opacity = "1";
+    }
+    var transitionValue = target ? String(target.style.transition || "").trim() : "";
+    var ok = transitionValue.indexOf("opacity") >= 0 &&
+             transitionValue.indexOf("3000ms") >= 0 &&
+             transitionValue.indexOf("ease-in-out") >= 0 &&
+             transitionValue.indexOf("50ms") >= 0;
+    var value = (ok ? "t117-ok" : "t117-fail") + " | " + transitionValue;
+    if (out) {
+      out.textContent = value;
+    }
+    if (acc && typeof acc.outcomeReported === "function") {
+      acc.outcomeReported(117, ok, value);
+    } else if (acc && typeof acc.resultReported === "function") {
+      acc.resultReported(117, value);
+    }
+  }, 420);
+}
+</q-html>
+      </article>
+      <article class="test-card" id="card-118">
+        <div class="test-head">
+          <h2>118. q-theme anonymous q-style rule blocks</h2>
+          <span id="badge-118" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> t118-ok | color: #1d4ed8 | color: #334155 | background-color: #e2e8f0</div>
+<q-html id="host-t118" data-test-no="118">
+q-style body-panel-118 {
+  backgroundColor: #e2e8f0
+}
+
+q-theme anon-theme-118 {
+  h3 { q-style { color: #1d4ed8 } }
+  .summary118 { q-style { color: #334155 } body-panel-118 }
+}
+
+anon-theme-118 {
+  div {
+    h3#t118-title { text { Theme heading } }
+    p#t118-summary.summary118 { text { This paragraph uses anonymous and named q-styles. } }
+  }
+}
+
+div#t118-out { text { waiting } }
+
+onReady {
+  var host = this;
+  setTimeout(function() {
+    var acc = document.querySelector("#acc-main");
+    var out = host.querySelector("#t118-out");
+    var title = host.querySelector("#t118-title");
+    var summary = host.querySelector("#t118-summary");
+    var titleStyle = title ? String(title.getAttribute("style") || "").trim() : "";
+    var summaryStyle = summary ? String(summary.getAttribute("style") || "").trim() : "";
+    var ok = titleStyle.indexOf("color: #1d4ed8") >= 0 &&
+             summaryStyle.indexOf("color: #334155") >= 0 &&
+             summaryStyle.indexOf("background-color: #e2e8f0") >= 0;
+    var value = (ok ? "t118-ok" : "t118-fail") + " | " + titleStyle + " | " + summaryStyle;
+    if (out) {
+      out.textContent = value;
+    }
+    if (acc && typeof acc.outcomeReported === "function") {
+      acc.outcomeReported(118, ok, value);
+    } else if (acc && typeof acc.resultReported === "function") {
+      acc.resultReported(118, value);
+    }
+  }, 180);
+}
+</q-html>
+      </article>
+    </section>
+  </div>
+</body>
+</html>

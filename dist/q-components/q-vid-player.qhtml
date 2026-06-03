@@ -1,1 +1,222 @@
-q-import { ./q-vid.qhtml }
+q-component q-vid-player {
+  q-signal started()
+  q-signal stopped()
+  q-signal stepped(frame)
+  q-signal loaded(asset)
+  q-signal errored(error)
+
+  q-property src: ""
+  q-property currentStep: 0
+  q-property currentFrame: 0
+  q-property reverse: false
+  q-property repeat: true
+  q-property running: false
+  q-property stepDuration: 30
+  q-property frameDuration: 30
+  q-property scale: 1
+  q-property startFrame: 0
+  q-property endFrame: 0
+
+  native-vid-player.q-vid-player-native {
+    style {
+      display: block;
+      width: 100%;
+    }
+  }
+
+  onready {
+    this.component.installNativeQVidPlayer();
+    this.component.bindNativeQVidEvents();
+    this.component.syncNativeAttributes();
+  }
+
+  onsrcChanged(value) {
+    this.component.setNativeAttribute("src", value);
+  }
+
+  onframeDurationChanged(value) {
+    if (!this.component.__qvidDurationEventActive) {
+      this.component.__qvidDurationEventActive = true;
+      this.component.stepDuration = value;
+      this.component.__qvidDurationEventActive = false;
+    }
+    this.component.setNativeAttribute("frameDuration", value);
+  }
+
+  onstepDurationChanged(value) {
+    if (!this.component.__qvidDurationEventActive) {
+      this.component.__qvidDurationEventActive = true;
+      this.component.frameDuration = value;
+      this.component.__qvidDurationEventActive = false;
+    }
+    this.component.setNativeAttribute("frameDuration", value);
+  }
+
+  onreverseChanged(value) {
+    this.component.setNativeAttribute("reverse", value);
+  }
+
+  onrepeatChanged(value) {
+    this.component.setNativeAttribute("repeat", value);
+  }
+
+  onrunningChanged(value) {
+    this.component.setNativeAttribute("running", value);
+    if (value) {
+      this.component.callNativeVidPlayerMethod("start");
+    } else {
+      this.component.callNativeVidPlayerMethod("stop");
+    }
+  }
+
+  onscaleChanged(value) {
+    this.component.setNativeAttribute("scale", value);
+  }
+
+  onstartFrameChanged(value) {
+    this.component.setNativeAttribute("startFrame", value);
+  }
+
+  onendFrameChanged(value) {
+    this.component.setNativeAttribute("endFrame", value);
+  }
+
+  oncurrentFrameChanged(value) {
+    if (this.component.__qvidFrameEventActive) {
+      return;
+    }
+    this.component.__qvidFrameEventActive = true;
+    this.component.currentStep = Number(value || 0);
+    this.component.__qvidFrameEventActive = false;
+    this.component.callNativeVidPlayerMethod("setCurrentFrame", Number(value || 0));
+  }
+
+  oncurrentStepChanged(value) {
+    if (this.component.__qvidFrameEventActive) {
+      return;
+    }
+    this.component.__qvidFrameEventActive = true;
+    this.component.currentFrame = Number(value || 0);
+    this.component.__qvidFrameEventActive = false;
+    this.component.callNativeVidPlayerMethod("setCurrentFrame", Number(value || 0));
+  }
+
+  function start() {
+    this.component.running = true;
+    this.component.setNativeAttribute("running", true);
+    this.component.callNativeVidPlayerMethod("start");
+  }
+
+  function stop() {
+    this.component.running = false;
+    this.component.setNativeAttribute("running", false);
+    this.component.callNativeVidPlayerMethod("stop");
+  }
+
+  function step(count) {
+    this.component.callNativeVidPlayerMethod("step", count == null ? 1 : count);
+  }
+
+  function installNativeQVidPlayer() {
+    if (customElements.get("native-vid-player")) {
+      return;
+    }
+    if (document.querySelector("script[data-q-vid-player-native='1']")) {
+      return;
+    }
+
+    var script = document.createElement("script");
+    script.src = "tools/q-vid/q-vid-player.js";
+    script.setAttribute("data-q-vid-player-native", "1");
+    script.onload = function() {
+      this.component.syncNativeAttributes();
+    }.bind(this);
+    document.head.appendChild(script);
+  }
+
+  function bindNativeQVidEvents() {
+    if (this.component.__qvidNativeEventsBound) {
+      return;
+    }
+    this.component.__qvidNativeEventsBound = true;
+    var player = this.component.nativeVidPlayer();
+
+    player.addEventListener("q-vid-load", function(event) {
+      this.component.acceptNativeLoaded(event.detail.asset);
+    }.bind(this));
+
+    player.addEventListener("q-vid-start", function() {
+      this.component.acceptNativeStarted();
+    }.bind(this));
+
+    player.addEventListener("q-vid-stop", function() {
+      this.component.acceptNativeStopped();
+    }.bind(this));
+
+    player.addEventListener("q-vid-frame", function(event) {
+      this.component.acceptNativeStepped(event.detail.currentFrame);
+    }.bind(this));
+
+    player.addEventListener("q-vid-error", function(event) {
+      this.component.acceptNativeErrored(event.detail.error);
+    }.bind(this));
+  }
+
+  function acceptNativeLoaded(asset) {
+    this.component.loaded(asset);
+  }
+
+  function acceptNativeStarted() {
+    this.component.running = true;
+    this.component.started();
+  }
+
+  function acceptNativeStopped() {
+    this.component.running = false;
+    this.component.stopped();
+  }
+
+  function acceptNativeStepped(frame) {
+    this.component.__qvidFrameEventActive = true;
+    this.component.currentFrame = frame;
+    this.component.currentStep = frame;
+    this.component.__qvidFrameEventActive = false;
+    this.component.stepped(frame);
+  }
+
+  function acceptNativeErrored(error) {
+    this.component.errored(error);
+  }
+
+  function syncNativeAttributes() {
+    this.component.setNativeAttribute("src", this.component.src);
+    this.component.setNativeAttribute("frameDuration", this.component.frameDuration);
+    this.component.setNativeAttribute("reverse", this.component.reverse);
+    this.component.setNativeAttribute("repeat", this.component.repeat);
+    this.component.setNativeAttribute("running", this.component.running);
+    this.component.setNativeAttribute("scale", this.component.scale);
+    this.component.setNativeAttribute("startFrame", this.component.startFrame);
+    this.component.setNativeAttribute("endFrame", this.component.endFrame);
+    this.component.callNativeVidPlayerMethod("setCurrentFrame", Number(this.component.currentFrame || this.component.currentStep || 0));
+  }
+
+  function setNativeAttribute(name, value) {
+    this.component.nativeVidPlayer().setAttribute(name, String(value == null ? "" : value));
+  }
+
+  function nativeVidPlayer() {
+    return this.component.querySelector("native-vid-player");
+  }
+
+  function callNativeVidPlayerMethod(methodName, arg0) {
+    var player = this.component.nativeVidPlayer();
+    var method = player[methodName];
+    if (typeof method !== "function") {
+      return;
+    }
+    if (arguments.length > 1) {
+      return method.call(player, arg0);
+    }
+    return method.call(player);
+  }
+}

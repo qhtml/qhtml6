@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML Animation Group Test</title>
+  <script src="dist/qhtml.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+
+    q-html {
+      display: block;
+      min-height: 100vh;
+    }
+  </style>
+</head>
+<body data-status="pending">
+  <q-html>
+q-import { dist/q-components/q-animation.qhtml }
+
+section.animation-group-stage {
+  style { position: relative; min-height: 100vh; overflow: hidden; padding: 1.25rem; box-sizing: border-box; }
+
+  header {
+    style { position: relative; z-index: 2; max-width: 48rem; margin-bottom: 1rem; }
+    h1 { text { q-parallel-animation-group and q-sequential-animation-group } }
+    p {
+      style { color: #cbd5e1; line-height: 1.5; }
+      text { Multiple repeating animation groups coordinate q-property-animation children and restart by swapping from/to values on completion. }
+    }
+  }
+
+  div#parallel-width {
+    style { width: 80px; height: 42px; background: #1d4ed8; color: #ffffff; display: grid; place-items: center; font-weight: 800; border-radius: 0.5rem; margin-bottom: 0.75rem; }
+    text { p width }
+  }
+
+  div#parallel-height {
+    style { width: 140px; height: 42px; background: #0f766e; color: #ffffff; display: grid; place-items: center; font-weight: 800; border-radius: 0.5rem; margin-bottom: 0.75rem; }
+    text { p height }
+  }
+
+  div#parallel-radius {
+    style { width: 150px; height: 54px; background: #7c3aed; color: #ffffff; display: grid; place-items: center; font-weight: 800; border-radius: 0px; margin-bottom: 0.75rem; }
+    text { p radius }
+  }
+
+  div#sequential-width {
+    style { width: 60px; height: 34px; background: #d97706; color: #ffffff; display: grid; place-items: center; font-weight: 800; border-radius: 0.5rem; margin-bottom: 0.75rem; }
+    text { s width }
+  }
+
+  div#sequential-height {
+    style { width: 120px; height: 34px; background: #be123c; color: #ffffff; display: grid; place-items: center; font-weight: 800; border-radius: 0.5rem; margin-bottom: 0.75rem; }
+    text { s height }
+  }
+
+  div#sequential-left {
+    style { position: absolute; left: 24px; top: 430px; width: 72px; height: 72px; background: #0891b2; color: #ffffff; display: grid; place-items: center; font-weight: 800; border-radius: 999px; box-shadow: 0 18px 40px rgba(0,0,0,.28); }
+    text { s left }
+  }
+}
+
+q-parallel-animation-group parallelGroup {
+  running: true
+
+  onStarted {
+    this.component.hasStarted = Number(this.component.hasStarted || 0) + 1;
+  }
+
+  onEnded {
+    this.component.hasEnded = Number(this.component.hasEnded || 0) + 1;
+    this.component.querySelectorAll("q-property-animation").forEach(function(animation) {
+      var oldfrom = animation.from;
+      var oldto = animation.to;
+      animation.from = oldto;
+      animation.to = oldfrom;
+    });
+    this.component.start();
+  }
+
+  q-property-animation {
+    target: "#parallel-width.style.width"
+    duration: 1800
+    steps: 90
+    easing: "ease-in-out"
+    repeat: 1
+    from: "80px"
+    to: "300px"
+
+    onStepped(value, currentStep, progress) {
+      this.component.hasStepped = Number(this.component.hasStepped || 0) + 1;
+    }
+  }
+
+  q-property-animation {
+    target: "#parallel-height.style.height"
+    duration: 2200
+    steps: 110
+    easing: "ease-out"
+    repeat: 1
+    from: "42px"
+    to: "126px"
+
+    onStepped(value, currentStep, progress) {
+      this.component.hasStepped = Number(this.component.hasStepped || 0) + 1;
+    }
+  }
+
+  q-property-animation {
+    target: "#parallel-radius.style.borderRadius"
+    duration: 2600
+    steps: 130
+    easing: "linear"
+    repeat: 1
+    from: "0px"
+    to: "42px"
+
+    onStepped(value, currentStep, progress) {
+      this.component.hasStepped = Number(this.component.hasStepped || 0) + 1;
+    }
+  }
+}
+
+q-sequential-animation-group sequentialGroup {
+  running: true
+
+  onStarted {
+    this.component.hasStarted = Number(this.component.hasStarted || 0) + 1;
+  }
+
+  onEnded {
+    this.component.hasEnded = Number(this.component.hasEnded || 0) + 1;
+    this.component.querySelectorAll("q-property-animation").forEach(function(animation) {
+      var oldfrom = animation.from;
+      var oldto = animation.to;
+      animation.from = oldto;
+      animation.to = oldfrom;
+    });
+    this.component.start();
+  }
+
+  q-property-animation {
+    target: "#sequential-width.style.width"
+    duration: 1000
+    steps: 50
+    easing: "linear"
+    repeat: 1
+    from: "60px"
+    to: "240px"
+
+    onStepped(value, currentStep, progress) {
+      this.component.hasStepped = Number(this.component.hasStepped || 0) + 1;
+    }
+  }
+
+  q-property-animation {
+    target: "#sequential-height.style.height"
+    duration: 1100
+    steps: 55
+    easing: "ease-in-out"
+    repeat: 1
+    from: "34px"
+    to: "112px"
+
+    onStepped(value, currentStep, progress) {
+      this.component.hasStepped = Number(this.component.hasStepped || 0) + 1;
+    }
+  }
+
+  q-property-animation {
+    target: "#sequential-left.style.left"
+    duration: 1200
+    steps: 60
+    easing: "ease-out"
+    repeat: 1
+    from: "24px"
+    to: "540px"
+
+    onStepped(value, currentStep, progress) {
+      this.component.hasStepped = Number(this.component.hasStepped || 0) + 1;
+    }
+  }
+}
+  </q-html>
+  <script>
+    setTimeout(function runAnimationGroupTest() {
+      var parallelTargets = [
+        document.getElementById("parallel-width"),
+        document.getElementById("parallel-height"),
+        document.getElementById("parallel-radius")
+      ];
+      var sequentialTargets = [
+        document.getElementById("sequential-width"),
+        document.getElementById("sequential-height"),
+        document.getElementById("sequential-left")
+      ];
+      var groups = document.querySelectorAll("q-parallel-animation-group, q-sequential-animation-group");
+      var animations = document.querySelectorAll("q-property-animation");
+      var startedCount = 0;
+      var endedCount = 0;
+      var steppedCount = 0;
+      groups.forEach(function(group) {
+        startedCount += Number(group.hasStarted || 0);
+        endedCount += Number(group.hasEnded || 0);
+      });
+      animations.forEach(function(animation) {
+        steppedCount += Number(animation.hasStepped || 0);
+      });
+      var anyTargetCurrentlyMoved = (
+        parallelTargets[0].style.width !== "80px" ||
+        parallelTargets[1].style.height !== "42px" ||
+        parallelTargets[2].style.borderRadius !== "0px" ||
+        sequentialTargets[0].style.width !== "60px" ||
+        sequentialTargets[1].style.height !== "34px" ||
+        sequentialTargets[2].style.left !== "24px"
+      );
+      var ok = !!(
+        parallelTargets.every(Boolean) &&
+        sequentialTargets.every(Boolean) &&
+        groups.length >= 2 &&
+        animations.length >= 6 &&
+        startedCount >= 3 &&
+        endedCount >= 2 &&
+        steppedCount >= 120 &&
+        anyTargetCurrentlyMoved
+      );
+      document.body.dataset.status = ok ? "pass" : "fail";
+    }, 5200);
+  </script>
+</body>
+</html>

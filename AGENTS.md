@@ -1,17 +1,18 @@
 # AGENT INSTRUCTIONS
 
-This repository uses one root `WHEEL.db`, one root `wheel.sh`, one root `AGENTS.md`, and three source modules. Read this file before doing any work.
+This repository uses one root `WHEEL.db`, one root `wheel.sh`, one root `AGENTS.md`, and framework source modules under `src/modules/`. Read this file before doing any work.
 
 ## Non-Negotiable Rules
 - Query root `WHEEL.db` with `./wheel.sh` before implementing a user requirement.
 - Store new authoritative requirements in root `spec_memory` when the prompt adds or changes behavior.
 - Do not create module-local `AGENTS.md`, `WHEEL.db`, `wheel.sh`, `wheel-scan.sh`, `README-WHEEL.md`, or `README-WHEEL-SCAN.md` files.
-- Do not add new top-level framework modules. The framework has exactly three source modules:
-  - `modules/qhtml-parser`: AST parsing and QDom construction helpers.
-  - `modules/qhtml-runtime`: QHTML runtime, event loop, mounting, signals, qdom mutation, and live state.
-  - `modules/dom-renderer`: DOM projection from QDom/QHTML runtime state.
+- Do not add new top-level framework modules. Framework source modules live under `src/modules/`:
+  - `src/modules/qdom-core`: QDom model helpers and identity support.
+  - `src/modules/qhtml-parser`: AST parsing and QDom construction helpers.
+  - `src/modules/qhtml-runtime`: QHTML runtime, event loop, mounting, signals, qdom mutation, and live state.
+  - `src/modules/dom-renderer`: DOM projection from QDom/QHTML runtime state.
 - Keep root code limited to build, release, docs, tests, and integration wiring.
-- If a module needs more organization, add source files inside that existing module and update `build-release.sh`.
+- If a module needs more organization, add source files inside that existing module and update `src/build-release.sh`.
 - Remove obsolete module scaffolding instead of preserving dead module directories.
 
 ## Framework Edit Rule
@@ -31,10 +32,9 @@ This repository uses one root `WHEEL.db`, one root `wheel.sh`, one root `AGENTS.
 
 ## Required Files Per Module
 Each source module must contain:
-- `MODULE-API.md`
-- actual source files used by `build-release.sh`
+- actual source files used by `src/build-release.sh`
 
-`MODULE-API.md` must document externally consumable definitions, side effects, dependencies, and compatibility notes for that module.
+Each source module must have a matching `doc/modules/<module>/MODULE-API.md` documenting externally consumable definitions, side effects, dependencies, and compatibility notes for that module.
 
 ## wheel.sh Usage
 - Use root `./wheel.sh`; do not use or create module-local Wheel databases.
@@ -46,16 +46,17 @@ Each source module must contain:
 - Do not add `wheel.sh` or `wheel-scan.sh` entries to metadata unless editing those scripts.
 
 ## Build Rules
-- `build-release.sh` lives at the repo root.
-- If source files are added within a module, update `build-release.sh` bundle order.
-- `deploy.sh` must call the root `build-release.sh`.
+- `src/build-release.sh` is the authoritative release bundle script.
+- The root `build-release.sh` is a compatibility wrapper that calls `src/build-release.sh`.
+- If source files are added within a module, update `src/build-release.sh` bundle order.
+- `deploy.sh` must call `src/build-release.sh` directly or through the root compatibility wrapper.
 - Do not edit generated `dist/qhtml.js` directly. Edit the relevant `src/*` file or module source file, then run the release bundle generation script so `dist/qhtml.js` is regenerated from source.
 - Run the release bundle build after source changes are complete and before final handoff, commit, or push.
 
 ## Completion Checklist
 - Root `WHEEL.db` searched and updated if requirements changed.
-- Changes remain inside one of the three source modules unless root integration/build/docs/tests are intentionally affected.
-- `MODULE-API.md` updated for changed public behavior.
-- `build-release.sh` updated when source file order changes.
+- Changes remain inside `src/modules/` unless root integration/build/docs/tests/tools are intentionally affected.
+- `doc/modules/<module>/MODULE-API.md` updated for changed public behavior.
+- `src/build-release.sh` updated when source file order changes.
 - Release bundle build run so generated `dist/qhtml.js` matches source changes.
 - Smoke tests/build run or failure is reported with exact reason.

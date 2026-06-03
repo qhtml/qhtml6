@@ -1,20 +1,20 @@
 Don't like q-component keywords? Rather call them a-block or something else?  
-Now you can use our script builder to customize the keywords for your qhtml instance. [Click here to visit the script roller.](https://qhtml.github.io/qhtml6/dist/script-roller.html)
+Now you can use our script builder to customize the keywords for your qhtml instance. [Click here to visit the script roller.](https://qhtml.github.io/qhtml6/tools/script-roller.html)
 
 ----------
 
-# QHTML.js v6.9.9
+# QHTML.js v6.9.10
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
 - Live demo: https://qhtml.github.io/qhtml6/dist/demo.html
-- Dev testbed: https://qhtml.github.io/qhtml6/dist/test.html
+- Dev testbed: https://qhtml.github.io/qhtml6/test/
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v6.9.9
+## Whats New in v6.9.10
 
-- Bumped the release line to `6.9.9`.
+- Bumped the release line to `6.9.10`.
 - Added `q-script-action { ... }` for scoped JavaScript actions that can run standalone or participate in sequential and parallel animation groups.
 - Added QML-style `behavior on <property>` with `NumberAnimation` as a property-write interceptor.
 - Added behavior-aware property writes through `QHtml.qSet()` and bypassed animation-frame commits so animations do not recursively trigger themselves.
@@ -61,9 +61,31 @@ Assuming your `q-components.qhtml` is located in `the project folder /path/to/my
 
 Files:
 - Required: `qhtml.js`
-- Recommended: `q-components.qhtml`, `w3.css`
-- Optional: `q-components.qhtml`, `w3-tags.js`, `bs.css` + `bs-tags.js`
+- Recommended: `q-components.qhtml`, `w3.qhtml`
+- Optional: `q-components.qhtml`; legacy tag helpers live under `legacy/w3-tags.js` and `legacy/bs-tags.js`
 - 
+
+### Generated W3CSS Theme
+
+`dist/w3.qhtml` is generated from `dist/w3.css` and provides a `q-theme w3-css` replacement for linking the W3CSS stylesheet directly.
+
+Regenerate it with:
+
+```bash
+node tools/w3-css-to-qhtml.js
+```
+
+Use it like any other QHTML import:
+
+```qhtml
+q-import { w3.qhtml }
+
+w3-css {
+  div.w3-container {
+    text { W3 themed content }
+  }
+}
+```
 
 ### 2. Write QHTML in a `<q-html>` tag
 
@@ -948,8 +970,8 @@ div#energy-field {
     maxActiveParticles: "96"
     running: "false"
     interval: "18"
-    src: "/dist/assets/particle.png"
-    emitterMask: "/dist/assets/particle-mask-star.svg"
+    src: "tools/assets/particle.png"
+    emitterMask: "tools/assets/particle-mask-star.svg"
   }
 }
 
@@ -979,14 +1001,15 @@ See `doc/11-particle-emitter/` for the full attribute reference.
 
 ### `q-vid-player` (q-vid delta animation playback)
 
-`q-vid-player` is the user-facing canvas component for `.qvid` delta animation assets. Import `q-components/q-vid-player.qhtml` directly or through `q-components.qhtml`.
+`q-vid-player` is the user-facing canvas component for `.qvid` delta animation assets. Import `q-components/q-vid-player.qhtml` directly or through `q-components.qhtml`. The QHTML component wraps an internal native `<native-vid-player>` runtime from `tools/q-vid/q-vid-player.js`.
 
 ```qhtml
 q-import { q-components/q-vid-player.qhtml }
 
 q-vid-player hudPlayer {
-  src: "assets/hud-extend.qvid"
+  src: "tools/assets/hud-extend.qvid"
   frameDuration: 16
+  stepDuration: 16
   repeat: true
   scale: 1
   onstepped(currentFrame) {
@@ -999,13 +1022,11 @@ button { text { Stop } onclick { hudPlayer.stop(); } }
 button { text { Step } onclick { hudPlayer.step(); } }
 ```
 
-The component stack is split into three QHTML components:
+The wrapper exposes `start()`, `stop()`, `step(count)`, `started()`, `stopped()`, `stepped(frame)`, and the common playback properties `running`, `currentFrame`, `currentStep`, `scale`, `frameDuration`, and `stepDuration`. `currentStep` mirrors `currentFrame`; `stepDuration` mirrors `frameDuration`.
 
-- `q-vid-source`: owns the decoder worker, multi-URL frame cache, and frame data APIs.
-- `q-vid-painter`: owns playback timing and emits frame readiness/data/paint intent.
-- `q-vid-player`: mediates source and painter, binds public properties, paints the canvas, and emits `started`, `stopped`, and `stepped(currentFrame)`.
+The encoder stores sparse frames by default: frame `0`, every fifth frame, and the final frame. The player keeps the original timeline `frameCount` and blends RGBA pixels between adjacent stored frames so omitted in-between frames still display during playback. Older `.qvid` assets without sparse metadata continue to decode as full-frame timelines.
 
-The q-vid tooling lives in `dist/tools/q-vid/`, with visual coverage in `dist/test/q-vid-player.html` and `dist/test/q-vid-animations.html`.
+The q-vid tooling lives in `tools/q-vid/`, with visual coverage in `test/visual/q-vid-player.html` and `test/visual/q-vid-animations.html`.
 
 ### `q-spritesheet [alpha]` (component-level state machine)
 
@@ -1013,7 +1034,7 @@ The q-vid tooling lives in `dist/tools/q-vid/`, with visual coverage in `dist/te
 
 ```qhtml
 q-spritesheet demoSheet {
-  source: "assets/test-ss.png"
+  source: "tools/assets/test-ss.png"
   frameCount: 18
   frameStart: 0
   frameStop: 17
@@ -2299,7 +2320,7 @@ Runtime stores aggregated counters on the measured QDOM object as `perf_data`:
 
 After `QHTMLContentLoaded`, QHTML logs each measured node as `{ uuid, canonicalName, referenceName, perf_data }`.
 
-## 13. Optional Tag Libraries (`w3-tags.js`, `bs-tags.js`) [DEPRECATED]
+## 13. Optional Tag Libraries (`legacy/w3-tags.js`, `legacy/bs-tags.js`) [DEPRECATED]
 
 These libraries are now obsolete as their functionality has been fully merged into the core modules through various means.  
 While they will continue to work, it is recommended to use q-style and q-theme instead for simplicity and ease of implementation. 
@@ -2311,7 +2332,7 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 
 ```html
 <link rel="stylesheet" href="w3.css" />
-<script src="w3-tags.js"></script>
+<script src="legacy/w3-tags.js"></script>
 ```
 
 ```qhtml
@@ -2339,7 +2360,7 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 
 ```html
 <link rel="stylesheet" href="bs.css" />
-<script src="bs-tags.js"></script>
+<script src="legacy/bs-tags.js"></script>
 ```
 
 ```qhtml
@@ -2352,11 +2373,11 @@ These scripts register custom elements like `w3-card` and `bs-btn` so you can us
 
 ## 14. Module READMEs
 
-- `modules/qdom-core/README.md`
-- `modules/qhtml-parser/README.md`
-- `modules/dom-renderer/README.md`
-- `modules/qhtml-runtime/README.md`
-- `modules/release-bundle/README.md`
+- `doc/modules/qdom-core/README.md`
+- `doc/modules/qhtml-parser/README.md`
+- `doc/modules/dom-renderer/README.md`
+- `doc/modules/qhtml-runtime/README.md`
+- `doc/modules/release-bundle/README.md`
 
 ## Escape sequences
 

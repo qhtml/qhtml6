@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML q-property-animation Test</title>
+  <script src="dist/qhtml.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+
+    q-html {
+      display: block;
+      min-height: 100vh;
+    }
+  </style>
+</head>
+<body data-status="pending">
+  <q-html>
+q-import { dist/q-components/q-animation.qhtml }
+
+section.property-animation-stage {
+  style { position: relative; min-height: 100vh; overflow: hidden; padding: 1.25rem; box-sizing: border-box; }
+
+  header {
+    style { position: relative; z-index: 2; max-width: 48rem; margin-bottom: 1rem; }
+    h1 { text { q-property-animation } }
+    p {
+      style { color: #cbd5e1; line-height: 1.5; }
+      text { Six repeating q-property-animation instances target different style properties with longer durations. }
+    }
+  }
+
+  div#width-target {
+    style { width: 70px; height: 34px; background: #1d4ed8; color: #ffffff; display: grid; place-items: center; font-weight: 800; border-radius: 0.5rem; margin-bottom: 0.75rem; }
+    text { width }
+  }
+
+  div#height-target {
+    style { width: 120px; height: 34px; background: #0f766e; color: #ffffff; display: grid; place-items: center; font-weight: 800; border-radius: 0.5rem; margin-bottom: 0.75rem; }
+    text { height }
+  }
+
+  div#opacity-target {
+    style { width: 170px; height: 52px; background: #7c3aed; color: #ffffff; display: grid; place-items: center; font-weight: 800; opacity: 0.25; border-radius: 0.5rem; margin-bottom: 0.75rem; }
+    text { opacity }
+  }
+
+  div#radius-target {
+    style { width: 170px; height: 52px; background: #d97706; color: #ffffff; display: grid; place-items: center; font-weight: 800; border-radius: 0px; margin-bottom: 0.75rem; }
+    text { radius }
+  }
+
+  div#left-target {
+    style { position: absolute; left: 0px; top: 390px; width: 70px; height: 70px; background: #be123c; color: #ffffff; display: grid; place-items: center; font-weight: 800; border-radius: 999px; box-shadow: 0 18px 40px rgba(0,0,0,.28); }
+    text { left }
+  }
+
+  div#top-target {
+    style { position: absolute; left: 660px; top: 160px; width: 70px; height: 70px; background: #0891b2; color: #ffffff; display: grid; place-items: center; font-weight: 800; border-radius: 999px; box-shadow: 0 18px 40px rgba(0,0,0,.28); }
+    text { top }
+  }
+}
+
+q-property-animation widthAnim {
+  target: "#width-target.style.width"
+  duration: 2600
+  steps: 130
+  easing: "ease-in-out"
+  repeat: 1
+  from: "70px"
+  to: "320px"
+  running: true
+
+  onStarted {
+    this.component.hasStarted = Number(this.component.hasStarted || 0) + 1;
+    this.component.repeat = 1;
+  }
+
+  onStepped(value, currentStep, progress) {
+    this.component.hasStepped = Number(this.component.hasStepped || 0) + 1;
+  }
+
+  onEnded {
+    var oldfrom = this.component.from;
+    var oldto = this.component.to;
+    this.component.from = oldto;
+    this.component.to = oldfrom;
+    this.component.hasEnded = Number(this.component.hasEnded || 0) + 1;
+    this.component.start();
+  }
+}
+
+q-property-animation heightAnim {
+  target: "#height-target.style.height"
+  duration: 3200
+  steps: 160
+  easing: "ease-out"
+  repeat: 1
+  from: "34px"
+  to: "128px"
+  running: true
+
+  onStarted {
+    this.component.hasStarted = Number(this.component.hasStarted || 0) + 1;
+    this.component.repeat = 1;
+  }
+
+  onStepped(value, currentStep, progress) {
+    this.component.hasStepped = Number(this.component.hasStepped || 0) + 1;
+  }
+
+  onEnded {
+    var oldfrom = this.component.from;
+    var oldto = this.component.to;
+    this.component.from = oldto;
+    this.component.to = oldfrom;
+    this.component.hasEnded = Number(this.component.hasEnded || 0) + 1;
+    this.component.start();
+  }
+}
+
+q-property-animation opacityAnim {
+  target: "#opacity-target.style.opacity"
+  duration: 2800
+  steps: 140
+  easing: "linear"
+  repeat: 1
+  from: 0.25
+  to: 1
+  running: true
+
+  onStarted {
+    this.component.hasStarted = Number(this.component.hasStarted || 0) + 1;
+    this.component.repeat = 1;
+  }
+
+  onStepped(value, currentStep, progress) {
+    this.component.hasStepped = Number(this.component.hasStepped || 0) + 1;
+  }
+
+  onEnded {
+    var oldfrom = this.component.from;
+    var oldto = this.component.to;
+    this.component.from = oldto;
+    this.component.to = oldfrom;
+    this.component.hasEnded = Number(this.component.hasEnded || 0) + 1;
+    this.component.start();
+  }
+}
+
+q-property-animation radiusAnim {
+  target: "#radius-target.style.borderRadius"
+  duration: 5000
+  steps: 250
+  easing: "ease-in-out"
+  repeat: 1
+  from: "0px"
+  to: "42px"
+  running: true
+
+  onStarted {
+    this.component.hasStarted = Number(this.component.hasStarted || 0) + 1;
+    this.component.repeat = 1;
+  }
+
+  onStepped(value, currentStep, progress) {
+    this.component.hasStepped = Number(this.component.hasStepped || 0) + 1;
+  }
+
+  onEnded {
+    var oldfrom = this.component.from;
+    var oldto = this.component.to;
+    this.component.from = oldto;
+    this.component.to = oldfrom;
+    this.component.hasEnded = Number(this.component.hasEnded || 0) + 1;
+    this.component.start();
+  }
+}
+
+q-property-animation leftAnim {
+  target: "#left-target.style.left"
+  duration: 4200
+  steps: 210
+  easing: "ease-in-out"
+  repeat: 1
+  from: "0px"
+  to: "520px"
+  running: true
+
+  onStarted {
+    this.component.hasStarted = Number(this.component.hasStarted || 0) + 1;
+    this.component.repeat = 1;
+  }
+
+  onStepped(value, currentStep, progress) {
+    this.component.hasStepped = Number(this.component.hasStepped || 0) + 1;
+  }
+
+  onEnded {
+    var oldfrom = this.component.from;
+    var oldto = this.component.to;
+    this.component.from = oldto;
+    this.component.to = oldfrom;
+    this.component.hasEnded = Number(this.component.hasEnded || 0) + 1;
+    this.component.start();
+  }
+}
+
+q-property-animation topAnim {
+  target: "#top-target.style.top"
+  duration: 3600
+  steps: 180
+  easing: "ease-in"
+  repeat: 1
+  from: "160px"
+  to: "520px"
+  running: true
+
+  onStarted {
+    this.component.hasStarted = Number(this.component.hasStarted || 0) + 1;
+    this.component.repeat = 1;
+  }
+
+  onStepped(value, currentStep, progress) {
+    this.component.hasStepped = Number(this.component.hasStepped || 0) + 1;
+  }
+
+  onEnded {
+    var oldfrom = this.component.from;
+    var oldto = this.component.to;
+    this.component.from = oldto;
+    this.component.to = oldfrom;
+    this.component.hasEnded = Number(this.component.hasEnded || 0) + 1;
+    this.component.start();
+  }
+}
+  </q-html>
+  <script>
+    setTimeout(function runPropertyAnimationTest() {
+      var widthTarget = document.getElementById("width-target");
+      var heightTarget = document.getElementById("height-target");
+      var opacityTarget = document.getElementById("opacity-target");
+      var radiusTarget = document.getElementById("radius-target");
+      var leftTarget = document.getElementById("left-target");
+      var topTarget = document.getElementById("top-target");
+      var animations = document.querySelectorAll("q-property-animation");
+      var startedCount = 0;
+      var endedCount = 0;
+      var steppedCount = 0;
+      animations.forEach(function(animation) {
+        startedCount += Number(animation.hasStarted || 0);
+        endedCount += Number(animation.hasEnded || 0);
+        steppedCount += Number(animation.hasStepped || 0);
+      });
+      var ok = !!(
+        widthTarget &&
+        heightTarget &&
+        opacityTarget &&
+        radiusTarget &&
+        leftTarget &&
+        topTarget &&
+        animations.length >= 6 &&
+        startedCount >= 12 &&
+        endedCount >= 6 &&
+        steppedCount >= 12 &&
+        widthTarget.style.width !== "70px" &&
+        heightTarget.style.height !== "34px" &&
+        Number(opacityTarget.style.opacity || 0) > 0.25 &&
+        radiusTarget.style.borderRadius !== "0px" &&
+        leftTarget.style.left !== "0px" &&
+        topTarget.style.top !== "160px"
+      );
+      document.body.dataset.status = ok ? "pass" : "fail";
+    }, 6800);
+</script>
+</body>
+</html>

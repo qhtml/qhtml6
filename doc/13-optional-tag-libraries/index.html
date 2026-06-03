@@ -18,16 +18,16 @@ wiki-shell {
   sectionKey: "optional-tags"
   pathPrefix: ""
   pageTitle: "Optional Tag Libraries"
-  pageIntro: "These older tag libraries are still supported, but the README marks them as deprecated. New code should usually prefer q-style and q-theme."
+  pageIntro: "These older tag libraries are legacy-only and live under dist/legacy. New code should usually prefer q-style and q-theme."
   main {
     wiki-example-card {
       title: "W3CSS tags"
-      summary: "w3-tags.js lets you write wrapper tags like w3-card and w3-padding."
+      summary: "legacy/w3-tags.js lets you write wrapper tags like w3-card and w3-padding."
       note: "The wrapper applies classes to the first non-w3 descendant and then removes itself."
       details {
         html {
           <q-editor>&lt;link rel="stylesheet" href="w3.css" /&gt;
-&lt;script src="w3-tags.js"&gt;&lt;/script&gt;
+&lt;script src="legacy/w3-tags.js"&gt;&lt;/script&gt;
   w3-card,w3-padding {
     div { text { This div receives W3 classes. } }
   }</q-editor>
@@ -56,12 +56,12 @@ main-theme {
 
     wiki-example-card {
       title: "Bootstrap tags"
-      summary: "bs-tags.js provides Bootstrap-flavored wrapper tags like bs-btn and bs-btn-primary."
+      summary: "legacy/bs-tags.js provides Bootstrap-flavored wrapper tags like bs-btn and bs-btn-primary."
       note: "Like the W3 version, this is legacy support."
       details {
         html {
           <q-editor>&lt;link rel="stylesheet" href="bs.css" /&gt;
-&lt;script src="bs-tags.js"&gt;&lt;/script&gt;
+&lt;script src="legacy/bs-tags.js"&gt;&lt;/script&gt;
   bs-btn,bs-btn-primary {
     button { text { Primary button } }
   }</q-editor>

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base href="../../">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QTabs AddTab Demo</title>
+  <link rel="stylesheet" href="w3.css" />
+  <script src="dist/qhtml.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #eef3fb;
+      color: #0f172a;
+      font-family: "Avenir Next", "Segoe UI", "Trebuchet MS", sans-serif;
+    }
+
+    .page {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <q-html id="tabs-demo-host">
+q-import { dist/q-components.qhtml }
+
+onReady {
+  this.__nextTabIndex = 3;
+}
+
+q-style demo-card {
+  q-style-class { w3-card w3-round-large w3-padding }
+  backgroundColor: #f8fbff
+  border: 1px solid #d5e1f3
+}
+
+q-style add-button {
+  q-style-class { w3-button w3-round w3-margin-bottom }
+  backgroundColor: #1d4ed8
+  color: #ffffff
+}
+
+q-theme tabs-demo-theme {
+  .tabs-demo-card { demo-card }
+  .tabs-demo-add-btn { add-button }
+}
+
+tabs-demo-theme {
+  div.tabs-demo-card {
+    h2 { text { q-tabs addTab() demo } }
+    p { text { Click Add Tab to append a new q-tab using qdom helpers. } }
+
+    q-tabs#demoTabs {
+      button.tabs-demo-add-btn {
+        type: "button"
+        onclick {
+          var host = this.closest("q-html");
+          var tabs = this.closest("q-tabs");
+          var tabsQdom = tabs.qdom();
+          var index = Number(host.__nextTabIndex || 3);
+          var label = "Tab " + String(index);
+          host.__nextTabIndex = index + 1;
+
+          var tabNode = tabsQdom.createQComponentInstance("q-tab", { name: label });
+          var heading = tabNode.createQElement("h4", {}, [tabNode.createQText(label)]);
+          var body = tabNode.createQElement("p", {}, [tabNode.createQText("Here's a brand new tab")]);
+          var wrapper = tabNode.createQElement("div", { class: "w3-padding" }, [heading, body]);
+          tabNode.appendNode(tabNode.createQSlot("content", [wrapper]));
+          tabsQdom.appendNode(tabNode);
+
+          if (tabsQdom.UUID) {
+            host.update(tabsQdom.UUID);
+          } else {
+            host.update();
+          }
+
+          var liveTabs = tabs.id ? host.querySelector("#" + tabs.id) || tabs : tabs;
+          var refreshed = liveTabs.refreshTabs();
+          var activeIndex = Array.isArray(refreshed) ? Math.max(0, refreshed.length - 1) : index - 1;
+          liveTabs.showTab(activeIndex);
+        }
+        text { Add Tab }
+      }
+
+      q-tab {
+        name { text { Tab 1 } }
+        content { div.w3-padding { text { Initial tab one content. } } }
+      }
+
+      q-tab {
+        name { text { Tab 2 } }
+        content { div.w3-padding { text { Initial tab two content. } } }
+      }
+    }
+  }
+}
+    </q-html>
+  </div>
+</body>
+</html>

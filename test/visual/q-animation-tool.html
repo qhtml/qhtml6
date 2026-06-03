@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML q-animation-tool Test</title>
+  <script src="dist/qhtml.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+
+    q-html {
+      display: block;
+      min-height: 100vh;
+    }
+  </style>
+</head>
+<body data-status="pending">
+  <q-html>
+q-import { dist/q-components/q-animation-tool.qhtml }
+
+section {
+  style { min-height: 100vh; padding: 32px; box-sizing: border-box; display: grid; gap: 18px; align-content: start; }
+  h1 { text { q-animation-tool } }
+}
+
+q-animation-tool tool { }
+
+q-timer exerciseAnimationTool {
+  interval: 1000
+  repeat: false
+  running: true
+  ontimeout {
+    try {
+      document.body.setAttribute("data-status", "running");
+      var tool = document.querySelector("q-animation-tool");
+      var source = [
+        "q-component sample-card {",
+        "  q-property panelHeight: \"120px\"",
+        "  q-property accentOpacity: 0.5",
+        "  div { text { sample } }",
+        "}"
+      ].join("\n");
+      tool.openForBuilder(source);
+      tool.selectAnimationKind("q-property-animation");
+      tool.querySelector("[data-role='target-property']").value = "this.component.panelHeight";
+      tool.chooseTargetPath("this.component.panelHeight");
+      tool.querySelector("[data-role='duration']").value = "1800";
+      tool.querySelector("[data-role='steps']").value = "90";
+      tool.querySelector("[data-role='from-value']").value = "120px";
+      tool.querySelector("[data-role='to-value']").value = "480px";
+      tool.querySelector("[data-role='repeat']").checked = true;
+      tool.querySelector("[data-role='on-stepped']").value = "this.component.panelHeight = value;";
+      var code = tool.addCode();
+      var optionText = tool.querySelector("[data-role='target-property']").textContent;
+      var pass = code.indexOf("q-property-animation myanim") >= 0 &&
+        code.indexOf("target: \"this.component.panelHeight\"") >= 0 &&
+        code.indexOf("repeat: true") >= 0 &&
+        code.indexOf("onStarted") >= 0 &&
+        code.indexOf("onStepped(value, currentStep, progress)") >= 0 &&
+        code.indexOf("onStopped") >= 0 &&
+        code.indexOf("this.component.panelHeight = value;") >= 0 &&
+        optionText.indexOf("panelHeight") >= 0 &&
+        optionText.indexOf("accentOpacity") >= 0;
+      document.body.setAttribute("data-generated-code", code);
+      document.body.setAttribute("data-status", pass ? "pass" : "fail");
+    } catch (error) {
+      document.body.setAttribute("data-error", error && error.message ? error.message : String(error));
+      document.body.setAttribute("data-status", "error");
+    }
+  }
+}
+  </q-html>
+</body>
+</html>

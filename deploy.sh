@@ -23,6 +23,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIST_DIR="$SCRIPT_DIR/dist"
+TOOLS_DIR="$SCRIPT_DIR/tools"
 PROJECT_ROOT="$(cd "$PROJECT_ARG" && pwd)"
 TARGET_DIR="$PROJECT_ROOT/qhtml"
 TARGET_COMPONENTS_DIR="$TARGET_DIR/q-components"
@@ -42,10 +43,10 @@ HAD_TARGET_COMPONENTS_BUNDLE=0
 [[ -f "$TARGET_COMPONENTS_BUNDLE" ]] && HAD_TARGET_COMPONENTS_BUNDLE=1
 
 echo "Building release bundle..."
-if [[ -x "$SCRIPT_DIR/modules/release-bundle/build-release.sh" ]]; then
+if [[ -x "$SCRIPT_DIR/src/build-release.sh" ]]; then
   (
-    cd "$SCRIPT_DIR/modules/release-bundle"
-    ./build-release.sh
+    cd "$SCRIPT_DIR"
+    ./src/build-release.sh
   )
 elif [[ -x "$SCRIPT_DIR/build-release.sh" ]]; then
   (
@@ -205,6 +206,7 @@ deploy_q_components() {
 
 # Required core files
 copy_if_exists "$DIST_DIR/qhtml.js" "$TARGET_DIR/"
+copy_if_exists "$DIST_DIR/w3.qhtml" "$TARGET_DIR/"
 
 # q-components module files and aggregate bundle
 #
@@ -221,17 +223,15 @@ copy_glob_files "$DIST_DIR/*.css" "$TARGET_DIR/"
 copy_glob_files "$DIST_DIR/*.html" "$TARGET_DIR/"
 
 # codemirror assets
-if [[ -d "$DIST_DIR/codemirror" ]]; then
-  cp -Rf "$DIST_DIR/codemirror/." "$TARGET_DIR/codemirror/"
-  echo "Copied: $DIST_DIR/codemirror/* -> $TARGET_DIR/codemirror/"
+if [[ -d "$TOOLS_DIR/codemirror" ]]; then
+  cp -Rf "$TOOLS_DIR/codemirror/." "$TARGET_DIR/codemirror/"
+  echo "Copied: $TOOLS_DIR/codemirror/* -> $TARGET_DIR/codemirror/"
 else
-  echo "Warning: missing directory: $DIST_DIR/codemirror" >&2
+  echo "Warning: missing directory: $TOOLS_DIR/codemirror" >&2
 fi
 
 # Extra JS helpers
-copy_if_exists "$DIST_DIR/w3-tags.js" "$TARGET_DIR/"
-copy_if_exists "$DIST_DIR/bs-tags.js" "$TARGET_DIR/"
-copy_if_exists "$DIST_DIR/q-editor.js" "$TARGET_DIR/"
+copy_if_exists "$TOOLS_DIR/q-editor.js" "$TARGET_DIR/"
 copy_if_exists "$DIST_DIR/w3.css" "$TARGET_DIR/"
 
 echo
