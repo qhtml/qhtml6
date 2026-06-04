@@ -3525,8 +3525,16 @@
     const scopedBlock =
       "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
       "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
-      "const __qhtmlScriptScope = (this && this.__qhtmlScriptScope && typeof this.__qhtmlScriptScope === \"object\")" +
-      " ? this.__qhtmlScriptScope : ((this && this.__qhtmlNamedRuntimeValues && typeof this.__qhtmlNamedRuntimeValues === \"object\") ? this.__qhtmlNamedRuntimeValues : __qhtmlRootNamedValues);\n" +
+      "const __qhtmlNearestComponentHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"[qhtml-component-instance='1']\") : null;\n" +
+      "const __qhtmlNearestComponentScope = (__qhtmlNearestComponentHost && __qhtmlNearestComponentHost.__qhtmlScriptScope && typeof __qhtmlNearestComponentHost.__qhtmlScriptScope === \"object\") ? __qhtmlNearestComponentHost.__qhtmlScriptScope : null;\n" +
+      "const __qhtmlLocalScriptScope = (this && this.__qhtmlScriptScope && typeof this.__qhtmlScriptScope === \"object\") ? this.__qhtmlScriptScope : null;\n" +
+      "const __qhtmlNamedValues = (this && this.__qhtmlNamedRuntimeValues && typeof this.__qhtmlNamedRuntimeValues === \"object\") ? this.__qhtmlNamedRuntimeValues : null;\n" +
+      "let __qhtmlScriptScope = null;\n" +
+      "const __qhtmlResolveRuntimeSymbol = (this && typeof this.__qhtmlResolveSymbol === \"function\") ? function(name){ return this.__qhtmlResolveSymbol(name); }.bind(this) : null;\n" +
+      "if (__qhtmlRootNamedValues || __qhtmlNearestComponentScope || __qhtmlNamedValues || __qhtmlLocalScriptScope || __qhtmlResolveRuntimeSymbol) {\n" +
+      "  __qhtmlScriptScope = Object.assign(Object.create(null), __qhtmlRootNamedValues || null, __qhtmlNearestComponentScope || null, __qhtmlNamedValues || null, __qhtmlLocalScriptScope || null);\n" +
+      "  __qhtmlScriptScope = new Proxy(__qhtmlScriptScope, { has: function(target, prop) { if (prop in target) { return true; } if (__qhtmlResolveRuntimeSymbol) { return typeof __qhtmlResolveRuntimeSymbol(prop) !== 'undefined'; } return false; }, get: function(target, prop) { var current = prop in target ? target[prop] : (__qhtmlResolveRuntimeSymbol ? __qhtmlResolveRuntimeSymbol(prop) : undefined); if (current && current.__qhtmlVarHandle === true && typeof current.get === 'function') { return current.get(); } return current; }, set: function(target, prop, value) { var current = prop in target ? target[prop] : (__qhtmlResolveRuntimeSymbol ? __qhtmlResolveRuntimeSymbol(prop) : undefined); if (current && current.__qhtmlVarHandle === true && typeof current.set === 'function') { current.set(value); return true; } target[prop] = value; return true; } });\n" +
+      "}\n" +
       "if (__qhtmlScriptScope) { with(__qhtmlScriptScope) {\n" +
       source +
       "\n} } else {\n" +
@@ -7588,8 +7596,8 @@
       global.queueMicrotask(flush);
       return;
     }
-    if (typeof Promise === "function" && typeof Promise.resolve === "function") {
-      Promise.resolve().then(flush, flush);
+    if (typeof global.setTimeout === "function") {
+      global.setTimeout(flush, 0);
       return;
     }
     flush();

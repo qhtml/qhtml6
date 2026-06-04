@@ -82,6 +82,9 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - `q-signal name(param1, param2)` inside `q-component`
       - emitted in QDom as `component.signalDeclarations`
       - declaration entries now carry stable identity metadata (`entry.uuid` and `entry.meta.uuid`)
+    - lifecycle blocks:
+      - `onReady { ... }`, `onLoad { ... }`, and `onLoaded { ... }` are preserved as lifecycle scripts when authored at top level, inside normal element blocks, or anywhere in runtime-capable `q-component`/`q-worker` bodies
+      - lifecycle block order relative to rendered child nodes does not affect whether the hook is retained
     - declarative signal wiring:
       - `q-connect { sender.signal target.handler }`
       - `q-connect { sender.signal -> target.handler }`

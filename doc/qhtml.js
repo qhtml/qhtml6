@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-06-04T14:40:36Z */
+/* generated: 2026-06-04T15:17:25Z */
 
 /*** BEGIN: src/modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -13735,6 +13735,15 @@
           registerEventBlockParametersOnMeta(targetElement, key, item.parameters);
           registerEventBlockThenBodiesOnMeta(targetElement, key, thenBodies);
         }
+      } else if (item.type === "LifecycleBlock" && item.isLifecycle) {
+        if (!Array.isArray(targetElement.lifecycleScripts)) {
+          targetElement.lifecycleScripts = [];
+        }
+        targetElement.lifecycleScripts.push({
+          name: String(item.name || "").trim(),
+          body: compactScriptBody(item.script || ""),
+          thenBodies: compactThenBodyList(item.thenBodies),
+        });
       } else if (item.type === "QConnectDefinition") {
         const connectBody = buildQConnectLifecycleBody(item);
         if (connectBody) {
@@ -14340,6 +14349,16 @@
               componentEventAttributeParams[eventName.toLowerCase()] = eventParameterNames.slice();
             }
           }
+        }
+        continue;
+      }
+      if (item.type === "LifecycleBlock" && item.isLifecycle) {
+        if (supportsRuntimeDefinition) {
+          lifecycleScripts.push({
+            name: String(item.name || "").trim(),
+            body: compactScriptBody(item.script || ""),
+            thenBodies: compactThenBodyList(item.thenBodies),
+          });
         }
         continue;
       }
@@ -22029,14 +22048,8 @@
       global.queueMicrotask(callback);
       return;
     }
-    if (typeof Promise === "function" && typeof Promise.resolve === "function") {
-      Promise.resolve()
-        .then(callback)
-        .catch(function reportReadyHookError(error) {
-          if (global.console && typeof global.console.error === "function") {
-            global.console.error("qhtml ready-hook scheduling failed:", error);
-          }
-        });
+    if (typeof global.setTimeout === "function") {
+      global.setTimeout(callback, 0);
       return;
     }
     callback();
@@ -24498,6 +24511,7 @@
             hostElement[initialSuppressKey] = false;
           }
         }
+        exportNamedAliasToHost(hostElement, propertyName, createDeclaredPropertyScriptHandle(hostElement, propertyName));
       } catch (error) {
         if (global.console && typeof global.console.error === "function") {
           global.console.error("qhtml declared property binding install failed:", propertyName, error);
@@ -24716,8 +24730,10 @@
       });
       if (wrappedCallback && typeof wrappedCallback === "function") {
         hostElement[callbackName] = wrappedCallback;
+        exportNamedAliasToHost(hostElement, callbackName, wrappedCallback);
       } else {
         hostElement[callbackName] = callbackExecutor;
+        exportNamedAliasToHost(hostElement, callbackName, callbackExecutor);
       }
     }
 
@@ -24728,7 +24744,7 @@
         continue;
       }
       if (isWorkerDefinition) {
-        hostElement[name] = function qWorkerMethodProxy() {
+        const workerMethodProxy = function qWorkerMethodProxy() {
           return invokeQWorkerMethod(
             componentNode,
             hostElement,
@@ -24738,6 +24754,8 @@
             arguments
           );
         };
+        hostElement[name] = workerMethodProxy;
+        exportNamedAliasToHost(hostElement, name, workerMethodProxy);
         continue;
       }
       const params = method && typeof method.parameters === "string" ? method.parameters : "";
@@ -24756,7 +24774,7 @@
         }
       }
 
-      hostElement[name] = function componentMethodProxy() {
+      const componentMethodProxy = function componentMethodProxy() {
         const invocationHost = resolveLiveComponentHost(hostElement);
         const invocationArgs = arguments;
         if (hasInterpolatedBody) {
@@ -24785,6 +24803,8 @@
           return compiled.apply(invocationHost, invocationArgs);
         });
       };
+      hostElement[name] = componentMethodProxy;
+      exportNamedAliasToHost(hostElement, name, componentMethodProxy);
     }
 
     function buildConnectedSignalArgs(detail, parameterNames, fallbackEvent) {
@@ -26028,6 +26048,39 @@
         // no-op
       }
     }
+  }
+
+  function createDeclaredPropertyScriptHandle(hostElement, propertyName) {
+    const host = hostElement;
+    const name = String(propertyName || "").trim();
+    const handle = {
+      __qhtmlVarHandle: true,
+      get: function getDeclaredPropertyScriptValue() {
+        return host ? host[name] : undefined;
+      },
+      set: function setDeclaredPropertyScriptValue(value) {
+        if (host) {
+          host[name] = value;
+          return host[name];
+        }
+        return value;
+      },
+      toString: function declaredPropertyScriptHandleToString() {
+        const value = host ? host[name] : undefined;
+        return String(value == null ? "" : value);
+      },
+      valueOf: function declaredPropertyScriptHandleValueOf() {
+        return host ? host[name] : undefined;
+      },
+    };
+    try {
+      handle[Symbol.toPrimitive] = function declaredPropertyScriptHandleToPrimitive() {
+        return host ? host[name] : undefined;
+      };
+    } catch (error) {
+      // Symbol.toPrimitive is optional in older runtimes.
+    }
+    return handle;
   }
 
   function hydrateHostNamedRuntimeScope(hostElement, context) {
@@ -32975,8 +33028,16 @@
     const scopedBlock =
       "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
       "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
-      "const __qhtmlScriptScope = (this && this.__qhtmlScriptScope && typeof this.__qhtmlScriptScope === \"object\")" +
-      " ? this.__qhtmlScriptScope : ((this && this.__qhtmlNamedRuntimeValues && typeof this.__qhtmlNamedRuntimeValues === \"object\") ? this.__qhtmlNamedRuntimeValues : __qhtmlRootNamedValues);\n" +
+      "const __qhtmlNearestComponentHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"[qhtml-component-instance='1']\") : null;\n" +
+      "const __qhtmlNearestComponentScope = (__qhtmlNearestComponentHost && __qhtmlNearestComponentHost.__qhtmlScriptScope && typeof __qhtmlNearestComponentHost.__qhtmlScriptScope === \"object\") ? __qhtmlNearestComponentHost.__qhtmlScriptScope : null;\n" +
+      "const __qhtmlLocalScriptScope = (this && this.__qhtmlScriptScope && typeof this.__qhtmlScriptScope === \"object\") ? this.__qhtmlScriptScope : null;\n" +
+      "const __qhtmlNamedValues = (this && this.__qhtmlNamedRuntimeValues && typeof this.__qhtmlNamedRuntimeValues === \"object\") ? this.__qhtmlNamedRuntimeValues : null;\n" +
+      "let __qhtmlScriptScope = null;\n" +
+      "const __qhtmlResolveRuntimeSymbol = (this && typeof this.__qhtmlResolveSymbol === \"function\") ? function(name){ return this.__qhtmlResolveSymbol(name); }.bind(this) : null;\n" +
+      "if (__qhtmlRootNamedValues || __qhtmlNearestComponentScope || __qhtmlNamedValues || __qhtmlLocalScriptScope || __qhtmlResolveRuntimeSymbol) {\n" +
+      "  __qhtmlScriptScope = Object.assign(Object.create(null), __qhtmlRootNamedValues || null, __qhtmlNearestComponentScope || null, __qhtmlNamedValues || null, __qhtmlLocalScriptScope || null);\n" +
+      "  __qhtmlScriptScope = new Proxy(__qhtmlScriptScope, { has: function(target, prop) { if (prop in target) { return true; } if (__qhtmlResolveRuntimeSymbol) { return typeof __qhtmlResolveRuntimeSymbol(prop) !== 'undefined'; } return false; }, get: function(target, prop) { var current = prop in target ? target[prop] : (__qhtmlResolveRuntimeSymbol ? __qhtmlResolveRuntimeSymbol(prop) : undefined); if (current && current.__qhtmlVarHandle === true && typeof current.get === 'function') { return current.get(); } return current; }, set: function(target, prop, value) { var current = prop in target ? target[prop] : (__qhtmlResolveRuntimeSymbol ? __qhtmlResolveRuntimeSymbol(prop) : undefined); if (current && current.__qhtmlVarHandle === true && typeof current.set === 'function') { current.set(value); return true; } target[prop] = value; return true; } });\n" +
+      "}\n" +
       "if (__qhtmlScriptScope) { with(__qhtmlScriptScope) {\n" +
       source +
       "\n} } else {\n" +
@@ -37038,8 +37099,8 @@
       global.queueMicrotask(flush);
       return;
     }
-    if (typeof Promise === "function" && typeof Promise.resolve === "function") {
-      Promise.resolve().then(flush, flush);
+    if (typeof global.setTimeout === "function") {
+      global.setTimeout(flush, 0);
       return;
     }
     flush();

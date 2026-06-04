@@ -125,6 +125,8 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - Slot fill lookup is case-insensitive after exact lookup. This preserves declared slot names such as `slot { heroTitle }` while allowing shorthand invocation wrappers like `heroTitle { ... }`, whose tag names are normalized by HTML/QDom parsing, to project into the intended slot.
 - `component-instance.attributes` map to DOM attributes.
 - `component-instance.props` map to direct host element property assignment (`host[propName] = value`).
+- Component `onReady { ... }` hooks are deferred until `QHTMLContentLoaded` when the runtime is managing the mount, and execute with the same inherited script/named-reference scope used by component event handlers. This lets ready hooks call component-local functions and read component-local properties without early-fire context loss.
+- Component-local `q-property`, `function`, and `q-callback` declarations are exported into the component host's named runtime/script scope, so lifecycle blocks and event handlers can read properties and call functions by bare name when executing inside that component context. Declared properties are exported as live handles rather than value snapshots.
 - For declared component properties only, bare dotted references (for example `myinstance.myprop1`) are resolved against interpolation scope without `${...}`.
   - unresolved references are coerced to empty string.
   - unresolved/overwrite warnings are emitted only when `q-logger { q-property }` is enabled in scope.

@@ -5501,14 +5501,8 @@
       global.queueMicrotask(callback);
       return;
     }
-    if (typeof Promise === "function" && typeof Promise.resolve === "function") {
-      Promise.resolve()
-        .then(callback)
-        .catch(function reportReadyHookError(error) {
-          if (global.console && typeof global.console.error === "function") {
-            global.console.error("qhtml ready-hook scheduling failed:", error);
-          }
-        });
+    if (typeof global.setTimeout === "function") {
+      global.setTimeout(callback, 0);
       return;
     }
     callback();
@@ -7970,6 +7964,7 @@
             hostElement[initialSuppressKey] = false;
           }
         }
+        exportNamedAliasToHost(hostElement, propertyName, createDeclaredPropertyScriptHandle(hostElement, propertyName));
       } catch (error) {
         if (global.console && typeof global.console.error === "function") {
           global.console.error("qhtml declared property binding install failed:", propertyName, error);
@@ -8188,8 +8183,10 @@
       });
       if (wrappedCallback && typeof wrappedCallback === "function") {
         hostElement[callbackName] = wrappedCallback;
+        exportNamedAliasToHost(hostElement, callbackName, wrappedCallback);
       } else {
         hostElement[callbackName] = callbackExecutor;
+        exportNamedAliasToHost(hostElement, callbackName, callbackExecutor);
       }
     }
 
@@ -8200,7 +8197,7 @@
         continue;
       }
       if (isWorkerDefinition) {
-        hostElement[name] = function qWorkerMethodProxy() {
+        const workerMethodProxy = function qWorkerMethodProxy() {
           return invokeQWorkerMethod(
             componentNode,
             hostElement,
@@ -8210,6 +8207,8 @@
             arguments
           );
         };
+        hostElement[name] = workerMethodProxy;
+        exportNamedAliasToHost(hostElement, name, workerMethodProxy);
         continue;
       }
       const params = method && typeof method.parameters === "string" ? method.parameters : "";
@@ -8228,7 +8227,7 @@
         }
       }
 
-      hostElement[name] = function componentMethodProxy() {
+      const componentMethodProxy = function componentMethodProxy() {
         const invocationHost = resolveLiveComponentHost(hostElement);
         const invocationArgs = arguments;
         if (hasInterpolatedBody) {
@@ -8257,6 +8256,8 @@
           return compiled.apply(invocationHost, invocationArgs);
         });
       };
+      hostElement[name] = componentMethodProxy;
+      exportNamedAliasToHost(hostElement, name, componentMethodProxy);
     }
 
     function buildConnectedSignalArgs(detail, parameterNames, fallbackEvent) {
@@ -9500,6 +9501,39 @@
         // no-op
       }
     }
+  }
+
+  function createDeclaredPropertyScriptHandle(hostElement, propertyName) {
+    const host = hostElement;
+    const name = String(propertyName || "").trim();
+    const handle = {
+      __qhtmlVarHandle: true,
+      get: function getDeclaredPropertyScriptValue() {
+        return host ? host[name] : undefined;
+      },
+      set: function setDeclaredPropertyScriptValue(value) {
+        if (host) {
+          host[name] = value;
+          return host[name];
+        }
+        return value;
+      },
+      toString: function declaredPropertyScriptHandleToString() {
+        const value = host ? host[name] : undefined;
+        return String(value == null ? "" : value);
+      },
+      valueOf: function declaredPropertyScriptHandleValueOf() {
+        return host ? host[name] : undefined;
+      },
+    };
+    try {
+      handle[Symbol.toPrimitive] = function declaredPropertyScriptHandleToPrimitive() {
+        return host ? host[name] : undefined;
+      };
+    } catch (error) {
+      // Symbol.toPrimitive is optional in older runtimes.
+    }
+    return handle;
   }
 
   function hydrateHostNamedRuntimeScope(hostElement, context) {

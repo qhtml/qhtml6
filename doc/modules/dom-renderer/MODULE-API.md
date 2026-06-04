@@ -176,6 +176,8 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - `component-instance.attributes` map to DOM attributes.
 - `component-instance.props` map to direct host element property assignment (`host[propName] = value`).
 - Component hosts expose `host.qdom()` for the original source instance node before runtime methods, declared properties, and lifecycle hooks are installed. Ready-hook de-duplication and declared-property state use this stable source QDom identity across update renders.
+- Component `onReady { ... }` hooks are deferred until `QHTMLContentLoaded` when the runtime is managing the mount, and execute with the same inherited script/named-reference scope used by component event handlers. This lets ready hooks call component-local functions and read component-local properties without early-fire context loss.
+- Component-local `q-property`, `function`, and `q-callback` declarations are exported into the component host's named runtime/script scope, so lifecycle blocks and event handlers can read properties and call functions by bare name when executing inside that component context. Declared properties are exported as live handles rather than value snapshots.
 - For declared component properties only, bare dotted references (for example `myinstance.myprop1`) are resolved against interpolation scope without `${...}`.
   - unresolved references are coerced to empty string.
   - unresolved/overwrite warnings are emitted only when `q-logger { q-property }` is enabled in scope.

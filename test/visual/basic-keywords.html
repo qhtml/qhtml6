@@ -1038,22 +1038,19 @@ onReady {
         <div class="test-expected"><strong>Expected:</strong> 0|1|2|3|4|5</div>
         <q-html id="host-t93" data-test-no="93">
 q-component array93 {
-  q-property items: q-array { }
+  q-var arrayname { [0,1,2] }
   div#t93-out { text { waiting } }
   function run() {
-    var arr = QArray([0, 1, 2]);
-    arr.push(3);
-    arr.push(4);
-    this.items = arr;
+    arrayname.push(3);
+    arrayname.push(4);
 
-    var fetched = this.items;
+    var fetched = arrayname;
     fetched.push(5);
-    this.items = fetched;
 
-    this.querySelector("#t93-out").textContent = this.items.values().join("|");
+    this.component.querySelector("#t93-out").textContent = fetched.join("|");
   }
   onReady {
-    this.run();
+    this.component.run();
   }
 }
 
@@ -1076,18 +1073,14 @@ onReady {
         <div class="test-expected"><strong>Expected:</strong> A|B|C|D</div>
         <q-html id="host-t94" data-test-no="94">
 q-component map94 {
-  q-property bag: q-map { }
+  q-var mapname { ({ alpha: "A", beta: "B" }) }
   div#t94-out { text { waiting } }
   function run() {
-    var map = QModel({ alpha: "A", beta: "B" });
-    this.bag = map;
+    var fetched = mapname;
+    fetched.gamma = "C";
+    fetched.delta = "D";
 
-    var fetched = this.bag;
-    fetched.set("gamma", "C");
-    fetched.set("delta", "D");
-    this.bag = fetched;
-
-    var obj = this.bag.toObject();
+    var obj = fetched;
     this.querySelector("#t94-out").textContent = String(obj.alpha) + "|" + String(obj.beta) + "|" + String(obj.gamma) + "|" + String(obj.delta);
   }
   onReady {

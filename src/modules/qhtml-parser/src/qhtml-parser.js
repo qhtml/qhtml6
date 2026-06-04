@@ -12263,6 +12263,15 @@
           registerEventBlockParametersOnMeta(targetElement, key, item.parameters);
           registerEventBlockThenBodiesOnMeta(targetElement, key, thenBodies);
         }
+      } else if (item.type === "LifecycleBlock" && item.isLifecycle) {
+        if (!Array.isArray(targetElement.lifecycleScripts)) {
+          targetElement.lifecycleScripts = [];
+        }
+        targetElement.lifecycleScripts.push({
+          name: String(item.name || "").trim(),
+          body: compactScriptBody(item.script || ""),
+          thenBodies: compactThenBodyList(item.thenBodies),
+        });
       } else if (item.type === "QConnectDefinition") {
         const connectBody = buildQConnectLifecycleBody(item);
         if (connectBody) {
@@ -12868,6 +12877,16 @@
               componentEventAttributeParams[eventName.toLowerCase()] = eventParameterNames.slice();
             }
           }
+        }
+        continue;
+      }
+      if (item.type === "LifecycleBlock" && item.isLifecycle) {
+        if (supportsRuntimeDefinition) {
+          lifecycleScripts.push({
+            name: String(item.name || "").trim(),
+            body: compactScriptBody(item.script || ""),
+            thenBodies: compactThenBodyList(item.thenBodies),
+          });
         }
         continue;
       }
