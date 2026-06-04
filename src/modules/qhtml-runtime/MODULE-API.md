@@ -24,7 +24,7 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - `options.includeSignals === true` includes `q-signal` ids.
 - `listRegisteredComponentSlots(componentId)`
   - Returns ordered unique slot names declared by a registered `q-component` definition.
-  - Reads slot declarations and `q-slot-default` declarations from the stored component definition tree, even when a mounted instance does not preserve slot handles.
+  - Reads slot declarations from the stored component definition tree, even when a mounted instance does not preserve slot handles.
 - `updateQHtmlElement(qHtmlElement, options?)`
   - Re-evaluates binding expressions and re-renders mounted output.
   - Optional `options.scopeElement` (mapped DOM element) performs scoped rerender of only that subtree.
@@ -78,7 +78,6 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - Prints summary + queue tables, and returns the same snapshot object.
 - Named `q-timer` runtime handles
   - Named timer declarations (`q-timer myTimer { ... }`) are exported as runtime handle objects (not raw numeric IDs).
-  - `duration` is accepted as an alias for `interval`.
 - q-perf reporting
   - Root keyword timer execution is measured when the mounted document has `q-perf { q-timer }` metadata.
   - During `QHTMLContentLoaded`, runtime calls `domRenderer.logQPerfData()` so measured QDom nodes are reported to the console after render settlement.
@@ -113,10 +112,6 @@ Runtime mount/update engine for `<q-html>` in browser environments.
     - model-like objects with `toArray()`
   - Fallback for unsupported inputs is an empty array model.
   - Exposed as both `QHtml.createQArray(...)` and global `QArray(...)`.
-- `createQPoint(x, y)` / `QPoint(x, y)`
-  - Convenience constructor for coordinate maps.
-  - Returns the same model shape as `QMap({ x: x, y: y })`, with object-like `.x` and `.y` access.
-  - Exposed as `QHtml.createQPoint(...)`, `QHtml.QPoint(...)`, and global `QPoint(...)`.
 - `createQCallback(fn, options?)`
   - Wraps a function as a QHTML callback object with creator-context preservation.
   - Options:
@@ -131,11 +126,6 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - `QHtml.QComponentInstance` / global `QComponentInstance`
   - `QHtml.QVar` / global `QVar`
   - sourced from `dom-renderer` runtime type constructors
-- Behavior/animation exports from `dom-renderer`:
-  - `QHtml.qSet`, `QHtml.commitProperty`
-  - `QHtml.registerBehavior`, `QHtml.getBehavior`, `QHtml.removeBehavior`
-  - `QHtml.BehaviorController`, `QHtml.NumberAnimation`, `QHtml.AnimationJob`
-  - Binding updates targeting a property with a registered behavior route through `qSet(..., { source: "binding" })`, so behavior interception is shared by user writes and binding writes.
 - `qhtml(source)`
   - Creates QHTML fragment tokens consumable by renderer callback/direct-call paths.
   - Typical usage from callbacks: `return qhtml("div { text { hello } }");`
@@ -194,7 +184,6 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 
 ## Scope and Context Resolution
 - Runtime resolves symbol paths through layered scope/context frames.
-- Runtime dot-walk resolution also checks `q-context` overlay values exposed by the renderer before falling back to normal object property reads.
 - General resolution order for simple symbol paths:
   1. expression-local scope values (inline/event/lifecycle scope object)
   2. lexical QHTML scope frame (named instances declared in the active QHTML scope)
@@ -287,8 +276,7 @@ Runtime mount/update engine for `<q-html>` in browser environments.
 - Executes `meta.qBindings` scripts (canonical `q-script`; `q-bind` inputs are parser-normalized aliases) with `this` bound to each source QDom node before render/update.
 - Emits runtime signal events through `emitQSignal(...)` helpers.
 - In queued event-loop mode, routes component signal delivery through UUID subscriber maps and queues per-subscriber handler calls on the main runtime queue.
-- Worker runtime records are still exposed for diagnostics and lifecycle cleanup; q-worker method dispatch is scheduled through the runtime worker queue when available.
-- Root `q-connect` lifecycle scripts run immediately before queued root `onReady` scripts so signal wiring is established before startup hooks emit.
+- In queued event-loop mode, worker method dispatch can be routed through a dedicated worker queue (`enqueueWorkerEvent(...)`) that is interleaved with main-queue processing each turn.
 - Queued timer scheduling is de-duplicated per timer record (`pending` guard), preventing timer-timeout backlog spam while a prior timeout is still queued/processing.
 - Runtime turn processing prioritizes already-queued work before enqueuing new due timers, reducing signal/property starvation under heavy timer load.
 - Queued signal/property target resolution is UUID-record driven via `QHTML_QDOM_DATA_MAP`.

@@ -10,11 +10,9 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - `collectComponentRegistry(documentNode)`
   - Returns `Map<componentId, componentDefinitionNode>`.
   - Also includes `q-struct` definitions keyed by `structId`.
-  - Also includes `q-viewport` definitions keyed by `viewportId`.
   - Walks nested definition locations including repeater template/model payloads.
-- `renderDocumentToFragment(documentNode, targetDocument?, options?)`
+- `renderDocumentToFragment(documentNode, targetDocument?)`
   - Renders top-level runtime nodes into a `DocumentFragment`.
-  - `options.staticPreview` / `options.disableComponentRuntime` renders component markup without installing runtime methods, behaviors, timers, state-machine bridges, declared-property bindings, or lifecycle hooks. This is intended for inert thumbnails/previews such as page-builder palette rendering.
 - `renderIntoElement(documentNode, hostElement, targetDocument?)`
   - Replaces host content with rendered fragment.
 - `renderComponentElement(componentNode, hostElement, targetDocument?, options?)`
@@ -23,7 +21,6 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - `QSignal` (callable signal type with `.connect/.disconnect/.emit`)
   - `QProperty` (declared-property backing instance type)
   - `QComponentInstance` (component-instance metadata wrapper)
-- Behavior/animation support is installed through declared component property setters. `behavior on <property>` metadata is consumed internally by the renderer; no standalone behavior controller API is exported.
 - q-perf helpers:
   - `startQPerfMeasurement(targetNode, configNode, category, label?)`
   - `finishQPerfMeasurement(marker)`
@@ -39,7 +36,6 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - `model` (repeater model container consumed by repeater rendering)
 - `component-instance`, `template-instance`
 - `struct`, `struct-instance` (`q-struct` data definitions/instances; scope registration only, no direct DOM output)
-- `viewport`, `viewport-instance` (`q-viewport` responsive definitions/instances; definition nodes register only, instances render a live `<q-viewport>` gate wrapper)
 - `slot` projection containers
 - `q-signal` definitions invoked through `component-instance` dispatch behavior
 
@@ -99,36 +95,10 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - case bodies evaluate with the current inherited QContext and q-var references resolve to their stored JavaScript values
   - no property binding or listener behavior is installed; dynamic behavior must come from the caller or from expressions/functions returned by cases
   - returned QHTML source strings can be passed into `qhtml(name(value))`
-- `q-context` declarations augment the current QContext from direct symbols on one or more source contexts:
-  - declaration form: `q-context { this.component otherComponent.someChild thirdComponent }`
-  - source entries can also be live QHTML UUIDs; UUIDs resolve through the current `<q-html>` host and global QHTML UUID lookup maps before normal expression evaluation
-  - source order controls collisions; later sources overwrite earlier imported symbols
-  - `this` and `component` are never imported or overwritten
-  - component-local q-context declarations apply only to the declaring component, not through `extends`
-  - referenced components contribute only their direct properties, functions, signals, q-vars, q-switches, q-timers, callbacks, and directly owned child aliases; their own q-context overlays are not re-exported
-  - a bare q-property default naming a source component with exactly one declared q-property resolves to that property value
-  - UUID loop detection skips self/cyclic imports instead of walking indefinitely
-- `q-viewport` instances render responsive content gates:
-  - declaration form: `q-viewport name { minWidth: 75vw; minHeight: 500px }`, invocation form: `name { ... }`
-  - instances render a `<q-viewport q-viewport-instance="1">` wrapper using `display: contents` while active and `display: none` while inactive
-  - active state is recalculated on `window` resize/scroll and `visualViewport` resize/scroll when available
-  - width/height constraints support numeric pixels plus `px`, `vw`, `vh`, `vmin`, `vmax`, `%`, `rem`, and `em`
-  - rendered wrappers expose live visual viewport fields as properties and data attributes: `x`, `y`, `width`, `height`, `scale`, `offsetLeft`, `offsetTop`, `right`, `bottom`, and `type`
-  - when `window.visualViewport` exists, values map to `pageLeft`, `pageTop`, `width`, `height`, `scale`, `offsetLeft`, `offsetTop`, `pageLeft + width`, `pageTop + height`, and `"visualViewport"`; otherwise they fall back to layout viewport values with `type: "layoutViewport"`
 - `q-timer` declarations can be registered at document scope or inside anonymous DOM/theme/style containers:
   - anonymous containers inherit the current QContext instead of creating a new named scope
   - root timers are registered before document nodes render so handlers and expressions can resolve them by name
   - timers inside component/worker hosts are owned by that host and remain reachable through normal named-reference dot walking
-  - `duration` is accepted anywhere `interval` is accepted
-- `q-worker` method invocation serializes arguments, returned values, and emitted signal payloads through the renderer clone-safe bridge:
-  - direct worker method calls still complete asynchronously because they cross the browser worker message boundary.
-  - worker method dispatch is scheduled through the runtime worker queue when available, preserving the event-loop boundary between timers/signals and hidden worker posts.
-  - q-connect-driven worker method targets are fire-and-forget; worker results should flow back through declared q-signals and q-connect handlers.
-  - each worker method call sends a clone-safe snapshot of the q-worker host's declared/tracked property state into the hidden worker.
-  - worker methods execute with q-property state available through `this.component.<property>`, and declared worker signals are callable as both `this.<signal>(...)` and `this.component.<signal>(...)`.
-  - when the hidden worker returns, clone-safe state is written back onto the owning q-worker host before returned q-signals are emitted from that host to connected handlers.
-  - clone-safe payloads preserve `ArrayBuffer`, `DataView`, and typed arrays such as `Uint8Array` / `Uint8ClampedArray`, enabling worker decode pipelines to return binary frame or pixel buffers.
-  - DOM nodes and functions are intentionally omitted from worker payloads.
 - Inline event handlers receive the current inherited QContext in their script scope, so named references visible during render are also visible when the handler runs.
   - Rendered DOM elements are bound to the active scope/runtime context frames before event attributes are compiled.
   - Script contexts read `q-var` declarations as their stored JavaScript values and write assignment back to q-var storage, so handlers can use natural `var`-like syntax such as `count = count + 1` or `helper()`.
@@ -137,29 +107,11 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - Component definition flags are copied to each rendered component/worker instance node so measurements are per instance where a live instance QDom node exists.
   - Measurements are aggregated in-place on the measured QDom node as `perf_data`; no per-execution records are stored.
   - `logQPerfData()` prints `{ uuid, canonicalName, referenceName, perf_data }` for measured nodes.
-- `q-style-path-animation` style metadata emits CSS motion-path keyframes at render time.
-  - Inline-compatible declarations such as `offset-path`, `offset-distance`, `offset-anchor`, `offset-rotate`, and `animation` remain on the rendered element style.
-  - `@keyframes` rules are injected once per document as `<style data-qhtml-path-animation="...">` because keyframes cannot be represented inside `style=""`.
 - `q-anchor` positioning is opt-in per direct owner node through `meta.__qhtmlAnchorRules`.
   - Supported rule keys: `left`, `right`, `top`, `bottom`, `hcenter`, `vcenter`, `center`.
-  - Rule values can be named DOM side references (`someRef.right`, `someRef.center`) or JavaScript/CSS literal expressions.
-  - Renderer resolves named instance handles to rendered DOM geometry and applies absolute pixel offsets relative to the anchored element's offset parent.
-  - Positions are recalculated after render, resize, and scroll.
-- `behavior on <property>` is opt-in per direct owner node through `meta.__qhtmlBehaviors`.
-  - Behaviors intercept declared `q-property` writes before the normal `<property>Changed` signal/hook path runs.
-  - A behavior block accepts exactly one child animation element; the supported child is `q-property-animation`.
-  - During animation-frame commits the declared setter runs under behavior bypass and suppresses normal property-changed emission.
-  - The final animation commit writes the exact target value under behavior bypass without suppression, so `<property>Changed` / `on<Property>Changed` fires once after the animation completes.
-  - Declared `q-property` setters parse CSS numeric values (`px`, `%`, `vh`, `vw`, `rem`, `em`, and related CSS length units), store the numeric portion, and keep unit metadata for explicit formatting through `css(value, "unit")`.
-  - QDom property writes maintain `property_extensions[propName] = unit` for unit-bearing numeric values and remove that sidecar when a property returns to a unitless value.
-  - A new external write while an animation is running cancels the current job and starts a new behavior job.
-  - `q-property-animation` supports `duration`, `steps`, optional `from`, and optional `to`; omitted `from` defaults to the current live value and omitted `to` defaults to the requested write value.
-  - Behavior-side `q-property-animation` hook blocks such as `onstarted { ... }`, `onstepped { ... }`, and `onstopped { ... }` execute with `this` bound to the behavior target and receive `(value, currentStep, progress)` values.
-- `q-bind-css { sourceProperty targetCssReference }` is component-local syntax sugar stored in `component.meta.__qhtmlCssBindings`.
-  - The renderer validates the source against declared component properties, connects to the generated `<property>Changed` signal, and assigns each new property value to the target reference.
-  - The target reference must resolve to a writable object property at runtime, for example `this.component.style.width`; unresolved targets warn and are skipped.
-  - Numeric values assigned into CSSStyleDeclaration dimensional targets such as `style.width`, `style.height`, `style.left`, and `style.top` normalize to pixel strings.
-  - The initial property value is assigned once during component binding so CSS starts synchronized with the declared `q-property` value.
+  - Rule values can be reference expressions with sides (`someRef.right`, `someRef.center`) or literal CSS values.
+  - Renderer prefers CSS Anchor Positioning (`anchor-name` + `anchor(...)`) when supported.
+  - When CSS anchor positioning is unavailable, renderer falls back to runtime geometry updates (resize/scroll aware) and applies pixel offsets.
 - `q-layout`, `q-row`, and `q-col` are renderer-owned layout keywords:
   - they render as lightweight layout DOM tags with built-in grid/table-like CSS behavior
   - `q-layout` defaults to row stacking; `q-row` defaults to column stacking; `q-col` can host nested rows, columns, or layouts
@@ -170,17 +122,14 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 
 ## Component host assignment behavior
 - Component slot projection prefers normalized component-instance `slots` over raw instance children when present. This keeps shorthand slot wrappers (`slotName { ... }`) out of rendered output and allows projected `q-layout`, `q-row`, and `q-col` nodes to render normally inside slots.
-- Projected slot content preserves the caller's lexical render context while retaining the receiving component's slot ownership metadata. This means `q-var`, named aliases, inline expressions, and `for (...)` model sources declared on the component that supplies slot content remain visible after that content is projected through another component such as `q-tabs`.
 - Slot fill lookup is case-insensitive after exact lookup. This preserves declared slot names such as `slot { heroTitle }` while allowing shorthand invocation wrappers like `heroTitle { ... }`, whose tag names are normalized by HTML/QDom parsing, to project into the intended slot.
-- Component `slotDefaults` (`kind: "slot-default"`) provide fallback projected QDom only when an instance omits that slot; an explicit empty, whitespace-only, or comment-only slot suppresses the default.
 - `component-instance.attributes` map to DOM attributes.
 - `component-instance.props` map to direct host element property assignment (`host[propName] = value`).
-- Component hosts expose `host.qdom()` for the original source instance node before runtime methods, declared properties, and lifecycle hooks are installed. Ready-hook de-duplication and declared-property state use this stable source QDom identity across update renders.
 - For declared component properties only, bare dotted references (for example `myinstance.myprop1`) are resolved against interpolation scope without `${...}`.
   - unresolved references are coerced to empty string.
   - unresolved/overwrite warnings are emitted only when `q-logger { q-property }` is enabled in scope.
 - `q-component ... extends ... extends ...` chains are resolved at render time:
-  - inherited properties/methods/signals/aliases/q-vars/q-switches/q-timers/lifecycle hooks are merged base→child.
+  - inherited properties/methods/signals/aliases/lifecycle hooks are merged base→child.
   - multiple bases are merged in declaration order (`extends baseA extends baseB`, then child).
   - child definitions override inherited entries with the same name.
   - template nodes/children from all inherited components are included (base declarations first, child last).

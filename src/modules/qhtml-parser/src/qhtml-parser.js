@@ -32,17 +32,14 @@
   const CANONICAL_KEYWORD_TARGETS = new Set([
     "q-component",
     "q-struct",
-    "q-viewport",
     "q-worker",
     "q-template",
     "q-macro",
     "q-rewrite",
     "q-script",
     "q-bind",
-    "q-bind-css",
     "q-var",
     "q-switch",
-    "q-context",
     "q-property",
     "q-signal",
     "q-callback",
@@ -56,7 +53,6 @@
     "q-style-painter",
     "q-transition",
     "q-style-transition",
-    "q-style-path-animation",
     "q-color",
     "q-color-schema",
     "q-color-theme",
@@ -75,7 +71,6 @@
     "q-logger",
     "q-perf",
     "q-anchor",
-    "q-slot-default",
     "q-layout",
     "q-row",
     "q-col",
@@ -1080,40 +1075,6 @@
     return parseBareValue(parser);
   }
 
-  function createQScriptActionElementItem(scriptBody, keywordSnapshot, itemStart, itemEnd, rawSource) {
-    return {
-      type: "Element",
-      selectors: ["q-script-action"],
-      prefixDirectives: [],
-      items: [{
-        type: "Property",
-        name: "scriptBody",
-        value: String(scriptBody || ""),
-        keywords: keywordSnapshot,
-        start: itemStart,
-        end: itemEnd,
-        raw: rawSource,
-      }],
-      keywords: keywordSnapshot,
-      start: itemStart,
-      end: itemEnd,
-      raw: rawSource,
-    };
-  }
-
-  function parseQContextSourceList(source) {
-    const body = String(source || "").trim();
-    if (!body) {
-      return [];
-    }
-    return body
-      .split(/[\s,;]+/g)
-      .map(function trimQContextSource(entry) {
-        return String(entry || "").trim();
-      })
-      .filter(Boolean);
-  }
-
   function parseSelectorList(parser, firstSelector) {
     const selectors = [firstSelector || parseSelectorToken(parser)];
     skipWhitespace(parser);
@@ -1549,14 +1510,6 @@
     return "";
   }
 
-  function normalizeQAnchorDirectiveName(rawName) {
-    const tag = String(rawName || "").trim().toLowerCase();
-    if (!tag || tag.indexOf("q-anchor-") !== 0) {
-      return "";
-    }
-    return normalizeQAnchorRuleKey(tag.slice("q-anchor-".length));
-  }
-
   function parseQAnchorDefinitionBody(bodyText) {
     const parser = parserFor(String(bodyText || ""));
     const entries = [];
@@ -1620,60 +1573,6 @@
     return entries;
   }
 
-  function collectQAnchorDirectiveBodyText(items) {
-    const list = Array.isArray(items) ? items : [];
-    let bodyText = "";
-    for (let i = 0; i < list.length; i += 1) {
-      const part = list[i];
-      if (!part || typeof part !== "object") {
-        continue;
-      }
-      if (part.type === "TextBlock" || part.type === "RawTextLine") {
-        bodyText += String(part.text || "");
-      } else if (part.type === "BareWord") {
-        bodyText += String(part.name || "");
-      } else if (part.type === "Property") {
-        const propName = String(part.name || "").trim();
-        const propValue = String(coercePropertyValue(part.value) || "").trim();
-        bodyText += (bodyText ? "\n" : "") + propName + ": " + propValue;
-      }
-      if (i < list.length - 1) {
-        bodyText += "\n";
-      }
-    }
-    return String(bodyText || "").trim();
-  }
-
-  function mergeQAnchorRuleLists(existingRules, incomingRules) {
-    const out = Array.isArray(existingRules) ? existingRules.slice() : [];
-    const list = Array.isArray(incomingRules) ? incomingRules : [];
-    const seen = new Map();
-    for (let i = 0; i < out.length; i += 1) {
-      const key = normalizeQAnchorRuleKey(out[i] && out[i].key);
-      if (key) {
-        seen.set(key, i);
-      }
-    }
-    for (let i = 0; i < list.length; i += 1) {
-      const rule = list[i] && typeof list[i] === "object" ? list[i] : {};
-      const key = normalizeQAnchorRuleKey(rule.key);
-      if (!key) {
-        continue;
-      }
-      const normalizedRule = {
-        key: key,
-        value: String(rule.value == null ? "" : rule.value).trim(),
-      };
-      if (seen.has(key)) {
-        out[seen.get(key)] = normalizedRule;
-      } else {
-        seen.set(key, out.length);
-        out.push(normalizedRule);
-      }
-    }
-    return out;
-  }
-
   function extractQAnchorRulesFromElement(item) {
     if (!item || item.type !== "Element") {
       return null;
@@ -1684,18 +1583,26 @@
     }
     const token = parseTagToken(selectors[0]);
     const tagLower = String(token && token.tag || "").trim().toLowerCase();
-    const directionalKey = normalizeQAnchorDirectiveName(tagLower);
-    if (tagLower !== "q-anchor" && !directionalKey) {
+    if (tagLower !== "q-anchor") {
       return null;
     }
-    const bodyText = collectQAnchorDirectiveBodyText(item.items);
-    if (directionalKey) {
-      return [
-        {
-          key: directionalKey,
-          value: bodyText,
-        },
-      ];
+    let bodyText = "";
+    const list = Array.isArray(item.items) ? item.items : [];
+    for (let i = 0; i < list.length; i += 1) {
+      const part = list[i];
+      if (!part || typeof part !== "object") {
+        continue;
+      }
+      if (part.type === "TextBlock" || part.type === "RawTextLine") {
+        bodyText += String(part.text || "");
+      } else if (part.type === "Property") {
+        const propName = String(part.name || "").trim();
+        const propValue = String(coercePropertyValue(part.value) || "").trim();
+        bodyText += (bodyText ? "\n" : "") + propName + ": " + propValue;
+      }
+      if (i < list.length - 1) {
+        bodyText += "\n";
+      }
     }
     return parseQAnchorDefinitionBody(bodyText);
   }
@@ -2061,13 +1968,11 @@
     const classes = [];
     const painters = {};
     const transitions = [];
-    const pathAnimations = [];
     const seenClasses = new Set();
     const seenTransitions = new Set();
     const styleClassKeywords = collectAliasesTargeting(keywordAliases, "q-style-class");
     const stylePainterKeywords = collectAliasesTargeting(keywordAliases, "q-style-painter");
     const styleTransitionKeywords = collectAliasesTargeting(keywordAliases, "q-style-transition");
-    const stylePathAnimationKeywords = collectAliasesTargeting(keywordAliases, "q-style-path-animation");
     while (!eof(parser)) {
       skipWhitespaceAndSemicolons(parser);
       if (eof(parser)) {
@@ -2155,22 +2060,6 @@
         }
         continue;
       }
-      if (stylePathAnimationKeywords.has(propertyLower)) {
-        if (peek(parser) !== "{") {
-          throw ParseError("Expected '{...}' after q-style-path-animation inside q-style", parser.index);
-        }
-        consume(parser);
-        const pathAnimationBody = String(readBalancedBlockContent(parser) || "");
-        const parsedPathAnimation = parseQStylePathAnimation(pathAnimationBody, keywordAliases);
-        if (parsedPathAnimation) {
-          pathAnimations.push(parsedPathAnimation);
-        }
-        skipWhitespaceAndSemicolons(parser);
-        if (peek(parser) === ",") {
-          consume(parser);
-        }
-        continue;
-      }
       let value = "";
       if (peek(parser) === ":") {
         consume(parser);
@@ -2194,97 +2083,7 @@
       classes: classes,
       painters: painters,
       transitions: transitions,
-      pathAnimations: pathAnimations,
     };
-  }
-
-  function normalizeQStylePathAnimationDuration(value) {
-    const raw = unquoteQStylePathAnimationValue(value);
-    if (!raw) {
-      return "1000ms";
-    }
-    if (/^-?\d+(?:\.\d+)?$/.test(raw)) {
-      return raw + "ms";
-    }
-    return raw;
-  }
-
-  function normalizeQStylePathAnimationRepeat(value) {
-    const raw = unquoteQStylePathAnimationValue(value).toLowerCase();
-    if (!raw || raw === "false" || raw === "0" || raw === "none" || raw === "no") {
-      return "";
-    }
-    if (raw === "true" || raw === "repeat" || raw === "infinite" || raw === "yes") {
-      return "infinite";
-    }
-    return raw;
-  }
-
-  function unquoteQStylePathAnimationValue(value) {
-    const text = String(value == null ? "" : value).trim();
-    if (text.length >= 2) {
-      const first = text.charAt(0);
-      const last = text.charAt(text.length - 1);
-      if ((first === '"' && last === '"') || (first === "'" && last === "'") || (first === "`" && last === "`")) {
-        return text.slice(1, -1);
-      }
-    }
-    return text;
-  }
-
-  function quoteCssString(value) {
-    return "\"" + String(value == null ? "" : value).replace(/\\/g, "\\\\").replace(/"/g, "\\\"") + "\"";
-  }
-
-  function hashQStylePathAnimationKey(source) {
-    const text = String(source || "");
-    let hash = 2166136261;
-    for (let i = 0; i < text.length; i += 1) {
-      hash ^= text.charCodeAt(i);
-      hash = Math.imul(hash, 16777619);
-    }
-    return (hash >>> 0).toString(36);
-  }
-
-  function normalizeQStylePathAnimationPath(value) {
-    const raw = unquoteQStylePathAnimationValue(value);
-    if (!raw) {
-      return "";
-    }
-    if (/^path\(/i.test(raw)) {
-      return raw;
-    }
-    return "path(" + quoteCssString(raw) + ")";
-  }
-
-  function normalizeQStylePathAnimationConfig(config) {
-    const source = config && typeof config === "object" ? config : {};
-    const path = normalizeQStylePathAnimationPath(source.path);
-    if (!path) {
-      return null;
-    }
-    const duration = normalizeQStylePathAnimationDuration(source.duration);
-    const easing = unquoteQStylePathAnimationValue(source.easing || source["easing.type"]) || "linear";
-    const anchorPoint = unquoteQStylePathAnimationValue(source.anchorPoint || source.anchor || source.offsetAnchor) || "center";
-    const rotation = unquoteQStylePathAnimationValue(source.rotation || source.offsetRotate) || "auto";
-    const repeat = normalizeQStylePathAnimationRepeat(source.repeat);
-    const keyframeName =
-      "qhtml-path-move-" +
-      hashQStylePathAnimationKey([path, duration, easing, anchorPoint, rotation, repeat].join("|"));
-    return {
-      path: path,
-      duration: duration,
-      easing: easing,
-      anchorPoint: anchorPoint,
-      rotation: rotation,
-      repeat: repeat,
-      keyframeName: keyframeName,
-    };
-  }
-
-  function parseQStylePathAnimation(rawBody, keywordAliases) {
-    const assignments = parseQColorAssignments(rawBody, keywordAliases);
-    return normalizeQStylePathAnimationConfig(assignments);
   }
 
   function parseQStyleTransitionMappings(rawBody) {
@@ -2451,7 +2250,7 @@
       if (eof(parser)) {
         break;
       }
-      const selector = parseQThemeSelector(parser);
+      const selector = parseQColorIdentifier(parser, "q-theme");
       skipWhitespace(parser);
       if (peek(parser) !== "{") {
         throw ParseError("Expected '{...}' inside q-theme", parser.index);
@@ -2470,67 +2269,6 @@
       }
     }
     return out;
-  }
-
-  function parseQThemeSelector(parser) {
-    skipWhitespace(parser);
-    const start = parser.index;
-    let quote = "";
-    let escaped = false;
-    let parenDepth = 0;
-    let bracketDepth = 0;
-    while (!eof(parser)) {
-      const ch = peek(parser);
-      if (quote) {
-        parser.index += 1;
-        if (escaped) {
-          escaped = false;
-          continue;
-        }
-        if (ch === "\\") {
-          escaped = true;
-          continue;
-        }
-        if (ch === quote) {
-          quote = "";
-        }
-        continue;
-      }
-      if (ch === '"' || ch === "'" || ch === "`") {
-        quote = ch;
-        parser.index += 1;
-        continue;
-      }
-      if (ch === "(") {
-        parenDepth += 1;
-        parser.index += 1;
-        continue;
-      }
-      if (ch === ")" && parenDepth > 0) {
-        parenDepth -= 1;
-        parser.index += 1;
-        continue;
-      }
-      if (ch === "[") {
-        bracketDepth += 1;
-        parser.index += 1;
-        continue;
-      }
-      if (ch === "]" && bracketDepth > 0) {
-        bracketDepth -= 1;
-        parser.index += 1;
-        continue;
-      }
-      if (parenDepth === 0 && bracketDepth === 0 && ch === "{") {
-        break;
-      }
-      parser.index += 1;
-    }
-    const selector = parser.source.slice(start, parser.index).trim();
-    if (!selector) {
-      throw ParseError("Expected selector inside q-theme", parser.index);
-    }
-    return selector.replace(/\s+/g, " ");
   }
 
   function createAnonymousQThemeStyleName() {
@@ -2566,7 +2304,6 @@
           classes: parsedStyle.classes,
           painters: parsedStyle.painters,
           transitions: parsedStyle.transitions,
-          pathAnimations: parsedStyle.pathAnimations,
         });
         styles.push(generatedName);
       } else if (styleName) {
@@ -3374,20 +3111,6 @@
           });
           continue;
         }
-        if (nameLower === "q-context" && nextChar === "{") {
-          consume(parser);
-          const contextBody = readBalancedBlockContent(parser);
-          items.push({
-            type: "QContextDeclaration",
-            body: String(contextBody || ""),
-            sources: parseQContextSourceList(contextBody),
-            keywords: keywordSnapshot,
-            start: itemStart,
-            end: parser.index,
-            raw: parser.source.slice(itemStart, parser.index),
-          });
-          continue;
-        }
         if (nameLower === "q-connect" && nextChar === "{") {
           consume(parser);
           const connectBody = readBalancedBlockContent(parser);
@@ -3409,28 +3132,6 @@
         }
         if (nameLower === "q-connect" && nextChar !== "{") {
           throw ParseError("q-connect requires a block body", parser.index);
-        }
-        if (nameLower === "q-bind-css" && nextChar === "{") {
-          consume(parser);
-          const bindBody = readBalancedBlockContent(parser);
-          const bindConfig = parseQBindCssDefinitionBody(String(bindBody || ""));
-          if (!bindConfig.propertyExpression || !bindConfig.targetExpression) {
-            throw ParseError("q-bind-css requires property and target expressions", parser.index);
-          }
-          items.push({
-            type: "QBindCssDefinition",
-            propertyExpression: bindConfig.propertyExpression,
-            targetExpression: bindConfig.targetExpression,
-            body: String(bindBody || ""),
-            keywords: keywordSnapshot,
-            start: itemStart,
-            end: parser.index,
-            raw: parser.source.slice(itemStart, parser.index),
-          });
-          continue;
-        }
-        if (nameLower === "q-bind-css" && nextChar !== "{") {
-          throw ParseError("q-bind-css requires a block body", parser.index);
         }
         if (nameLower === "q-timer" && nextChar !== "{" && nextChar !== ",") {
           const timerId = parseIdentifier(parser);
@@ -3585,6 +3286,58 @@
           }
           continue;
         }
+        if (nameLower === "behavior" && nextChar !== "{" && nextChar !== ",") {
+          const onKeyword = parseIdentifier(parser);
+          if (String(onKeyword || "").trim().toLowerCase() !== "on") {
+            throw ParseError("Expected 'on' after behavior", parser.index);
+          }
+          const behaviorProperty = parseIdentifier(parser);
+          const normalizedBehaviorProperty = String(behaviorProperty || "").trim();
+          if (!normalizedBehaviorProperty) {
+            throw ParseError("Expected property name after behavior on", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after behavior on " + normalizedBehaviorProperty, parser.index);
+          }
+          consume(parser);
+          const behaviorItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          items.push({
+            type: "QBehaviorDefinition",
+            propertyName: normalizedBehaviorProperty,
+            items: behaviorItems,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-behavior" && nextChar !== "{" && nextChar !== ",") {
+          const behaviorProperty = parseIdentifier(parser);
+          const normalizedBehaviorProperty = String(behaviorProperty || "").trim();
+          if (!normalizedBehaviorProperty) {
+            throw ParseError("Expected property name after q-behavior", parser.index);
+          }
+          skipWhitespace(parser);
+          if (peek(parser) !== "{") {
+            throw ParseError("Expected '{' after q-behavior " + normalizedBehaviorProperty, parser.index);
+          }
+          consume(parser);
+          const behaviorItems = parseBlockItems(parser, scopedKeywordAliases);
+          expect(parser, "}");
+          items.push({
+            type: "QBehaviorDefinition",
+            propertyName: normalizedBehaviorProperty,
+            items: behaviorItems,
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
         if (nameLower === "q-color-schema" && nextChar !== "{") {
           warnDeprecatedSyntaxFeature("q-color-schema");
           const schemaName = parseQColorIdentifier(parser, "q-color-schema");
@@ -3663,7 +3416,6 @@
             classes: parsedStyle.classes,
             painters: parsedStyle.painters,
             transitions: parsedStyle.transitions,
-            pathAnimations: parsedStyle.pathAnimations,
             keywords: keywordSnapshot,
             start: itemStart,
             end: parser.index,
@@ -3724,82 +3476,6 @@
             type: "TemplateDefinition",
             templateId: templateId,
             items: templateItems,
-            keywords: keywordSnapshot,
-            start: itemStart,
-            end: parser.index,
-            raw: parser.source.slice(itemStart, parser.index),
-          });
-          continue;
-        }
-        if (nameLower === "q-slot-default" && nextChar !== "{" && nextChar !== ",") {
-          const slotName = parseIdentifier(parser);
-          const normalizedSlotName = String(slotName || "").trim();
-          if (!normalizedSlotName) {
-            throw ParseError("Expected slot name after q-slot-default", parser.index);
-          }
-          skipWhitespace(parser);
-          if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after q-slot-default slot name", parser.index);
-          }
-          consume(parser);
-          const slotItems = parseBlockItems(parser, scopedKeywordAliases);
-          expect(parser, "}");
-          items.push({
-            type: "QSlotDefaultDefinition",
-            name: normalizedSlotName,
-            items: slotItems,
-            keywords: keywordSnapshot,
-            start: itemStart,
-            end: parser.index,
-            raw: parser.source.slice(itemStart, parser.index),
-          });
-          continue;
-        }
-        if (nameLower === "behavior" && nextChar !== "{" && nextChar !== ",") {
-          const onKeyword = parseIdentifier(parser);
-          if (String(onKeyword || "").trim().toLowerCase() !== "on") {
-            throw ParseError("Expected 'on' after behavior", parser.index);
-          }
-          const behaviorProperty = parseIdentifier(parser);
-          const normalizedBehaviorProperty = String(behaviorProperty || "").trim();
-          if (!normalizedBehaviorProperty) {
-            throw ParseError("Expected property name after behavior on", parser.index);
-          }
-          skipWhitespace(parser);
-          if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after behavior on " + normalizedBehaviorProperty, parser.index);
-          }
-          consume(parser);
-          const behaviorItems = parseBlockItems(parser, scopedKeywordAliases);
-          expect(parser, "}");
-          items.push({
-            type: "QBehaviorDefinition",
-            propertyName: normalizedBehaviorProperty,
-            items: behaviorItems,
-            keywords: keywordSnapshot,
-            start: itemStart,
-            end: parser.index,
-            raw: parser.source.slice(itemStart, parser.index),
-          });
-          continue;
-        }
-        if (nameLower === "q-behavior" && nextChar !== "{" && nextChar !== ",") {
-          const behaviorProperty = parseIdentifier(parser);
-          const normalizedBehaviorProperty = String(behaviorProperty || "").trim();
-          if (!normalizedBehaviorProperty) {
-            throw ParseError("Expected property name after q-behavior", parser.index);
-          }
-          skipWhitespace(parser);
-          if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after q-behavior " + normalizedBehaviorProperty, parser.index);
-          }
-          consume(parser);
-          const behaviorItems = parseBlockItems(parser, scopedKeywordAliases);
-          expect(parser, "}");
-          items.push({
-            type: "QBehaviorDefinition",
-            propertyName: normalizedBehaviorProperty,
-            items: behaviorItems,
             keywords: keywordSnapshot,
             start: itemStart,
             end: parser.index,
@@ -4097,19 +3773,6 @@
               end: parser.index,
               raw: parser.source.slice(itemStart, parser.index),
             });
-            continue;
-          }
-
-          if (nameLower === "q-script-action") {
-            consume(parser);
-            const scriptBody = readBalancedBlockContent(parser);
-            items.push(createQScriptActionElementItem(
-              scriptBody,
-              keywordSnapshot,
-              itemStart,
-              parser.index,
-              parser.source.slice(itemStart, parser.index)
-            ));
             continue;
           }
 
@@ -4643,30 +4306,6 @@
           });
           continue;
         }
-        if (firstLower === "q-slot-default" && peek(parser) !== "{" && peek(parser) !== ",") {
-          const slotName = parseIdentifier(parser);
-          const normalizedSlotName = String(slotName || "").trim();
-          if (!normalizedSlotName) {
-            throw ParseError("Expected slot name after q-slot-default", parser.index);
-          }
-          skipWhitespace(parser);
-          if (peek(parser) !== "{") {
-            throw ParseError("Expected '{' after q-slot-default slot name", parser.index);
-          }
-          consume(parser);
-          const items = parseBlockItems(parser, scopedKeywordAliases);
-          expect(parser, "}");
-          body.push({
-            type: "QSlotDefaultDefinition",
-            name: normalizedSlotName,
-            items: items,
-            keywords: keywordSnapshot,
-            start: start,
-            end: parser.index,
-            raw: parser.source.slice(start, parser.index),
-          });
-          continue;
-        }
 
         if ((firstLower === "q-component" || firstLower === "q-worker") && peek(parser) !== "{" && peek(parser) !== ",") {
           const declarationDefinitionType = firstLower === "q-worker" ? "worker" : "component";
@@ -4675,9 +4314,7 @@
           const extendsComponentIdExpressions = [];
 
           function parseComponentReferenceExpression(exprStart, contextLabel) {
-            const qScriptPrefix = parser.source.slice(parser.index, parser.index + 8).toLowerCase();
-            const qScriptNext = parser.source.charAt(parser.index + 8);
-            if (qScriptPrefix === "q-script" && !isIdentifierChar(qScriptNext)) {
+            if (parser.source.slice(parser.index, parser.index + 8).toLowerCase() === "q-script") {
               const keyword = parseIdentifier(parser);
               skipWhitespace(parser);
               if (peek(parser) !== "{") {
@@ -4849,21 +4486,6 @@
           continue;
         }
 
-        if (firstLower === "q-context" && peek(parser) === "{") {
-          consume(parser);
-          const contextBody = readBalancedBlockContent(parser);
-          body.push({
-            type: "QContextDeclaration",
-            body: String(contextBody || ""),
-            sources: parseQContextSourceList(contextBody),
-            keywords: keywordSnapshot,
-            start: start,
-            end: parser.index,
-            raw: parser.source.slice(start, parser.index),
-          });
-          continue;
-        }
-
         if (firstLower === "q-connect" && peek(parser) === "{") {
           consume(parser);
           const connectBody = readBalancedBlockContent(parser);
@@ -4886,30 +4508,6 @@
 
         if (firstLower === "q-connect" && peek(parser) !== "{") {
           throw ParseError("q-connect requires a block body", parser.index);
-        }
-
-        if (firstLower === "q-bind-css" && peek(parser) === "{") {
-          consume(parser);
-          const bindBody = readBalancedBlockContent(parser);
-          const bindConfig = parseQBindCssDefinitionBody(String(bindBody || ""));
-          if (!bindConfig.propertyExpression || !bindConfig.targetExpression) {
-            throw ParseError("q-bind-css requires property and target expressions", parser.index);
-          }
-          body.push({
-            type: "QBindCssDefinition",
-            propertyExpression: bindConfig.propertyExpression,
-            targetExpression: bindConfig.targetExpression,
-            body: String(bindBody || ""),
-            keywords: keywordSnapshot,
-            start: start,
-            end: parser.index,
-            raw: parser.source.slice(start, parser.index),
-          });
-          continue;
-        }
-
-        if (firstLower === "q-bind-css" && peek(parser) !== "{") {
-          throw ParseError("q-bind-css requires a block body", parser.index);
         }
 
         if (firstLower === "q-timer" && peek(parser) !== "{" && peek(parser) !== ",") {
@@ -5216,7 +4814,6 @@
             classes: parsedStyle.classes,
             painters: parsedStyle.painters,
             transitions: parsedStyle.transitions,
-            pathAnimations: parsedStyle.pathAnimations,
             keywords: keywordSnapshot,
             start: start,
             end: parser.index,
@@ -6324,18 +5921,6 @@
     return out;
   }
 
-  function cloneQStylePathAnimations(pathAnimations) {
-    const list = Array.isArray(pathAnimations) ? pathAnimations : [];
-    const out = [];
-    for (let i = 0; i < list.length; i += 1) {
-      const normalized = normalizeQStylePathAnimationConfig(list[i]);
-      if (normalized) {
-        out.push(normalized);
-      }
-    }
-    return out;
-  }
-
   function cloneQPainterProperties(properties) {
     const source =
       properties && typeof properties === "object" && !Array.isArray(properties)
@@ -6395,7 +5980,6 @@
       classes: cloneQStyleClasses(entry.classes),
       painters: cloneQStylePainters(entry.painters),
       transitions: cloneQStyleTransitions(entry.transitions),
-      pathAnimations: cloneQStylePathAnimations(entry.pathAnimations),
     };
   }
 
@@ -6420,7 +6004,7 @@
     };
   }
 
-  function registerQStyleDefinition(styleContext, styleName, declarations, classes, painters, transitions, pathAnimations) {
+  function registerQStyleDefinition(styleContext, styleName, declarations, classes, painters, transitions) {
     if (!styleContext || !(styleContext.styles instanceof Map)) {
       return;
     }
@@ -6435,7 +6019,6 @@
       classes: cloneQStyleClasses(classes),
       painters: cloneQStylePainters(painters),
       transitions: cloneQStyleTransitions(transitions),
-      pathAnimations: cloneQStylePathAnimations(pathAnimations),
     });
   }
 
@@ -6608,7 +6191,6 @@
           classes: cloneQStyleClasses(entry.classes),
           painters: cloneQStylePainters(entry.painters),
           transitions: cloneQStyleTransitions(entry.transitions),
-          pathAnimations: cloneQStylePathAnimations(entry.pathAnimations),
         });
       });
     }
@@ -6689,51 +6271,6 @@
     return chunks.join("; ").trim();
   }
 
-  function qStylePathAnimationToDeclarations(pathAnimation) {
-    const animation = normalizeQStylePathAnimationConfig(pathAnimation);
-    if (!animation) {
-      return {};
-    }
-    const animationParts = [animation.keyframeName, animation.duration, animation.easing];
-    if (animation.repeat) {
-      animationParts.push(animation.repeat);
-    }
-    return {
-      "offset-path": animation.path,
-      "offset-distance": "0%",
-      "offset-anchor": animation.anchorPoint,
-      "offset-rotate": animation.rotation,
-      animation: animationParts.join(" "),
-    };
-  }
-
-  function appendQStylePathAnimationsToElementNode(elementNode, pathAnimations) {
-    const animations = cloneQStylePathAnimations(pathAnimations);
-    if (!elementNode || animations.length === 0) {
-      return;
-    }
-    if (!elementNode.meta || typeof elementNode.meta !== "object") {
-      elementNode.meta = {};
-    }
-    if (!Array.isArray(elementNode.meta.__qhtmlStylePathAnimations)) {
-      elementNode.meta.__qhtmlStylePathAnimations = [];
-    }
-    const seen = new Set(
-      elementNode.meta.__qhtmlStylePathAnimations
-        .map(function mapExisting(entry) { return String(entry && entry.keyframeName || "").trim(); })
-        .filter(Boolean)
-    );
-    for (let i = 0; i < animations.length; i += 1) {
-      const animation = animations[i];
-      const keyframeName = String(animation && animation.keyframeName || "").trim();
-      if (!keyframeName || seen.has(keyframeName)) {
-        continue;
-      }
-      seen.add(keyframeName);
-      elementNode.meta.__qhtmlStylePathAnimations.push(animation);
-    }
-  }
-
   function applyQStyleToElementNode(elementNode, styleDefinition) {
     if (!elementNode || elementNode.kind !== core.NODE_TYPES.element) {
       return;
@@ -6749,21 +6286,10 @@
       );
     }
     const cssText = qStyleDeclarationsToCssText(styleDefinition.declarations);
-    if (cssText) {
-      mergeStyleAttribute(elementNode, cssText);
+    if (!cssText) {
+      return;
     }
-    const pathAnimations = cloneQStylePathAnimations(styleDefinition.pathAnimations);
-    if (pathAnimations.length > 0) {
-      const pathDeclarations = {};
-      for (let i = 0; i < pathAnimations.length; i += 1) {
-        Object.assign(pathDeclarations, qStylePathAnimationToDeclarations(pathAnimations[i]));
-      }
-      const pathCssText = qStyleDeclarationsToCssText(pathDeclarations);
-      if (pathCssText) {
-        mergeStyleAttribute(elementNode, pathCssText);
-      }
-      appendQStylePathAnimationsToElementNode(elementNode, pathAnimations);
-    }
+    mergeStyleAttribute(elementNode, cssText);
   }
 
   function doesQThemeSelectorMatchElement(selector, elementNode) {
@@ -6857,10 +6383,8 @@
     const classes = [];
     const painters = {};
     const transitions = [];
-    const pathAnimations = [];
     const seenClasses = new Set();
     const seenTransitions = new Set();
-    const seenPathAnimations = new Set();
     for (let i = 0; i < names.length; i += 1) {
       const styleDef = lookupQStyleDefinition(styleContext, names[i]);
       if (!styleDef) {
@@ -6906,24 +6430,12 @@
         seenTransitions.add(normalizedTransition);
         transitions.push(transitionName);
       }
-      const nextPathAnimations = cloneQStylePathAnimations(styleDef.pathAnimations);
-      for (let pai = 0; pai < nextPathAnimations.length; pai += 1) {
-        const animation = nextPathAnimations[pai];
-        const keyframeName = String(animation && animation.keyframeName || "").trim();
-        if (!keyframeName || seenPathAnimations.has(keyframeName)) {
-          continue;
-        }
-        seenPathAnimations.add(keyframeName);
-        pathAnimations.push(animation);
-        Object.assign(declarations, qStylePathAnimationToDeclarations(animation));
-      }
     }
     return {
       declarations: declarations,
       classes: classes,
       painters: painters,
       transitions: transitions,
-      pathAnimations: pathAnimations,
     };
   }
 
@@ -6979,8 +6491,7 @@
         const hasClasses = Array.isArray(resolved.classes) && resolved.classes.length > 0;
         const hasPainters = Object.keys(resolved.painters).length > 0;
         const hasTransitions = Array.isArray(resolved.transitions) && resolved.transitions.length > 0;
-        const hasPathAnimations = Array.isArray(resolved.pathAnimations) && resolved.pathAnimations.length > 0;
-        if (!hasDeclarations && !hasClasses && !hasPainters && !hasTransitions && !hasPathAnimations) {
+        if (!hasDeclarations && !hasClasses && !hasPainters && !hasTransitions) {
           continue;
         }
         out.push({
@@ -6989,7 +6500,6 @@
           classes: cloneQStyleClasses(resolved.classes),
           painters: cloneQStylePainters(resolved.painters),
           transitions: cloneQStyleTransitions(resolved.transitions),
-          pathAnimations: cloneQStylePathAnimations(resolved.pathAnimations),
         });
       }
     }
@@ -9654,181 +9164,6 @@
     return value;
   }
 
-  function normalizeBehaviorAnimationSelector(selector) {
-    const normalized = String(selector || "").trim().toLowerCase();
-    if (normalized === "numberanimation" || normalized === "q-number-animation") {
-      return "NumberAnimation";
-    }
-    if (normalized === "q-property-animation" || normalized === "propertyanimation" || normalized === "property-animation") {
-      return "q-property-animation";
-    }
-    if (normalized === "q-parallel-animation-group" || normalized === "q-parallel-animation" || normalized === "parallelanimationgroup" || normalized === "parallel-animation-group") {
-      return "q-parallel-animation-group";
-    }
-    if (normalized === "q-sequential-animation-group" || normalized === "q-sequential-animation" || normalized === "sequentialanimationgroup" || normalized === "sequential-animation-group") {
-      return "q-sequential-animation-group";
-    }
-    return "";
-  }
-
-  function convertBehaviorAnimationItem(item, scopedMaps) {
-    if (!item || item.type !== "Element") {
-      return null;
-    }
-    const selectors = Array.isArray(item.selectors) ? item.selectors : [];
-    if (selectors.length !== 1) {
-      return null;
-    }
-    const animationType = normalizeBehaviorAnimationSelector(selectors[0]);
-    if (!animationType) {
-      return null;
-    }
-    const config = {
-      type: animationType,
-    };
-    const childAnimations = [];
-    const hooks = {};
-    const nestedItems = Array.isArray(item.items) ? item.items : [];
-    for (let i = 0; i < nestedItems.length; i += 1) {
-      const child = nestedItems[i];
-      if (!child) {
-        continue;
-      }
-      if (child.type === "Property") {
-        const assignment = parseAssignmentName(child.name);
-        const key = normalizePropertyName(assignment.name);
-        if (!key) {
-          continue;
-        }
-        config[key] = resolveScopedPropertyValueReferences(
-          coercePropertyValue(child.value),
-          scopedMaps,
-          null
-        );
-        continue;
-      }
-      if (child.type === "EventBlock") {
-        const hookName = String(child.name || "").trim().toLowerCase();
-        if (hookName) {
-          hooks[hookName] = {
-            name: String(child.name || "").trim(),
-            script: String(child.script || ""),
-            parameters: Array.isArray(child.parameters) ? child.parameters.slice() : [],
-            thenBodies: Array.isArray(child.thenBodies) ? child.thenBodies.slice() : [],
-            raw: typeof child.raw === "string" ? child.raw : "",
-          };
-        }
-        continue;
-      }
-      const convertedChild = convertBehaviorAnimationItem(child, scopedMaps);
-      if (convertedChild) {
-        childAnimations.push(convertedChild);
-      }
-    }
-    if (Object.keys(hooks).length > 0) {
-      config.hooks = hooks;
-    }
-    if (childAnimations.length > 0) {
-      config.children = childAnimations;
-    }
-    return config;
-  }
-
-  function convertBehaviorDefinitionItem(item, scopedMaps) {
-    const propertyName = String(item && item.propertyName || "").trim();
-    if (!propertyName) {
-      throw new Error("behavior requires a property name.");
-    }
-    const normalizedPropertyName = normalizePropertyName(propertyName);
-    const nestedItems = Array.isArray(item.items) ? item.items : [];
-    let animation = null;
-    for (let i = 0; i < nestedItems.length; i += 1) {
-      const converted = convertBehaviorAnimationItem(nestedItems[i], scopedMaps);
-      if (!converted) {
-        continue;
-      }
-      if (animation) {
-        throw new Error("behavior on " + propertyName + " supports one animation block.");
-      }
-      animation = converted;
-    }
-    return {
-      propertyName: propertyName,
-      normalizedPropertyName: normalizedPropertyName,
-      animation: animation || null,
-      meta: {
-        originalSource: item && typeof item.raw === "string" ? item.raw : "",
-        sourceRange:
-          item && typeof item.start === "number" && typeof item.end === "number"
-            ? [item.start, item.end]
-            : null,
-      },
-    };
-  }
-
-  function appendQBehaviorDefinitionToNode(targetNode, item, scopedMaps) {
-    if (!targetNode || typeof targetNode !== "object") {
-      return;
-    }
-    if (!targetNode.meta || typeof targetNode.meta !== "object") {
-      targetNode.meta = {};
-    }
-    if (!Array.isArray(targetNode.meta.__qhtmlBehaviors)) {
-      targetNode.meta.__qhtmlBehaviors = [];
-    }
-    const behavior = convertBehaviorDefinitionItem(item, scopedMaps);
-    const key = behavior.normalizedPropertyName || normalizePropertyName(behavior.propertyName);
-    for (let i = 0; i < targetNode.meta.__qhtmlBehaviors.length; i += 1) {
-      const existing = targetNode.meta.__qhtmlBehaviors[i];
-      const existingKey = existing && (existing.normalizedPropertyName || normalizePropertyName(existing.propertyName));
-      if (existingKey && existingKey === key) {
-        throw new Error("Duplicate behavior for property '" + behavior.propertyName + "'.");
-      }
-    }
-    targetNode.meta.__qhtmlBehaviors.push(behavior);
-  }
-
-  function extractQBindCssPropertyName(expression) {
-    const source = String(expression || "").trim();
-    if (!source) {
-      return "";
-    }
-    const patterns = [
-      /^this\.component\.([A-Za-z_$][A-Za-z0-9_$-]*)$/,
-      /^component\.([A-Za-z_$][A-Za-z0-9_$-]*)$/,
-      /^this\.([A-Za-z_$][A-Za-z0-9_$-]*)$/,
-      /^([A-Za-z_$][A-Za-z0-9_$-]*)$/,
-    ];
-    for (let i = 0; i < patterns.length; i += 1) {
-      const match = source.match(patterns[i]);
-      if (match && match[1]) {
-        return String(match[1] || "").trim();
-      }
-    }
-    return "";
-  }
-
-  function createQBindCssDefinition(item) {
-    const propertyExpression = String(item && item.propertyExpression || "").trim();
-    const targetExpression = String(item && item.targetExpression || "").trim();
-    const propertyName = extractQBindCssPropertyName(propertyExpression);
-    return {
-      propertyName: propertyName,
-      normalizedPropertyName: normalizePropertyName(propertyName),
-      propertyExpression: propertyExpression,
-      targetExpression: targetExpression,
-      body: String(item && item.body || ""),
-      raw: String(item && item.raw || ""),
-      meta: {
-        originalSource: String(item && item.raw || ""),
-        sourceRange:
-          item && typeof item.start === "number" && typeof item.end === "number"
-            ? [item.start, item.end]
-            : null,
-      },
-    };
-  }
-
   function convertScopedObjectItemsToPlainValue(items, scopedMaps, visitedRefs) {
     const out = {};
     const itemList = Array.isArray(items) ? items : [];
@@ -10062,6 +9397,126 @@
     return value;
   }
 
+  function normalizeBehaviorAnimationSelector(selector) {
+    const normalized = String(selector || "").trim().toLowerCase();
+    if (normalized === "q-property-animation" || normalized === "propertyanimation" || normalized === "property-animation") {
+      return "q-property-animation";
+    }
+    return "";
+  }
+
+  function convertBehaviorAnimationItem(item) {
+    if (!item || item.type !== "Element") {
+      return null;
+    }
+    const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+    if (selectors.length !== 1) {
+      return null;
+    }
+    const animationType = normalizeBehaviorAnimationSelector(selectors[0]);
+    if (!animationType) {
+      return null;
+    }
+    const config = {
+      type: animationType,
+    };
+    const hooks = {};
+    const nestedItems = Array.isArray(item.items) ? item.items : [];
+    for (let i = 0; i < nestedItems.length; i += 1) {
+      const child = nestedItems[i];
+      if (!child) {
+        continue;
+      }
+      if (child.type === "Property") {
+        const assignment = parseAssignmentName(child.name);
+        const key = normalizePropertyName(assignment.name);
+        if (!key) {
+          continue;
+        }
+        config[key] = coercePropertyValue(child.value);
+        continue;
+      }
+      if (child.type === "EventBlock") {
+        const hookName = String(child.name || "").trim().toLowerCase();
+        if (hookName) {
+          hooks[hookName] = {
+            name: String(child.name || "").trim(),
+            script: String(child.script || ""),
+            parameters: Array.isArray(child.parameters) ? child.parameters.slice() : [],
+            thenBodies: Array.isArray(child.thenBodies) ? child.thenBodies.slice() : [],
+            raw: typeof child.raw === "string" ? child.raw : "",
+          };
+        }
+        continue;
+      }
+      if (child.type === "Element") {
+        throw new Error("behavior q-property-animation does not support nested animation children.");
+      }
+    }
+    if (Object.keys(hooks).length > 0) {
+      config.hooks = hooks;
+    }
+    return config;
+  }
+
+  function convertBehaviorDefinitionItem(item) {
+    const propertyName = String(item && item.propertyName || "").trim();
+    if (!propertyName) {
+      throw new Error("behavior requires a property name.");
+    }
+    const normalizedPropertyName = normalizePropertyName(propertyName);
+    const nestedItems = Array.isArray(item.items) ? item.items : [];
+    const animationItems = [];
+    for (let i = 0; i < nestedItems.length; i += 1) {
+      const nested = nestedItems[i];
+      if (!nested || nested.type !== "Element") {
+        continue;
+      }
+      animationItems.push(nested);
+    }
+    if (animationItems.length !== 1) {
+      throw new Error("behavior on " + propertyName + " requires exactly one child animation block.");
+    }
+    const animation = convertBehaviorAnimationItem(animationItems[0]);
+    if (!animation) {
+      throw new Error("behavior on " + propertyName + " only supports q-property-animation.");
+    }
+    return {
+      propertyName: propertyName,
+      normalizedPropertyName: normalizedPropertyName,
+      animation: animation,
+      meta: {
+        originalSource: item && typeof item.raw === "string" ? item.raw : "",
+        sourceRange:
+          item && typeof item.start === "number" && typeof item.end === "number"
+            ? [item.start, item.end]
+            : null,
+      },
+    };
+  }
+
+  function appendQBehaviorDefinitionToNode(targetNode, item) {
+    if (!targetNode || typeof targetNode !== "object") {
+      return;
+    }
+    if (!targetNode.meta || typeof targetNode.meta !== "object") {
+      targetNode.meta = {};
+    }
+    if (!Array.isArray(targetNode.meta.__qhtmlBehaviors)) {
+      targetNode.meta.__qhtmlBehaviors = [];
+    }
+    const behavior = convertBehaviorDefinitionItem(item);
+    const key = behavior.normalizedPropertyName || normalizePropertyName(behavior.propertyName);
+    for (let i = 0; i < targetNode.meta.__qhtmlBehaviors.length; i += 1) {
+      const existing = targetNode.meta.__qhtmlBehaviors[i];
+      const existingKey = existing && (existing.normalizedPropertyName || normalizePropertyName(existing.propertyName));
+      if (existingKey && existingKey === key) {
+        throw new Error("Duplicate behavior for property '" + behavior.propertyName + "'.");
+      }
+    }
+    targetNode.meta.__qhtmlBehaviors.push(behavior);
+  }
+
   function applyPropertyToElement(elementNode, prop, scopedMaps) {
     const assignment = parseAssignmentName(prop.name);
     const key = normalizePropertyName(assignment.name);
@@ -10187,19 +9642,11 @@
         set.add(slotName);
       }
 
-      if (core.NODE_TYPES.slotDefault && node.kind === core.NODE_TYPES.slotDefault) {
-        const slotName = typeof node.name === "string" && node.name.trim() ? String(node.name).trim() : "default";
-        set.add(slotName);
-      }
-
       if (Array.isArray(node.children) && node.children.length > 0) {
         collectSlotNamesFromNodes(node.children, set);
       }
       if (Array.isArray(node.templateNodes) && node.templateNodes.length > 0) {
         collectSlotNamesFromNodes(node.templateNodes, set);
-      }
-      if (Array.isArray(node.slotDefaults) && node.slotDefaults.length > 0) {
-        collectSlotNamesFromNodes(node.slotDefaults, set);
       }
       const slotNodes = readNodeSlots(node);
       if (slotNodes.length > 0) {
@@ -10248,9 +9695,6 @@
     const knownSlotNames = definitionNode && Array.isArray(definitionNode.templateNodes)
       ? collectSlotNamesFromNodes(definitionNode.templateNodes)
       : new Set();
-    if (definitionNode && Array.isArray(definitionNode.slotDefaults)) {
-      collectSlotNamesFromNodes(definitionNode.slotDefaults, knownSlotNames);
-    }
 
     function hasKnownSlotName(name) {
       const slotName = String(name || "").trim();
@@ -10282,13 +9726,6 @@
       fills.set(key, bucket);
     }
 
-    function ensureFill(slotName) {
-      const key = String(slotName || "default").trim() || "default";
-      if (!fills.has(key)) {
-        fills.set(key, []);
-      }
-    }
-
     function pushElementAsSlotFill(slotName, child) {
       if (Array.isArray(child.children) && child.children.length > 0) {
         for (let j = 0; j < child.children.length; j += 1) {
@@ -10302,7 +9739,7 @@
           pushFill(slotName, textNode);
         }
       } else {
-        ensureFill(slotName);
+        pushFill(slotName, child);
       }
     }
 
@@ -10585,16 +10022,6 @@
     );
   }
 
-  function isViewportDefinitionNode(node) {
-    return !!(
-      node &&
-      typeof node === "object" &&
-      core.NODE_TYPES &&
-      core.NODE_TYPES.viewport &&
-      node.kind === core.NODE_TYPES.viewport
-    );
-  }
-
   function normalizeStructFieldName(value) {
     const source = String(value || "").trim();
     if (!source) {
@@ -10780,101 +10207,6 @@
     return structNode;
   }
 
-  const VIEWPORT_CONSTRAINT_NAMES = new Set([
-    "minWidth",
-    "minHeight",
-    "maxWidth",
-    "maxHeight",
-    "x",
-    "y",
-    "width",
-    "height",
-    "scale",
-    "offsetLeft",
-    "offsetTop",
-    "right",
-    "bottom",
-    "type",
-  ]);
-
-  function normalizeViewportConstraintName(value) {
-    const raw = String(value || "").trim();
-    if (!raw) {
-      return "";
-    }
-    const assignment = parseAssignmentName(raw);
-    const name = String(assignment.name || raw).trim();
-    if (!name) {
-      return "";
-    }
-    const lower = name.toLowerCase();
-    if (lower === "minwidth" || lower === "min-width") {
-      return "minWidth";
-    }
-    if (lower === "minheight" || lower === "min-height") {
-      return "minHeight";
-    }
-    if (lower === "maxwidth" || lower === "max-width") {
-      return "maxWidth";
-    }
-    if (lower === "maxheight" || lower === "max-height") {
-      return "maxHeight";
-    }
-    if (lower === "offsetleft" || lower === "offset-left") {
-      return "offsetLeft";
-    }
-    if (lower === "offsettop" || lower === "offset-top") {
-      return "offsetTop";
-    }
-    for (const candidate of VIEWPORT_CONSTRAINT_NAMES) {
-      if (String(candidate).toLowerCase() === lower) {
-        return candidate;
-      }
-    }
-    return "";
-  }
-
-  function readViewportConstraintsFromAstItems(items, ownerLabel) {
-    const constraints = {};
-    const list = Array.isArray(items) ? items : [];
-    for (let i = 0; i < list.length; i += 1) {
-      const item = list[i];
-      if (!item || typeof item !== "object") {
-        continue;
-      }
-      if (item.type !== "Property") {
-        const typeName = String(item.type || "").trim() || "item";
-        throw new Error("q-viewport only allows property entries in " + ownerLabel + "; found " + typeName + ".");
-      }
-      const name = normalizeViewportConstraintName(item.name);
-      if (!name) {
-        continue;
-      }
-      constraints[name] = coercePropertyValue(item.value);
-    }
-    return constraints;
-  }
-
-  function buildViewportNodeFromAst(astElement) {
-    const viewportId = String(astElement && astElement.instanceAlias || "").trim();
-    if (!viewportId) {
-      throw new Error("q-viewport definition requires a name.");
-    }
-    const viewportNode = core.createViewportNode({
-      viewportId: viewportId,
-      constraints: readViewportConstraintsFromAstItems(astElement.items, "q-viewport '" + viewportId + "'"),
-      meta: {
-        originalSource: astElement.raw || "",
-        sourceRange:
-          typeof astElement.start === "number" && typeof astElement.end === "number"
-            ? [astElement.start, astElement.end]
-            : null,
-      },
-    });
-    applyKeywordAliasesToNode(viewportNode, astElement.keywords);
-    return viewportNode;
-  }
-
   function convertElementInvocationToStructInstance(elementNode, definitionNode) {
     const instanceMeta = Object.assign({}, elementNode.meta || {});
     const instanceAlias =
@@ -10904,26 +10236,6 @@
     });
   }
 
-  function convertElementInvocationToViewportInstance(elementNode, definitionNode) {
-    const viewportId = String(definitionNode.viewportId || definitionNode.componentId || elementNode.tagName || "")
-      .trim()
-      .toLowerCase();
-    return core.createViewportInstanceNode({
-      viewportId: viewportId,
-      componentId: viewportId,
-      tagName: String(elementNode.tagName || definitionNode.viewportId || definitionNode.componentId || "q-viewport")
-        .trim()
-        .toLowerCase(),
-      constraints: Object.assign({}, definitionNode.constraints || {}),
-      children: Array.isArray(elementNode.children) ? elementNode.children : [],
-      selectorMode: elementNode.selectorMode || "single",
-      selectorChain: Array.isArray(elementNode.selectorChain)
-        ? elementNode.selectorChain.slice()
-        : [String(elementNode.tagName || definitionNode.viewportId || "").trim().toLowerCase()],
-      meta: Object.assign({}, elementNode.meta || {}),
-    });
-  }
-
   function buildDefinitionRegistry(nodes) {
     const registry = new Map();
     const list = Array.isArray(nodes) ? nodes : [];
@@ -10943,19 +10255,13 @@
         if (key) {
           registry.set(key, node);
         }
-      } else if (isViewportDefinitionNode(node)) {
-        const key = String(node.viewportId || node.componentId || "").trim().toLowerCase();
-        if (key) {
-          registry.set(key, node);
-        }
       }
     }
 
     return registry;
   }
 
-  function normalizeNodeForDefinitions(node, definitionRegistry, options) {
-    const normalizeOptions = options && typeof options === "object" ? options : {};
+  function normalizeNodeForDefinitions(node, definitionRegistry) {
     if (!node || typeof node !== "object") {
       return node;
     }
@@ -10974,27 +10280,16 @@
       for (let si = 0; si < targetNode.meta.__qhtmlStateMachine.states.length; si += 1) {
         const state = targetNode.meta.__qhtmlStateMachine.states[si];
         if (state && Array.isArray(state.nodes)) {
-          state.nodes = normalizeNodesForDefinitions(state.nodes, definitionRegistry, normalizeOptions);
+          state.nodes = normalizeNodesForDefinitions(state.nodes, definitionRegistry);
         }
       }
     }
 
-    if (node.kind === core.NODE_TYPES.component || isStructDefinitionNode(node) || isViewportDefinitionNode(node)) {
+    if (node.kind === core.NODE_TYPES.component || isStructDefinitionNode(node)) {
       if (Array.isArray(node.templateNodes)) {
-        node.templateNodes = normalizeNodesForDefinitions(
-          node.templateNodes,
-          definitionRegistry,
-          Object.assign({}, normalizeOptions, { deferUnknownTypedInstances: true })
-        );
+        node.templateNodes = normalizeNodesForDefinitions(node.templateNodes, definitionRegistry);
       }
       normalizeStateMachineMeta(node);
-      return node;
-    }
-
-    if (core.NODE_TYPES.viewportInstance && node.kind === core.NODE_TYPES.viewportInstance) {
-      if (Array.isArray(node.children)) {
-        node.children = normalizeNodesForDefinitions(node.children, definitionRegistry, normalizeOptions);
-      }
       return node;
     }
 
@@ -11004,7 +10299,7 @@
       node.meta.__qhtmlStateMachineComponent &&
       typeof node.meta.__qhtmlStateMachineComponent === "object"
     ) {
-      normalizeNodeForDefinitions(node.meta.__qhtmlStateMachineComponent, definitionRegistry, normalizeOptions);
+      normalizeNodeForDefinitions(node.meta.__qhtmlStateMachineComponent, definitionRegistry);
       normalizeStateMachineMeta(node);
     }
 
@@ -11020,24 +10315,24 @@
       for (let i = 0; i < slotNodes.length; i += 1) {
         const slotNode = slotNodes[i];
         if (slotNode && slotNode.kind === core.NODE_TYPES.slot && Array.isArray(slotNode.children)) {
-          slotNode.children = normalizeNodesForDefinitions(slotNode.children, definitionRegistry, normalizeOptions);
+          slotNode.children = normalizeNodesForDefinitions(slotNode.children, definitionRegistry);
         }
       }
       if (Array.isArray(node.children)) {
-        node.children = normalizeNodesForDefinitions(node.children, definitionRegistry, normalizeOptions);
+        node.children = normalizeNodesForDefinitions(node.children, definitionRegistry);
       }
       return node;
     }
 
     if (node.kind === core.NODE_TYPES.slot && Array.isArray(node.children)) {
-      node.children = normalizeNodesForDefinitions(node.children, definitionRegistry, normalizeOptions);
+      node.children = normalizeNodesForDefinitions(node.children, definitionRegistry);
       return node;
     }
 
     if (node.kind === core.NODE_TYPES.element) {
       normalizeStateMachineMeta(node);
       if (Array.isArray(node.children)) {
-        node.children = normalizeNodesForDefinitions(node.children, definitionRegistry, normalizeOptions);
+        node.children = normalizeNodesForDefinitions(node.children, definitionRegistry);
       }
       const tag = String(node.tagName || "").trim().toLowerCase();
       if (LAYOUT_KEYWORDS.has(tag)) {
@@ -11057,22 +10352,12 @@
           : "";
       if (tag && tag !== "slot" && definitionRegistry.has(tag)) {
         const definitionNode = definitionRegistry.get(tag);
-        if (isViewportDefinitionNode(definitionNode)) {
-          return convertElementInvocationToViewportInstance(node, definitionNode);
-        }
         if (isStructDefinitionNode(definitionNode)) {
           return convertElementInvocationToStructInstance(node, definitionNode);
         }
         return convertElementInvocationToInstance(node, definitionNode, definitionRegistry);
       }
       if (instanceAlias) {
-        if (normalizeOptions.deferUnknownTypedInstances) {
-          if (!node.meta || typeof node.meta !== "object") {
-            node.meta = {};
-          }
-          node.meta.__qhtmlDeferredTypedInstance = true;
-          return node;
-        }
         throw new Error("Named typed instance syntax requires a known instantiable definition: '" + tag + "'.");
       }
       return node;
@@ -11081,11 +10366,11 @@
     return node;
   }
 
-  function normalizeNodesForDefinitions(nodes, definitionRegistry, options) {
+  function normalizeNodesForDefinitions(nodes, definitionRegistry) {
     const out = [];
     const list = Array.isArray(nodes) ? nodes : [];
     for (let i = 0; i < list.length; i += 1) {
-      const normalized = normalizeNodeForDefinitions(list[i], definitionRegistry, options);
+      const normalized = normalizeNodeForDefinitions(list[i], definitionRegistry);
       if (normalized) {
         out.push(normalized);
       }
@@ -11307,14 +10592,6 @@
     return {
       senderExpression: source.trim(),
       targetExpression: "",
-    };
-  }
-
-  function parseQBindCssDefinitionBody(bodyText) {
-    const parsed = parseQConnectDefinitionBody(bodyText);
-    return {
-      propertyExpression: parsed.senderExpression,
-      targetExpression: parsed.targetExpression,
     };
   }
 
@@ -11741,8 +11018,7 @@
       item.declarations,
       item.classes,
       item.painters,
-      item.transitions,
-      item.pathAnimations
+      item.transitions
     );
   }
 
@@ -11816,8 +11092,7 @@
           anonymousStyle.declarations,
           anonymousStyle.classes,
           anonymousStyle.painters,
-          anonymousStyle.transitions,
-          anonymousStyle.pathAnimations
+          anonymousStyle.transitions
         );
       }
       if (!selector) {
@@ -12843,16 +12118,8 @@
         throw new Error("q-wasm is only valid inside q-component definitions.");
       }
       if (item.type === "QBehaviorDefinition") {
-        appendQBehaviorDefinitionToNode(targetElement, item, {
-          qArrays: qArrayContext,
-          qObjects: qObjectContext,
-          qModels: qModelContext,
-          repeaterScope: repeaterScope,
-        });
+        appendQBehaviorDefinitionToNode(targetElement, item);
         continue;
-      }
-      if (item.type === "QBindCssDefinition") {
-        throw new Error("q-bind-css is only valid inside q-component definitions.");
       }
       if (item.type === "QPropertyBlock") {
         const names = Array.isArray(item.properties) ? item.properties : [];
@@ -12900,10 +12167,7 @@
           if (!targetElement.meta || typeof targetElement.meta !== "object") {
             targetElement.meta = {};
           }
-          targetElement.meta.__qhtmlAnchorRules = mergeQAnchorRuleLists(
-            targetElement.meta.__qhtmlAnchorRules,
-            anchorRules
-          );
+          targetElement.meta.__qhtmlAnchorRules = anchorRules.slice();
           continue;
         }
       }
@@ -13134,12 +12398,6 @@
     const componentProperties = [];
     const componentPropertiesSeen = new Set();
     const templateNodes = [];
-    const slotDefaults = [];
-    const slotDefaultIndex = new Map();
-    const componentBehaviors = [];
-    const componentBehaviorNamesSeen = new Set();
-    const cssBindings = [];
-    const pendingCssBindings = [];
     const propertyDefinitions = [];
     const methods = [];
     const signalDeclarations = [];
@@ -13147,7 +12405,8 @@
     const aliasDeclarations = [];
     const varDeclarations = [];
     const switchDeclarations = [];
-    const contextDeclarations = [];
+    const componentBehaviors = [];
+    const componentBehaviorNamesSeen = new Set();
     let componentLoggerCategories = null;
     let componentPerfCategories = null;
     let componentAnchorRules = null;
@@ -13376,23 +12635,13 @@
         if (!supportsRuntimeDefinition) {
           continue;
         }
-        const behavior = convertBehaviorDefinitionItem(item, scopedContext);
+        const behavior = convertBehaviorDefinitionItem(item);
         const behaviorKey = behavior.normalizedPropertyName || normalizePropertyName(behavior.propertyName);
         if (componentBehaviorNamesSeen.has(behaviorKey)) {
           throw new Error("Duplicate behavior for property '" + behavior.propertyName + "'.");
         }
         componentBehaviorNamesSeen.add(behaviorKey);
         componentBehaviors.push(behavior);
-        continue;
-      }
-      if (item.type === "QBindCssDefinition") {
-        if (definitionType !== "component") {
-          throw new Error("q-bind-css is only valid inside q-component definitions.");
-        }
-        if (!supportsRuntimeDefinition) {
-          continue;
-        }
-        pendingCssBindings.push(item);
         continue;
       }
       if (item.type === "Element") {
@@ -13408,7 +12657,7 @@
         }
         const anchorRules = extractQAnchorRulesFromElement(item);
         if (anchorRules !== null) {
-          componentAnchorRules = mergeQAnchorRuleLists(componentAnchorRules, anchorRules);
+          componentAnchorRules = anchorRules.slice();
           continue;
         }
       }
@@ -13465,37 +12714,6 @@
             uuid: declarationMeta.uuid,
             meta: declarationMeta,
           });
-        }
-        continue;
-      }
-      if (item.type === "QSlotDefaultDefinition") {
-        const slotName = String(item.name || "").trim() || "default";
-        const slotKey = slotName.toLowerCase();
-        const defaultChildren = [];
-        const nestedItems = Array.isArray(item.items) ? item.items : [];
-        for (let j = 0; j < nestedItems.length; j += 1) {
-          const resolvedNodes = convertAstItemToNodes(nestedItems[j], source, scopedContext);
-          for (let ni = 0; ni < resolvedNodes.length; ni += 1) {
-            defaultChildren.push(resolvedNodes[ni]);
-          }
-        }
-        const defaultNode = core.createSlotDefaultNode({
-          name: slotName,
-          children: defaultChildren,
-          meta: {
-            originalSource: item.raw || "",
-            sourceRange:
-              typeof item.start === "number" && typeof item.end === "number"
-                ? [item.start, item.end]
-                : null,
-          },
-        });
-        applyKeywordAliasesToNode(defaultNode, item.keywords);
-        if (slotDefaultIndex.has(slotKey)) {
-          slotDefaults[slotDefaultIndex.get(slotKey)] = defaultNode;
-        } else {
-          slotDefaultIndex.set(slotKey, slotDefaults.length);
-          slotDefaults.push(defaultNode);
         }
         continue;
       }
@@ -13605,30 +12823,6 @@
         }
         continue;
       }
-      if (item.type === "QContextDeclaration") {
-        if (supportsRuntimeDefinition) {
-          const contextSources = Array.isArray(item.sources)
-            ? item.sources.map(function mapContextSource(entry) { return String(entry || "").trim(); }).filter(Boolean)
-            : parseQContextSourceList(item.body);
-          const declarationMeta = createDeclarationMeta({
-            declarationKind: "q-context",
-            declarationName: "q-context",
-          });
-          contextDeclarations.push({
-            body: String(item.body || ""),
-            sources: contextSources,
-            uuid: declarationMeta.uuid,
-            meta: Object.assign({}, declarationMeta, {
-              originalSource: item.raw || "",
-              sourceRange:
-                typeof item.start === "number" && typeof item.end === "number"
-                  ? [item.start, item.end]
-                  : null,
-            }),
-          });
-        }
-        continue;
-      }
       if (item.type === "QWasmBlock") {
         if (definitionType !== "component") {
           throw new Error("q-wasm is only valid inside q-component definitions.");
@@ -13719,33 +12913,12 @@
       }
     }
 
-    for (let i = 0; i < pendingCssBindings.length; i += 1) {
-      const binding = createQBindCssDefinition(pendingCssBindings[i]);
-      if (!binding.propertyName || !binding.normalizedPropertyName) {
-        throw new Error("q-bind-css first expression must reference a q-property on the current component.");
-      }
-      if (!componentPropertiesSeen.has(binding.normalizedPropertyName)) {
-        throw new Error(
-          "q-bind-css references undeclared q-property '" +
-            binding.propertyName +
-            "' on component '" +
-            (componentId || "(anonymous)") +
-            "'."
-        );
-      }
-      if (!binding.targetExpression) {
-        throw new Error("q-bind-css requires a target CSS reference.");
-      }
-      cssBindings.push(binding);
-    }
-
     const componentNode = core.createComponentNode({
       componentId: componentId,
       extendsComponentIds: extendsComponentIds,
       extendsComponentId: extendsComponentIds.length > 0 ? extendsComponentIds[0] : "",
       definitionType: definitionType,
       templateNodes: templateNodes,
-      slotDefaults: slotDefaults,
       methods: methods,
       propertyDefinitions: propertyDefinitions,
       signalDeclarations: signalDeclarations,
@@ -13786,18 +12959,6 @@
         componentNode.meta = {};
       }
       componentNode.meta.__qhtmlBehaviors = componentBehaviors.slice();
-    }
-    if (cssBindings.length > 0) {
-      if (!componentNode.meta || typeof componentNode.meta !== "object") {
-        componentNode.meta = {};
-      }
-      componentNode.meta.__qhtmlCssBindings = cssBindings.slice();
-    }
-    if (contextDeclarations.length > 0) {
-      if (!componentNode.meta || typeof componentNode.meta !== "object") {
-        componentNode.meta = {};
-      }
-      componentNode.meta.__qhtmlContextDeclarations = contextDeclarations.slice();
     }
     if (Object.keys(componentEventAttributeParams).length > 0) {
       if (!componentNode.meta || typeof componentNode.meta !== "object") {
@@ -14033,14 +13194,8 @@
 
     if (selectors.length === 1) {
       const definitionSelector = selectors[0].toLowerCase();
-      if (definitionSelector === "q-slot-default") {
-        throw new Error("q-slot-default is only valid inside q-component definitions.");
-      }
       if (definitionSelector === "q-struct") {
         return buildStructNodeFromAst(astElement);
-      }
-      if (definitionSelector === "q-viewport") {
-        return buildViewportNodeFromAst(astElement);
       }
       if (definitionSelector === "q-component" || definitionSelector === "q-worker") {
         return buildComponentNodeFromAst(astElement, source, {
@@ -14306,10 +13461,6 @@
       return buildQStateMachineNodeFromAst(item, source, context);
     }
 
-    if (item.type === "QSlotDefaultDefinition") {
-      throw new Error("q-slot-default is only valid inside q-component definitions.");
-    }
-
     if (item.type === "QCanvasDefinition") {
       const canvasNode = buildQCanvasKeywordNode(item);
       applyKeywordAliasesToNode(canvasNode, item.keywords);
@@ -14376,31 +13527,6 @@
       };
       applyKeywordAliasesToNode(switchNode, item.keywords);
       return switchNode;
-    }
-
-    if (item.type === "QContextDeclaration") {
-      const contextSources = Array.isArray(item.sources)
-        ? item.sources.map(function mapContextSource(entry) { return String(entry || "").trim(); }).filter(Boolean)
-        : parseQContextSourceList(item.body);
-      const declarationMeta = createDeclarationMeta({
-        declarationKind: "q-context",
-        declarationName: "q-context",
-      });
-      const contextNode = {
-        kind: "q-context",
-        body: String(item.body || ""),
-        sources: contextSources,
-        uuid: declarationMeta.uuid,
-        meta: Object.assign({}, declarationMeta, {
-          originalSource: item.raw || "",
-          sourceRange:
-            typeof item.start === "number" && typeof item.end === "number"
-              ? [item.start, item.end]
-              : null,
-        }),
-      };
-      applyKeywordAliasesToNode(contextNode, item.keywords);
-      return contextNode;
     }
 
     if (item.type === "QTimerDefinition") {
@@ -14633,9 +13759,6 @@
           });
         }
         continue;
-      }
-      if (item.type === "QBindCssDefinition") {
-        throw new Error("q-bind-css is only valid inside q-component definitions.");
       }
       if (item.type === "LifecycleBlock" && item.isLifecycle) {
         lifecycleScripts.push({
@@ -15014,26 +14137,6 @@
     return lines.join("\n");
   }
 
-  function serializeQContextDeclarationBlock(contextDecl, indentLevel) {
-    const indent = "  ".repeat(indentLevel);
-    if (!contextDecl || typeof contextDecl !== "object") {
-      return "";
-    }
-    const sources = Array.isArray(contextDecl.sources)
-      ? contextDecl.sources.map(function mapQContextSource(entry) { return String(entry || "").trim(); }).filter(Boolean)
-      : parseQContextSourceList(contextDecl.body);
-    const body = sources.length > 0 ? sources.join(" ") : String(contextDecl.body || "").trim();
-    const lines = [indent + "q-context {"];
-    if (body) {
-      const chunks = body.split("\n");
-      for (let i = 0; i < chunks.length; i += 1) {
-        lines.push(indent + "  " + chunks[i]);
-      }
-    }
-    lines.push(indent + "}");
-    return lines.join("\n");
-  }
-
   function serializeQAnchorRulesBlock(anchorRules, indentLevel) {
     const indent = "  ".repeat(indentLevel);
     const list = Array.isArray(anchorRules) ? anchorRules : [];
@@ -15151,106 +14254,6 @@
     }
     lines.push(indent + "}");
     return lines.join("\n");
-  }
-
-  function serializeSlotDefaultNode(slotDefaultNode, indentLevel) {
-    const indent = "  ".repeat(indentLevel);
-    const slotName =
-      slotDefaultNode && typeof slotDefaultNode.name === "string" && slotDefaultNode.name.trim()
-        ? slotDefaultNode.name
-        : "default";
-    const lines = [indent + "q-slot-default " + slotName + " {"];
-    const children = Array.isArray(slotDefaultNode && slotDefaultNode.children) ? slotDefaultNode.children : [];
-    for (let i = 0; i < children.length; i += 1) {
-      lines.push(serializeNode(children[i], indentLevel + 1));
-    }
-    lines.push(indent + "}");
-    return lines.join("\n");
-  }
-
-  function serializeQBehaviorBlock(behavior, indentLevel) {
-    const indent = "  ".repeat(indentLevel);
-    const propertyName = String(behavior && behavior.propertyName || "").trim();
-    if (!propertyName) {
-      return "";
-    }
-    const animation = behavior && behavior.animation && typeof behavior.animation === "object" ? behavior.animation : null;
-    const animationType = animation && String(animation.type || "").trim() ? String(animation.type || "").trim() : "NumberAnimation";
-    const lines = [indent + "behavior on " + propertyName + " {"];
-    if (animation) {
-      lines.push(serializeBehaviorAnimationBlock(animation, indentLevel + 1));
-    }
-    lines.push(indent + "}");
-    return lines.join("\n");
-  }
-
-  function serializeBehaviorAnimationBlock(animation, indentLevel) {
-    const indent = "  ".repeat(indentLevel);
-    const animationType = animation && String(animation.type || "").trim() ? String(animation.type || "").trim() : "NumberAnimation";
-    const lines = [indent + animationType + " {"];
-    const keys = Object.keys(animation || {});
-    for (let i = 0; i < keys.length; i += 1) {
-      const key = keys[i];
-      if (!key || key === "type" || key === "children" || key === "hooks") {
-        continue;
-      }
-      lines.push(indent + "  " + key + ": " + serializeAssignmentValue(animation[key]));
-    }
-    const hooks = animation && animation.hooks && typeof animation.hooks === "object" ? animation.hooks : {};
-    Object.keys(hooks).forEach(function serializeAnimationHook(key) {
-      const hook = hooks[key] || {};
-      const name = String(hook.name || key || "").trim();
-      const script = String(hook.script || "");
-      if (!name || !script.trim()) {
-        return;
-      }
-      lines.push(indent + "  " + name + " {");
-      const chunks = script.split("\n");
-      for (let i = 0; i < chunks.length; i += 1) {
-        lines.push(indent + "    " + chunks[i]);
-      }
-      lines.push(indent + "  }");
-    });
-    const children = Array.isArray(animation && animation.children) ? animation.children : [];
-    for (let i = 0; i < children.length; i += 1) {
-      lines.push(serializeBehaviorAnimationBlock(children[i], indentLevel + 1));
-    }
-    lines.push(indent + "}");
-    return lines.join("\n");
-  }
-
-  function serializeQBehaviorBlocksFromNode(node, indentLevel) {
-    const behaviors =
-      node && node.meta && Array.isArray(node.meta.__qhtmlBehaviors)
-        ? node.meta.__qhtmlBehaviors
-        : [];
-    const lines = [];
-    for (let i = 0; i < behaviors.length; i += 1) {
-      const serialized = serializeQBehaviorBlock(behaviors[i], indentLevel);
-      if (serialized) {
-        lines.push(serialized);
-      }
-    }
-    return lines;
-  }
-
-  function serializeQBindCssBlocksFromNode(node, indentLevel) {
-    const bindings =
-      node && node.meta && Array.isArray(node.meta.__qhtmlCssBindings)
-        ? node.meta.__qhtmlCssBindings
-        : [];
-    const indent = "  ".repeat(indentLevel);
-    const lines = [];
-    for (let i = 0; i < bindings.length; i += 1) {
-      const binding = bindings[i] || {};
-      const propertyExpression = String(binding.propertyExpression || "").trim();
-      const targetExpression = String(binding.targetExpression || "").trim();
-      if (!propertyExpression || !targetExpression) {
-        continue;
-      }
-      lines.push(indent + "q-bind-css { " + propertyExpression + " " + targetExpression + " }");
-    }
-    return lines;
   }
 
   function serializeRepeaterPrimitiveLiteral(value) {
@@ -15439,41 +14442,6 @@
     return lines.join("\n");
   }
 
-  function serializeViewportConstraintLines(constraints, indentLevel) {
-    const indent = "  ".repeat(indentLevel);
-    const source = constraints && typeof constraints === "object" && !Array.isArray(constraints) ? constraints : {};
-    const orderedNames = [
-      "minWidth",
-      "minHeight",
-      "maxWidth",
-      "maxHeight",
-      "x",
-      "y",
-      "width",
-      "height",
-      "scale",
-      "offsetLeft",
-      "offsetTop",
-      "right",
-      "bottom",
-      "type",
-    ];
-    const emitted = new Set();
-    const lines = [];
-    function emitConstraint(name) {
-      if (!Object.prototype.hasOwnProperty.call(source, name) || emitted.has(name)) {
-        return;
-      }
-      emitted.add(name);
-      lines.push(indent + name + ": " + serializeAssignmentValue(source[name]));
-    }
-    for (let i = 0; i < orderedNames.length; i += 1) {
-      emitConstraint(orderedNames[i]);
-    }
-    Object.keys(source).forEach(emitConstraint);
-    return lines;
-  }
-
   function serializeNode(node, indentLevel) {
     const indent = "  ".repeat(indentLevel);
     if (!node || typeof node !== "object") {
@@ -15568,10 +14536,6 @@
       return serializeQSwitchDeclarationBlock(node, indentLevel);
     }
 
-    if (String(node.kind || "").trim().toLowerCase() === "q-context") {
-      return serializeQContextDeclarationBlock(node, indentLevel);
-    }
-
     function serializeStructField(field, fieldIndentLevel) {
       const fieldIndent = "  ".repeat(fieldIndentLevel);
       const name = String(field && field.name || "").trim();
@@ -15632,28 +14596,6 @@
       return lines.join("\n");
     }
 
-    if (core.NODE_TYPES.viewport && node.kind === core.NODE_TYPES.viewport) {
-      const viewportId = String(node.viewportId || node.componentId || "").trim();
-      const lines = [indent + "q-viewport " + viewportId + " {"];
-      const constraints = serializeViewportConstraintLines(node.constraints, indentLevel + 1);
-      for (let i = 0; i < constraints.length; i += 1) {
-        lines.push(constraints[i]);
-      }
-      lines.push(indent + "}");
-      return lines.join("\n");
-    }
-
-    if (core.NODE_TYPES.viewportInstance && node.kind === core.NODE_TYPES.viewportInstance) {
-      const viewportId = String(node.viewportId || node.componentId || node.tagName || "").trim().toLowerCase();
-      const lines = [indent + viewportId + " {"];
-      const children = Array.isArray(node.children) ? node.children : [];
-      for (let i = 0; i < children.length; i += 1) {
-        lines.push(serializeNode(children[i], indentLevel + 1));
-      }
-      lines.push(indent + "}");
-      return lines.join("\n");
-    }
-
     if (node.kind === core.NODE_TYPES.component) {
       const explicitDefinitionType = String(node.definitionType || "").trim().toLowerCase();
       const definitionType =
@@ -15689,14 +14631,6 @@
       if (serializedComponentAnchorRules) {
         lines.push(serializedComponentAnchorRules);
       }
-      const serializedComponentBehaviors = serializeQBehaviorBlocksFromNode(node, indentLevel + 1);
-      for (let i = 0; i < serializedComponentBehaviors.length; i += 1) {
-        lines.push(serializedComponentBehaviors[i]);
-      }
-      const serializedCssBindings = serializeQBindCssBlocksFromNode(node, indentLevel + 1);
-      for (let i = 0; i < serializedCssBindings.length; i += 1) {
-        lines.push(serializedCssBindings[i]);
-      }
       const properties = Array.isArray(node.properties) ? node.properties : [];
       if (properties.length > 0) {
         lines.push(indent + "  q-property {");
@@ -15720,17 +14654,6 @@
           const serializedPropertyDefinition = serializePropertyDefinitionBlock(node.propertyDefinitions[i], indentLevel + 1);
           if (serializedPropertyDefinition) {
             lines.push(serializedPropertyDefinition);
-          }
-        }
-      }
-      if (
-        (definitionType === "component" || definitionType === "worker" || definitionType === "template") &&
-        Array.isArray(node.slotDefaults)
-      ) {
-        for (let i = 0; i < node.slotDefaults.length; i += 1) {
-          const serializedSlotDefault = serializeSlotDefaultNode(node.slotDefaults[i], indentLevel + 1);
-          if (serializedSlotDefault) {
-            lines.push(serializedSlotDefault);
           }
         }
       }
@@ -15806,10 +14729,6 @@
 
     if (node.kind === core.NODE_TYPES.slot) {
       return serializeSlotNode(node, indentLevel);
-    }
-
-    if (core.NODE_TYPES.slotDefault && node.kind === core.NODE_TYPES.slotDefault) {
-      return serializeSlotDefaultNode(node, indentLevel);
     }
 
     if (node.kind === core.NODE_TYPES.componentInstance || node.kind === core.NODE_TYPES.templateInstance) {
@@ -15934,13 +14853,9 @@
       node && node.meta && Array.isArray(node.meta.__qhtmlAnchorRules)
         ? node.meta.__qhtmlAnchorRules
         : [];
-      const serializedElementAnchorRules = serializeQAnchorRulesBlock(elementAnchorRules, indentLevel + 1);
-      if (serializedElementAnchorRules) {
-        lines.push(serializedElementAnchorRules);
-      }
-    const serializedElementBehaviors = serializeQBehaviorBlocksFromNode(node, indentLevel + 1);
-    for (let i = 0; i < serializedElementBehaviors.length; i += 1) {
-      lines.push(serializedElementBehaviors[i]);
+    const serializedElementAnchorRules = serializeQAnchorRulesBlock(elementAnchorRules, indentLevel + 1);
+    if (serializedElementAnchorRules) {
+      lines.push(serializedElementAnchorRules);
     }
 
     const textBindings = collectNodeBindingsByTarget(node, "textcontent");

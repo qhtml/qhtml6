@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML q-worker q-timer Context Test</title>
+  <script>
+    window.QHTML_EVENT_LOOP_MODE = "queued";
+    window.__qWorkerTimerContextLogs = [];
+    window.__qWorkerTimerContextErrors = [];
+    const originalLog = console.log.bind(console);
+    const originalError = console.error.bind(console);
+    console.log = function captureWorkerTimerLog() {
+      const args = Array.prototype.slice.call(arguments);
+      window.__qWorkerTimerContextLogs.push(args.join(" "));
+      document.documentElement.setAttribute("data-qworker-timer-logs", window.__qWorkerTimerContextLogs.join("|"));
+      return originalLog.apply(console, args);
+    };
+    console.error = function captureWorkerTimerError() {
+      const args = Array.prototype.slice.call(arguments);
+      window.__qWorkerTimerContextErrors.push(args.join(" "));
+      document.documentElement.setAttribute("data-qworker-timer-errors", window.__qWorkerTimerContextErrors.join("|"));
+      return originalError.apply(console, args);
+    };
+    window.addEventListener("error", function captureWorkerTimerWindowError(event) {
+      window.__qWorkerTimerContextErrors.push(event.message || "window error");
+      document.documentElement.setAttribute("data-qworker-timer-errors", window.__qWorkerTimerContextErrors.join("|"));
+    });
+  </script>
+  <script src="dist/qhtml.js"></script>
+</head>
+<body>
+  <q-html>
+q-worker myworker {
+  q-property ballPosX: 0
+  q-property ballPosY: 0
+  function processBall() {
+    this.ballPosX = ballPosX + 1
+    this.ballPosY = ballPosY + 1
+    this.ballPos(ballPosX, ballPosY)
+  }
+  q-signal ballPos(x, y)
+}
+q-component mycomp {
+  function startProcess() {
+    compworker.processBall()
+  }
+
+  q-timer mytimer {
+    duration: 300
+    onTimeout {
+      this.component.startProcess()
+      console.log("calling worker")
+    }
+    running: true
+    repeat: true
+  }
+
+  function handleProcess(x, y) {
+    console.log("ball is now at", x, y);
+  }
+  onready { mytimer.start() }
+}
+
+myworker compworker { }
+mycomp myinst { }
+q-connect { compworker.ballPos myinst.handleProcess }
+  </q-html>
+</body>
+</html>

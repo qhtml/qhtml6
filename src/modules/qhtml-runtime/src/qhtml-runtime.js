@@ -13,7 +13,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "6.9.10";
+  const RUNTIME_VERSION = "6.9.5";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -28,7 +28,7 @@
   let runtimeQdomUuidCounter = 0;
   const qdomInstanceIds = new WeakMap();
   const qdomSlotOwnerIds = new WeakMap();
-  const COLLECTION_MUTATION_KEYS = new Set(["nodes", "children", "templateNodes", "slotDefaults", "slots"]);
+  const COLLECTION_MUTATION_KEYS = new Set(["nodes", "children", "templateNodes", "slots"]);
   const FORCED_FULL_RENDER_KEYS = new Set([
     "kind",
     "tagName",
@@ -39,7 +39,6 @@
     "nodes",
     "children",
     "templateNodes",
-    "slotDefaults",
     "slots",
     "lifecycleScripts",
     "methods",
@@ -59,7 +58,6 @@
   const QCONTEXT_SYMBOL_UUID_KEY = "__qhtmlContextSymbolUuid";
   const QCONTEXT_SYMBOL_KIND_KEY = "__qhtmlContextSymbolKind";
   const QCONTEXT_SYMBOL_HEAD_ONLY_KEY = "__qhtmlContextSymbolHeadOnly";
-  const Q_CONTEXT_OVERLAY_VALUES_KEY = "__qhtmlContextOverlayValues";
   const Q_MODEL_VIEW_INSTANCE_ATTR = "q-model-view-instance";
   const Q_MODEL_VIEW_SCOPE_TAG = "q-model-view-scope";
   const QDOM_UPDATE_EVENT_NAME = "qhtml:update";
@@ -1069,13 +1067,6 @@
     return createQModel([]);
   }
 
-  function createQPoint(xval, yval) {
-    return createQModel({
-      x: Number(xval || 0),
-      y: Number(yval || 0),
-    });
-  }
-
   function coerceQHtmlFragmentSource(source) {
     if (source == null) {
       return "";
@@ -1328,9 +1319,6 @@
     }
     if (Array.isArray(targetNode.templateNodes)) {
       out.push(targetNode.templateNodes);
-    }
-    if (Array.isArray(targetNode.slotDefaults)) {
-      out.push(targetNode.slotDefaults);
     }
     if (Array.isArray(targetNode.children)) {
       out.push(targetNode.children);
@@ -3082,18 +3070,6 @@
     return String(value[QCONTEXT_SYMBOL_KIND_KEY] || "").trim().toLowerCase();
   }
 
-  function readContextOverlayValue(target, name) {
-    const key = String(name || "").trim();
-    if (!key || !target || (typeof target !== "object" && typeof target !== "function")) {
-      return { found: false, value: undefined };
-    }
-    const store = target[Q_CONTEXT_OVERLAY_VALUES_KEY];
-    if (store && typeof store === "object" && Object.prototype.hasOwnProperty.call(store, key)) {
-      return { found: true, value: store[key] };
-    }
-    return { found: false, value: undefined };
-  }
-
   function isContextHandleHeadOnly(value) {
     return !!(isContextSymbolHandle(value) && value[QCONTEXT_SYMBOL_HEAD_ONLY_KEY] === true);
   }
@@ -3252,14 +3228,6 @@
         return { found: false, value: undefined, cycle: false };
       }
       const resolvedCursor = resolveContextHandleTarget(cursor);
-      const overlay = readContextOverlayValue(resolvedCursor, parts[i]);
-      if (overlay.found) {
-        cursor = overlay.value;
-        if (markPathResolutionVisit(cursor, context)) {
-          return { found: false, value: undefined, cycle: true };
-        }
-        continue;
-      }
       let nextValue;
       try {
         nextValue = resolvedCursor[parts[i]];
@@ -6640,6 +6608,9 @@
       return null;
     }
     const value = Object.prototype.hasOwnProperty.call(detail, "value") ? detail.value : undefined;
+    const hasPreviousValue = Object.prototype.hasOwnProperty.call(detail, "previousValue");
+    const previousValue = hasPreviousValue ? detail.previousValue : undefined;
+    const args = hasPreviousValue ? [value, previousValue] : [value];
     const componentUuid = normalizeQDomUuidValue(detail.componentUuid || detail.uuid || "");
     const signalPayload = {
       type: "signal",
@@ -6652,17 +6623,23 @@
       emitterUuid: componentUuid,
       property: propertyName,
       value: value,
-      args: [value],
-      parameters: [value],
+      previousValue: previousValue,
+      args: args,
+      parameters: args.slice(),
       source: "q-property",
       timestamp: Number.isFinite(Number(detail.timestamp)) ? Number(detail.timestamp) : Date.now(),
       params: {
         value: value,
+        previousValue: previousValue,
       },
       signalParameters: [
         {
           name: "value",
           value: value,
+        },
+        {
+          name: "previousValue",
+          value: previousValue,
         },
       ],
     };
@@ -8878,7 +8855,7 @@
         node.extendsComponentIds[i] = remapSdmlReferenceName(node.extendsComponentIds[i], idMap);
       }
     }
-    const childKeys = ["nodes", "children", "templateNodes", "slotDefaults", "slots", "__qhtmlSlotNodes", "__qhtmlRenderTree"];
+    const childKeys = ["nodes", "children", "templateNodes", "slots", "__qhtmlSlotNodes", "__qhtmlRenderTree"];
     for (let k = 0; k < childKeys.length; k += 1) {
       const key = childKeys[k];
       const list = node[key];
@@ -12064,9 +12041,6 @@
     if (Array.isArray(node.templateNodes) && node.templateNodes.length > 0) {
       out.push(node.templateNodes);
     }
-    if (Array.isArray(node.slotDefaults) && node.slotDefaults.length > 0) {
-      out.push(node.slotDefaults);
-    }
     if (Array.isArray(node.children) && node.children.length > 0) {
       out.push(node.children);
     }
@@ -12833,18 +12807,6 @@
           host: binding && binding.host ? binding.host : null,
         })
       ) {
-        continue;
-      }
-      if (
-        renderer &&
-        typeof renderer.getBehavior === "function" &&
-        typeof renderer.qSet === "function" &&
-        renderer.getBehavior(element, key)
-      ) {
-        renderer.qSet(element, key, value, {
-          source: "binding",
-          preserveBinding: true,
-        });
         continue;
       }
       element.setAttribute(key, attrValue);
@@ -15052,9 +15014,6 @@
         }
         if (Array.isArray(targetNode.templateNodes)) {
           out.push(targetNode.templateNodes);
-        }
-        if (Array.isArray(targetNode.slotDefaults)) {
-          out.push(targetNode.slotDefaults);
         }
         if (Array.isArray(targetNode.children)) {
           out.push(targetNode.children);
@@ -18737,7 +18696,7 @@
       return;
     }
     const kind = String(node.kind || "").trim().toLowerCase();
-    if (kind === "slot" || kind === "slot-default") {
+    if (kind === "slot") {
       const name = String(node.name || "default").trim() || "default";
       const key = name.toLowerCase();
       if (!seen.has(key)) {
@@ -18745,7 +18704,7 @@
         output.push(name);
       }
     }
-    const lists = [node.nodes, node.children, node.templateNodes, node.slotDefaults, node.slots];
+    const lists = [node.nodes, node.children, node.templateNodes, node.slots];
     for (let li = 0; li < lists.length; li += 1) {
       const list = lists[li];
       if (!Array.isArray(list)) {
@@ -18886,21 +18845,11 @@
     printEventLoopSnapshot: printEventLoopSnapshot,
     createQModel: createQModel,
     createQArray: createQArray,
-    createQPoint: createQPoint,
-    QPoint: createQPoint,
     createQCallback: createQCallback,
     QSignal: renderer && renderer.QSignal ? renderer.QSignal : null,
     QProperty: renderer && renderer.QProperty ? renderer.QProperty : null,
     QComponentInstance: renderer && renderer.QComponentInstance ? renderer.QComponentInstance : null,
     QVar: renderer && renderer.QVar ? renderer.QVar : null,
-    qSet: renderer && typeof renderer.qSet === "function" ? renderer.qSet : null,
-    commitProperty: renderer && typeof renderer.commitProperty === "function" ? renderer.commitProperty : null,
-    registerBehavior: renderer && typeof renderer.registerBehavior === "function" ? renderer.registerBehavior : null,
-    getBehavior: renderer && typeof renderer.getBehavior === "function" ? renderer.getBehavior : null,
-    removeBehavior: renderer && typeof renderer.removeBehavior === "function" ? renderer.removeBehavior : null,
-    BehaviorController: renderer && renderer.BehaviorController ? renderer.BehaviorController : null,
-    NumberAnimation: renderer && renderer.NumberAnimation ? renderer.NumberAnimation : null,
-    AnimationJob: renderer && renderer.AnimationJob ? renderer.AnimationJob : null,
     getQDomDataForUuid: getQDomDataForUuid,
     getQDomDataSnapshot: getQDomDataSnapshot,
     rootContext: {
@@ -18943,7 +18892,6 @@
   global.QMap = function qMapFactory(value) {
     return createQModel(value || {});
   };
-  global.QPoint = createQPoint;
   global.QCallback = createQCallback;
   if (runtimeApi.QSignal) {
     global.QSignal = runtimeApi.QSignal;

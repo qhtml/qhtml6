@@ -26,9 +26,6 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - component inheritance metadata:
       - `q-component child extends baseA extends baseB { ... }`
       - emitted as `component.extendsComponentIds` (plus legacy first entry in `component.extendsComponentId`)
-    - `q-slot-default slotName { ... }` inside component definitions:
-      - emitted as first-class QDom `kind: "slot-default"` nodes in `component.slotDefaults`
-      - serialized back to `q-slot-default slotName { ... }`
     - instance-level `q-property` declarations are retained in node metadata (`meta.__qhtmlDeclaredProperties`) and used when mapping invocation assignments/bindings into `component-instance.props`
     - inherited `q-property` declarations from multi-`extends` chains are included when mapping invocation assignments into `component-instance.props`
     - `component-instance.props` populated when invocation keys match declared component properties
@@ -40,18 +37,12 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
         - `q-canvas myCanvas { ... }`
         - normalized into a concrete `canvas` element node with `q-canvas="1"` and `q-canvas-name="myCanvas"`
         - avoids unknown-instantiable normalization errors while preserving named-canvas runtime export semantics
-      - unknown typed targets with an instance alias still throw a parse-time normalization error at normal document scope
-      - inside `q-component` definitions, unknown typed targets with an instance alias are preserved as deferred typed instances so definitions can reference types supplied later by the instance render context
+      - unknown typed targets with an instance alias throw a parse-time normalization error
     - q-struct data definitions:
       - `q-struct Name { field { defaultValue } ... }` emits QDom `kind: "struct"` with `structId` and field descriptors
       - `Name instanceName { field { overrideValue } ... }` emits QDom `kind: "struct-instance"` with alias metadata and override fields
       - struct fields accept literal strings/numbers/booleans/null, bare dot-walk bindings, and function values (`field { function() { ... } }`)
       - q-struct definitions and instances are data-only; they do not parse slots, signals, lifecycle hooks, or component runtime methods
-    - q-viewport responsive definitions:
-      - `q-viewport name { minWidth: 75vw; minHeight: 500px }` emits QDom `kind: "viewport"` with `viewportId` and `constraints`
-      - `name { ... }` emits QDom `kind: "viewport-instance"` with inherited constraints and child QDom content
-      - supported constraint/state keys are `minWidth`, `minHeight`, `maxWidth`, `maxHeight`, `x`, `y`, `width`, `height`, `scale`, `offsetLeft`, `offsetTop`, `right`, `bottom`, and `type`
-      - the visual viewport state keys are preserved on the definition for renderer/tooling use; min/max width/height are used as render gates
     - named state-machine syntax:
       - `q-state-machine machineName { stateName { ... } }`
       - emitted as a `component-instance` for component id `q-state-machine` with `q-state-machine="1"`, `q-state-machine-name`, and `meta.__qhtmlInstanceAlias`
@@ -87,13 +78,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - `q-connect { sender.signal -> target.handler }`
       - parsed in top-level, element blocks, and runtime-capable component/worker blocks
       - compiled into equivalent `onready` lifecycle connect scripts (declarative sugar over `signal.connect(handler)`)
-      - sender/target endpoints first resolve by dot-walking mounted QHTML named runtime scopes, then fall back to runtime-evaluated expressions so named aliases and `document.querySelector(...)` expressions are both supported
-      - compiled wiring connects the resolved target function identity directly so repeated lifecycle/update passes remain idempotent under `signal.connect(handler)` de-duping
-    - declarative CSS property binding:
-      - `q-bind-css { this.component.widthValue this.component.style.width }`
-      - valid only inside `q-component` definitions
-      - the first expression must reference a `q-property` declared on the same definition (`this.component.prop`, `component.prop`, `this.prop`, or `prop`)
-      - emitted as component metadata in `component.meta.__qhtmlCssBindings` and serialized back to `q-bind-css { source target }`
+      - sender/target expressions are kept as runtime-evaluated expressions, so named aliases and `document.querySelector(...)` expressions are both supported
     - callback declarations:
       - top-level `q-callback name(param1, ...) { ... }` emitted as QDom `kind: "callback"` nodes
       - component-local `q-callback name(param1, ...) { ... }` emitted in `component.callbackDeclarations`
@@ -105,10 +90,6 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - top-level `q-switch name { key: { expression } *: defaultExpression }` emitted as QDom `kind: "q-switch"` nodes
       - component-local `q-switch` declarations emitted in `component.switchDeclarations`
       - case bodies are preserved as JavaScript source text for runtime on-demand evaluation
-    - q-context declarations:
-      - top-level `q-context { sourceA sourceB.child }` emitted as QDom `kind: "q-context"` nodes with `sources`
-      - component-local `q-context` declarations emitted in `component.meta.__qhtmlContextDeclarations`
-      - context sources are preserved as dot-walk source strings for render-time QContext composition
     - q-perf directives:
       - `q-perf { q-timer q-signal q-property q-worker function }` is direct-child metadata only and does not render a DOM node
       - normal element children store flags in `node.meta.__qhtmlPerfFlags`
@@ -117,24 +98,11 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - flags are not inherited by descendants; each measured node needs its own direct `q-perf` child
     - q-anchor directives:
       - `q-anchor { ... }` is direct-child metadata only and does not render a DOM node
-      - directional shorthand directives are also direct-child metadata: `q-anchor-left`, `q-anchor-right`, `q-anchor-top`, `q-anchor-bottom`, `q-anchor-center`, `q-anchor-hcenter`, and `q-anchor-vcenter`
       - normal element children store rules in `node.meta.__qhtmlAnchorRules`
       - component/worker definition children store rules in `component.meta.__qhtmlAnchorRules`
       - supported keys: `left`, `right`, `top`, `bottom`, `hcenter`, `vcenter`, `center`
-      - value syntaxes: legacy `key: value` / `key { value }` inside `q-anchor { ... }`, plus shorthand `q-anchor-left { value }`
+      - value syntaxes: `key: value` and `key { value }`
       - separators supported in the block: newline, `;`, `,`
-    - behavior directives:
-      - `behavior on propertyName { q-property-animation { duration: 1000 from: "20px" } }`
-      - normalized as direct owner metadata in `node.meta.__qhtmlBehaviors`
-      - equivalent internal `q-behavior propertyName { q-property-animation { ... } }` syntax is accepted
-      - normal element children and runtime-capable component/worker definition children may own behaviors
-      - a target may declare only one behavior per normalized property name
-      - a behavior block accepts exactly one child animation element; the supported child is `q-property-animation`
-      - `q-property-animation` config accepts `duration`, `steps`, `from`, and `to`, plus animation hook blocks such as `onstepped { ... }`
-    - script actions:
-      - `q-script-action { ... }` parses as a `q-script-action` element with the raw JavaScript block assigned to `scriptBody`
-      - script actions are intended for `q-parallel-animation-group` / `q-sequential-animation-group` workflows and may also appear as normal content
-      - `q-script-action` is distinct from `q-script`; it does not preprocess-replace source text and is executed by the runtime component when the action starts
     - layout keywords:
       - `q-layout`, `q-row`, and `q-col` parse as framework layout element nodes, not component invocations
       - layout nodes store `meta.__qhtmlLayoutKeyword = true` and `meta.__qhtmlLayoutRole`
@@ -145,7 +113,6 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - top-level `q-timer name { ... }` emitted in `document.meta.qTimers`
       - component-local `q-timer name { ... }` emitted in `component.qTimerDefinitions`
       - timers inside normal anonymous content are emitted as QDom `kind: "q-timer"` nodes so the renderer can register them in the inherited QContext
-      - `duration` is accepted as an alias for `interval`
     - component property definition blocks (`q-property <name> { ... }`) emitted in `component.propertyDefinitions`
       - declaration entries now carry stable identity metadata (`entry.uuid` and `entry.meta.uuid`)
     - component alias declarations:
@@ -157,9 +124,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - style declarations and application:
       - `q-style name { q-style-class { classA classB } prop: value }`
       - `q-style-class` stores class tokens in the style definition
-      - `q-style-path-animation { path: "M ..."; duration: 1200; easing: "ease-in-out"; anchorPoint: "center"; rotation: "auto"; repeat: "true" }` inside `q-style` emits CSS motion-path declarations plus keyframe metadata
       - `q-theme name { selector { q-style { prop: value } named-style } }` supports anonymous q-style blocks inside selector rules; they are lowered to private generated q-style definitions in rule order
-      - q-theme selectors may use full CSS selector text up to the rule body, including grouped selectors, descendant selectors, attribute selectors, and pseudo selectors
       - applying the style merges classes into `class` and declarations into `style`
     - repeater and iterable model support:
       - `q-repeater` and `q-foreach` blocks
@@ -203,9 +168,6 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
   - Serializes array/object assignment values using typed container syntax (`q-array { ... }` / `q-map { ... }`) instead of stringifying them.
   - Serializes dirty `q-state-machine` component-instance nodes back to named state-machine block syntax using stored state metadata.
   - Serializes `struct` and `struct-instance` QDom nodes back to `q-struct` and typed instance syntax.
-  - Serializes `viewport` and `viewport-instance` QDom nodes back to `q-viewport` and named viewport invocation syntax.
-- Serializes behavior metadata back to `behavior on <property> { q-property-animation { ... } }`.
-- Serializes `q-bind-css` metadata back to `q-bind-css { source target }`.
 - `parseQScript(source)`
   - Parses q-script rules of form `selector.on("event"): { ... }`.
 - `serializeQScript(rules)`
@@ -216,7 +178,6 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
 - Throws `QHtmlKeywordAliasError` with `.index` for invalid alias declarations/usages (self-reference or alias-to-alias).
 - Import/macro stages throw descriptive `Error` messages for recursion/limits/unbalanced blocks.
 - `q-style-class` is block-only inside `q-style` (`q-style-class { ... }`).
-- `q-style-path-animation` is block-only inside `q-style`; unsupported `@keyframes` CSS is stored as QDom metadata for the renderer to inject as a `<style data-qhtml-path-animation>` tag.
 - model warnings are emitted when non-iterative containers are mixed into model blocks; `q-model-view` keeps valid parsed entries while `q-repeater` retains fallback behavior for incompatible model content.
 
 ## Binding semantics

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <base href="../../">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QHTML Behavior and NumberAnimation Demo</title>
+  <title>QHTML Behavior and q-property-animation Demo</title>
   <script src="dist/qhtml.js"></script>
   <style>
     body {
@@ -32,36 +32,63 @@ q-component behavior-bar {
   q-property leftValue: "20px"
   q-property topValue: "20px"
 
-  q-bind-css { this.component.widthValue this.component.style.width }
-  q-bind-css { this.component.heightValue this.component.style.height }
-  q-bind-css { this.component.leftValue this.component.style.left }
-  q-bind-css { this.component.topValue this.component.style.top }
-
   behavior on widthValue {
-    NumberAnimation {
+    q-property-animation {
       duration: 500
-      easing: "easeInOutQuad"
+      steps: 20
+
+      onstepped {
+        this.component.style.width = this.component.cssLength(value);
+      }
+
+      onstopped {
+        this.component.style.width = this.component.cssLength(value);
+      }
     }
   }
 
   behavior on heightValue {
-    NumberAnimation {
+    q-property-animation {
       duration: 1000
-      easing: "easeInOutQuad"
+      steps: 30
+
+      onstepped {
+        this.component.style.height = this.component.cssLength(value);
+      }
+
+      onstopped {
+        this.component.style.height = this.component.cssLength(value);
+      }
     }
   }
 
   behavior on leftValue {
-    NumberAnimation {
+    q-property-animation {
       duration: 1000
-      easing: "easeInOutQuad"
+      steps: 30
+
+      onstepped {
+        this.component.style.left = this.component.cssLength(value);
+      }
+
+      onstopped {
+        this.component.style.left = this.component.cssLength(value);
+      }
     }
   }
 
   behavior on topValue {
-    NumberAnimation {
+    q-property-animation {
       duration: 500
-      easing: "easeInOutQuad"
+      steps: 20
+
+      onstepped {
+        this.component.style.top = this.component.cssLength(value);
+      }
+
+      onstopped {
+        this.component.style.top = this.component.cssLength(value);
+      }
     }
   }
 
@@ -75,6 +102,11 @@ q-component behavior-bar {
 
   function randomLength(unit, min, max) {
     return this.unitValue(Math.round(this.randomBetween(min, max) * 100) / 100, unit);
+  }
+
+  function cssLength(value) {
+    var unit = String(this.unitMode || "").trim();
+    return css(value, unit || "px");
   }
 
   function randomize() {
@@ -121,6 +153,10 @@ q-component behavior-bar {
     this.style.fontSize = "0.82rem";
     this.style.overflow = "hidden";
     this.style.boxShadow = "0 18px 40px rgba(0,0,0,.28)";
+    this.style.width = this.cssLength(this.widthValue);
+    this.style.height = this.cssLength(this.heightValue);
+    this.style.left = this.cssLength(this.leftValue);
+    this.style.top = this.cssLength(this.topValue);
   }
 
   onReady {
@@ -136,108 +172,147 @@ q-component behavior-property-animation-case {
   q-property widthValue: "80px"
   q-property stepCount: 0
 
-  q-bind-css { this.component.widthValue this.component.style.width }
-
   behavior on widthValue {
     q-property-animation {
       duration: 280
-      easing: "linear"
+      steps: 12
 
       onstepped {
-        this.component.stepCount = Number(this.component.stepCount || 0) + 1;
+        this.component.setAttribute("data-step-count", String(Number(this.component.getAttribute("data-step-count") || 0) + 1));
+        this.component.style.width = css(value, "px");
+      }
+
+      onstopped {
+        this.component.style.width = css(value, "px");
       }
     }
+  }
+
+  onReady {
+    this.component.style.display = "grid";
+    this.component.style.placeItems = "center";
+    this.component.style.width = "80px";
+    this.component.style.height = "32px";
+    this.component.style.background = "#38bdf8";
+    this.component.style.color = "#082f49";
+    this.component.style.borderRadius = "0.4rem";
+    this.component.style.fontWeight = "800";
+    this.component.style.marginTop = "0.75rem";
+    this.component.widthValue = "210px";
   }
 
   style { display: grid; place-items: center; width: 80px; height: 32px; background: #38bdf8; color: #082f49; border-radius: 0.4rem; font-weight: 800; margin-top: 0.75rem; }
   text { q-property-animation behavior }
-
-  onReady {
-    var host = this.component;
-    setTimeout(function runPropertyAnimationBehaviorCase() {
-      host.widthValue = "210px";
-    }, 90);
-  }
 }
 
-q-component behavior-parallel-group-case {
+q-component behavior-multi-property-case {
   q-property widthValue: "70px"
   q-property heightValue: "32px"
   q-property stepCount: 0
 
-  q-bind-css { this.component.widthValue this.component.style.width }
-  q-bind-css { this.component.heightValue this.component.style.height }
-
   behavior on widthValue {
-    q-parallel-animation-group {
-      q-property-animation {
-        duration: 320
-        easing: "linear"
+    q-property-animation {
+      duration: 320
+      steps: 12
 
-        onstepped {
-          this.component.stepCount = Number(this.component.stepCount || 0) + 1;
-        }
+      onstepped {
+        this.component.setAttribute("data-step-count", String(Number(this.component.getAttribute("data-step-count") || 0) + 1));
+        this.component.style.width = css(value, "px");
       }
 
-      q-property-animation {
-        target: "this.component.heightValue"
-        duration: 320
-        easing: "linear"
-        from: "32px"
-        to: "88px"
+      onstopped {
+        this.component.style.width = css(value, "px");
       }
     }
   }
 
-  style { display: grid; place-items: center; width: 70px; height: 32px; background: #22c55e; color: #052e16; border-radius: 0.4rem; font-weight: 800; margin-top: 0.75rem; }
-  text { parallel group behavior }
+  behavior on heightValue {
+    q-property-animation {
+      duration: 320
+      steps: 12
+      from: "32px"
+
+      onstepped {
+        this.component.style.height = css(value, "px");
+      }
+
+      onstopped {
+        this.component.style.height = css(value, "px");
+      }
+    }
+  }
 
   onReady {
-    var host = this.component;
-    setTimeout(function runParallelGroupBehaviorCase() {
-      host.widthValue = "230px";
-    }, 90);
+    this.component.style.display = "grid";
+    this.component.style.placeItems = "center";
+    this.component.style.width = "70px";
+    this.component.style.height = "32px";
+    this.component.style.background = "#22c55e";
+    this.component.style.color = "#052e16";
+    this.component.style.borderRadius = "0.4rem";
+    this.component.style.fontWeight = "800";
+    this.component.style.marginTop = "0.75rem";
+    this.component.widthValue = "230px";
+    this.component.heightValue = "88px";
   }
+
+  style { display: grid; place-items: center; width: 70px; height: 32px; background: #22c55e; color: #052e16; border-radius: 0.4rem; font-weight: 800; margin-top: 0.75rem; }
+  text { multi property behavior }
 }
 
-q-component behavior-sequential-group-case {
+q-component behavior-staggered-property-case {
   q-property widthValue: "72px"
   q-property heightValue: "34px"
   q-property stepCount: 0
 
-  q-bind-css { this.component.widthValue this.component.style.width }
-  q-bind-css { this.component.heightValue this.component.style.height }
-
   behavior on widthValue {
-    q-sequential-animation-group {
-      q-property-animation {
-        duration: 260
-        easing: "linear"
+    q-property-animation {
+      duration: 260
+      steps: 10
 
-        onstepped {
-          this.component.stepCount = Number(this.component.stepCount || 0) + 1;
-        }
+      onstepped {
+        this.component.setAttribute("data-step-count", String(Number(this.component.getAttribute("data-step-count") || 0) + 1));
+        this.component.style.width = css(value, "px");
       }
 
-      q-property-animation {
-        target: "this.component.heightValue"
-        duration: 260
-        easing: "linear"
-        from: "34px"
-        to: "96px"
+      onstopped {
+        this.component.style.width = css(value, "px");
       }
     }
   }
 
-  style { display: grid; place-items: center; width: 72px; height: 34px; background: #f59e0b; color: #451a03; border-radius: 0.4rem; font-weight: 800; margin-top: 0.75rem; }
-  text { sequential group behavior }
+  behavior on heightValue {
+    q-property-animation {
+      duration: 260
+      steps: 10
+      from: "34px"
+
+      onstepped {
+        this.component.style.height = css(value, "px");
+      }
+
+      onstopped {
+        this.component.style.height = css(value, "px");
+      }
+    }
+  }
 
   onReady {
-    var host = this.component;
-    setTimeout(function runSequentialGroupBehaviorCase() {
-      host.widthValue = "240px";
-    }, 90);
+    this.component.style.display = "grid";
+    this.component.style.placeItems = "center";
+    this.component.style.width = "72px";
+    this.component.style.height = "34px";
+    this.component.style.background = "#f59e0b";
+    this.component.style.color = "#451a03";
+    this.component.style.borderRadius = "0.4rem";
+    this.component.style.fontWeight = "800";
+    this.component.style.marginTop = "0.75rem";
+    this.component.widthValue = "240px";
+    this.component.heightValue = "96px";
   }
+
+  style { display: grid; place-items: center; width: 72px; height: 34px; background: #f59e0b; color: #451a03; border-radius: 0.4rem; font-weight: 800; margin-top: 0.75rem; }
+  text { staggered property behavior }
 }
 
 section.behavior-stage {
@@ -245,7 +320,7 @@ section.behavior-stage {
 
   header {
     style { position: relative; z-index: 2; max-width: 48rem; }
-    h1 { text { Behavior and NumberAnimation } }
+    h1 { text { Behavior and q-property-animation } }
     p {
       style { color: #cbd5e1; line-height: 1.5; }
       text { q-timer continuously retargets width, height, left, and top for %, px, rem, vh, and unitless q-property values. }
@@ -304,10 +379,10 @@ section.behavior-stage {
 
   section.behavior-group-tests {
     style { position: relative; z-index: 3; width: min(36rem, calc(100vw - 2rem)); margin-top: 1rem; padding: 0.9rem; background: rgba(15,23,42,.76); border: 1px solid rgba(255,255,255,.18); border-radius: 0.75rem; box-sizing: border-box; }
-    h2 { text { Behavior group checks } }
+    h2 { text { Behavior q-property-animation checks } }
     behavior-property-animation-case propertyAnimationCase { }
-    behavior-parallel-group-case parallelGroupCase { }
-    behavior-sequential-group-case sequentialGroupCase { }
+    behavior-multi-property-case multiPropertyCase { }
+    behavior-staggered-property-case staggeredPropertyCase { }
   }
 }
 
@@ -328,20 +403,20 @@ q-timer behaviorAnimationShuffle {
   <script>
     setTimeout(function runBehaviorAnimationAssertions() {
       var propertyCase = document.querySelector("behavior-property-animation-case");
-      var parallelCase = document.querySelector("behavior-parallel-group-case");
-      var sequentialCase = document.querySelector("behavior-sequential-group-case");
+      var multiCase = document.querySelector("behavior-multi-property-case");
+      var staggeredCase = document.querySelector("behavior-staggered-property-case");
       var ok = !!(
         propertyCase &&
-        parallelCase &&
-        sequentialCase &&
+        multiCase &&
+        staggeredCase &&
         propertyCase.style.width === "210px" &&
-        Number(propertyCase.stepCount || 0) > 0 &&
-        parallelCase.style.width === "230px" &&
-        parallelCase.style.height === "88px" &&
-        Number(parallelCase.stepCount || 0) > 0 &&
-        sequentialCase.style.width === "240px" &&
-        sequentialCase.style.height === "96px" &&
-        Number(sequentialCase.stepCount || 0) > 0
+        Number(propertyCase.getAttribute("data-step-count") || 0) > 0 &&
+        multiCase.style.width === "230px" &&
+        multiCase.style.height === "88px" &&
+        Number(multiCase.getAttribute("data-step-count") || 0) > 0 &&
+        staggeredCase.style.width === "240px" &&
+        staggeredCase.style.height === "96px" &&
+        Number(staggeredCase.getAttribute("data-step-count") || 0) > 0
       );
       document.body.dataset.status = ok ? "pass" : "fail";
     }, 1700);
