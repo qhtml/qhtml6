@@ -66,21 +66,31 @@ q-component q-property-animation extends q-abstract-animation {
   q-property currentLoop: 0
   q-property activeFrom: ""
 
-  q-timer animationTimer {
-    interval: 16
-    repeat: true
-    running: false
-    ontimeout {
-      this.component.advance();
+  function stopAnimationClock() {
+    var host = this.component;
+    if (host.__qPropertyAnimationTimer) {
+      clearTimeout(host.__qPropertyAnimationTimer);
+      host.__qPropertyAnimationTimer = 0;
     }
   }
 
-  function stopAnimationClock() {
-    this.component.animationTimer.stop();
-  }
-
   function startAnimationClock() {
-    this.component.animationTimer.start();
+    var host = this.component;
+    host.stopAnimationClock();
+    var interval = Math.max(1, Math.floor(Number(host.stepInterval || 16)));
+    var tick = function propertyAnimationTick() {
+      if (!host.normalizeBoolean(host.running, false)) {
+        host.__qPropertyAnimationTimer = 0;
+        return;
+      }
+      host.advance();
+      if (host.normalizeBoolean(host.running, false)) {
+        host.__qPropertyAnimationTimer = setTimeout(tick, Math.max(1, Math.floor(Number(host.stepInterval || interval))));
+      } else {
+        host.__qPropertyAnimationTimer = 0;
+      }
+    };
+    host.__qPropertyAnimationTimer = setTimeout(tick, interval);
   }
 
   function normalizeNumber(value, fallbackValue) {
@@ -137,11 +147,6 @@ q-component q-property-animation extends q-abstract-animation {
     var stepCount = this.component.normalizePositiveInteger(this.component.steps, 60);
     var interval = Math.max(1, Math.floor(durationValue / stepCount));
     this.component.stepInterval = interval;
-    this.component.animationTimer.interval = interval;
-    if (this.component.normalizeBoolean(this.component.running, false)) {
-      this.component.stopAnimationClock();
-      this.component.startAnimationClock();
-    }
   }
 
   function stripQuotes(value) {
@@ -158,7 +163,7 @@ q-component q-property-animation extends q-abstract-animation {
 
   function parseNumericValue(value) {
     if (typeof value === "number" && Number.isFinite(value)) {
-      return { valid: true, value: value, unit: "", raw: value };
+      return { valid: true, value: value, unit: this.component.targetUnitFallback(), raw: value };
     }
     var text = this.component.stripQuotes(value);
     var match = text.match(/^\s*(-?(?:\d+|\d*\.\d+))(px|%|vh|vw|vmin|vmax|rem|em|ch|ex|cm|mm|in|pt|pc|deg|rad|turn|s|ms)?\s*$/i);
@@ -168,9 +173,35 @@ q-component q-property-animation extends q-abstract-animation {
     return {
       valid: true,
       value: Number(match[1]),
-      unit: String(match[2] || ""),
+      unit: String(match[2] || this.component.targetUnitFallback()),
       raw: value
     };
+  }
+
+  function targetUnitFallback() {
+    var targetText = String(this.component.target || "").trim();
+    var parts = this.component.splitReferencePath(targetText);
+    if (parts.length < 3) {
+      return "";
+    }
+    var parentName = String(parts[parts.length - 2] || "").trim().toLowerCase();
+    var propertyName = String(parts[parts.length - 1] || "").trim().toLowerCase();
+    if (parentName !== "style") {
+      return "";
+    }
+    if (
+      propertyName === "opacity" ||
+      propertyName === "zindex" ||
+      propertyName === "fontweight" ||
+      propertyName === "lineheight" ||
+      propertyName === "scale" ||
+      propertyName === "flexgrow" ||
+      propertyName === "flexshrink" ||
+      propertyName === "order"
+    ) {
+      return "";
+    }
+    return "px";
   }
 
   function formatNumericValue(number, unit) {
@@ -289,7 +320,9 @@ q-component q-property-animation extends q-abstract-animation {
     this.component.refreshTimerInterval();
     this.component.currentLoop = 0;
     this.component.resetLoop();
+    this.component.__qPropertyAnimationStarting = true;
     this.component.running = true;
+    this.component.__qPropertyAnimationStarting = false;
     this.component.started();
     this.component.writeTargetValue(this.component.computeStepValue());
     this.component.startAnimationClock();
@@ -304,6 +337,10 @@ q-component q-property-animation extends q-abstract-animation {
   function restart() {
     this.component.stop();
     this.component.start();
+  }
+
+  function step() {
+    this.component.advance();
   }
 
   function end() {
@@ -355,11 +392,26 @@ q-component q-property-animation extends q-abstract-animation {
   }
 
   onrunningchanged {
-    if (this.component.normalizeBoolean(this.component.running, false)) {
-      this.component.animationTimer.start();
-    } else {
-      this.component.stopAnimationClock();
+    if (this.component.__qPropertyAnimationStarting) {
+      return;
     }
+    if (!this.component.normalizeBoolean(this.component.running, false)) {
+      this.component.stopAnimationClock();
+      return;
+    }
+    this.component.start();
+  }
+
+  onremoved {
+    this.component.stopAnimationClock();
+  }
+
+  onunload {
+    this.component.stopAnimationClock();
+  }
+
+  ondisconnected {
+    this.component.stopAnimationClock();
   }
 }
 
