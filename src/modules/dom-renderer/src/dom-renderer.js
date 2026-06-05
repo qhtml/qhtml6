@@ -2523,6 +2523,10 @@
       if (slotNodes.length > 0) {
         collectComponentDefinitionsInNodes(slotNodes, registry);
       }
+      const slotDefaults = readRendererSlotDefaultNodes(node);
+      if (slotDefaults.length > 0) {
+        collectComponentDefinitionsInNodes(slotDefaults, registry);
+      }
       if (core.NODE_TYPES.repeater && node.kind === core.NODE_TYPES.repeater) {
         if (Array.isArray(node.templateNodes)) {
           collectComponentDefinitionsInNodes(node.templateNodes, registry);
@@ -2572,6 +2576,13 @@
     return [];
   }
 
+  function readRendererSlotDefaultNodes(node) {
+    if (!node || typeof node !== "object") {
+      return [];
+    }
+    return Array.isArray(node.slotDefaults) ? node.slotDefaults : [];
+  }
+
   function writeRendererSlotNodes(node, slots) {
     if (!node || typeof node !== "object") {
       return;
@@ -2617,6 +2628,10 @@
       if (slotNodes.length > 0) {
         collectSlotNames(slotNodes, out);
       }
+      const slotDefaults = readRendererSlotDefaultNodes(node);
+      if (slotDefaults.length > 0) {
+        collectSlotNames(slotDefaults, out);
+      }
       if (Array.isArray(node.templateNodes)) {
         collectSlotNames(node.templateNodes, out);
       }
@@ -2625,12 +2640,26 @@
     return out;
   }
 
+  function collectSlotDefaultNames(componentNode, intoSet) {
+    const out = intoSet || new Set();
+    const slotDefaults = readRendererSlotDefaultNodes(componentNode);
+    for (let i = 0; i < slotDefaults.length; i += 1) {
+      const slotDefault = slotDefaults[i];
+      const slotName = slotDefault && typeof slotDefault.name === "string" && slotDefault.name.trim()
+        ? String(slotDefault.name).trim()
+        : "default";
+      out.add(slotName);
+    }
+    return out;
+  }
+
   function resolveSingleSlotName(definitionNode) {
     if (!definitionNode || !Array.isArray(definitionNode.templateNodes)) {
       return "";
     }
 
-    const names = Array.from(collectSlotNames(definitionNode.templateNodes));
+    const slotNames = collectSlotDefaultNames(definitionNode, collectSlotNames(definitionNode.templateNodes));
+    const names = Array.from(slotNames);
     if (names.length !== 1) {
       return "";
     }
@@ -4215,10 +4244,7 @@
       return slotNode;
     }
 
-    function pushFill(slotName, value, sourceSlotNode, synthesizeSlotRef) {
-      if (!value) {
-        return;
-      }
+    function ensureFill(slotName, sourceSlotNode, synthesizeSlotRef) {
       const key = String(slotName || "default").trim() || "default";
       const resolvedSlotNode = sourceSlotNode || (synthesizeSlotRef ? createRuntimeSlotRef(key) : null);
       const bucket =
@@ -4226,11 +4252,19 @@
           nodes: [],
           slotNode: resolvedSlotNode || null,
         };
-      bucket.nodes.push(value);
       if (resolvedSlotNode && !bucket.slotNode) {
         bucket.slotNode = resolvedSlotNode;
       }
       fills.set(key, bucket);
+      return bucket;
+    }
+
+    function pushFill(slotName, value, sourceSlotNode, synthesizeSlotRef) {
+      if (!value) {
+        return;
+      }
+      const bucket = ensureFill(slotName, sourceSlotNode, synthesizeSlotRef);
+      bucket.nodes.push(value);
     }
 
     if (typeof instanceNode.textContent === "string" && instanceNode.textContent.length > 0) {
@@ -4258,6 +4292,7 @@
         }
 
         const slotName = String(slotNode.name || "default").trim() || "default";
+        ensureFill(slotName, slotNode, false);
         const slotChildren = Array.isArray(slotNode.children) ? slotNode.children : [];
         if (slotChildren.length > 0) {
           for (let j = 0; j < slotChildren.length; j += 1) {
@@ -4293,6 +4328,7 @@
 
       const shorthandSlot = String(child.tagName || "").trim();
       if (shorthandSlot && hasKnownSlotName(shorthandSlot)) {
+        ensureFill(shorthandSlot, null, true);
         if (Array.isArray(child.children) && child.children.length > 0) {
           for (let j = 0; j < child.children.length; j += 1) {
             pushFill(shorthandSlot, child.children[j], null, true);
@@ -4310,6 +4346,7 @@
 
       // Legacy shorthand: `header { ... }` fills `slot { header }`.
       if (shorthandSlot) {
+        ensureFill(shorthandSlot, null, true);
         if (Array.isArray(child.children) && child.children.length > 0) {
           for (let j = 0; j < child.children.length; j += 1) {
             pushFill(shorthandSlot, child.children[j], null, true);
@@ -4326,28 +4363,81 @@
     return fills;
   }
 
+  function findSlotFillEntry(slotFills, slotName) {
+    const requestedName = String(slotName || "default").trim() || "default";
+    if (!(slotFills instanceof Map)) {
+      return null;
+    }
+    if (slotFills.has(requestedName)) {
+      return slotFills.get(requestedName);
+    }
+    const requestedLower = requestedName.toLowerCase();
+    const entries = slotFills.entries();
+    let next = entries.next();
+    while (!next.done) {
+      const key = String(next.value[0] || "").trim();
+      if (key.toLowerCase() === requestedLower) {
+        return next.value[1];
+      }
+      next = entries.next();
+    }
+    return null;
+  }
+
+  function applySlotDefaultsToFills(componentNode, slotFills, ownerOptions) {
+    if (!(slotFills instanceof Map)) {
+      return slotFills;
+    }
+    const slotDefaults = readRendererSlotDefaultNodes(componentNode);
+    if (slotDefaults.length === 0) {
+      return slotFills;
+    }
+    const opts = ownerOptions || {};
+    const ownerId = String(opts.ownerComponentId || componentNode && componentNode.componentId || "").trim().toLowerCase();
+    const ownerType = String(opts.ownerDefinitionType || inferDefinitionType(componentNode)).trim().toLowerCase() || "component";
+    const ownerInstanceId = String(opts.ownerInstanceId || "").trim();
+    for (let i = 0; i < slotDefaults.length; i += 1) {
+      const slotDefault = slotDefaults[i];
+      if (!slotDefault || typeof slotDefault !== "object") {
+        continue;
+      }
+      const slotName = typeof slotDefault.name === "string" && slotDefault.name.trim()
+        ? String(slotDefault.name).trim()
+        : "default";
+      if (findSlotFillEntry(slotFills, slotName)) {
+        continue;
+      }
+      const defaultChildren = Array.isArray(slotDefault.children) ? slotDefault.children : [];
+      const slotNode = core && typeof core.createSlotNode === "function"
+        ? core.createSlotNode({
+            name: slotName,
+            children: defaultChildren.map(cloneNodeDeep),
+            meta: {
+              generated: true,
+              default: true,
+              originalSource: slotDefault.meta && slotDefault.meta.originalSource ? slotDefault.meta.originalSource : null,
+            },
+          })
+        : {
+            kind: "slot",
+            name: slotName,
+            children: defaultChildren.map(cloneNodeDeep),
+            meta: { generated: true, default: true },
+          };
+      applySlotOwnership(slotNode, ownerId, ownerType, ownerInstanceId);
+      slotFills.set(slotName, {
+        nodes: defaultChildren.map(cloneNodeDeep),
+        slotNode: slotNode,
+      });
+    }
+    return slotFills;
+  }
+
   function materializeSlots(nodes, slotFills) {
     const out = [];
 
     function readSlotFillEntry(slotName) {
-      const requestedName = String(slotName || "default").trim() || "default";
-      if (!(slotFills instanceof Map)) {
-        return null;
-      }
-      if (slotFills.has(requestedName)) {
-        return slotFills.get(requestedName);
-      }
-      const requestedLower = requestedName.toLowerCase();
-      const entries = slotFills.entries();
-      let next = entries.next();
-      while (!next.done) {
-        const key = String(next.value[0] || "").trim();
-        if (key.toLowerCase() === requestedLower) {
-          return next.value[1];
-        }
-        next = entries.next();
-      }
-      return null;
+      return findSlotFillEntry(slotFills, slotName);
     }
 
     for (let i = 0; i < nodes.length; i += 1) {
@@ -4360,6 +4450,7 @@
         const slotName = node.attributes && typeof node.attributes.name === "string" ? node.attributes.name : "default";
         const fillEntry = readSlotFillEntry(slotName);
         const fillNodes = fillEntry && Array.isArray(fillEntry.nodes) ? fillEntry.nodes : [];
+        const hasFillEntry = !!fillEntry;
         if (fillNodes.length > 0) {
           for (let j = 0; j < fillNodes.length; j += 1) {
             const projected = cloneNodeDeep(fillNodes[j]);
@@ -4369,7 +4460,7 @@
             }
             out.push(projected);
           }
-        } else if (Array.isArray(node.children) && node.children.length > 0) {
+        } else if (!hasFillEntry && Array.isArray(node.children) && node.children.length > 0) {
           const fallback = materializeSlots(node.children, slotFills);
           for (let j = 0; j < fallback.length; j += 1) {
             out.push(fallback[j]);
@@ -11728,15 +11819,16 @@
 
     const templateNodes = Array.isArray(componentNode.templateNodes) ? componentNode.templateNodes : [];
     const singleSlotName = resolveSingleSlotName(componentNode);
-    const slotNames = collectSlotNames(templateNodes);
+    const slotNames = collectSlotDefaultNames(componentNode, collectSlotNames(templateNodes));
     const ownerInstanceId = ensureInstanceId(instanceNode);
-    const slotFills = splitSlotFills(instanceNode, {
+    const slotOwnerOptions = {
       singleSlotName: singleSlotName,
       slotNames: slotNames,
       ownerComponentId: String(componentNode.componentId || "").trim().toLowerCase(),
       ownerDefinitionType: inferDefinitionType(componentNode),
       ownerInstanceId: ownerInstanceId,
-    });
+    };
+    const slotFills = applySlotDefaultsToFills(componentNode, splitSlotFills(instanceNode, slotOwnerOptions), slotOwnerOptions);
     const expanded = materializeSlots(templateNodes, slotFills);
 
     stack.push(key);
@@ -11889,15 +11981,16 @@
           ? componentNode.templateNodes
           : [];
       const singleSlotName = resolveSingleSlotName(componentNode);
-      const slotNames = collectSlotNames(templateNodes);
+      const slotNames = collectSlotDefaultNames(componentNode, collectSlotNames(templateNodes));
       const ownerInstanceId = ensureInstanceId(instanceNode);
-      const slotFills = splitSlotFills(instanceNode, {
+      const slotOwnerOptions = {
         singleSlotName: singleSlotName,
         slotNames: slotNames,
         ownerComponentId: String(componentNode.componentId || "").trim().toLowerCase(),
         ownerDefinitionType: inferDefinitionType(componentNode),
         ownerInstanceId: ownerInstanceId,
-      });
+      };
+      const slotFills = applySlotDefaultsToFills(componentNode, splitSlotFills(instanceNode, slotOwnerOptions), slotOwnerOptions);
       expanded = materializeSlots(templateNodes, slotFills);
       const propertyDefinitions = Array.isArray(componentNode.propertyDefinitions) ? componentNode.propertyDefinitions : [];
       if (propertyDefinitions.length > 0) {
@@ -12250,15 +12343,16 @@
   function dispatchSignalInstance(componentNode, instanceNode, parent, targetDocument, context) {
     const templateNodes = Array.isArray(componentNode.templateNodes) ? componentNode.templateNodes : [];
     const singleSlotName = resolveSingleSlotName(componentNode);
-    const slotNames = collectSlotNames(templateNodes);
+    const slotNames = collectSlotDefaultNames(componentNode, collectSlotNames(templateNodes));
     const ownerInstanceId = ensureInstanceId(instanceNode);
-    const slotFills = splitSlotFills(instanceNode, {
+    const slotOwnerOptions = {
       singleSlotName: singleSlotName,
       slotNames: slotNames,
       ownerComponentId: String(componentNode.componentId || "").trim().toLowerCase(),
       ownerDefinitionType: inferDefinitionType(componentNode),
       ownerInstanceId: ownerInstanceId,
-    });
+    };
+    const slotFills = applySlotDefaultsToFills(componentNode, splitSlotFills(instanceNode, slotOwnerOptions), slotOwnerOptions);
     const signalName = String(componentNode.componentId || instanceNode.tagName || "").trim();
     const slotsPayload = buildSignalPayloadSlots(slotFills);
     const payload = {

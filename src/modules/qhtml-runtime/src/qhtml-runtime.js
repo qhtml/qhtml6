@@ -14715,6 +14715,21 @@
           ? core.createComponentInstanceNode
           : buildComponentInstanceFallback;
 
+      function cloneQDomValueDeep(value) {
+        if (Array.isArray(value)) {
+          return value.map(cloneQDomValueDeep);
+        }
+        if (value && typeof value === "object") {
+          const out = {};
+          const keys = Object.keys(value);
+          for (let i = 0; i < keys.length; i += 1) {
+            out[keys[i]] = cloneQDomValueDeep(value[keys[i]]);
+          }
+          return out;
+        }
+        return value;
+      }
+
       function asArray(value) {
         return Array.isArray(value) ? value : [];
       }
@@ -15023,6 +15038,9 @@
         if (Array.isArray(targetNode.templateNodes)) {
           out.push(targetNode.templateNodes);
         }
+        if (Array.isArray(targetNode.slotDefaults)) {
+          out.push(targetNode.slotDefaults);
+        }
         if (Array.isArray(targetNode.children)) {
           out.push(targetNode.children);
         }
@@ -15225,12 +15243,32 @@
         return set;
       }
 
-      function getDeclaredSlotNamesForInstance(instanceNode) {
+      function readSlotDefaultNodes(definitionNode) {
+        return definitionNode && Array.isArray(definitionNode.slotDefaults) ? definitionNode.slotDefaults : [];
+      }
+
+      function collectDeclaredSlotNamesFromDefaults(definitionNode, outSet) {
+        const set = outSet || new Set();
+        const slotDefaults = readSlotDefaultNodes(definitionNode);
+        for (let i = 0; i < slotDefaults.length; i += 1) {
+          const slotDefault = slotDefaults[i];
+          const slotName = slotDefault && typeof slotDefault.name === "string" && slotDefault.name.trim()
+            ? String(slotDefault.name).trim()
+            : "default";
+          set.add(slotName);
+        }
+        return set;
+      }
+
+      function resolveDefinitionForInstance(instanceNode) {
         const key = String(instanceNode && (instanceNode.componentId || instanceNode.tagName) ? instanceNode.componentId || instanceNode.tagName : "")
           .trim()
           .toLowerCase();
         if (!key) {
-          return new Set();
+          return null;
+        }
+        if (definitionRegistry instanceof Map && definitionRegistry.has(key)) {
+          return definitionRegistry.get(key);
         }
         let found = null;
         walkTree(binding.qdom, function findDefinition(candidate) {
@@ -15244,10 +15282,55 @@
           if (!id || id !== key) {
             return false;
           }
-          found = collectDeclaredSlotNamesFromTemplate(candidate.templateNodes || [], new Set());
+          found = candidate;
           return true;
         });
-        return found || new Set();
+        return found;
+      }
+
+      function findSlotDefaultNode(definitionNode, slotName) {
+        const wanted = String(slotName || "default").trim().toLowerCase() || "default";
+        const slotDefaults = readSlotDefaultNodes(definitionNode);
+        for (let i = 0; i < slotDefaults.length; i += 1) {
+          const slotDefault = slotDefaults[i];
+          const candidateName = String(slotDefault && slotDefault.name || "default").trim().toLowerCase() || "default";
+          if (candidateName === wanted) {
+            return slotDefault;
+          }
+        }
+        return null;
+      }
+
+      function createDefaultSlotHandle(instanceNode, slotName, ownerInstanceId) {
+        const definitionNode = resolveDefinitionForInstance(instanceNode);
+        const slotDefault = findSlotDefaultNode(definitionNode, slotName);
+        if (!slotDefault) {
+          return null;
+        }
+        const slotNode = createSlotFactory({
+          name: typeof slotDefault.name === "string" && slotDefault.name.trim() ? slotDefault.name.trim() : "default",
+          children: Array.isArray(slotDefault.children) ? cloneQDomValueDeep(slotDefault.children) : [],
+          meta: {
+            generated: true,
+            default: true,
+            originalSource: slotDefault.meta && slotDefault.meta.originalSource ? slotDefault.meta.originalSource : null,
+          },
+        });
+        if (ownerInstanceId) {
+          qdomSlotOwnerIds.set(slotNode, ownerInstanceId);
+        }
+        return slotNode;
+      }
+
+      function getDeclaredSlotNamesForInstance(instanceNode) {
+        const definitionNode = resolveDefinitionForInstance(instanceNode);
+        if (!definitionNode) {
+          return new Set();
+        }
+        return collectDeclaredSlotNamesFromDefaults(
+          definitionNode,
+          collectDeclaredSlotNamesFromTemplate(definitionNode.templateNodes || [], new Set())
+        );
       }
 
       function readInstanceSlotNodes(instanceNode) {
@@ -15852,6 +15935,11 @@
           declaredSlotNames.forEach(function eachDeclaredSlot(slotNameRaw) {
             const slotName = String(slotNameRaw || "default").trim() || "default";
             if (slotName === "default") {
+              const defaultSlotHandle = createDefaultSlotHandle(node, "default", effectiveOwnerId);
+              if (defaultSlotHandle && (!expectedOwnerId || readOwnerInstanceId(defaultSlotHandle) === expectedOwnerId)) {
+                result.push(installQDomFactories(defaultSlotHandle));
+                return;
+              }
               const handle = slotHandleForContainer(node, "default", node);
               if (handle && (!expectedOwnerId || readOwnerInstanceId(handle) === expectedOwnerId)) {
                 result.push(installQDomFactories(handle));
@@ -15870,6 +15958,10 @@
               }
             }
             if (!wrapper) {
+              const defaultSlotHandle = createDefaultSlotHandle(node, slotName, effectiveOwnerId);
+              if (defaultSlotHandle && (!expectedOwnerId || readOwnerInstanceId(defaultSlotHandle) === expectedOwnerId)) {
+                result.push(installQDomFactories(defaultSlotHandle));
+              }
               return;
             }
             const handle = slotHandleForContainer(node, slotName, wrapper);
@@ -15956,6 +16048,10 @@
             }
 
             if (explicitSlots.length > 0) {
+              const defaultSlotHandle = createDefaultSlotHandle(node, slotName, ownerInstanceId);
+              if (defaultSlotHandle) {
+                return installQDomFactories(defaultSlotHandle);
+              }
               const createdSlot = createSlotFactory({
                 name: slotName,
                 children: [],
@@ -15969,6 +16065,11 @@
                 qdomSlotOwnerIds.set(createdSlot, ownerInstanceId);
               }
               return installQDomFactories(createdSlot);
+            }
+
+            const defaultSlotHandle = createDefaultSlotHandle(node, slotName, ownerInstanceId);
+            if (defaultSlotHandle) {
+              return installQDomFactories(defaultSlotHandle);
             }
 
             if (slotName === "default") {

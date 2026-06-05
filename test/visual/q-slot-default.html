@@ -13,6 +13,7 @@
 <body>
   <h1>q-slot-default Test</h1>
   <p>Missing slots render q-slot-default content. Explicit empty and comment-only slots suppress the default. <a href="test/index.html">Back to test index</a></p>
+  <div id="qdom-slot-status">waiting</div>
   <q-html>
 q-component notice-card {
   q-slot-default body {
@@ -40,5 +41,19 @@ notice-card explicitContent {
   }
 }
   </q-html>
+  <script>
+    document.addEventListener("QHTMLContentLoaded", function () {
+      const cards = document.querySelectorAll("notice-card");
+      const missingSlot = cards[0].qdom().slot("body");
+      const emptySlot = cards[1].qdom().slot("body");
+      const commentOnlySlot = cards[2].qdom().slot("body");
+      const explicitSlot = cards[3].qdom().slot("body");
+      document.getElementById("qdom-slot-status").textContent =
+        "qdom-slot-default:" + missingSlot.children.length +
+        " empty:" + emptySlot.children.length +
+        " comment:" + commentOnlySlot.children.length +
+        " explicit:" + explicitSlot.children.length;
+    });
+  </script>
 </body>
 </html>

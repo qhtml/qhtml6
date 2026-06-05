@@ -9657,11 +9657,105 @@
     return set;
   }
 
+  function collectSlotDefaultNamesFromDefinition(definitionNode, intoSet) {
+    const set = intoSet || new Set();
+    const slotDefaults = Array.isArray(definitionNode && definitionNode.slotDefaults)
+      ? definitionNode.slotDefaults
+      : [];
+    for (let i = 0; i < slotDefaults.length; i += 1) {
+      const slotDefault = slotDefaults[i];
+      const slotName = slotDefault && typeof slotDefault.name === "string" && slotDefault.name.trim()
+        ? String(slotDefault.name).trim()
+        : "default";
+      set.add(slotName);
+    }
+    return set;
+  }
+
+  function isSlotDefaultDefinitionElement(item) {
+    if (!item || item.type !== "Element") {
+      return false;
+    }
+    const selectors = Array.isArray(item.selectors) ? item.selectors : [];
+    if (selectors.length !== 1) {
+      return false;
+    }
+    const selector = String(selectors[0] || "").trim().toLowerCase();
+    return selector === "q-slot-default" || selector === "slot-default";
+  }
+
+  function readSlotDefaultNameAndItems(item) {
+    const nestedItems = Array.isArray(item && item.items) ? item.items.slice() : [];
+    let slotName = String(item && item.instanceAlias || "").trim();
+    if (slotName) {
+      return {
+        name: slotName,
+        items: nestedItems,
+      };
+    }
+    if (nestedItems.length > 0) {
+      const first = nestedItems[0];
+      if (first && first.type === "BareWord") {
+        slotName = String(first.name || "").trim();
+        nestedItems.shift();
+      } else if (first && (first.type === "RawTextLine" || first.type === "TextBlock")) {
+        const candidate = String(first.text || "").trim();
+        if (/^[A-Za-z_][A-Za-z0-9_-]*$/.test(candidate)) {
+          slotName = candidate;
+          nestedItems.shift();
+        }
+      }
+    }
+    return {
+      name: slotName || "default",
+      items: nestedItems,
+    };
+  }
+
+  function convertSlotDefaultDefinitionItem(item, source, scopedContext) {
+    if (!isSlotDefaultDefinitionElement(item)) {
+      return null;
+    }
+    const parsed = readSlotDefaultNameAndItems(item);
+    const virtualTarget = core.createElementNode({
+      tagName: "q-slot-default",
+      selectorMode: "single",
+      selectorChain: ["q-slot-default"],
+      attributes: {},
+      children: [],
+      meta: {
+        generated: true,
+        virtual: true,
+      },
+    });
+    processElementItems(virtualTarget, parsed.items, source, scopedContext);
+    const factory = typeof core.createSlotDefaultNode === "function"
+      ? core.createSlotDefaultNode
+      : core.createSlotNode;
+    const slotDefault = factory({
+      name: parsed.name,
+      children: Array.isArray(virtualTarget.children) ? virtualTarget.children : [],
+      meta: {
+        originalSource: item.raw || "",
+        sourceRange:
+          typeof item.start === "number" && typeof item.end === "number"
+            ? [item.start, item.end]
+            : null,
+      },
+    });
+    if (slotDefault && core.NODE_TYPES && core.NODE_TYPES.slotDefault) {
+      slotDefault.kind = core.NODE_TYPES.slotDefault;
+    }
+    return slotDefault;
+  }
+
   function resolveSingleSlotNameForDefinition(definitionNode) {
     if (!definitionNode || !Array.isArray(definitionNode.templateNodes)) {
       return "";
     }
-    const slotNames = Array.from(collectSlotNamesFromNodes(definitionNode.templateNodes));
+    const declaredSlotNames = collectSlotNamesFromNodes(definitionNode.templateNodes);
+    collectSlotDefaultNamesFromDefinition(definitionNode, declaredSlotNames);
+    const slotNames = Array.from(declaredSlotNames);
     return slotNames.length === 1 ? slotNames[0] : "";
   }
 
@@ -9693,8 +9787,8 @@
     const fills = new Map();
     const singleSlotName = resolveSingleSlotNameForDefinition(definitionNode);
     const knownSlotNames = definitionNode && Array.isArray(definitionNode.templateNodes)
-      ? collectSlotNamesFromNodes(definitionNode.templateNodes)
-      : new Set();
+      ? collectSlotDefaultNamesFromDefinition(definitionNode, collectSlotNamesFromNodes(definitionNode.templateNodes))
+      : collectSlotDefaultNamesFromDefinition(definitionNode, new Set());
 
     function hasKnownSlotName(name) {
       const slotName = String(name || "").trim();
@@ -9716,14 +9810,19 @@
       return false;
     }
 
+    function ensureFill(slotName) {
+      const key = String(slotName || "default").trim() || "default";
+      const bucket = fills.get(key) || [];
+      fills.set(key, bucket);
+      return bucket;
+    }
+
     function pushFill(slotName, value) {
       if (!value) {
         return;
       }
-      const key = String(slotName || "default").trim() || "default";
-      const bucket = fills.get(key) || [];
+      const bucket = ensureFill(slotName);
       bucket.push(value);
-      fills.set(key, bucket);
     }
 
     function pushElementAsSlotFill(slotName, child) {
@@ -9739,7 +9838,7 @@
           pushFill(slotName, textNode);
         }
       } else {
-        pushFill(slotName, child);
+        ensureFill(slotName);
       }
     }
 
@@ -10289,6 +10388,14 @@
       if (Array.isArray(node.templateNodes)) {
         node.templateNodes = normalizeNodesForDefinitions(node.templateNodes, definitionRegistry);
       }
+      if (Array.isArray(node.slotDefaults)) {
+        for (let i = 0; i < node.slotDefaults.length; i += 1) {
+          const slotDefault = node.slotDefaults[i];
+          if (slotDefault && Array.isArray(slotDefault.children)) {
+            slotDefault.children = normalizeNodesForDefinitions(slotDefault.children, definitionRegistry);
+          }
+        }
+      }
       normalizeStateMachineMeta(node);
       return node;
     }
@@ -10324,7 +10431,11 @@
       return node;
     }
 
-    if (node.kind === core.NODE_TYPES.slot && Array.isArray(node.children)) {
+    if (
+      (node.kind === core.NODE_TYPES.slot ||
+        (core.NODE_TYPES.slotDefault && node.kind === core.NODE_TYPES.slotDefault)) &&
+      Array.isArray(node.children)
+    ) {
       node.children = normalizeNodesForDefinitions(node.children, definitionRegistry);
       return node;
     }
@@ -12407,6 +12518,7 @@
     const componentProperties = [];
     const componentPropertiesSeen = new Set();
     const templateNodes = [];
+    const slotDefaults = [];
     const propertyDefinitions = [];
     const methods = [];
     const signalDeclarations = [];
@@ -12654,6 +12766,11 @@
         continue;
       }
       if (item.type === "Element") {
+        const slotDefault = convertSlotDefaultDefinitionItem(item, source, scopedContext);
+        if (slotDefault) {
+          slotDefaults.push(slotDefault);
+          continue;
+        }
         const loggerCategories = extractQLoggerCategoriesFromElement(item);
         if (loggerCategories !== null) {
           componentLoggerCategories = loggerCategories.slice();
@@ -12938,6 +13055,7 @@
       extendsComponentId: extendsComponentIds.length > 0 ? extendsComponentIds[0] : "",
       definitionType: definitionType,
       templateNodes: templateNodes,
+      slotDefaults: slotDefaults,
       methods: methods,
       propertyDefinitions: propertyDefinitions,
       signalDeclarations: signalDeclarations,
@@ -14275,6 +14393,18 @@
     return lines.join("\n");
   }
 
+  function serializeSlotDefaultNode(slotNode, indentLevel) {
+    const indent = "  ".repeat(indentLevel);
+    const slotName = slotNode && typeof slotNode.name === "string" && slotNode.name.trim() ? slotNode.name : "default";
+    const lines = [indent + "q-slot-default " + slotName + " {"];
+    const children = Array.isArray(slotNode && slotNode.children) ? slotNode.children : [];
+    for (let i = 0; i < children.length; i += 1) {
+      lines.push(serializeNode(children[i], indentLevel + 1));
+    }
+    lines.push(indent + "}");
+    return lines.join("\n");
+  }
+
   function serializeRepeaterPrimitiveLiteral(value) {
     if (value === null) {
       return "null";
@@ -14739,6 +14869,14 @@
           lines.push(serializeScriptChainBlock(hook.name, hook.body, hook.thenBodies, indentLevel + 1));
         }
       }
+      if (Array.isArray(node.slotDefaults)) {
+        for (let i = 0; i < node.slotDefaults.length; i += 1) {
+          const serializedSlotDefault = serializeSlotDefaultNode(node.slotDefaults[i], indentLevel + 1);
+          if (serializedSlotDefault) {
+            lines.push(serializedSlotDefault);
+          }
+        }
+      }
       for (let i = 0; i < node.templateNodes.length; i += 1) {
         lines.push(serializeNode(node.templateNodes[i], indentLevel + 1));
       }
@@ -14748,6 +14886,10 @@
 
     if (node.kind === core.NODE_TYPES.slot) {
       return serializeSlotNode(node, indentLevel);
+    }
+
+    if (core.NODE_TYPES.slotDefault && node.kind === core.NODE_TYPES.slotDefault) {
+      return serializeSlotDefaultNode(node, indentLevel);
     }
 
     if (node.kind === core.NODE_TYPES.componentInstance || node.kind === core.NODE_TYPES.templateInstance) {
