@@ -5,10 +5,10 @@ q-component q-mouse-area {
   q-signal pressed(button)
   q-signal released(button)
 
-  q-property width: "100px"
-  q-property height: "100px"
-  q-property x: "0px"
-  q-property y: "0px"
+  q-property width: 100
+  q-property height: 100
+  q-property x: 0
+  q-property y: 0
 
   slot { default }
 
@@ -52,7 +52,8 @@ q-component q-mouse-area {
   }
 
   function rememberEvent(event) {
-    this.__qhtmlMouseAreaLastEvent = event || null;
+    this.__qhtmlMouseAreaLastClientX = Number(event.clientX || 0);
+    this.__qhtmlMouseAreaLastClientY = Number(event.clientY || 0);
   }
 
   function rect() {
@@ -61,26 +62,27 @@ q-component q-mouse-area {
 
   function containsGlobal(xval, yval) {
     var box = this.rect();
-    var x = Number(xval || 0);
-    var y = Number(yval || 0);
-    return x >= Number(box.left || 0) &&
-      y >= Number(box.top || 0) &&
-      x <= Number(box.right || 0) &&
-      y <= Number(box.bottom || 0);
+    var globalX = Number(xval || 0);
+    var globalY = Number(yval || 0);
+    return globalX >= Number(box.left || 0) &&
+      globalY >= Number(box.top || 0) &&
+      globalX <= Number(box.right || 0) &&
+      globalY <= Number(box.bottom || 0);
   }
 
   function pos() {
-    var event = this.__qhtmlMouseAreaLastEvent || {};
     var box = this.rect();
     return this.qpoint(
-      Number(event.clientX || 0) - Number(box.left || 0),
-      Number(event.clientY || 0) - Number(box.top || 0)
+      Number(this.__qhtmlMouseAreaLastClientX || 0) - Number(box.left || 0),
+      Number(this.__qhtmlMouseAreaLastClientY || 0) - Number(box.top || 0)
     );
   }
 
   function globalPos() {
-    var event = this.__qhtmlMouseAreaLastEvent || {};
-    return this.qpoint(Number(event.clientX || 0), Number(event.clientY || 0));
+    return this.qpoint(
+      Number(this.__qhtmlMouseAreaLastClientX || 0),
+      Number(this.__qhtmlMouseAreaLastClientY || 0)
+    );
   }
 
   function updateHover(event) {
@@ -121,10 +123,10 @@ q-component q-mouse-area {
 
   function applyGeometry() {
     this.style.position = "absolute";
-    this.style.left = String(this.x || "0px");
-    this.style.top = String(this.y || "0px");
-    this.style.width = String(this.width || "100px");
-    this.style.height = String(this.height || "100px");
+    this.style.left = css(this.x, "px");
+    this.style.top = css(this.y, "px");
+    this.style.width = css(this.width, "px");
+    this.style.height = css(this.height, "px");
     this.style.display = this.style.display || "block";
     this.style.boxSizing = this.style.boxSizing || "border-box";
   }

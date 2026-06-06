@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v6.9.10
+# QHTML.js v7.0.0
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,9 +12,9 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v6.9.10
+## Whats New in v7.0.0
 
-- Bumped the release line to `6.9.10`.
+- Bumped the release line to `7.0.0`.
 - Added `q-script-action { ... }` for scoped JavaScript actions that can run standalone or participate in sequential and parallel animation groups.
 - Added QML-style `behavior on <property>` with `NumberAnimation` as a property-write interceptor.
 - Added behavior-aware property writes through `QHtml.qSet()` and bypassed animation-frame commits so animations do not recursively trigger themselves.
@@ -272,8 +272,13 @@ Use `q-bind-css` inside a component when the property can be projected directly 
 ```qhtml
 q-component animated-box {
   q-property w: "200px"
+  q-property labelW: "120px"
+  q-var labelElement { function() { return document.querySelector("#label") } }
 
   q-bind-css { this.component.w this.component.style.width }
+  q-bind-css { this.component.labelW labelElement().style.width }
+
+  div#label { text { label } }
 
   behavior on w {
     NumberAnimation { duration: 250 }
@@ -281,7 +286,7 @@ q-component animated-box {
 }
 ```
 
-The first `q-bind-css` expression must reference a `q-property` declared on the same component. The second expression must resolve to a writable target such as `this.component.style.width`.
+The first `q-bind-css` expression must reference a `q-property` declared on the same component. The second expression must resolve to a writable style target such as `this.component.style.width`, a rendered child selector target such as `#label.style.width`, or a callable runtime target such as `labelElement().style.width` / `getLabel().style.width`. CSS units stored from values like `"200px"` are applied automatically through the same `css(value, unit)` formatting path; if the source property has no stored unit, the target's existing inline style unit is used as a fallback.
 
 Resulting HTML:
 
@@ -819,59 +824,6 @@ qhtml(cardHead) {
 }
 ```
 
-### `q-context` (context composition)
-
-`q-context` augments the current QContext from one or more dot-walked source contexts. It renders no DOM. Use it when a component or block should see another component's direct named symbols without manually forwarding each property, function, signal, q-var, q-switch, q-timer, callback, or child alias.
-
-```qhtml
-q-component context-source {
-  q-property label: "source"
-  q-var helper { function() { return "helper-" + this.component.label; } }
-  function makeText() { return "method-" + this.component.label; }
-}
-
-q-component context-target {
-  q-context { sourceOne sourceTwo }
-  div {
-    text { ${label} / ${helper()} / ${makeText()} }
-  }
-}
-
-context-source sourceOne { label: "one" }
-context-source sourceTwo { label: "two" }
-context-target targetOne { }
-```
-
-When names collide, source order wins: later sources override earlier imported names. `this` and `this.component` are never overwritten.
-
-`q-context` imports only direct symbols from each source. If `object2` has its own `q-context { object3 }`, then `q-context { object2 }` imports `object2`'s direct symbols but not `object3` through `object2`. This prevents context loops such as `object1 -> object2 -> object3 -> object1` from recursively expanding forever.
-
-Sources can also be live QHTML UUIDs. A UUID source is resolved through the current `<q-html>` host and the global QHTML UUID lookup maps before normal dot-walk expression evaluation, which lets tools such as page-builder preview fragments with the context of an existing rendered component:
-
-```qhtml
-q-context { 11111111-2222-3333-4444-555555555555 }
-div { text { ${somePropertyFromThatComponent} } }
-```
-
-When a bare q-property default names a context source instance with exactly one declared q-property, it resolves to that single property value:
-
-```qhtml
-q-component comp1 {
-  q-property myprop: "hello world"
-  div,span { text { ${myprop} } }
-}
-
-comp1 mycomp1 { }
-
-q-component comp2 {
-  q-context { this.component mycomp1 }
-  q-property secondprop: mycomp1
-  div,span { text { ${secondprop} } }
-}
-
-comp2 mycomp2 { }
-```
-
 ### `q-switch` / `switch` (named lookup function)
 
 `q-switch` declares a named runtime function that maps primitive keys to JavaScript expression results. The shorthand `switch` parses the same way.
@@ -935,7 +887,7 @@ Notes:
 
 ### `particle-emitter` / `q-particle-emitter` (canvas-backed particle effects)
 
-`particle-emitter` is the native custom element registered by `qhtml.js`. `q-particle-emitter` is a QHTML component wrapper from `q-components/q-particle-emitter.qhtml`; it exposes the emitter settings as q-properties, renders a native `particle-emitter` child, and forwards `start()`, `stop()`, `clear()`, and `burst(x, y, num)`.
+`particle-emitter` is the native custom element registered by `qhtml.js`. `q-particle-emitter` is a QHTML component wrapper from `q-components/q-particle-emitter.qhtml`; it exposes the emitter settings as q-properties, renders a native `particle-emitter` child, and forwards `start()`, `stop()`, `clear()`, `burst(x, y, num)`, `setAttribute(name, value)`, and `getAttribute(name)`.
 
 ```qhtml
 q-import { q-components/q-particle-emitter.qhtml }
@@ -996,6 +948,7 @@ Useful methods:
 - `start()` / `stop()`: toggles continuous emission.
 - `clear()`: removes current particles and pending bursts.
 - `burst(x, y, num)`: queues `num` particles emitted at the current `emitRate` from the supplied origin. The emitter's configured `x` / `y` attributes are not changed.
+- `setAttribute(name, value)` / `getAttribute(name)`: pass through to the wrapped native `particle-emitter` child.
 
 See `doc/11-particle-emitter/` for the full attribute reference.
 
@@ -2204,8 +2157,6 @@ this.component.root().update(); // whole <q-html>
   h3 { text { Hello from q-editor } }
 </q-editor>
 ```
-
-For embedded tool previews, `<q-editor preview-context="q-context { ... }">` prepends that context only to the runtime parse/preview path. The editor text remains unchanged, but the preview can resolve names from a live component UUID or any other valid `q-context` source.
 
 ### `q-import { ... }` (include QHTML files)
 

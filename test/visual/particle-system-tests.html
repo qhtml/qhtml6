@@ -377,7 +377,7 @@ div#t120-system {
   }
 
   particle-emitter#t120-emitter {
-    emitRate: "84"
+    emitRate: "260"
     lifetime: "1600"
     lifetimeVariation: "90"
     xVelocity: "0"
@@ -400,8 +400,8 @@ div#t120-system {
     yVelocityVariation: "0.04"
     xAccelerationVariation: "0"
     yAccelerationVariation: "0.005"
-    maxActiveParticles: "96"
-    maxActiveParticlesVariation: "18"
+    maxActiveParticles: "720"
+    maxActiveParticlesVariation: "120"
     running: "false"
     interval: "10"
     src: "tools/assets/particle.png"
@@ -441,7 +441,7 @@ onReady {
           <h2>121. q-particle-emitter SVG star mask</h2>
           <span id="badge-121" class="badge pending">pending</span>
         </div>
-        <div class="test-expected"><strong>Expected:</strong> q-particle-emitter | star mask | SVG mask</div>
+        <div class="test-expected"><strong>Expected:</strong> q-particle-emitter | star mask | SVG mask | attr passthrough</div>
 <q-html id="host-t121" data-test-no="121">
 q-import { dist/q-components/q-particle-emitter.qhtml }
 
@@ -458,7 +458,7 @@ div#t121-system {
   }
 
   q-particle-emitter#t121-emitter {
-    emitRate: "70"
+    emitRate: "240"
     lifetime: "1900"
     lifetimeVariation: "220"
     xVelocity: "0"
@@ -481,8 +481,8 @@ div#t121-system {
     yVelocityVariation: "0.08"
     xAccelerationVariation: "0.01"
     yAccelerationVariation: "0.003"
-    maxActiveParticles: "72"
-    maxActiveParticlesVariation: "8"
+    maxActiveParticles: "640"
+    maxActiveParticlesVariation: "96"
     running: "false"
 	    interval: "10"
 	    src: "tools/assets/particle.png"
@@ -497,7 +497,7 @@ div#t121-system {
 		    onclick {
 		      this.closest("q-html").querySelector("#t121-emitter").running = true;
 		      $("#t121-status").textContent = "running";
-		      document.querySelector("#acc-main").resultReported(121, "q-particle-emitter | star mask | SVG mask");
+		      document.querySelector("#acc-main").resultReported(121, "q-particle-emitter | star mask | SVG mask | attr passthrough");
 	    }
 	    text { Start masked particles }
 	  }
@@ -506,17 +506,21 @@ div#t121-system {
 		    onclick {
 		      this.closest("q-html").querySelector("#t121-emitter").running = false;
 		      $("#t121-status").textContent = "stopped";
-		      document.querySelector("#acc-main").resultReported(121, "q-particle-emitter | star mask | SVG mask");
+		      document.querySelector("#acc-main").resultReported(121, "q-particle-emitter | star mask | SVG mask | attr passthrough");
 	    }
 	    text { Stop masked particles }
 	  }
 	  span#t121-status { text { stopped } }
 	  span#t121-mask-status { text { star mask } }
+	  span#t121-attr-status { text { attr pending } }
 	  span#t121-expected { text { q-particle-emitter star mask SVG mask } }
 	}
 
 	onReady {
-	  document.querySelector("#acc-main").resultReported(121, "q-particle-emitter | star mask | SVG mask");
+	  var emitter = document.querySelector("#t121-emitter");
+	  emitter.setAttribute("emitRate", "88");
+	  $("#t121-attr-status").textContent = "attr " + emitter.getAttribute("emitRate");
+	  document.querySelector("#acc-main").resultReported(121, "q-particle-emitter | star mask | SVG mask | attr passthrough");
 	}
 </q-html>
       </article>
@@ -556,7 +560,7 @@ div#t122-board {
     }
     strong { text { div host } }
     particle-emitter#t122-div-emitter {
-      emitRate: "76"
+      emitRate: "220"
       lifetime: "2100"
       lifetimeVariation: "180"
       x: "110"
@@ -579,8 +583,8 @@ div#t122-board {
       endOpacity: "0.03"
       startOpacityVariation: "0.06"
       endOpacityVariation: "0.02"
-      maxActiveParticles: "44"
-      maxActiveParticlesVariation: "5"
+      maxActiveParticles: "520"
+      maxActiveParticlesVariation: "80"
       interval: "10"
       running: "false"
       src: "tools/assets/particle.png"
@@ -605,7 +609,7 @@ div#t122-board {
     }
     text { h3 host }
     q-particle-emitter#t122-h3-emitter {
-      emitRate: "68"
+      emitRate: "210"
       lifetime: "2300"
       lifetimeVariation: "220"
       x: "108"
@@ -628,8 +632,8 @@ div#t122-board {
       endOpacity: "0.025"
       startOpacityVariation: "0.07"
       endOpacityVariation: "0.02"
-      maxActiveParticles: "40"
-      maxActiveParticlesVariation: "4"
+      maxActiveParticles: "480"
+      maxActiveParticlesVariation: "72"
       interval: "10"
       running: "false"
       src: "tools/assets/particle.png"
@@ -655,7 +659,7 @@ div#t122-board {
     }
     text { button host }
     particle-emitter#t122-button-emitter {
-      emitRate: "82"
+      emitRate: "240"
       lifetime: "1950"
       lifetimeVariation: "160"
       x: "116"
@@ -678,8 +682,8 @@ div#t122-board {
       endOpacity: "0.035"
       startOpacityVariation: "0.05"
       endOpacityVariation: "0.018"
-      maxActiveParticles: "48"
-      maxActiveParticlesVariation: "6"
+      maxActiveParticles: "560"
+      maxActiveParticlesVariation: "84"
       interval: "10"
       running: "false"
       src: "tools/assets/particle.png"
@@ -701,7 +705,7 @@ div#t122-board {
     }
     text { span host }
     q-particle-emitter#t122-span-emitter {
-      emitRate: "72"
+      emitRate: "220"
       lifetime: "2200"
       lifetimeVariation: "200"
       x: "112"
@@ -724,8 +728,8 @@ div#t122-board {
       endOpacity: "0.03"
       startOpacityVariation: "0.06"
       endOpacityVariation: "0.02"
-      maxActiveParticles: "42"
-      maxActiveParticlesVariation: "5"
+      maxActiveParticles: "500"
+      maxActiveParticlesVariation: "76"
       interval: "10"
       running: "false"
       src: "tools/assets/particle.png"
@@ -751,7 +755,7 @@ q-modal#t122-modal-host {
       }
       text { q-modal body emitter }
       particle-emitter#t122-modal-emitter {
-        emitRate: "88"
+        emitRate: "260"
         lifetime: "2400"
         lifetimeVariation: "240"
         x: "180"
@@ -774,8 +778,8 @@ q-modal#t122-modal-host {
         endOpacity: "0.025"
         startOpacityVariation: "0.06"
         endOpacityVariation: "0.02"
-        maxActiveParticles: "52"
-        maxActiveParticlesVariation: "6"
+        maxActiveParticles: "620"
+        maxActiveParticlesVariation: "96"
         interval: "10"
         running: "false"
         src: "tools/assets/particle.png"

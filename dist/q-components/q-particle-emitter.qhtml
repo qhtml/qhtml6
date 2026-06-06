@@ -51,91 +51,104 @@ q-component q-particle-emitter {
     this.style.zIndex = String(this.zIndex || 1);
   }
 
-  function setEmitterAttribute(emitter, name, value) {
-    if (!emitter || !name) {
+  function setEmitterAttribute(targetEmitter, name, value) {
+    if (!targetEmitter || !name) {
       return;
     }
     if (value == null || value === "") {
-      emitter.removeAttribute(name);
+      targetEmitter.removeAttribute(name);
       return;
     }
-    emitter.setAttribute(name, String(value));
+    targetEmitter.setAttribute(name, String(value));
+  }
+
+  function setAttribute(name, value) {
+    var targetEmitter = this.emitter();
+    this.setEmitterAttribute(targetEmitter, name, value);
+  }
+
+  function getAttribute(name) {
+    var targetEmitter = this.emitter();
+    if (!targetEmitter || !name) {
+      return null;
+    }
+    return targetEmitter.getAttribute(name);
   }
 
   function syncEmitter() {
-    var emitter = this.emitter();
-    if (!emitter) {
+    var targetEmitter = this.emitter();
+    if (!targetEmitter) {
       return null;
     }
-    this.setEmitterAttribute(emitter, "running", this.running);
-    this.setEmitterAttribute(emitter, "src", this.src);
-    this.setEmitterAttribute(emitter, "mask", this.mask);
-    this.setEmitterAttribute(emitter, "emitterMask", this.emitterMask);
-    this.setEmitterAttribute(emitter, "color", this.color);
-    this.setEmitterAttribute(emitter, "colorOpacity", this.colorOpacity);
-    this.setEmitterAttribute(emitter, "emitRate", this.emitRate);
-    this.setEmitterAttribute(emitter, "interval", this.interval);
-    this.setEmitterAttribute(emitter, "maxActiveParticles", this.maxActiveParticles);
-    this.setEmitterAttribute(emitter, "maxActiveParticlesVariation", this.maxActiveParticlesVariation);
-    this.setEmitterAttribute(emitter, "maxParticles", this.maxParticles);
-    this.setEmitterAttribute(emitter, "stopAfter", this.stopAfter);
-    this.setEmitterAttribute(emitter, "lifetime", this.lifetime);
-    this.setEmitterAttribute(emitter, "lifetimeVariation", this.lifetimeVariation);
-    this.setEmitterAttribute(emitter, "x", this.x);
-    this.setEmitterAttribute(emitter, "y", this.y);
-    this.setEmitterAttribute(emitter, "width", this.width);
-    this.setEmitterAttribute(emitter, "height", this.height);
-    this.setEmitterAttribute(emitter, "xVariation", this.xVariation);
-    this.setEmitterAttribute(emitter, "yVariation", this.yVariation);
-    this.setEmitterAttribute(emitter, "xVelocity", this.xVelocity);
-    this.setEmitterAttribute(emitter, "yVelocity", this.yVelocity);
-    this.setEmitterAttribute(emitter, "xVelocityVariation", this.xVelocityVariation);
-    this.setEmitterAttribute(emitter, "yVelocityVariation", this.yVelocityVariation);
-    this.setEmitterAttribute(emitter, "xAcceleration", this.xAcceleration);
-    this.setEmitterAttribute(emitter, "yAcceleration", this.yAcceleration);
-    this.setEmitterAttribute(emitter, "xAccelerationVariation", this.xAccelerationVariation);
-    this.setEmitterAttribute(emitter, "yAccelerationVariation", this.yAccelerationVariation);
-    this.setEmitterAttribute(emitter, "startSize", this.startSize);
-    this.setEmitterAttribute(emitter, "endSize", this.endSize);
-    this.setEmitterAttribute(emitter, "startSizeVariation", this.startSizeVariation);
-    this.setEmitterAttribute(emitter, "endSizeVariation", this.endSizeVariation);
-    this.setEmitterAttribute(emitter, "startOpacity", this.startOpacity);
-    this.setEmitterAttribute(emitter, "endOpacity", this.endOpacity);
-    this.setEmitterAttribute(emitter, "startOpacityVariation", this.startOpacityVariation);
-    this.setEmitterAttribute(emitter, "endOpacityVariation", this.endOpacityVariation);
-    this.setEmitterAttribute(emitter, "seed", this.seed);
-    this.setEmitterAttribute(emitter, "zIndex", this.zIndex);
-    return emitter;
+    this.setEmitterAttribute(targetEmitter, "running", this.running);
+    this.setEmitterAttribute(targetEmitter, "src", this.src);
+    this.setEmitterAttribute(targetEmitter, "mask", this.mask);
+    this.setEmitterAttribute(targetEmitter, "emitterMask", this.emitterMask);
+    this.setEmitterAttribute(targetEmitter, "color", this.color);
+    this.setEmitterAttribute(targetEmitter, "colorOpacity", this.colorOpacity);
+    this.setEmitterAttribute(targetEmitter, "emitRate", this.emitRate);
+    this.setEmitterAttribute(targetEmitter, "interval", this.interval);
+    this.setEmitterAttribute(targetEmitter, "maxActiveParticles", this.maxActiveParticles);
+    this.setEmitterAttribute(targetEmitter, "maxActiveParticlesVariation", this.maxActiveParticlesVariation);
+    this.setEmitterAttribute(targetEmitter, "maxParticles", this.maxParticles);
+    this.setEmitterAttribute(targetEmitter, "stopAfter", this.stopAfter);
+    this.setEmitterAttribute(targetEmitter, "lifetime", this.lifetime);
+    this.setEmitterAttribute(targetEmitter, "lifetimeVariation", this.lifetimeVariation);
+    this.setEmitterAttribute(targetEmitter, "x", this.x);
+    this.setEmitterAttribute(targetEmitter, "y", this.y);
+    this.setEmitterAttribute(targetEmitter, "width", this.width);
+    this.setEmitterAttribute(targetEmitter, "height", this.height);
+    this.setEmitterAttribute(targetEmitter, "xVariation", this.xVariation);
+    this.setEmitterAttribute(targetEmitter, "yVariation", this.yVariation);
+    this.setEmitterAttribute(targetEmitter, "xVelocity", this.xVelocity);
+    this.setEmitterAttribute(targetEmitter, "yVelocity", this.yVelocity);
+    this.setEmitterAttribute(targetEmitter, "xVelocityVariation", this.xVelocityVariation);
+    this.setEmitterAttribute(targetEmitter, "yVelocityVariation", this.yVelocityVariation);
+    this.setEmitterAttribute(targetEmitter, "xAcceleration", this.xAcceleration);
+    this.setEmitterAttribute(targetEmitter, "yAcceleration", this.yAcceleration);
+    this.setEmitterAttribute(targetEmitter, "xAccelerationVariation", this.xAccelerationVariation);
+    this.setEmitterAttribute(targetEmitter, "yAccelerationVariation", this.yAccelerationVariation);
+    this.setEmitterAttribute(targetEmitter, "startSize", this.startSize);
+    this.setEmitterAttribute(targetEmitter, "endSize", this.endSize);
+    this.setEmitterAttribute(targetEmitter, "startSizeVariation", this.startSizeVariation);
+    this.setEmitterAttribute(targetEmitter, "endSizeVariation", this.endSizeVariation);
+    this.setEmitterAttribute(targetEmitter, "startOpacity", this.startOpacity);
+    this.setEmitterAttribute(targetEmitter, "endOpacity", this.endOpacity);
+    this.setEmitterAttribute(targetEmitter, "startOpacityVariation", this.startOpacityVariation);
+    this.setEmitterAttribute(targetEmitter, "endOpacityVariation", this.endOpacityVariation);
+    this.setEmitterAttribute(targetEmitter, "seed", this.seed);
+    this.setEmitterAttribute(targetEmitter, "zIndex", this.zIndex);
+    return targetEmitter;
   }
 
   function start() {
     this.running = true;
-    var emitter = this.syncEmitter();
-    if (emitter && typeof emitter.start === "function") {
-      emitter.start();
+    var targetEmitter = this.syncEmitter();
+    if (targetEmitter && typeof targetEmitter.start === "function") {
+      targetEmitter.start();
     }
   }
 
   function stop() {
     this.running = false;
-    var emitter = this.syncEmitter();
-    if (emitter && typeof emitter.stop === "function") {
-      emitter.stop();
+    var targetEmitter = this.syncEmitter();
+    if (targetEmitter && typeof targetEmitter.stop === "function") {
+      targetEmitter.stop();
     }
   }
 
   function burst(x, y, num) {
-    var emitter = this.syncEmitter();
-    if (emitter && typeof emitter.burst === "function") {
-      return emitter.burst(x, y, num);
+    var targetEmitter = this.syncEmitter();
+    if (targetEmitter && typeof targetEmitter.burst === "function") {
+      return targetEmitter.burst(x, y, num);
     }
     return 0;
   }
 
   function clear() {
-    var emitter = this.emitter();
-    if (emitter && typeof emitter.clear === "function") {
-      emitter.clear();
+    var targetEmitter = this.emitter();
+    if (targetEmitter && typeof targetEmitter.clear === "function") {
+      targetEmitter.clear();
     }
   }
 
@@ -186,44 +199,5 @@ q-component q-particle-emitter {
     this.component.syncEmitter();
   }
 
-  particle-emitter {
-    running: this.component.running
-    src: this.component.src
-    mask: this.component.mask
-    emitterMask: this.component.emitterMask
-    color: this.component.color
-    colorOpacity: this.component.colorOpacity
-    emitRate: this.component.emitRate
-    interval: this.component.interval
-    maxActiveParticles: this.component.maxActiveParticles
-    maxActiveParticlesVariation: this.component.maxActiveParticlesVariation
-    maxParticles: this.component.maxParticles
-    stopAfter: this.component.stopAfter
-    lifetime: this.component.lifetime
-    lifetimeVariation: this.component.lifetimeVariation
-    x: this.component.x
-    y: this.component.y
-    width: this.component.width
-    height: this.component.height
-    xVariation: this.component.xVariation
-    yVariation: this.component.yVariation
-    xVelocity: this.component.xVelocity
-    yVelocity: this.component.yVelocity
-    xVelocityVariation: this.component.xVelocityVariation
-    yVelocityVariation: this.component.yVelocityVariation
-    xAcceleration: this.component.xAcceleration
-    yAcceleration: this.component.yAcceleration
-    xAccelerationVariation: this.component.xAccelerationVariation
-    yAccelerationVariation: this.component.yAccelerationVariation
-    startSize: this.component.startSize
-    endSize: this.component.endSize
-    startSizeVariation: this.component.startSizeVariation
-    endSizeVariation: this.component.endSizeVariation
-    startOpacity: this.component.startOpacity
-    endOpacity: this.component.endOpacity
-    startOpacityVariation: this.component.startOpacityVariation
-    endOpacityVariation: this.component.endOpacityVariation
-    seed: this.component.seed
-    zIndex: this.component.zIndex
-  }
+  particle-emitter { }
 }

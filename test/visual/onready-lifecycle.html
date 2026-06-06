@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QHTML onReady Lifecycle Test</title>
+  <script src="../../dist/qhtml.js"></script>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 24px;
+      background: #f6f7f9;
+      color: #17202a;
+    }
+    .result {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 10px 14px;
+      border: 1px solid #9aa7b5;
+      background: #fff;
+    }
+    .ready {
+      border-color: #1f8f54;
+      color: #115b36;
+      background: #eef9f2;
+    }
+  </style>
+</head>
+<body>
+  <h1>onReady Lifecycle Test</h1>
+  <p>Expected: the box changes to <strong>ready-ok</strong> after QHTMLContentLoaded.</p>
+
+  <q-html>
+q-component ready-probe {
+  q-logger { q-component q-signal function }
+  q-property message: "ready-ok"
+
+  function setReadyText(value) {
+    this.component.querySelector("#ready-output").textContent = value
+    this.component.querySelector("#ready-output").classList.add("ready")
+    this.component.setAttribute("data-ready", value)
+  }
+
+  div#ready-output.result { text { waiting } }
+
+  onReady {
+    setReadyText(message)
+  }
+}
+
+ready-probe probe { }
+  </q-html>
+</body>
+</html>

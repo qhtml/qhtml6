@@ -21,12 +21,23 @@
 q-component bind-css-box {
   q-property w: "120px"
   q-property h: "32px"
+  q-property innerW: "96px"
+  q-property innerH: "20px"
+  q-var myvar { function() { return document.querySelector("#inner") } }
+
+  function getMyDiv() {
+    return document.querySelector("#inner");
+  }
 
   q-bind-css { this.component.w this.component.style.width }
   q-bind-css { this.component.h this.component.style.height }
+  q-bind-css { this.component.innerW myvar().style.width }
+  q-bind-css { this.component.innerH getMyDiv().style.height }
 
-  style { display: grid; place-items: center; background: #1d4ed8; color: #ffffff; font-weight: 800; }
-  text { q-bind-css }
+  div#inner {
+
+    text { q-bind-css }
+  }
 }
 
 bind-css-box#box { }
@@ -40,15 +51,30 @@ q-timer bindCssTestTimer {
     if (box) {
       box.w = "220px";
       box.h = "44px";
-      window.setTimeout(function() {
-        document.body.dataset.status =
-          box.style.width === "220px" && box.style.height === "44px"
-            ? "pass"
-            : "fail";
-      }, 160);
+      box.innerW = "176px";
+      box.innerH = "28px";
     } else {
       document.body.dataset.status = "fail";
     }
+  }
+}
+
+q-timer verifyBindCssTest {
+  interval: 420
+  repeat: false
+  running: true
+  onTimeout {
+    var box = document.querySelector("#box");
+    var inner = document.querySelector("#inner");
+    document.body.dataset.status =
+      box &&
+      inner &&
+      box.style.width === "220px" &&
+      box.style.height === "44px" &&
+      inner.style.width === "176px" &&
+      inner.style.height === "28px"
+        ? "pass"
+        : "fail";
   }
 }
   </q-html>

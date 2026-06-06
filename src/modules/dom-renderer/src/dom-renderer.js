@@ -5937,6 +5937,233 @@
     return "";
   }
 
+  function normalizeDeclaredCssBindingSourceExpression(expression) {
+    const source = String(expression || "").trim();
+    if (!source) {
+      return { valid: false, propertyName: "" };
+    }
+    const prefixes = ["this.component.", "component.", "this."];
+    let propertyName = source;
+    for (let i = 0; i < prefixes.length; i += 1) {
+      const prefix = prefixes[i];
+      if (source.indexOf(prefix) === 0) {
+        propertyName = source.slice(prefix.length);
+        break;
+      }
+    }
+    propertyName = String(propertyName || "").trim();
+    if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(propertyName)) {
+      return { valid: false, propertyName: "" };
+    }
+    return {
+      valid: true,
+      propertyName: propertyName,
+    };
+  }
+
+  function normalizeDeclaredCssBindingTargetExpression(expression) {
+    const target = String(expression || "").trim();
+    const match = target.match(/^(.+)\.style\.([A-Za-z_$-][A-Za-z0-9_$-]*)$/);
+    if (!match) {
+      return { valid: false, selector: "", styleProperty: "" };
+    }
+    const selector = String(match[1] || "").trim();
+    const styleProperty = String(match[2] || "").trim();
+    if (!selector || !styleProperty) {
+      return { valid: false, selector: "", styleProperty: "" };
+    }
+    return {
+      valid: true,
+      selector: selector,
+      styleProperty: styleProperty,
+    };
+  }
+
+  function stylePropertyToCssName(styleProperty) {
+    const raw = String(styleProperty || "").trim();
+    if (!raw) {
+      return "";
+    }
+    if (raw.indexOf("-") >= 0) {
+      return raw;
+    }
+    return raw.replace(/[A-Z]/g, function replaceStyleUppercase(match) {
+      return "-" + match.toLowerCase();
+    });
+  }
+
+  function unwrapQVarHandleValue(value) {
+    if (!value || (typeof value !== "object" && typeof value !== "function")) {
+      return value;
+    }
+    try {
+      if (value[QHTML_QVAR_HANDLE_FLAG] === true) {
+        if (typeof value.get === "function") {
+          return value.get();
+        }
+        return value.value;
+      }
+    } catch (error) {
+      return value;
+    }
+    return value;
+  }
+
+  function resolveDeclaredCssBindingTargetFromExpression(hostElement, selector, scope) {
+    const expression = String(selector || "").trim();
+    if (!expression || /^[#.[]/.test(expression)) {
+      return null;
+    }
+    try {
+      const runtimeScope = scope || resolveInlineExpressionScope(hostElement, { component: hostElement });
+      const evaluator = new Function(
+        "scope",
+        "return (function(){ with (scope) { return (" + expression + "); } }).call(scope.component || null);"
+      );
+      const resolved = evaluator(runtimeScope);
+      const unwrapped = unwrapQVarHandleValue(resolved);
+      return unwrapped && unwrapped.style ? unwrapped : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function resolveDeclaredCssBindingTarget(hostElement, targetInfo, scope) {
+    if (!hostElement || !targetInfo || !targetInfo.valid) {
+      return null;
+    }
+    const selector = String(targetInfo.selector || "").trim();
+    if (selector === "this.component" || selector === "component" || selector === "this") {
+      return hostElement;
+    }
+    const expressionTarget = resolveDeclaredCssBindingTargetFromExpression(hostElement, selector, scope);
+    if (expressionTarget) {
+      return expressionTarget;
+    }
+    let target = null;
+    if (typeof hostElement.querySelector === "function") {
+      try {
+        target = hostElement.querySelector(selector);
+      } catch (error) {
+        target = null;
+      }
+    }
+    if (!target) {
+      const doc = hostElement.ownerDocument || global.document || null;
+      if (doc && typeof doc.querySelector === "function") {
+        try {
+          target = doc.querySelector(selector);
+        } catch (error) {
+          target = null;
+        }
+      }
+    }
+    return target && target.style ? target : null;
+  }
+
+  function readCssUnitFromStyleTarget(targetElement, styleProperty) {
+    if (!targetElement || !targetElement.style) {
+      return "";
+    }
+    const propertyName = String(styleProperty || "").trim();
+    const cssName = stylePropertyToCssName(propertyName);
+    const candidates = [];
+    try {
+      if (propertyName && Object.prototype.hasOwnProperty.call(targetElement.style, propertyName)) {
+        candidates.push(targetElement.style[propertyName]);
+      } else if (propertyName) {
+        candidates.push(targetElement.style[propertyName]);
+      }
+    } catch (error) {
+      // ignore style read failures
+    }
+    try {
+      if (cssName && typeof targetElement.style.getPropertyValue === "function") {
+        candidates.push(targetElement.style.getPropertyValue(cssName));
+      }
+    } catch (error) {
+      // ignore style read failures
+    }
+    for (let i = 0; i < candidates.length; i += 1) {
+      const normalized = normalizeCssUnitPropertyValue(candidates[i]);
+      if (normalized.matched && normalized.cssUnit) {
+        return normalized.cssUnit;
+      }
+    }
+    return "";
+  }
+
+  function writeCssBindingStyleValue(targetElement, styleProperty, value) {
+    if (!targetElement || !targetElement.style) {
+      return false;
+    }
+    const propertyName = String(styleProperty || "").trim();
+    if (!propertyName) {
+      return false;
+    }
+    const stringValue = String(value == null ? "" : value);
+    if (propertyName.indexOf("-") >= 0) {
+      targetElement.style.setProperty(propertyName, stringValue);
+    } else {
+      targetElement.style[propertyName] = stringValue;
+    }
+    return true;
+  }
+
+  function collectDeclaredCssBindings(componentNode) {
+    const meta = componentNode && componentNode.meta && typeof componentNode.meta === "object" ? componentNode.meta : null;
+    const bindings = meta && Array.isArray(meta.__qhtmlCssBindings) ? meta.__qhtmlCssBindings : [];
+    return bindings;
+  }
+
+  function applyDeclaredCssBindingsForProperty(hostElement, componentNode, instanceNode, changedPropertyName) {
+    const bindings = collectDeclaredCssBindings(componentNode);
+    if (!hostElement || bindings.length === 0) {
+      return;
+    }
+    const declaredPropertySet = collectDeclaredComponentPropertySet(componentNode, instanceNode);
+    const changedKey = String(changedPropertyName || "").trim().toLowerCase();
+    const scope = resolveInlineExpressionScope(hostElement, { component: hostElement });
+    const cssFormatter = createInlineCssFormatter(hostElement, scope);
+    for (let i = 0; i < bindings.length; i += 1) {
+      const binding = bindings[i] && typeof bindings[i] === "object" ? bindings[i] : null;
+      if (!binding) {
+        continue;
+      }
+      const sourceInfo = normalizeDeclaredCssBindingSourceExpression(binding.sourceExpression);
+      if (!sourceInfo.valid) {
+        continue;
+      }
+      const propertyName = sourceInfo.propertyName;
+      const propertyKey = propertyName.toLowerCase();
+      if (changedKey && propertyKey !== changedKey) {
+        continue;
+      }
+      if (!declaredPropertySet.has(propertyKey)) {
+        continue;
+      }
+      const targetInfo = normalizeDeclaredCssBindingTargetExpression(binding.targetExpression);
+      if (!targetInfo.valid) {
+        continue;
+      }
+      const targetElement = resolveDeclaredCssBindingTarget(hostElement, targetInfo, scope);
+      if (!targetElement) {
+        continue;
+      }
+      let value = undefined;
+      try {
+        value = hostElement[propertyName];
+      } catch (error) {
+        value = undefined;
+      }
+      let unit = readCssUnitFromHost(hostElement, propertyName);
+      if (!unit) {
+        unit = readCssUnitFromStyleTarget(targetElement, targetInfo.styleProperty);
+      }
+      writeCssBindingStyleValue(targetElement, targetInfo.styleProperty, cssFormatter(value, unit));
+    }
+  }
+
   function readCssUnitFromInlineScope(scope, propertyName) {
     if (!scope || typeof scope !== "object") {
       return "";
@@ -8010,10 +8237,12 @@
             if (hadValue && Object.is(previousValue, normalizedValue)) {
               writeTrackedDeclaredProperty(this, propertyName, normalizedValue);
               attachDeclaredPropertyModelListener(this, componentId, propertyName, normalizedValue);
+              applyDeclaredCssBindingsForProperty(this, componentNode, instanceNode, propertyName);
               return;
             }
             writeTrackedDeclaredProperty(this, propertyName, normalizedValue);
             attachDeclaredPropertyModelListener(this, componentId, propertyName, normalizedValue);
+            applyDeclaredCssBindingsForProperty(this, componentNode, instanceNode, propertyName);
             if (hadValue && !behaviorSuppressChanged) {
               if (
                 shouldLogQLoggerCategory(this, componentNode, instanceNode, "q-property") &&
@@ -12274,6 +12503,7 @@
     stripRenderedSlotElements(hostElement);
     applyRuntimeThemeRulesToHost(hostElement, instanceNode);
     bindDeclaredComponentPropertyNodes(componentNode, hostElement, context);
+    applyDeclaredCssBindingsForProperty(hostElement, componentNode, instanceNode, "");
 
     if (!context.disableLifecycleHooks) {
       runLifecycleHooks(instanceNode, hostElement, targetDocument);

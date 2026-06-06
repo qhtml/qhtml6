@@ -82,6 +82,12 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - parsed in top-level, element blocks, and runtime-capable component/worker blocks
       - compiled into equivalent `onready` lifecycle connect scripts (declarative sugar over `signal.connect(handler)`)
       - sender/target expressions are kept as runtime-evaluated expressions, so named aliases and `document.querySelector(...)` expressions are both supported
+    - declarative CSS binding:
+      - `q-bind-css { this.component.width #target.style.width }`
+      - `q-bind-css { this.component.width myTarget().style.width }` where `myTarget` is an in-scope callable runtime handle such as `q-var` or a component method
+      - parsed only inside runtime-capable `q-component` definitions as `component.meta.__qhtmlCssBindings[]`
+      - stores `sourceExpression`, `targetExpression`, original source, and source range metadata for renderer installation
+      - normal element bodies reject `q-bind-css` because it binds declared component q-properties
     - callback declarations:
       - top-level `q-callback name(param1, ...) { ... }` emitted as QDom `kind: "callback"` nodes
       - component-local `q-callback name(param1, ...) { ... }` emitted in `component.callbackDeclarations`

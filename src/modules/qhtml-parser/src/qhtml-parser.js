@@ -67,6 +67,7 @@
     "q-timer",
     "q-canvas",
     "q-connect",
+    "q-bind-css",
     "q-import",
     "q-logger",
     "q-perf",
@@ -3133,6 +3134,28 @@
         if (nameLower === "q-connect" && nextChar !== "{") {
           throw ParseError("q-connect requires a block body", parser.index);
         }
+        if (nameLower === "q-bind-css" && nextChar === "{") {
+          consume(parser);
+          const bindCssBody = readBalancedBlockContent(parser);
+          const bindCssConfig = parseQBindCssDefinitionBody(String(bindCssBody || ""));
+          if (!bindCssConfig.sourceExpression || !bindCssConfig.targetExpression) {
+            throw ParseError("q-bind-css requires source and target expressions", parser.index);
+          }
+          items.push({
+            type: "QBindCssDefinition",
+            sourceExpression: bindCssConfig.sourceExpression,
+            targetExpression: bindCssConfig.targetExpression,
+            body: String(bindCssBody || ""),
+            keywords: keywordSnapshot,
+            start: itemStart,
+            end: parser.index,
+            raw: parser.source.slice(itemStart, parser.index),
+          });
+          continue;
+        }
+        if (nameLower === "q-bind-css" && nextChar !== "{") {
+          throw ParseError("q-bind-css requires a block body", parser.index);
+        }
         if (nameLower === "q-timer" && nextChar !== "{" && nextChar !== ",") {
           const timerId = parseIdentifier(parser);
           skipWhitespace(parser);
@@ -4508,6 +4531,30 @@
 
         if (firstLower === "q-connect" && peek(parser) !== "{") {
           throw ParseError("q-connect requires a block body", parser.index);
+        }
+
+        if (firstLower === "q-bind-css" && peek(parser) === "{") {
+          consume(parser);
+          const bindCssBody = readBalancedBlockContent(parser);
+          const bindCssConfig = parseQBindCssDefinitionBody(String(bindCssBody || ""));
+          if (!bindCssConfig.sourceExpression || !bindCssConfig.targetExpression) {
+            throw ParseError("q-bind-css requires source and target expressions", parser.index);
+          }
+          body.push({
+            type: "QBindCssDefinition",
+            sourceExpression: bindCssConfig.sourceExpression,
+            targetExpression: bindCssConfig.targetExpression,
+            body: String(bindCssBody || ""),
+            keywords: keywordSnapshot,
+            start: start,
+            end: parser.index,
+            raw: parser.source.slice(start, parser.index),
+          });
+          continue;
+        }
+
+        if (firstLower === "q-bind-css" && peek(parser) !== "{") {
+          throw ParseError("q-bind-css requires a block body", parser.index);
         }
 
         if (firstLower === "q-timer" && peek(parser) !== "{" && peek(parser) !== ",") {
@@ -10706,6 +10753,14 @@
     };
   }
 
+  function parseQBindCssDefinitionBody(bodyText) {
+    const parsed = parseQConnectDefinitionBody(bodyText);
+    return {
+      sourceExpression: String(parsed.senderExpression || "").trim(),
+      targetExpression: String(parsed.targetExpression || "").trim(),
+    };
+  }
+
   function buildQConnectLifecycleBody(connectDefinition) {
     const item = connectDefinition && typeof connectDefinition === "object" ? connectDefinition : {};
     const senderExpression = String(item.senderExpression || "").trim();
@@ -12232,6 +12287,9 @@
         appendQBehaviorDefinitionToNode(targetElement, item);
         continue;
       }
+      if (item.type === "QBindCssDefinition") {
+        throw new Error("q-bind-css is only valid inside q-component definitions.");
+      }
       if (item.type === "QPropertyBlock") {
         const names = Array.isArray(item.properties) ? item.properties : [];
         if (!targetElement.meta || typeof targetElement.meta !== "object") {
@@ -12528,6 +12586,8 @@
     const switchDeclarations = [];
     const componentBehaviors = [];
     const componentBehaviorNamesSeen = new Set();
+    const componentCssBindings = [];
+    const componentCssBindingNamesSeen = new Set();
     let componentLoggerCategories = null;
     let componentPerfCategories = null;
     let componentAnchorRules = null;
@@ -12763,6 +12823,37 @@
         }
         componentBehaviorNamesSeen.add(behaviorKey);
         componentBehaviors.push(behavior);
+        continue;
+      }
+      if (item.type === "QBindCssDefinition") {
+        if (definitionType !== "component") {
+          throw new Error("q-bind-css is only valid inside q-component definitions.");
+        }
+        if (!supportsRuntimeDefinition) {
+          continue;
+        }
+        const sourceExpression = String(item.sourceExpression || "").trim();
+        const targetExpression = String(item.targetExpression || "").trim();
+        if (!sourceExpression || !targetExpression) {
+          continue;
+        }
+        const bindingKey = (sourceExpression + "->" + targetExpression).toLowerCase();
+        if (componentCssBindingNamesSeen.has(bindingKey)) {
+          throw new Error("Duplicate q-bind-css binding: '" + sourceExpression + " " + targetExpression + "'.");
+        }
+        componentCssBindingNamesSeen.add(bindingKey);
+        componentCssBindings.push({
+          sourceExpression: sourceExpression,
+          targetExpression: targetExpression,
+          body: String(item.body || ""),
+          meta: {
+            originalSource: item && typeof item.raw === "string" ? item.raw : "",
+            sourceRange:
+              item && typeof item.start === "number" && typeof item.end === "number"
+                ? [item.start, item.end]
+                : null,
+          },
+        });
         continue;
       }
       if (item.type === "Element") {
@@ -13096,6 +13187,12 @@
         componentNode.meta = {};
       }
       componentNode.meta.__qhtmlBehaviors = componentBehaviors.slice();
+    }
+    if (componentCssBindings.length > 0) {
+      if (!componentNode.meta || typeof componentNode.meta !== "object") {
+        componentNode.meta = {};
+      }
+      componentNode.meta.__qhtmlCssBindings = componentCssBindings.slice();
     }
     if (Object.keys(componentEventAttributeParams).length > 0) {
       if (!componentNode.meta || typeof componentNode.meta !== "object") {

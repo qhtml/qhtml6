@@ -140,6 +140,8 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - sync value writes back to mapped QDom props when available.
   - normalize CSS unit-bearing string values such as `"40px"`, `"100vh"`, or `"50%"` into numeric property storage by dropping the recognized unit.
   - expose explicit unit formatting through `css(value, "px")`, `${css(width, "px")}`, `${css(height, "vh")}`, etc. so numeric q-property values can be written back to CSS intentionally.
+  - install one-way `q-bind-css { <q-property ref> <target>.style.<property> }` projections from declared component q-properties to component-host, selector, or callable runtime targets after child DOM render.
+  - refresh matching `q-bind-css` projections after declared q-property writes; source CSS-unit metadata is preferred, with the target's existing inline style unit used as fallback.
   - track previous values in a per-component property-state map stored on QDom metadata.
   - preserve a raw assigned-value slot for public getter reads (`instance.prop` returns the raw assigned value when present).
   - keep runtime-internal property bookkeeping/listeners private (not exposed through normal property getter reads).
