@@ -9,7 +9,7 @@ QHTML is a compact language and runtime for building web UIs with readable block
 
 - Live demo: https://qhtml.github.io/qhtml6/dist/demo.html
 - Dev testbed: https://qhtml.github.io/qhtml6/test/
-- Editor playground: https://qhtml.github.io/qhtml6/dist/editor.html
+- Editor playground: https://qhtml.github.io/qhtml6/tools/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
 ## Whats New in v7.0.0
