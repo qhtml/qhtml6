@@ -88,6 +88,15 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - parsed only inside runtime-capable `q-component` definitions as `component.meta.__qhtmlCssBindings[]`
       - stores `sourceExpression`, `targetExpression`, original source, and source range metadata for renderer installation
       - normal element bodies reject `q-bind-css` because it binds declared component q-properties
+    - behavior directives:
+      - `behavior on propertyName { q-property-animation { duration: 1000 from: "20px" } }`
+      - `behavior on propertyName { q-animation-queue { q-property-animation { to: "40px" } q-property-animation { from: "40px" duration 600 } } }`
+      - normalized as direct owner metadata in `node.meta.__qhtmlBehaviors`
+      - a behavior block accepts exactly one child animation element; supported children are `q-property-animation`, `NumberAnimation`, `q-script-action`, `q-animation-queue`, `q-sequential-animation`, `q-sequential-animation-group`, `q-parallel-animation`, and `q-parallel-animation-group`
+      - grouped behavior animations recursively preserve nested child animation metadata in `children`
+      - `q-property-animation` config accepts `target`, `duration`, `steps`, `from`, and `to`, plus animation hook blocks such as `onstepped { ... }`
+      - known behavior animation config entries also accept whitespace shorthand such as `duration 600`
+      - `q-script-action { ... }` preserves its raw JavaScript as `scriptBody` and is valid directly in behavior blocks or nested in grouped behavior animations
     - callback declarations:
       - top-level `q-callback name(param1, ...) { ... }` emitted as QDom `kind: "callback"` nodes
       - component-local `q-callback name(param1, ...) { ... }` emitted in `component.callbackDeclarations`

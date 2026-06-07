@@ -6241,7 +6241,106 @@
     return {
       valid: Number.isFinite(number),
       value: Number.isFinite(number) ? number : 0,
+      cssUnit: normalized.cssUnit || "",
+      raw: value,
     };
+  }
+
+  function stripDeclaredBehaviorQuotes(value) {
+    const text = String(value == null ? "" : value).trim();
+    if (text.length >= 2) {
+      const first = text.charAt(0);
+      const last = text.charAt(text.length - 1);
+      if ((first === "\"" && last === "\"") || (first === "'" && last === "'") || (first === "`" && last === "`")) {
+        return text.slice(1, -1);
+      }
+    }
+    return text;
+  }
+
+  function normalizeDeclaredBehaviorAnimationType(animation) {
+    const type = String(animation && animation.type || "").trim().toLowerCase();
+    if (
+      type === "q-animation-queue" ||
+      type === "q-sequential-animation" ||
+      type === "q-sequential-animation-group"
+    ) {
+      return "q-sequential-animation-group";
+    }
+    if (type === "q-parallel-animation" || type === "q-parallel-animation-group") {
+      return "q-parallel-animation-group";
+    }
+    if (
+      type === "q-property-animation" ||
+      type === "q-number-animation" ||
+      type === "numberanimation" ||
+      type === "propertyanimation"
+    ) {
+      return "q-property-animation";
+    }
+    if (type === "q-script-action" || type === "scriptaction" || type === "script-action") {
+      return "q-script-action";
+    }
+    return "";
+  }
+
+  function resolveDeclaredBehaviorTarget(hostElement, animation, defaultPropertyName) {
+    const fallbackProperty = String(defaultPropertyName || "").trim();
+    const rawTarget = animation && Object.prototype.hasOwnProperty.call(animation, "target")
+      ? stripDeclaredBehaviorQuotes(animation.target)
+      : "";
+    const target = String(rawTarget || "").trim();
+    if (!target) {
+      return fallbackProperty ? { host: hostElement, propertyName: fallbackProperty } : null;
+    }
+    if (target.indexOf(".style.") >= 0 || /\.style$/i.test(target)) {
+      return null;
+    }
+    const parts = target.split(".").map(function normalizeBehaviorTargetPart(part) {
+      return String(part || "").trim();
+    }).filter(Boolean);
+    if (parts.length === 1) {
+      return { host: hostElement, propertyName: parts[0] };
+    }
+    const propertyName = parts[parts.length - 1];
+    const ownerParts = parts.slice(0, -1);
+    let owner = null;
+    if (ownerParts.length === 1 && (ownerParts[0] === "this" || ownerParts[0] === "component")) {
+      owner = hostElement;
+    } else if (ownerParts.length === 2 && ownerParts[0] === "this" && ownerParts[1] === "component") {
+      owner = hostElement;
+    } else {
+      const scope = resolveInlineExpressionScope(hostElement, { component: hostElement });
+      try {
+        const ownerExpression = ownerParts.join(".");
+        const evaluator = new Function(
+          "scope",
+          "return (function(){ with (scope) { return (" + ownerExpression + "); } }).call(scope.component || null);"
+        );
+        owner = evaluator(scope);
+        owner = readQVarHandleValue(owner);
+      } catch (error) {
+        owner = null;
+      }
+    }
+    if (!owner || (typeof owner !== "object" && typeof owner !== "function") || !propertyName) {
+      return null;
+    }
+    return {
+      host: owner,
+      propertyName: propertyName,
+    };
+  }
+
+  function readDeclaredBehaviorTargetValue(target) {
+    if (!target || !target.host || !target.propertyName) {
+      return undefined;
+    }
+    try {
+      return target.host[target.propertyName];
+    } catch (error) {
+      return undefined;
+    }
   }
 
   function readDeclaredBehaviorHook(animation, hookName) {
@@ -6275,6 +6374,354 @@
       if (global.console && typeof global.console.error === "function") {
         global.console.error("qhtml behavior hook failed:", error);
       }
+    }
+  }
+
+  function executeDeclaredBehaviorScriptAction(hostElement, animation, done) {
+    const complete = typeof done === "function" ? done : function noopDeclaredScriptActionDone() {};
+    if (!hostElement || hostElement.nodeType !== 1) {
+      complete();
+      return;
+    }
+    const body = String(animation && animation.scriptBody || animation && animation.script || "");
+    if (!body.trim()) {
+      complete();
+      return;
+    }
+    const doc = hostElement.ownerDocument || global.document || null;
+    const win = doc && doc.defaultView ? doc.defaultView : global;
+    try {
+      ensureComponentSelfReference(hostElement);
+      ensureScopedSelectorShortcut(hostElement, null);
+      const compiled = new Function(
+        "action",
+        "component",
+        "document",
+        "window",
+        withScopedSelectorPrelude(transformScriptBody(body))
+      );
+      const result = invokeWithRuntimeExecutionHost(hostElement, function invokeDeclaredBehaviorScriptAction() {
+        return compiled.call(hostElement, animation || null, hostElement, doc, win);
+      });
+      if (result && typeof result.then === "function") {
+        result.then(
+          function completeDeclaredBehaviorScriptAction() {
+            complete();
+          },
+          function failDeclaredBehaviorScriptAction(error) {
+            if (global.console && typeof global.console.error === "function") {
+              global.console.error("qhtml behavior q-script-action failed:", error);
+            }
+            complete();
+          }
+        );
+        return;
+      }
+      complete();
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml behavior q-script-action failed:", error);
+      }
+      complete();
+    }
+  }
+
+  function normalizeNativeQScriptActionBoolean(value, fallbackValue) {
+    if (value === true || value === false) {
+      return value;
+    }
+    if (value === 1 || value === "1") {
+      return true;
+    }
+    if (value === 0 || value === "0") {
+      return false;
+    }
+    const text = String(value == null ? "" : value).trim().toLowerCase();
+    if (text === "true" || text === "yes" || text === "on") {
+      return true;
+    }
+    if (text === "false" || text === "no" || text === "off" || text === "") {
+      return false;
+    }
+    return Boolean(fallbackValue);
+  }
+
+  function isNativeQScriptActionGroupElement(element) {
+    const tagName = String(element && element.tagName || "").trim().toLowerCase();
+    return (
+      tagName === "q-parallel-animation-group" ||
+      tagName === "q-sequential-animation-group" ||
+      tagName === "q-parallel-animation" ||
+      tagName === "q-sequential-animation" ||
+      tagName === "q-animation-queue"
+    );
+  }
+
+  function findNativeQScriptActionExecutionContext(actionElement) {
+    let cursor = actionElement && actionElement.parentElement ? actionElement.parentElement : null;
+    let topGroup = null;
+    while (cursor) {
+      if (isNativeQScriptActionGroupElement(cursor)) {
+        topGroup = cursor;
+      }
+      cursor = cursor.parentElement;
+    }
+    return topGroup || (actionElement && actionElement.parentElement) || actionElement || null;
+  }
+
+  function isNativeQScriptActionInsideAnimationGroup(actionElement) {
+    let cursor = actionElement && actionElement.parentElement ? actionElement.parentElement : null;
+    while (cursor) {
+      if (isNativeQScriptActionGroupElement(cursor)) {
+        return true;
+      }
+      cursor = cursor.parentElement;
+    }
+    return false;
+  }
+
+  function readNativeQScriptActionAttribute(element, name, fallbackValue) {
+    if (!element) {
+      return fallbackValue;
+    }
+    if (Object.prototype.hasOwnProperty.call(element, name)) {
+      return element[name];
+    }
+    if (typeof element.getAttribute === "function") {
+      const direct = element.getAttribute(name);
+      if (direct != null) {
+        return direct;
+      }
+      const lower = element.getAttribute(String(name || "").toLowerCase());
+      if (lower != null) {
+        return lower;
+      }
+    }
+    return fallbackValue;
+  }
+
+  function installNativeQScriptActionSignal(hostElement, signalName) {
+    const connections = new Map();
+    const signal = createQSignalInstance(signalName, hostElement, function emitNativeQScriptActionSignal() {
+      const args = Array.prototype.slice.call(arguments);
+      const payload = {
+        type: "signal",
+        signal: signalName,
+        signalId: signalName,
+        component: String(hostElement && hostElement.tagName || "q-script-action").trim().toLowerCase(),
+        source: null,
+        args: args.map(serializeSignalSlotValue),
+        parameters: args.map(serializeSignalSlotValue),
+        timestamp: Date.now(),
+      };
+      dispatchSignalPayload(hostElement, signalName, payload);
+      return payload;
+    });
+    const meta = signal && signal[Q_SIGNAL_META_KEY] && typeof signal[Q_SIGNAL_META_KEY] === "object"
+      ? signal[Q_SIGNAL_META_KEY]
+      : null;
+    if (meta) {
+      meta.connectImpl = function connectNativeQScriptActionSignal(handler) {
+        if (typeof handler !== "function") {
+          return null;
+        }
+        if (connections.has(handler)) {
+          return handler;
+        }
+        const wrapped = function onNativeQScriptActionSignal(event) {
+          return handler.call(hostElement, event);
+        };
+        connections.set(handler, wrapped);
+        if (hostElement && typeof hostElement.addEventListener === "function") {
+          hostElement.addEventListener(signalName, wrapped);
+        }
+        return handler;
+      };
+      meta.disconnectImpl = function disconnectNativeQScriptActionSignal(handler) {
+        if (!handler) {
+          connections.forEach(function removeNativeSignalConnection(wrapped) {
+            if (hostElement && typeof hostElement.removeEventListener === "function") {
+              hostElement.removeEventListener(signalName, wrapped);
+            }
+          });
+          connections.clear();
+          return true;
+        }
+        const wrapped = connections.get(handler);
+        if (!wrapped) {
+          return false;
+        }
+        if (hostElement && typeof hostElement.removeEventListener === "function") {
+          hostElement.removeEventListener(signalName, wrapped);
+        }
+        connections.delete(handler);
+        return true;
+      };
+    }
+    try {
+      Object.defineProperty(hostElement, signalName, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: signal,
+      });
+    } catch (error) {
+      hostElement[signalName] = signal;
+    }
+    return signal;
+  }
+
+  function installNativeQScriptActionDomApi(element) {
+    if (!element || element.nodeType !== 1 || element.__qhtmlNativeScriptActionInstalled) {
+      return;
+    }
+    element.__qhtmlNativeScriptActionInstalled = true;
+    const state = {
+      autorun: normalizeNativeQScriptActionBoolean(readNativeQScriptActionAttribute(element, "autorun", true), true),
+      result: readNativeQScriptActionAttribute(element, "result", null),
+      running: normalizeNativeQScriptActionBoolean(readNativeQScriptActionAttribute(element, "running", false), false),
+      scriptBody: String(readNativeQScriptActionAttribute(element, "scriptBody", "") || ""),
+    };
+    installNativeQScriptActionSignal(element, "started");
+    installNativeQScriptActionSignal(element, "stopped");
+    installNativeQScriptActionSignal(element, "ended");
+    installNativeQScriptActionSignal(element, "error");
+
+    function setNativeActionProperty(name, getter, setter) {
+      try {
+        Object.defineProperty(element, name, {
+          configurable: true,
+          enumerable: true,
+          get: getter,
+          set: setter,
+        });
+      } catch (error) {
+        // fallback to direct assignment below for restricted host objects
+      }
+    }
+
+    setNativeActionProperty("autorun", function getNativeScriptActionAutorun() {
+      return state.autorun;
+    }, function setNativeScriptActionAutorun(value) {
+      state.autorun = normalizeNativeQScriptActionBoolean(value, true);
+    });
+    setNativeActionProperty("result", function getNativeScriptActionResult() {
+      return state.result;
+    }, function setNativeScriptActionResult(value) {
+      state.result = value;
+    });
+    setNativeActionProperty("scriptBody", function getNativeScriptActionBody() {
+      return state.scriptBody;
+    }, function setNativeScriptActionBody(value) {
+      state.scriptBody = String(value == null ? "" : value);
+    });
+    setNativeActionProperty("running", function getNativeScriptActionRunning() {
+      return state.running;
+    }, function setNativeScriptActionRunning(value) {
+      const next = normalizeNativeQScriptActionBoolean(value, false);
+      if (element.__qhtmlNativeScriptActionRunningMutation) {
+        state.running = next;
+        return;
+      }
+      if (next) {
+        element.start();
+      } else {
+        element.stop();
+      }
+    });
+
+    element.executionContext = function nativeQScriptActionExecutionContext() {
+      return findNativeQScriptActionExecutionContext(element);
+    };
+    element.isInsideAnimationGroup = function nativeQScriptActionIsInsideAnimationGroup() {
+      return isNativeQScriptActionInsideAnimationGroup(element);
+    };
+    element.runScriptAction = function nativeQScriptActionRunScript() {
+      const body = String(state.scriptBody || "");
+      if (!body.trim()) {
+        return null;
+      }
+      const context = element.executionContext() || element;
+      const doc = element.ownerDocument || global.document || null;
+      const win = doc && doc.defaultView ? doc.defaultView : global;
+      ensureComponentSelfReference(context && context.nodeType === 1 ? context : element);
+      ensureScopedSelectorShortcut(context && context.nodeType === 1 ? context : element, null);
+      const fn = new Function(
+        "action",
+        "component",
+        "document",
+        "window",
+        withScopedSelectorPrelude(transformScriptBody(body))
+      );
+      return invokeWithRuntimeExecutionHost(context && context.nodeType === 1 ? context : element, function invokeNativeQScriptAction() {
+        return fn.call(context, element, context, doc, win);
+      });
+    };
+    element.start = function nativeQScriptActionStart() {
+      if (element.__qhtmlNativeScriptActionStarting) {
+        return;
+      }
+      element.__qhtmlNativeScriptActionStarting = true;
+      element.__qhtmlNativeScriptActionRunningMutation = true;
+      state.running = true;
+      element.__qhtmlNativeScriptActionRunningMutation = false;
+      element.__qhtmlNativeScriptActionStarting = false;
+      element.started();
+      let actionResult = null;
+      try {
+        actionResult = element.runScriptAction();
+        state.result = actionResult;
+      } catch (error) {
+        element.__qhtmlNativeScriptActionRunningMutation = true;
+        state.running = false;
+        element.__qhtmlNativeScriptActionRunningMutation = false;
+        element.error(error && error.message ? error.message : String(error));
+        element.ended();
+        return;
+      }
+      if (actionResult && typeof actionResult.then === "function") {
+        actionResult.then(function nativeScriptActionResolved(value) {
+          state.result = value;
+          element.end();
+        }).catch(function nativeScriptActionRejected(error) {
+          element.__qhtmlNativeScriptActionRunningMutation = true;
+          state.running = false;
+          element.__qhtmlNativeScriptActionRunningMutation = false;
+          element.error(error && error.message ? error.message : String(error));
+          element.ended();
+        });
+        return;
+      }
+      element.end();
+    };
+    element.stop = function nativeQScriptActionStop() {
+      element.__qhtmlNativeScriptActionRunningMutation = true;
+      state.running = false;
+      element.__qhtmlNativeScriptActionRunningMutation = false;
+      element.stopped();
+    };
+    element.end = function nativeQScriptActionEnd() {
+      element.__qhtmlNativeScriptActionRunningMutation = true;
+      state.running = false;
+      element.__qhtmlNativeScriptActionRunningMutation = false;
+      element.ended();
+    };
+    element.restart = function nativeQScriptActionRestart() {
+      element.stop();
+      element.start();
+    };
+  }
+
+  function maybeAutorunNativeQScriptAction(element) {
+    if (!element || element.nodeType !== 1 || String(element.tagName || "").trim().toLowerCase() !== "q-script-action") {
+      return;
+    }
+    installNativeQScriptActionDomApi(element);
+    if (element.isInsideAnimationGroup()) {
+      return;
+    }
+    if (normalizeNativeQScriptActionBoolean(element.autorun, true) || normalizeNativeQScriptActionBoolean(element.running, false)) {
+      element.start();
     }
   }
 
@@ -6315,104 +6762,203 @@
   function startDeclaredPropertyBehavior(hostElement, componentNode, propertyName, rawNextValue, normalizedNextValue, previousValue) {
     const behavior = findDeclaredPropertyBehavior(componentNode, propertyName);
     const animation = behavior && behavior.animation && typeof behavior.animation === "object" ? behavior.animation : null;
-    if (!animation || String(animation.type || "").trim().toLowerCase() !== "q-property-animation") {
+    if (!animation || !normalizeDeclaredBehaviorAnimationType(animation)) {
       return false;
     }
-    const fromSource = Object.prototype.hasOwnProperty.call(animation, "from") && typeof animation.from !== "undefined"
-      ? animation.from
-      : previousValue;
-    const toSource = Object.prototype.hasOwnProperty.call(animation, "to") && typeof animation.to !== "undefined"
-      ? animation.to
-      : rawNextValue;
-    const from = parseDeclaredBehaviorNumber(fromSource);
-    const to = parseDeclaredBehaviorNumber(toSource);
-    if (!from.valid || !to.valid) {
-      return false;
-    }
-    const steps = Math.max(1, Math.floor(Number(animation.steps == null ? 60 : animation.steps) || 60));
-    const duration = Math.max(0, Number(animation.duration == null ? 1000 : animation.duration) || 0);
     const propertyKey = String(propertyName || "").trim();
     const bypassKey = "__qhtmlBehaviorBypass__" + propertyKey;
     const suppressKey = "__qhtmlBehaviorSuppressChanged__" + propertyKey;
     const previousKey = "__qhtmlBehaviorPreviousValue__" + propertyKey;
     const store = getDeclaredBehaviorJobStore(hostElement);
     cancelDeclaredBehaviorJob(hostElement, propertyKey);
-    let timerHandle = 0;
+    const timerHandles = [];
     let cancelled = false;
-    let lastStep = 0;
-    const assignFrameValue = function assignFrameValue(value, suppressChanged) {
-      hostElement[bypassKey] = true;
-      hostElement[suppressKey] = suppressChanged === true;
+    const assignTargetValue = function assignTargetValue(target, value, suppressChanged) {
+      if (!target || !target.host || !target.propertyName) {
+        return;
+      }
+      const targetHost = target.host;
+      const targetProperty = target.propertyName;
+      const isBehaviorProperty = targetHost === hostElement && targetProperty === propertyKey;
+      if (isBehaviorProperty) {
+        hostElement[bypassKey] = true;
+        hostElement[suppressKey] = suppressChanged === true;
+      }
       try {
-        hostElement[propertyKey] = value;
+        targetHost[targetProperty] = value;
       } finally {
-        hostElement[bypassKey] = false;
-        hostElement[suppressKey] = false;
+        if (isBehaviorProperty) {
+          hostElement[bypassKey] = false;
+          hostElement[suppressKey] = false;
+        }
       }
     };
-    const finish = function finishDeclaredBehaviorAnimation() {
+    const clearTimers = function clearDeclaredBehaviorTimers() {
+      while (timerHandles.length > 0) {
+        const handle = timerHandles.pop();
+        if (handle) {
+          global.clearTimeout(handle);
+        }
+      }
+    };
+    const scheduleTimer = function scheduleDeclaredBehaviorTimer(callback, delay) {
+      const handle = global.setTimeout(function runDeclaredBehaviorTimer() {
+        const index = timerHandles.indexOf(handle);
+        if (index >= 0) {
+          timerHandles.splice(index, 1);
+        }
+        callback();
+      }, delay);
+      timerHandles.push(handle);
+      return handle;
+    };
+    const finishBehavior = function finishDeclaredBehaviorAnimationTree() {
       if (cancelled) {
         return;
       }
       cancelled = true;
+      clearTimers();
       if (store && store[propertyKey]) {
         delete store[propertyKey];
       }
       hostElement[previousKey] = previousValue;
-      assignFrameValue(to.value, false);
+      assignTargetValue({ host: hostElement, propertyName: propertyKey }, rawNextValue, false);
       try {
         delete hostElement[previousKey];
       } catch (error) {
         hostElement[previousKey] = undefined;
       }
-      executeDeclaredBehaviorHook(hostElement, animation, "onstopped", [to.value, steps, 1]);
-      executeDeclaredBehaviorHook(hostElement, animation, "onended", [to.value, steps, 1]);
     };
-    const startedAt = (global.performance && typeof global.performance.now === "function") ? global.performance.now() : Date.now();
-    let scheduleNext = function noopScheduleDeclaredBehaviorStep() {};
-    const tick = function tickDeclaredBehaviorAnimation(now) {
+    const completeOnce = function completeDeclaredBehaviorNode(callback) {
+      let called = false;
+      return function completeNode() {
+        if (called || cancelled) {
+          return;
+        }
+        called = true;
+        callback();
+      };
+    };
+    const runPropertyAnimation = function runDeclaredBehaviorPropertyAnimation(node, done) {
       if (cancelled) {
         return;
       }
-      const elapsed = duration <= 0 ? duration : Math.max(0, Number(now) - startedAt);
-      const progress = duration <= 0 ? 1 : Math.max(0, Math.min(1, elapsed / duration));
-      const currentStep = Math.min(steps, Math.max(0, Math.floor(progress * steps)));
-      if (currentStep !== lastStep) {
-        lastStep = currentStep;
-        const value = from.value + ((to.value - from.value) * progress);
-        assignFrameValue(value, true);
-        executeDeclaredBehaviorHook(hostElement, animation, "onstepped", [value, currentStep, progress]);
-      }
-      if (progress >= 1) {
-        finish();
+      const target = resolveDeclaredBehaviorTarget(hostElement, node, propertyKey);
+      if (!target) {
+        done();
         return;
       }
-      scheduleNext();
+      const fromSource = Object.prototype.hasOwnProperty.call(node, "from") && typeof node.from !== "undefined"
+        ? node.from
+        : readDeclaredBehaviorTargetValue(target);
+      const toSource = Object.prototype.hasOwnProperty.call(node, "to") && typeof node.to !== "undefined"
+        ? node.to
+        : rawNextValue;
+      const from = parseDeclaredBehaviorNumber(fromSource);
+      const to = parseDeclaredBehaviorNumber(toSource);
+      if (!from.valid || !to.valid) {
+        done();
+        return;
+      }
+      const steps = Math.max(1, Math.floor(Number(node.steps == null ? 60 : node.steps) || 60));
+      const duration = Math.max(0, Number(node.duration == null ? 1000 : node.duration) || 0);
+      let lastStep = -1;
+      const complete = completeOnce(function completePropertyAnimation() {
+        assignTargetValue(target, to.raw, true);
+        done();
+        executeDeclaredBehaviorHook(hostElement, node, "onstopped", [to.value, steps, 1]);
+        executeDeclaredBehaviorHook(hostElement, node, "onended", [to.value, steps, 1]);
+      });
+      executeDeclaredBehaviorHook(hostElement, node, "onstarted", [to.value, 0, 0]);
+      const startedAt = (global.performance && typeof global.performance.now === "function") ? global.performance.now() : Date.now();
+      const tick = function tickDeclaredBehaviorAnimation(now) {
+        if (cancelled) {
+          return;
+        }
+        const elapsed = duration <= 0 ? duration : Math.max(0, Number(now) - startedAt);
+        const progress = duration <= 0 ? 1 : Math.max(0, Math.min(1, elapsed / duration));
+        const currentStep = Math.min(steps, Math.max(0, Math.floor(progress * steps)));
+        if (currentStep !== lastStep) {
+          lastStep = currentStep;
+          const value = from.value + ((to.value - from.value) * progress);
+          const formattedValue = (from.cssUnit || to.cssUnit) ? String(value) + String(from.cssUnit || to.cssUnit) : value;
+          assignTargetValue(target, formattedValue, true);
+          executeDeclaredBehaviorHook(hostElement, node, "onstepped", [value, currentStep, progress]);
+        }
+        if (progress >= 1) {
+          complete();
+          return;
+        }
+        const interval = Math.max(1, Math.floor(duration / steps));
+        scheduleTimer(function scheduleNextDeclaredBehaviorTick() {
+          const nextNow = (global.performance && typeof global.performance.now === "function") ? global.performance.now() : Date.now();
+          tick(nextNow);
+        }, interval);
+      };
+      tick(startedAt);
+    };
+    const runAnimationNode = function runDeclaredBehaviorAnimationNode(node, done) {
+      if (cancelled) {
+        return;
+      }
+      const type = normalizeDeclaredBehaviorAnimationType(node);
+      if (type === "q-property-animation") {
+        runPropertyAnimation(node, done);
+        return;
+      }
+      if (type === "q-script-action") {
+        executeDeclaredBehaviorScriptAction(hostElement, node, done);
+        return;
+      }
+      const children = Array.isArray(node && node.children) ? node.children : [];
+      executeDeclaredBehaviorHook(hostElement, node, "onstarted", [normalizedNextValue, 0, 0]);
+      if (children.length === 0) {
+        executeDeclaredBehaviorHook(hostElement, node, "onstopped", [normalizedNextValue, 0, 1]);
+        executeDeclaredBehaviorHook(hostElement, node, "onended", [normalizedNextValue, 0, 1]);
+        done();
+        return;
+      }
+      if (type === "q-parallel-animation-group") {
+        let remaining = children.length;
+        const finishParallelChild = function finishParallelChild() {
+          remaining -= 1;
+          if (remaining <= 0) {
+            executeDeclaredBehaviorHook(hostElement, node, "onstopped", [normalizedNextValue, children.length, 1]);
+            executeDeclaredBehaviorHook(hostElement, node, "onended", [normalizedNextValue, children.length, 1]);
+            done();
+          }
+        };
+        for (let i = 0; i < children.length; i += 1) {
+          runAnimationNode(children[i], finishParallelChild);
+        }
+        return;
+      }
+      let index = 0;
+      const runNextSequentialChild = function runNextSequentialChild() {
+        if (cancelled) {
+          return;
+        }
+        if (index >= children.length) {
+          executeDeclaredBehaviorHook(hostElement, node, "onstopped", [normalizedNextValue, children.length, 1]);
+          executeDeclaredBehaviorHook(hostElement, node, "onended", [normalizedNextValue, children.length, 1]);
+          done();
+          return;
+        }
+        const child = children[index];
+        index += 1;
+        runAnimationNode(child, runNextSequentialChild);
+      };
+      runNextSequentialChild();
     };
     if (store) {
       store[propertyKey] = {
         cancel: function cancelDeclaredBehaviorAnimation() {
           cancelled = true;
-          if (timerHandle) {
-            global.clearTimeout(timerHandle);
-            timerHandle = 0;
-          }
+          clearTimers();
         },
       };
     }
-    executeDeclaredBehaviorHook(hostElement, animation, "onstarted", [normalizedNextValue, 0, 0]);
-    if (duration <= 0) {
-      finish();
-    } else {
-      const interval = Math.max(1, Math.floor(duration / steps));
-      scheduleNext = function scheduleDeclaredBehaviorStep() {
-        timerHandle = global.setTimeout(function runDeclaredBehaviorStep() {
-          const now = (global.performance && typeof global.performance.now === "function") ? global.performance.now() : Date.now();
-          tick(now);
-        }, interval);
-      };
-      scheduleNext();
-    }
+    runAnimationNode(animation, finishBehavior);
     return true;
   }
 
@@ -8209,6 +8755,10 @@
                 // ignore getter failures and continue with write path
               }
             }
+            if ((!hadValue || typeof previousValue === "undefined") && typeof literalDefault !== "undefined") {
+              previousValue = resolveCallbackReferenceValue(literalDefault);
+              hadValue = true;
+            }
             const behaviorBypassKey = "__qhtmlBehaviorBypass__" + propertyName;
             const behaviorSuppressKey = "__qhtmlBehaviorSuppressChanged__" + propertyName;
             const behaviorPreviousKey = "__qhtmlBehaviorPreviousValue__" + propertyName;
@@ -8219,7 +8769,6 @@
               hadValue = true;
             }
             if (
-              hadValue &&
               !behaviorBypassed &&
               !Object.is(previousValue, normalizedValue) &&
               startDeclaredPropertyBehavior(this, componentNode, propertyName, resolvedValue, normalizedValue, previousValue)
@@ -11991,6 +12540,9 @@
             ? node.meta.__qhtmlEventAttributeThen
             : null,
       });
+      if (tagName === "q-script-action") {
+        installNativeQScriptActionDomApi(element);
+      }
       parent.appendChild(element);
 
       if (context.capture) {
@@ -12030,6 +12582,9 @@
 	      }
       if (!context.disableLifecycleHooks) {
         runLifecycleHooks(node, element, targetDocument);
+      }
+      if (tagName === "q-script-action") {
+        maybeAutorunNativeQScriptAction(element);
       }
     } finally {
       if (slotRef) {

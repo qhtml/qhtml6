@@ -415,127 +415,6 @@ q-component q-property-animation extends q-abstract-animation {
   }
 }
 
-q-component q-script-action extends q-abstract-animation {
-  q-signal started()
-  q-signal stopped()
-  q-signal ended()
-  q-signal error(message)
-
-  q-property running: false
-  q-property autorun: true
-  q-property result: null
-  q-property scriptBody: ""
-
-  function isInsideAnimationGroup() {
-    var cursor = this.component.parentElement;
-    while (cursor) {
-      var tagName = String(cursor.tagName || "").toLowerCase();
-      if (tagName === "q-parallel-animation-group" || tagName === "q-sequential-animation-group" || tagName === "q-parallel-animation" || tagName === "q-sequential-animation") {
-        return true;
-      }
-      cursor = cursor.parentElement;
-    }
-    return false;
-  }
-
-  function executionContext() {
-    var cursor = this.component.parentElement;
-    var topGroup = null;
-    while (cursor) {
-      var tagName = String(cursor.tagName || "").toLowerCase();
-      if (tagName === "q-parallel-animation-group" || tagName === "q-sequential-animation-group" || tagName === "q-parallel-animation" || tagName === "q-sequential-animation") {
-        topGroup = cursor;
-      }
-      cursor = cursor.parentElement;
-    }
-    return topGroup || this.component.parentElement || this.component;
-  }
-
-  function runScriptAction() {
-    var body = String(this.component.scriptBody || "");
-    if (!body.trim()) {
-      return null;
-    }
-    var context = this.component.executionContext();
-    var action = this.component;
-    var fn = new Function("action", "component", "document", "window", body);
-    return fn.call(context, action, context, document, window);
-  }
-
-  function start() {
-    var host = this.component;
-    if (host.__qhtmlScriptActionStarting) {
-      return;
-    }
-    host.__qhtmlScriptActionStarting = true;
-    host.running = true;
-    host.__qhtmlScriptActionStarting = false;
-    host.started();
-    var actionResult = null;
-    try {
-      actionResult = host.runScriptAction();
-      host.result = actionResult;
-    } catch (error) {
-      host.__qhtmlScriptActionStopping = true;
-      host.running = false;
-      host.__qhtmlScriptActionStopping = false;
-      host.error(error && error.message ? error.message : String(error));
-      host.ended();
-      return;
-    }
-    if (actionResult && typeof actionResult.then === "function") {
-      actionResult.then(function scriptActionResolved(value) {
-        host.result = value;
-        host.end();
-      }).catch(function scriptActionRejected(error) {
-        host.__qhtmlScriptActionStopping = true;
-        host.running = false;
-        host.__qhtmlScriptActionStopping = false;
-        host.error(error && error.message ? error.message : String(error));
-        host.ended();
-      });
-      return;
-    }
-    host.end();
-  }
-
-  function stop() {
-    this.component.__qhtmlScriptActionStopping = true;
-    this.component.running = false;
-    this.component.__qhtmlScriptActionStopping = false;
-    this.component.stopped();
-  }
-
-  function end() {
-    this.component.__qhtmlScriptActionStopping = true;
-    this.component.running = false;
-    this.component.__qhtmlScriptActionStopping = false;
-    this.component.ended();
-  }
-
-  function restart() {
-    this.component.stop();
-    this.component.start();
-  }
-
-  onready {
-    if (this.component.normalizeBoolean(this.component.autorun, true) && !this.component.isInsideAnimationGroup()) {
-      this.component.start();
-    }
-  }
-
-  onrunningchanged {
-    if (this.component.__qhtmlScriptActionStarting || this.component.__qhtmlScriptActionStopping) {
-      return;
-    }
-    if (this.component.normalizeBoolean(this.component.running, false)) {
-      this.component.start();
-    } else {
-      this.component.stop();
-    }
-  }
-}
-
 q-component q-parallel-animation-group extends q-abstract-animation {
   q-signal started()
   q-signal stopped()
@@ -587,13 +466,14 @@ q-component q-parallel-animation-group extends q-abstract-animation {
       tagName === "q-sequential-animation-group" ||
       tagName === "q-parallel-animation" ||
       tagName === "q-sequential-animation" ||
+      tagName === "q-animation-queue" ||
       tagName === "numberanimation" ||
       tagName === "q-number-animation";
   }
 
   function animations() {
     var host = this.component;
-    return Array.prototype.slice.call(host.querySelectorAll("q-property-animation, q-script-action, q-parallel-animation-group, q-sequential-animation-group, q-parallel-animation, q-sequential-animation, NumberAnimation, q-number-animation")).filter(function keepOwnedAnimation(node) {
+    return Array.prototype.slice.call(host.querySelectorAll("q-property-animation, q-script-action, q-parallel-animation-group, q-sequential-animation-group, q-parallel-animation, q-sequential-animation, q-animation-queue, NumberAnimation, q-number-animation")).filter(function keepOwnedAnimation(node) {
       return host.isAnimationElement(node) && host.ownsAnimation(node);
     });
   }
@@ -867,4 +747,7 @@ q-component q-parallel-animation extends q-parallel-animation-group {
 }
 
 q-component q-sequential-animation extends q-sequential-animation-group {
+}
+
+q-component q-animation-queue extends q-sequential-animation-group {
 }

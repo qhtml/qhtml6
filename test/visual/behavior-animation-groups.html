@@ -25,7 +25,8 @@
 q-component multi-size-behavior-box {
   q-property widthValue: "80px"
   q-property heightValue: "40px"
-
+  q-bind-css { this.component.widthValue this.component.style.width }
+  q-bind-css { this.component.heightValue this.component.style.height }
   behavior on widthValue {
     q-property-animation {
       duration: 900
@@ -33,12 +34,12 @@ q-component multi-size-behavior-box {
 
       onstepped {
         this.component.setAttribute("data-step-count", String(Number(this.component.getAttribute("data-step-count") || 0) + 1));
-        this.component.style.width = css(value, "px");
+        this.component.style.width = css(widthValue, "px");
       }
 
       onstopped {
         this.component.setAttribute("data-ended-count", String(Number(this.component.getAttribute("data-ended-count") || 0) + 1));
-        this.component.style.width = css(value, "px");
+        this.component.style.width = css(widthValue, "px");
       }
     }
   }
@@ -49,12 +50,12 @@ q-component multi-size-behavior-box {
       steps: 30
       from: "40px"
 
-      onstepped {
-        this.component.style.height = css(value, "px");
+      onstepped(value) {
+        this.component.style.height = css(heightValue, "px");
       }
 
       onstopped {
-        this.component.style.height = css(value, "px");
+        this.component.style.height = css(heightValue, "px");
       }
     }
   }
@@ -245,6 +246,48 @@ q-component staggered-shape-behavior-box {
   text { staggered shape }
 }
 
+q-component queued-width-behavior-box {
+  q-property width: "100px"
+
+  q-bind-css { this.component.width this.component.style.width }
+
+  behavior on width {
+    q-animation-queue {
+      q-property-animation {
+        to: "40px"
+        duration: 500
+        steps: 20
+      }
+
+      q-property-animation {
+        from: "40px"
+        duration 600
+        steps: 24
+      }
+    }
+  }
+
+  onwidthchanged(value) {
+    this.component.setAttribute("data-width-changed-count", String(Number(this.component.getAttribute("data-width-changed-count") || 0) + 1));
+    this.component.setAttribute("data-final-width", String(value));
+  }
+
+  onready {
+    this.component.style.display = "grid";
+    this.component.style.placeItems = "center";
+    this.component.style.width = "100px";
+    this.component.style.height = "54px";
+    this.component.style.background = "#be123c";
+    this.component.style.color = "#ffffff";
+    this.component.style.borderRadius = "0.5rem";
+    this.component.style.fontWeight = "800";
+    this.component.width = "280px";
+  }
+
+  style { display: grid; place-items: center; width: 100px; height: 54px; background: #be123c; color: #ffffff; border-radius: 0.5rem; font-weight: 800; margin-bottom: 0.75rem; }
+  text { queued width }
+}
+
 section.behavior-animation-stage {
   style { position: relative; min-height: 100vh; overflow: hidden; padding: 1.25rem; box-sizing: border-box; }
 
@@ -253,13 +296,14 @@ section.behavior-animation-stage {
     h1 { text { behavior q-property-animation } }
     p {
       style { color: #cbd5e1; line-height: 1.5; }
-      text { Four behavior-driven cases exercise q-property-animation on size, position, shape, and per-step hook behavior. }
+      text { Five behavior-driven cases exercise q-property-animation on size, position, shape, queue, and per-step hook behavior. }
     }
   }
 
   multi-size-behavior-box multiSizeBox { }
   staggered-size-behavior-box staggeredSizeBox { }
   staggered-shape-behavior-box staggeredShapeBox { }
+  queued-width-behavior-box queuedWidthBox { }
   multi-position-behavior-box multiPositionBox { }
 }
   </q-html>
@@ -269,7 +313,8 @@ section.behavior-animation-stage {
       var multiPosition = document.querySelector("multi-position-behavior-box");
       var staggeredSize = document.querySelector("staggered-size-behavior-box");
       var staggeredShape = document.querySelector("staggered-shape-behavior-box");
-      var boxes = [multiSize, multiPosition, staggeredSize, staggeredShape];
+      var queuedWidth = document.querySelector("queued-width-behavior-box");
+      var boxes = [multiSize, multiPosition, staggeredSize, staggeredShape, queuedWidth];
       var ok = !!(
         boxes.every(Boolean) &&
         multiSize.style.width === "280px" &&
@@ -280,8 +325,10 @@ section.behavior-animation-stage {
         staggeredSize.style.height === "104px" &&
         Number(staggeredShape.style.opacity || 0) === 1 &&
         staggeredShape.style.borderRadius === "42px" &&
-        boxes.every(function(box) { return Number(box.getAttribute("data-step-count") || 0) > 0; }) &&
-        boxes.every(function(box) { return Number(box.getAttribute("data-ended-count") || 0) >= 1; })
+        queuedWidth.style.width === "280px" &&
+        Number(queuedWidth.getAttribute("data-width-changed-count") || 0) === 1 &&
+        boxes.slice(0, 4).every(function(box) { return Number(box.getAttribute("data-step-count") || 0) > 0; }) &&
+        boxes.slice(0, 4).every(function(box) { return Number(box.getAttribute("data-ended-count") || 0) >= 1; })
       );
       document.body.dataset.status = ok ? "pass" : "fail";
     }, 2600);

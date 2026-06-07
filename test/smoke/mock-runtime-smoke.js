@@ -517,6 +517,24 @@ q-component {
     }
   }
 }
+q-component {
+  id: "behavior-script-action-box"
+  q-property boxWidth: "10px"
+  behavior on boxWidth {
+    q-sequential-animation {
+      q-property-animation {
+        duration: 0
+        steps: 1
+      }
+      q-script-action {
+        this.component.setAttribute("data-script-action-width", String(this.component.boxWidth));
+        this.component.setAttribute("data-script-action-this", this === this.component ? "1" : "0");
+      }
+    }
+  }
+  style { display: block; width: 10px; }
+  text { behavior script action }
+}
 one-slot-template {
   text { single slot template text }
 }
@@ -542,6 +560,7 @@ outer-frame {
     }
   }
 }
+behavior-script-action-box { }
 p,center,a { href: "https://www.example.com" text: "Visit Example" }
 w3-red,w3-panel,div { id: "myDiv" text: "Hover mouse here to see q-script" }
 div { text: "hello world" span { html { <br> hello again } } }
@@ -626,6 +645,28 @@ div { text: "hello world" span { html { <br> hello again } } }
   const hostId = qhtml.getAttribute('data-qdom-host-id');
   assert(typeof hostId === 'string' && hostId.length > 0, 'Host qdom id was not assigned');
   assert(countMappedTemplatesForHost(document, hostId) === 1, 'Expected exactly one serialized template for host');
+  assert(qhtml.getAttribute('data-qhtml-processed') === 'true', 'Mounted q-html host was not marked processed');
+
+  const staticCopiedQHtml = document.createElement('q-html');
+  staticCopiedQHtml.setAttribute('data-qhtml-processed', 'true');
+  staticCopiedQHtml.innerHTML = '<section id="static-copy">regular copied html</section>';
+  document.body.appendChild(staticCopiedQHtml);
+  const skippedStaticBinding = context.QHtml.mountQHtmlElement(staticCopiedQHtml);
+  assert(skippedStaticBinding === null, 'Processed static q-html host should not mount');
+  const skippedByInitAll = context.QHtml.initAll(document);
+  assert(
+    Array.isArray(skippedByInitAll) && skippedByInitAll.indexOf(skippedStaticBinding) === -1,
+    'initAll should skip processed static q-html hosts'
+  );
+  await delay(120);
+  assert(
+    staticCopiedQHtml.innerHTML === '<section id="static-copy">regular copied html</section>',
+    'Processed static q-html host content was reparsed or replaced'
+  );
+  assert(
+    staticCopiedQHtml.getAttribute('data-qdom-host-id') === null,
+    'Processed static q-html host should not receive a QDom binding id'
+  );
 
   const myDiv = document.querySelector('#myDiv');
   assert(myDiv, '#myDiv not rendered');
@@ -701,8 +742,23 @@ div { text: "hello world" span { html { <br> hello again } } }
   );
   assert(!document.querySelector('inner-slot'), 'Nested slot wrapper leaked into rendered HTML as <inner-slot>');
 
-  myDiv.dispatchEvent({ type: 'mouseover' });
-  assert((myDiv.getAttribute('class') || '').includes('w3-green'), 'q-script event handler did not execute');
+  const behaviorScriptBox = document.querySelector('behavior-script-action-box');
+  assert(behaviorScriptBox, 'Behavior q-script-action component was not rendered');
+  behaviorScriptBox.boxWidth = '42px';
+  await delay(0);
+  assert(
+    behaviorScriptBox.getAttribute('data-script-action-width') === '42',
+    'Behavior q-script-action did not run after property animation completion'
+  );
+  assert(
+    behaviorScriptBox.getAttribute('data-script-action-this') === '1',
+    'Behavior q-script-action did not execute with component root context'
+  );
+
+  const currentMyDiv = document.querySelector('#myDiv');
+  assert(currentMyDiv, '#myDiv not rendered after behavior q-script-action update');
+  currentMyDiv.dispatchEvent({ type: 'mouseover' });
+  assert((currentMyDiv.getAttribute('class') || '').includes('w3-green'), 'q-script event handler did not execute');
 
   let templateInstanceNode = null;
   let componentInstanceNode = null;

@@ -18,6 +18,7 @@
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
   const QHTML_CONTENT_LOADED_EVENT = "QHTMLContentLoaded";
+  const QHTML_PROCESSED_ATTR = "data-qhtml-processed";
   let autoMountObserver = null;
   let autoMountRoot = null;
   let autoMountOptions = {};
@@ -3384,6 +3385,21 @@
 
   function isQHtmlHostElement(node) {
     return !!(node && node.nodeType === 1 && String(node.tagName || "").trim().toLowerCase() === "q-html");
+  }
+
+  function isProcessedQHtmlElement(node) {
+    return !!(
+      isQHtmlHostElement(node) &&
+      typeof node.getAttribute === "function" &&
+      node.getAttribute(QHTML_PROCESSED_ATTR) !== null
+    );
+  }
+
+  function markQHtmlElementProcessed(node) {
+    if (!isQHtmlHostElement(node) || typeof node.setAttribute !== "function") {
+      return;
+    }
+    node.setAttribute(QHTML_PROCESSED_ATTR, "true");
   }
 
   function normalizeScopedSelectorRootCandidate(candidate) {
@@ -18221,6 +18237,9 @@
     if (existing) {
       return existing;
     }
+    if (isProcessedQHtmlElement(qHtmlElement)) {
+      return null;
+    }
     if (
       !qHtmlElement[QCONTEXT_RUNTIME_FRAME_KEY] ||
       typeof qHtmlElement[QCONTEXT_RUNTIME_FRAME_KEY] !== "object" ||
@@ -18305,6 +18324,7 @@
         binding.hostLifecycleRan = false;
         createObservedBinding(binding);
         renderBinding(binding);
+        markQHtmlElementProcessed(qHtmlElement);
         return binding;
       })
       .catch(function handleMountError(error) {
@@ -18332,13 +18352,16 @@
 
     const mounted = [];
     const tagName = String(node.tagName || "").toLowerCase();
-    if (tagName === "q-html") {
+    if (tagName === "q-html" && !isProcessedQHtmlElement(node)) {
       mounted.push(mountQHtmlElement(node, options));
     }
 
     if (typeof node.querySelectorAll === "function") {
       const nested = node.querySelectorAll("q-html");
       for (let i = 0; i < nested.length; i += 1) {
+        if (isProcessedQHtmlElement(nested[i])) {
+          continue;
+        }
         mounted.push(mountQHtmlElement(nested[i], options));
       }
     }
@@ -18402,6 +18425,9 @@
 
       const elements = autoMountRoot.querySelectorAll("q-html");
       for (let i = 0; i < elements.length; i += 1) {
+        if (isProcessedQHtmlElement(elements[i])) {
+          continue;
+        }
         mountQHtmlElement(elements[i], autoMountOptions);
       }
       hydrateRegisteredComponentHostsInNode(autoMountRoot, autoMountRoot.ownerDocument || global.document);
@@ -18880,6 +18906,9 @@
     const elements = scope.querySelectorAll("q-html");
     const out = [];
     for (let i = 0; i < elements.length; i += 1) {
+      if (isProcessedQHtmlElement(elements[i])) {
+        continue;
+      }
       out.push(mountQHtmlElement(elements[i], options));
     }
     hydrateRegisteredComponentHostsInNode(scope, scope.ownerDocument || global.document);

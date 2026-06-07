@@ -20,7 +20,7 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Added behavior-aware property writes through `QHtml.qSet()` and bypassed animation-frame commits so animations do not recursively trigger themselves.
 - Expanded dimensional animation support so `px`, `%`, `vh`, and other matching CSS units interpolate while intermediate values are mirrored as CSS-valid property strings.
 - Added `q-style-path-animation` for CSS motion-path animation sugar inside `q-style`.
-- Added behavior-compatible `q-property-animation`, `q-parallel-animation-group`, and `q-sequential-animation-group` support for grouped property-write animations.
+- Added behavior-compatible `q-property-animation`, `q-animation-queue`, `q-parallel-animation-group`, and `q-sequential-animation-group` support for grouped property-write animations.
 - Added `q-slot-default` for component slot fallback content and updated the UI component defaults that use it.
 - Added `q-ui-split-layout` and default slot content for the optional `q-ui-components.qhtml` component set.
 - Added the `q-vid` component stack and q-vid browser tooling for `.qvid` assets: source decoding/cache, painter-driven playback, and the user-facing `q-vid-player` canvas component.
@@ -221,8 +221,9 @@ q-component grouped-panel {
   q-bind-css { this.component.h this.component.style.height }
 
   behavior on w {
-    q-sequential-animation-group {
+    q-animation-queue {
       q-property-animation {
+        to: "40px"
         duration: 300
         onstepped {
           console.log(value, progress);
@@ -230,9 +231,7 @@ q-component grouped-panel {
       }
 
       q-property-animation {
-        target: "this.component.h"
         from: "40px"
-        to: "100px"
         duration: 300
       }
     }
@@ -240,7 +239,7 @@ q-component grouped-panel {
 }
 ```
 
-Inside a behavior, a `q-property-animation` without `target`, `from`, or `to` defaults to the intercepted property, the current live value, and the requested value. `q-parallel-animation-group` starts nested animations together; `q-sequential-animation-group` starts each nested animation after the previous one ends.
+Inside a behavior, a `q-property-animation` without `target`, `from`, or `to` defaults to the intercepted property, the current live value, and the requested value. `q-animation-queue`, `q-sequential-animation`, and `q-sequential-animation-group` run nested animations one after another; `q-parallel-animation` and `q-parallel-animation-group` start nested animations together. The behavior keeps `on<Property>Changed` suppressed until the single child animation or group completes, then emits one final change for the originally requested property value.
 
 Animation groups can also run scoped script actions:
 
@@ -263,9 +262,9 @@ q-component scripted-panel {
 }
 ```
 
-`q-script-action { ... }` is treated as an animation item. In a sequential group it completes before the next animation starts; in a parallel group it runs alongside the other child animations. Outside a group, it autoruns when its DOM element is created. If the script returns a Promise, the action ends after the Promise settles.
+`q-script-action { ... }` is renderer-backed runtime action behavior, not a component defined by `q-animation.qhtml`. In a sequential group it completes before the next animation starts; in a parallel group it runs alongside the other child animations. In `behavior on <property>` animation trees, it runs with `this.component` bound to the behavior root. Outside a group, it autoruns when its DOM element is created. If the script returns a Promise, the action ends after the Promise settles.
 
-`q-sequential-animation` and `q-parallel-animation` are component aliases for `q-sequential-animation-group` and `q-parallel-animation-group`.
+`q-animation-queue` and `q-sequential-animation` are component aliases for `q-sequential-animation-group`; `q-parallel-animation` is a component alias for `q-parallel-animation-group`.
 
 Use `q-bind-css` inside a component when the property can be projected directly to a writable CSS reference:
 

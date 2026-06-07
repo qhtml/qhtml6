@@ -138,13 +138,18 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - Positions are recalculated after render, resize, and scroll.
 - `behavior on <property>` is opt-in per direct owner node through `meta.__qhtmlBehaviors`.
   - Behaviors intercept declared `q-property` writes before the normal `<property>Changed` signal/hook path runs.
-  - A behavior block accepts exactly one child animation element; the supported child is `q-property-animation`.
+  - A behavior block accepts exactly one child animation element; supported children are `q-property-animation`, `NumberAnimation`, `q-script-action`, `q-animation-queue`, `q-sequential-animation`, `q-sequential-animation-group`, `q-parallel-animation`, and `q-parallel-animation-group`.
+  - `q-animation-queue`, `q-sequential-animation`, and `q-sequential-animation-group` run nested behavior animation nodes in order; `q-parallel-animation` and `q-parallel-animation-group` run nested behavior animation nodes together.
+  - `q-script-action` runs its `scriptBody` with `this` and `component` bound to the behavior root; returned thenables delay completion before the next sequential child or group end.
+  - Rendered native `<q-script-action>` elements receive renderer-installed `start()`, `stop()`, `end()`, `restart()`, `runScriptAction()`, `executionContext()`, and `isInsideAnimationGroup()` methods plus `started`, `stopped`, `ended`, and `error` signals.
+  - Standalone `<q-script-action>` elements autorun when rendered; inside animation groups they wait for the parent animation group to call `start()`. Returned thenables delay `ended`.
   - During animation-frame commits the declared setter runs under behavior bypass and suppresses normal property-changed emission.
-  - The final animation commit writes the exact target value under behavior bypass without suppression, so `<property>Changed` / `on<Property>Changed` fires once after the animation completes.
+  - The final animation or group completion writes the exact originally requested property value under behavior bypass without suppression, so `<property>Changed` / `on<Property>Changed` fires once after the child animation tree completes.
   - Declared `q-property` setters parse CSS numeric values (`px`, `%`, `vh`, `vw`, `rem`, `em`, and related CSS length units), store the numeric portion, and keep unit metadata for explicit formatting through `css(value, "unit")`.
   - QDom property writes maintain `property_extensions[propName] = unit` for unit-bearing numeric values and remove that sidecar when a property returns to a unitless value.
   - A new external write while an animation is running cancels the current job and starts a new behavior job.
-  - `q-property-animation` supports `duration`, `steps`, optional `from`, and optional `to`; omitted `from` defaults to the current live value and omitted `to` defaults to the requested write value.
+  - `q-property-animation` supports `target`, `duration`, `steps`, optional `from`, and optional `to`; omitted `target` defaults to the intercepted property, omitted `from` defaults to the current live target value, and omitted `to` defaults to the requested write value.
+  - Behavior animation targets resolve to q-properties only; `.style` targets are intentionally skipped by behavior metadata execution.
   - Behavior-side `q-property-animation` hook blocks such as `onstarted { ... }`, `onstepped { ... }`, and `onstopped { ... }` execute with `this` bound to the behavior target and receive `(value, currentStep, progress)` values.
 - `q-bind-css { sourceProperty targetCssReference }` is component-local syntax sugar stored in `component.meta.__qhtmlCssBindings`.
   - The renderer validates the source against declared component properties, connects to the generated `<property>Changed` signal, and assigns each new property value to the target reference.

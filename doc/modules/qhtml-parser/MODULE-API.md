@@ -124,16 +124,19 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - separators supported in the block: newline, `;`, `,`
     - behavior directives:
       - `behavior on propertyName { q-property-animation { duration: 1000 from: "20px" } }`
+      - `behavior on propertyName { q-animation-queue { q-property-animation { to: "40px" } q-property-animation { from: "40px" } } }`
       - normalized as direct owner metadata in `node.meta.__qhtmlBehaviors`
       - equivalent internal `q-behavior propertyName { q-property-animation { ... } }` syntax is accepted
       - normal element children and runtime-capable component/worker definition children may own behaviors
       - a target may declare only one behavior per normalized property name
-      - a behavior block accepts exactly one child animation element; the supported child is `q-property-animation`
-      - `q-property-animation` config accepts `duration`, `steps`, `from`, and `to`, plus animation hook blocks such as `onstepped { ... }`
+      - a behavior block accepts exactly one child animation element; supported children are `q-property-animation`, `NumberAnimation`, `q-script-action`, `q-animation-queue`, `q-sequential-animation`, `q-sequential-animation-group`, `q-parallel-animation`, and `q-parallel-animation-group`
+      - grouped behavior animations recursively preserve nested child animation metadata in `children`
+      - `q-property-animation` config accepts `target`, `duration`, `steps`, `from`, and `to`, plus animation hook blocks such as `onstepped { ... }`
+      - known behavior animation config entries also accept whitespace shorthand such as `duration 600`
     - script actions:
       - `q-script-action { ... }` parses as a `q-script-action` element with the raw JavaScript block assigned to `scriptBody`
-      - script actions are intended for `q-parallel-animation-group` / `q-sequential-animation-group` workflows and may also appear as normal content
-      - `q-script-action` is distinct from `q-script`; it does not preprocess-replace source text and is executed by the runtime component when the action starts
+      - script actions are intended for `q-parallel-animation-group` / `q-sequential-animation-group` workflows, behavior animation trees, and normal content
+      - `q-script-action` is distinct from `q-script`; it does not preprocess-replace source text and is executed by renderer/runtime action behavior when the action starts
     - layout keywords:
       - `q-layout`, `q-row`, and `q-col` parse as framework layout element nodes, not component invocations
       - layout nodes store `meta.__qhtmlLayoutKeyword = true` and `meta.__qhtmlLayoutRole`

@@ -102,6 +102,17 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - Inline event handlers receive the current inherited QContext in their script scope, so named references visible during render are also visible when the handler runs.
   - Rendered DOM elements are bound to the active scope/runtime context frames before event attributes are compiled.
   - Script contexts read `q-var` declarations as their stored JavaScript values and write assignment back to q-var storage, so handlers can use natural `var`-like syntax such as `count = count + 1` or `helper()`.
+- `behavior on <property>` is opt-in per direct owner node through `meta.__qhtmlBehaviors`.
+  - Behaviors intercept declared `q-property` writes before the normal `<property>Changed` signal/hook path runs.
+  - A behavior block accepts exactly one child animation element; supported children are `q-property-animation`, `NumberAnimation`, `q-script-action`, `q-animation-queue`, `q-sequential-animation`, `q-sequential-animation-group`, `q-parallel-animation`, and `q-parallel-animation-group`.
+  - `q-animation-queue`, `q-sequential-animation`, and `q-sequential-animation-group` run nested behavior animation nodes in order; `q-parallel-animation` and `q-parallel-animation-group` run nested behavior animation nodes together.
+  - `q-script-action` runs its `scriptBody` with `this` and `component` bound to the behavior root; returned thenables delay completion before the next sequential child or group end.
+  - Rendered native `<q-script-action>` elements receive renderer-installed `start()`, `stop()`, `end()`, `restart()`, `runScriptAction()`, `executionContext()`, and `isInsideAnimationGroup()` methods plus `started`, `stopped`, `ended`, and `error` signals.
+  - Standalone `<q-script-action>` elements autorun when rendered; inside animation groups they wait for the parent animation group to call `start()`. Returned thenables delay `ended`.
+  - During animation-frame commits the declared setter runs under behavior bypass and suppresses normal property-changed emission.
+  - The final animation or group completion writes the exact originally requested property value under behavior bypass without suppression, so `<property>Changed` / `on<Property>Changed` fires once after the child animation tree completes.
+  - `q-property-animation` supports `target`, `duration`, `steps`, optional `from`, and optional `to`; omitted `target` defaults to the intercepted property, omitted `from` defaults to the current live target value, and omitted `to` defaults to the requested write value.
+  - Behavior animation targets resolve to q-properties only; `.style` targets are intentionally skipped by behavior metadata execution.
 - `q-perf` instrumentation is opt-in per direct owner node through `meta.__qhtmlPerfFlags`.
   - Supported categories: `q-timer`, `q-signal`, `q-property`, `q-worker`, and `function`.
   - Component definition flags are copied to each rendered component/worker instance node so measurements are per instance where a live instance QDom node exists.

@@ -169,11 +169,19 @@ Runtime mount/update engine for `<q-html>` in browser environments.
     - `QHtml.createChildContext(parentContext?)`
   - Values injected into root context are propagated into mounted hosts and can be resolved by bindings/inline expressions.
 - `initAll(root?, options?)`
-  - Mount all `<q-html>` descendants.
+  - Mount all unprocessed `<q-html>` descendants.
+  - Skips unmounted `<q-html>` hosts carrying `data-qhtml-processed`.
 - `startAutoMountObserver(root?, options?)`
-  - Observe subtree insertions and mount new `<q-html>` automatically.
+  - Observe subtree insertions and mount new unprocessed `<q-html>` automatically.
+  - Skips unmounted `<q-html>` hosts carrying `data-qhtml-processed`.
 - `stopAutoMountObserver()`
   - Disable auto mount observer.
+
+## Processed Host Marker
+- After a `<q-html>` host successfully parses and renders, the runtime sets `data-qhtml-processed="true"` on the host element.
+- Direct mounting, `initAll()`, and automatic mount discovery skip unmounted `<q-html>` hosts with that attribute.
+- This lets copied/static rendered `<q-html>` blocks contain ordinary HTML without being parsed again as QHTML source.
+- Live mounted hosts keep their existing runtime binding even after the marker is set; the marker only prevents new mounts for unbound copied/static hosts.
 
 ## Mount options (not exhaustive)
 - import controls (`importBaseUrl`, `maxImports`, `importCache`)

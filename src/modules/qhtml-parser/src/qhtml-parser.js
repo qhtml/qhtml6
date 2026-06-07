@@ -3799,6 +3799,20 @@
             continue;
           }
 
+          if (nameLower === "q-script-action") {
+            consume(parser);
+            const scriptBody = readBalancedBlockContent(parser);
+            items.push({
+              type: "QScriptActionBlock",
+              script: scriptBody,
+              keywords: keywordSnapshot,
+              start: itemStart,
+              end: parser.index,
+              raw: parser.source.slice(itemStart, parser.index),
+            });
+            continue;
+          }
+
           if (nameLower === "qhtml" && nextChar === "(") {
             consume(parser);
             const expressionBody = readBalancedParenthesizedContent(parser);
@@ -9446,14 +9460,73 @@
 
   function normalizeBehaviorAnimationSelector(selector) {
     const normalized = String(selector || "").trim().toLowerCase();
-    if (normalized === "q-property-animation" || normalized === "propertyanimation" || normalized === "property-animation") {
+    if (
+      normalized === "q-property-animation" ||
+      normalized === "q-number-animation" ||
+      normalized === "numberanimation" ||
+      normalized === "number-animation" ||
+      normalized === "propertyanimation" ||
+      normalized === "property-animation"
+    ) {
       return "q-property-animation";
+    }
+    if (
+      normalized === "q-script-action" ||
+      normalized === "scriptaction" ||
+      normalized === "script-action"
+    ) {
+      return "q-script-action";
+    }
+    if (
+      normalized === "q-animation-queue" ||
+      normalized === "q-sequential-animation" ||
+      normalized === "q-sequential-animation-group" ||
+      normalized === "sequentialanimation" ||
+      normalized === "sequential-animation"
+    ) {
+      return "q-sequential-animation-group";
+    }
+    if (
+      normalized === "q-parallel-animation" ||
+      normalized === "q-parallel-animation-group" ||
+      normalized === "parallelanimation" ||
+      normalized === "parallel-animation"
+    ) {
+      return "q-parallel-animation-group";
     }
     return "";
   }
 
+  function applyLooseBehaviorAnimationProperties(config, rawSource) {
+    if (!config || typeof config !== "object") {
+      return;
+    }
+    const source = String(rawSource || "");
+    if (!source) {
+      return;
+    }
+    const known = new Set(["target", "from", "to", "duration", "steps", "easing", "repeat"]);
+    source.replace(/(?:^|[;\n\r{])\s*([A-Za-z_$][A-Za-z0-9_$]*)\s+(?![:{])([^;\n\r}]+)/g, function readLooseAnimationProperty(match, rawName, rawValue) {
+      const key = normalizePropertyName(rawName);
+      if (!known.has(key) || Object.prototype.hasOwnProperty.call(config, key)) {
+        return match;
+      }
+      config[key] = coercePropertyValue(String(rawValue || "").trim());
+      return match;
+    });
+  }
+
   function convertBehaviorAnimationItem(item) {
-    if (!item || item.type !== "Element") {
+    if (!item || typeof item !== "object") {
+      return null;
+    }
+    if (item.type === "QScriptActionBlock") {
+      return {
+        type: "q-script-action",
+        scriptBody: String(item.script || ""),
+      };
+    }
+    if (item.type !== "Element") {
       return null;
     }
     const selectors = Array.isArray(item.selectors) ? item.selectors : [];
@@ -9468,6 +9541,7 @@
       type: animationType,
     };
     const hooks = {};
+    const childAnimations = [];
     const nestedItems = Array.isArray(item.items) ? item.items : [];
     for (let i = 0; i < nestedItems.length; i += 1) {
       const child = nestedItems[i];
@@ -9496,10 +9570,21 @@
         }
         continue;
       }
-      if (child.type === "Element") {
-        throw new Error("behavior q-property-animation does not support nested animation children.");
+      if (child.type === "Element" || child.type === "QScriptActionBlock") {
+        const childAnimation = convertBehaviorAnimationItem(child);
+        if (!childAnimation) {
+          throw new Error("behavior animation group only supports q-property-animation, q-script-action, q-animation-queue, q-sequential-animation, and q-parallel-animation children.");
+        }
+        childAnimations.push(childAnimation);
       }
     }
+    if ((animationType === "q-property-animation" || animationType === "q-script-action") && childAnimations.length > 0) {
+      throw new Error("behavior " + animationType + " does not support nested animation children.");
+    }
+    if (animationType !== "q-property-animation" && animationType !== "q-script-action") {
+      config.children = childAnimations;
+    }
+    applyLooseBehaviorAnimationProperties(config, item.raw);
     if (Object.keys(hooks).length > 0) {
       config.hooks = hooks;
     }
@@ -9516,7 +9601,7 @@
     const animationItems = [];
     for (let i = 0; i < nestedItems.length; i += 1) {
       const nested = nestedItems[i];
-      if (!nested || nested.type !== "Element") {
+      if (!nested || (nested.type !== "Element" && nested.type !== "QScriptActionBlock")) {
         continue;
       }
       animationItems.push(nested);
@@ -9526,7 +9611,7 @@
     }
     const animation = convertBehaviorAnimationItem(animationItems[0]);
     if (!animation) {
-      throw new Error("behavior on " + propertyName + " only supports q-property-animation.");
+      throw new Error("behavior on " + propertyName + " only supports q-property-animation, q-script-action, q-animation-queue, q-sequential-animation, and q-parallel-animation.");
     }
     return {
       propertyName: propertyName,
@@ -9837,6 +9922,14 @@
       ? collectSlotDefaultNamesFromDefinition(definitionNode, collectSlotNamesFromNodes(definitionNode.templateNodes))
       : collectSlotDefaultNamesFromDefinition(definitionNode, new Set());
 
+    function isDefaultProjectedRuntimeAction(child) {
+      return !!(
+        child &&
+        child.kind === core.NODE_TYPES.element &&
+        String(child.tagName || "").trim().toLowerCase() === "q-script-action"
+      );
+    }
+
     function hasKnownSlotName(name) {
       const slotName = String(name || "").trim();
       if (!slotName) {
@@ -9921,6 +10014,11 @@
 
         if (singleSlotName) {
           pushFill(singleSlotName, child);
+          continue;
+        }
+
+        if (isDefaultProjectedRuntimeAction(child)) {
+          pushFill("default", child);
           continue;
         }
 
@@ -13787,6 +13885,26 @@
       };
       applyKeywordAliasesToNode(timerNode, item.keywords);
       return timerNode;
+    }
+
+    if (item.type === "QScriptActionBlock") {
+      const scriptActionNode = core.createElementNode({
+        tagName: "q-script-action",
+        selectorMode: "single",
+        selectorChain: ["q-script-action"],
+        attributes: {
+          scriptBody: String(item.script || ""),
+        },
+        meta: {
+          originalSource: item.raw || null,
+          sourceRange:
+            typeof item.start === "number" && typeof item.end === "number"
+              ? [item.start, item.end]
+              : null,
+        },
+      });
+      applyKeywordAliasesToNode(scriptActionNode, item.keywords);
+      return scriptActionNode;
     }
 
     if (item.type === "HtmlBlock") {
