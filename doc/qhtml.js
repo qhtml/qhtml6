@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-06-07T05:12:04Z */
+/* generated: 2026-06-07T06:37:22Z */
 
 /*** BEGIN: src/modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -16976,6 +16976,9 @@
   const Q_PROPERTY_BEHAVIOR_JOB_STORE_KEY = "__qhtmlDeclaredPropertyBehaviorJobs";
   const Q_COMPONENT_INSTANCE_META_KEY = "__qhtmlComponentInstanceMeta";
   const Q_COMPONENT_TIMER_STORE_KEY = "__qhtmlComponentTimers";
+  const Q_COMPONENT_PARENT_REFERENCE_KEY = "__qhtmlComponentParentReference";
+  const Q_COMPONENT_ROOT_REFERENCE_KEY = "__qhtmlComponentRootReference";
+  const Q_COMPONENT_ALIAS_HANDLE_KEY = "__qhtmlComponentAliasHandle";
   const CSS_UNIT_VALUE_PATTERN = /^\s*(-?(?:\d+|\d*\.\d+)(?:[eE][+-]?\d+)?)\s*(px|em|rem|vh|vw|vmin|vmax|svh|lvh|dvh|svw|lvw|dvw|%|ch|ex|cm|mm|in|pt|pc|q|fr|deg|rad|grad|turn|s|ms)\s*$/i;
   const CSS_UNIT_TOKEN_PATTERN = /^(px|em|rem|vh|vw|vmin|vmax|svh|lvh|dvh|svw|lvw|dvw|%|ch|ex|cm|mm|in|pt|pc|q|fr|deg|rad|grad|turn|s|ms)$/i;
   const WASM_DEFAULT_TIMEOUT_MS = 15000;
@@ -22757,6 +22760,138 @@
         return qdomNode;
       };
     }
+    if (typeof hostElement.slot !== "function") {
+      try {
+        Object.defineProperty(hostElement, "slot", {
+          configurable: true,
+          enumerable: false,
+          writable: true,
+          value: function hostQDomSlotAccessor(name) {
+            const currentQDom = typeof hostElement.qdom === "function" ? hostElement.qdom() : qdomNode;
+            return currentQDom && typeof currentQDom.slot === "function" ? currentQDom.slot(name) : null;
+          },
+        });
+      } catch (error) {
+        hostElement.slot = function hostQDomSlotAccessorFallback(name) {
+          const currentQDom = typeof hostElement.qdom === "function" ? hostElement.qdom() : qdomNode;
+          return currentQDom && typeof currentQDom.slot === "function" ? currentQDom.slot(name) : null;
+        };
+      }
+    }
+  }
+
+  function resolveComponentReferenceElement(reference) {
+    if (!reference || typeof reference !== "object") {
+      return null;
+    }
+    if (reference.nodeType === 1) {
+      return reference;
+    }
+    const aliasTarget = reference.__qhtmlAliasTarget;
+    return aliasTarget && aliasTarget.nodeType === 1 ? aliasTarget : null;
+  }
+
+  function readComponentAliasHandle(reference) {
+    const target = resolveComponentReferenceElement(reference);
+    return target && target[Q_COMPONENT_ALIAS_HANDLE_KEY] ? target[Q_COMPONENT_ALIAS_HANDLE_KEY] : null;
+  }
+
+  function resolveLiveComponentReference(reference) {
+    const referenceElement = resolveComponentReferenceElement(reference);
+    if (!referenceElement) {
+      return null;
+    }
+    const referenceHandle = readComponentAliasHandle(referenceElement);
+    if (typeof referenceElement.isConnected === "boolean" && referenceElement.isConnected) {
+      return referenceHandle || referenceElement;
+    }
+    const liveElement = resolveLiveComponentHostElement(referenceElement) || referenceElement;
+    const liveHandle = readComponentAliasHandle(liveElement);
+    return liveHandle || referenceHandle || liveElement;
+  }
+
+  function rememberComponentAliasHandle(hostElement, aliasHandle) {
+    if (!hostElement || hostElement.nodeType !== 1 || !aliasHandle) {
+      return;
+    }
+    try {
+      Object.defineProperty(hostElement, Q_COMPONENT_ALIAS_HANDLE_KEY, {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: aliasHandle,
+      });
+    } catch (error) {
+      hostElement[Q_COMPONENT_ALIAS_HANDLE_KEY] = aliasHandle;
+    }
+  }
+
+  function resolveComponentParentReference(parent, context) {
+    if (context && Array.isArray(context.componentHostStack) && context.componentHostStack.length > 0) {
+      const stackParent = context.componentHostStack[context.componentHostStack.length - 1];
+      if (stackParent && stackParent.nodeType === 1) {
+        return stackParent;
+      }
+    }
+    if (parent && parent.nodeType === 1 && typeof parent.closest === "function") {
+      try {
+        const nearest = parent.closest("[qhtml-component-instance='1']");
+        if (nearest && nearest.nodeType === 1) {
+          return nearest;
+        }
+      } catch (error) {
+        // no-op; parent reference is best effort outside a full browser DOM.
+      }
+    }
+    return null;
+  }
+
+  function installComponentParentAccessor(hostElement, parentReference, rootReference) {
+    if (!hostElement || hostElement.nodeType !== 1) {
+      return;
+    }
+    hostElement[Q_COMPONENT_PARENT_REFERENCE_KEY] = resolveComponentReferenceElement(parentReference);
+    hostElement[Q_COMPONENT_ROOT_REFERENCE_KEY] = rootReference && rootReference.nodeType === 1 ? rootReference : null;
+    try {
+      Object.defineProperty(hostElement, "parent", {
+        configurable: true,
+        enumerable: false,
+        get: function getComponentParentReference() {
+          return resolveLiveComponentReference(hostElement[Q_COMPONENT_PARENT_REFERENCE_KEY]);
+        },
+        set: function setComponentParentReference(nextParent) {
+          const normalizedParent = resolveComponentReferenceElement(nextParent);
+          const runtime = global.QHtml || modules.qhtmlRuntime || null;
+          if (runtime && typeof runtime.setComponentParent === "function") {
+            const didMove = runtime.setComponentParent(hostElement, normalizedParent);
+            if (didMove) {
+              hostElement[Q_COMPONENT_PARENT_REFERENCE_KEY] = normalizedParent;
+              return;
+            }
+          }
+          hostElement[Q_COMPONENT_PARENT_REFERENCE_KEY] = normalizedParent;
+        },
+      });
+    } catch (error) {
+      // If a host implementation forbids property definition, keep the backing
+      // reference available for internal runtime helpers.
+    }
+    if (typeof hostElement.qhtmlRoot !== "function") {
+      try {
+        Object.defineProperty(hostElement, "qhtmlRoot", {
+          configurable: true,
+          enumerable: false,
+          writable: true,
+          value: function componentQhtmlRootAccessor() {
+            return hostElement[Q_COMPONENT_ROOT_REFERENCE_KEY] || null;
+          },
+        });
+      } catch (error) {
+        hostElement.qhtmlRoot = function componentQhtmlRootAccessorFallback() {
+          return hostElement[Q_COMPONENT_ROOT_REFERENCE_KEY] || null;
+        };
+      }
+    }
   }
 
   function readHostQDomUuid(hostElement) {
@@ -27475,6 +27610,9 @@
       target: sourceTarget,
       label: alias,
     });
+    if (!headOnly && sourceTarget && sourceTarget.nodeType === 1) {
+      rememberComponentAliasHandle(sourceTarget, aliasHandle);
+    }
     const stack = ensureInstanceAliasScopeStack(context);
     const frame = stack[stack.length - 1] || createContextFrame(context[QCONTEXT_SCOPE_FRAME_KEY], "scope", null);
     if (frame !== stack[stack.length - 1]) {
@@ -27494,6 +27632,9 @@
         context[QCONTEXT_RUNTIME_FRAME_KEY].set(alias, "");
         if (ownerHost) {
           exportNamedAliasToHost(ownerHost, alias, "");
+          if (context && Array.isArray(context.slotStack) && context.slotStack.length > 0) {
+            exportNamedAliasToHost(context.slotStack[context.slotStack.length - 1], alias, "");
+          }
         } else {
           if (context && context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
             context.namedRuntimeValues[alias] = "";
@@ -27510,6 +27651,9 @@
     context[QCONTEXT_RUNTIME_FRAME_KEY].set(alias, aliasHandle);
     if (ownerHost) {
       exportNamedAliasToHost(ownerHost, alias, aliasHandle);
+      if (context && Array.isArray(context.slotStack) && context.slotStack.length > 0) {
+        exportNamedAliasToHost(context.slotStack[context.slotStack.length - 1], alias, aliasHandle);
+      }
     } else {
       if (context && context.namedRuntimeValues && typeof context.namedRuntimeValues === "object") {
         context.namedRuntimeValues[alias] = aliasHandle;
@@ -29882,6 +30026,11 @@
     const hostElement = targetDocument.createElement(hostTag || "div");
     const instanceQdomNode = sourceNodeOf(instanceNode) || instanceNode;
     installHostQDomAccessor(hostElement, instanceQdomNode);
+    installComponentParentAccessor(
+      hostElement,
+      resolveComponentParentReference(parent, context),
+      context && context.rootHostElement && context.rootHostElement.nodeType === 1 ? context.rootHostElement : null
+    );
     if (
       context &&
       typeof context.__applyModelViewMarker === "function"
@@ -30701,6 +30850,15 @@
         hostElement.setAttribute("qhtml-external-component-instance", "1");
       }
     }
+
+    installHostQDomAccessor(hostElement, instanceNode);
+    installComponentParentAccessor(
+      hostElement,
+      Array.isArray(context.componentHostStack) && context.componentHostStack.length > 0
+        ? context.componentHostStack[context.componentHostStack.length - 1]
+        : null,
+      opts && opts.rootHostElement && opts.rootHostElement.nodeType === 1 ? opts.rootHostElement : null
+    );
 
     bindComponentMethods(effectiveComponentNode, hostElement, instanceNode);
 
@@ -36257,6 +36415,345 @@
     };
   }
 
+  function readQDomChildCollections(node) {
+    if (!node || typeof node !== "object") {
+      return [];
+    }
+    const collections = [];
+    const seen = typeof WeakSet === "function" ? new WeakSet() : null;
+    function addCollection(value) {
+      if (!Array.isArray(value)) {
+        return;
+      }
+      if (seen) {
+        if (seen.has(value)) {
+          return;
+        }
+        seen.add(value);
+      }
+      collections.push(value);
+    }
+    addCollection(node.nodes);
+    addCollection(node.templateNodes);
+    addCollection(node.slotDefaults);
+    addCollection(node.children);
+    addCollection(node.slots);
+    addCollection(node.__qhtmlSlotNodes);
+    addCollection(node.__qhtmlRenderTree);
+    if (node.model && typeof node.model === "object") {
+      addCollection([node.model]);
+    }
+    if (Array.isArray(node.entries)) {
+      addCollection(node.entries);
+      for (let i = 0; i < node.entries.length; i += 1) {
+        const entry = node.entries[i];
+        if (entry && typeof entry === "object") {
+          addCollection(entry.nodes);
+        }
+      }
+    }
+    return collections;
+  }
+
+  function readPreferredQDomChildCollection(parentNode) {
+    const parent = sourceNodeOf(parentNode) || parentNode;
+    if (!parent || typeof parent !== "object") {
+      return null;
+    }
+    const kind = String(parent.kind || "").trim().toLowerCase();
+    if (kind === "document") {
+      if (!Array.isArray(parent.nodes)) {
+        parent.nodes = [];
+      }
+      return parent.nodes;
+    }
+    if (kind === "component") {
+      if (!Array.isArray(parent.templateNodes)) {
+        parent.templateNodes = [];
+      }
+      return parent.templateNodes;
+    }
+    if (!Array.isArray(parent.children)) {
+      parent.children = [];
+    }
+    return parent.children;
+  }
+
+  function removeQDomChildFromCollections(rootNode, childNode) {
+    const root = sourceNodeOf(rootNode) || rootNode;
+    const child = sourceNodeOf(childNode) || childNode;
+    if (!root || !child || typeof root !== "object" || typeof child !== "object") {
+      return null;
+    }
+    const childUuid = normalizeQDomUuidValue(ensureQDomNodeUuid(child));
+    const seen = typeof WeakSet === "function" ? new WeakSet() : null;
+    function visit(node) {
+      const source = sourceNodeOf(node) || node;
+      if (!source || typeof source !== "object") {
+        return null;
+      }
+      if (seen) {
+        if (seen.has(source)) {
+          return null;
+        }
+        seen.add(source);
+      }
+      const collections = readQDomChildCollections(source);
+      for (let ci = 0; ci < collections.length; ci += 1) {
+        const collection = collections[ci];
+        for (let i = 0; i < collection.length; i += 1) {
+          const candidate = sourceNodeOf(collection[i]) || collection[i];
+          if (!candidate || typeof candidate !== "object") {
+            continue;
+          }
+          const candidateUuid = normalizeQDomUuidValue(ensureQDomNodeUuid(candidate));
+          if (candidate === child || (childUuid && candidateUuid === childUuid)) {
+            collection.splice(i, 1);
+            return source;
+          }
+          const nested = visit(candidate);
+          if (nested) {
+            return nested;
+          }
+        }
+      }
+      return null;
+    }
+    return visit(root);
+  }
+
+  function qdomContainsNode(rootNode, candidateNode) {
+    const root = sourceNodeOf(rootNode) || rootNode;
+    const candidate = sourceNodeOf(candidateNode) || candidateNode;
+    if (!root || !candidate || typeof root !== "object" || typeof candidate !== "object") {
+      return false;
+    }
+    const candidateUuid = normalizeQDomUuidValue(ensureQDomNodeUuid(candidate));
+    const seen = typeof WeakSet === "function" ? new WeakSet() : null;
+    function visit(node) {
+      const source = sourceNodeOf(node) || node;
+      if (!source || typeof source !== "object") {
+        return false;
+      }
+      if (seen) {
+        if (seen.has(source)) {
+          return false;
+        }
+        seen.add(source);
+      }
+      const sourceUuid = normalizeQDomUuidValue(ensureQDomNodeUuid(source));
+      if (source === candidate || (candidateUuid && sourceUuid === candidateUuid)) {
+        return true;
+      }
+      const collections = readQDomChildCollections(source);
+      for (let ci = 0; ci < collections.length; ci += 1) {
+        const collection = collections[ci];
+        for (let i = 0; i < collection.length; i += 1) {
+          if (visit(collection[i])) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    return visit(root);
+  }
+
+  function resolveBindingForParentMutation(value) {
+    if (!value || typeof value !== "object") {
+      return null;
+    }
+    if (value.nodeType === 1) {
+      if (bindings.has(value)) {
+        return bindings.get(value);
+      }
+      let rootHost = null;
+      if (typeof value.qhtmlRoot === "function") {
+        try {
+          rootHost = value.qhtmlRoot();
+        } catch (error) {
+          rootHost = null;
+        }
+      }
+      if (!rootHost && typeof value.closest === "function") {
+        try {
+          rootHost = value.closest("q-html");
+        } catch (error) {
+          rootHost = null;
+        }
+      }
+      if (rootHost && bindings.has(rootHost)) {
+        return bindings.get(rootHost);
+      }
+      return null;
+    }
+    const source = sourceNodeOf(value) || value;
+    if (!source || typeof source !== "object") {
+      return null;
+    }
+    const uuid = normalizeQDomUuidValue(ensureQDomNodeUuid(source));
+    if (!uuid) {
+      return null;
+    }
+    for (const host of mountedQHtmlHosts) {
+      const binding = bindings.get(host);
+      if (binding && resolveLiveQDomNodeByUuid(binding, uuid)) {
+        return binding;
+      }
+    }
+    return null;
+  }
+
+  function resolveQDomParentTargetNode(binding, value) {
+    if (value == null || value === false) {
+      return null;
+    }
+    if (!binding) {
+      return null;
+    }
+    if (value && value.nodeType === 1) {
+      return resolveDomElementQDomNode(binding, value);
+    }
+    if (value && typeof value.qdom === "function") {
+      try {
+        const fromAccessor = sourceNodeOf(value.qdom()) || value.qdom();
+        return fromAccessor && typeof fromAccessor === "object"
+          ? resolveLiveQDomNodeForBinding(binding, fromAccessor)
+          : null;
+      } catch (error) {
+        return null;
+      }
+    }
+    const source = sourceNodeOf(value) || value;
+    if (!source || typeof source !== "object") {
+      return null;
+    }
+    const uuid = normalizeQDomUuidValue(readQDomNodeUuid(source) || ensureQDomNodeUuid(source));
+    if (uuid) {
+      const live = resolveLiveQDomNodeByUuid(binding, uuid);
+      if (live && typeof live === "object") {
+        return sourceNodeOf(live) || live;
+      }
+    }
+    return source;
+  }
+
+  function installQDomParentAccessorForBinding(binding, node, parentNode) {
+    const source = sourceNodeOf(node) || node;
+    if (!binding || !source || typeof source !== "object") {
+      return;
+    }
+    const parentSource = sourceNodeOf(parentNode) || parentNode;
+    const parentUuid =
+      parentSource &&
+      typeof parentSource === "object" &&
+      String(parentSource.kind || "").trim().toLowerCase() !== "document"
+        ? normalizeQDomUuidValue(ensureQDomNodeUuid(parentSource))
+        : "";
+    try {
+      Object.defineProperty(source, "__qhtmlParentUuid", {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: parentUuid,
+      });
+    } catch (error) {
+      source.__qhtmlParentUuid = parentUuid;
+    }
+    try {
+      Object.defineProperty(source, "parent", {
+        configurable: true,
+        enumerable: false,
+        get: function getQDomParent() {
+          const currentParentUuid = normalizeQDomUuidValue(source.__qhtmlParentUuid);
+          if (!currentParentUuid) {
+            return null;
+          }
+          const liveParent = resolveLiveQDomNodeByUuid(binding, currentParentUuid);
+          const resolved = sourceNodeOf(liveParent) || liveParent;
+          return resolved && typeof resolved === "object" ? resolved : null;
+        },
+        set: function setQDomParent(nextParent) {
+          setQDomNodeParent(binding, source, nextParent);
+        },
+      });
+    } catch (error) {
+      // Accessor support is best-effort for foreign QDom-like objects.
+    }
+  }
+
+  function setQDomNodeParent(binding, childValue, parentValue) {
+    const activeBinding = binding || resolveBindingForParentMutation(childValue) || resolveBindingForParentMutation(parentValue);
+    if (!activeBinding || !activeBinding.qdom) {
+      return false;
+    }
+    const childNode = childValue && childValue.nodeType === 1
+      ? resolveDomElementQDomNode(activeBinding, childValue)
+      : resolveQDomParentTargetNode(activeBinding, childValue);
+    const child = sourceNodeOf(childNode) || childNode;
+    if (!child || typeof child !== "object") {
+      return false;
+    }
+    const parentNode = parentValue == null ? null : resolveQDomParentTargetNode(activeBinding, parentValue);
+    const parent = sourceNodeOf(parentNode) || parentNode;
+    if (parent && typeof parent === "object") {
+      const childUuid = normalizeQDomUuidValue(ensureQDomNodeUuid(child));
+      const parentUuid = normalizeQDomUuidValue(ensureQDomNodeUuid(parent));
+      if (child === parent || (childUuid && childUuid === parentUuid) || qdomContainsNode(child, parent)) {
+        return false;
+      }
+    }
+    const root = sourceNodeOf(activeBinding.qdom) || activeBinding.qdom;
+    const oldParent = removeQDomChildFromCollections(root, child);
+    const targetCollection = parent
+      ? readPreferredQDomChildCollection(parent)
+      : readPreferredQDomChildCollection(root);
+    if (!targetCollection) {
+      return false;
+    }
+    const childUuid = normalizeQDomUuidValue(ensureQDomNodeUuid(child));
+    let alreadyAttached = false;
+    for (let i = 0; i < targetCollection.length; i += 1) {
+      const existing = sourceNodeOf(targetCollection[i]) || targetCollection[i];
+      const existingUuid = existing && typeof existing === "object" ? normalizeQDomUuidValue(ensureQDomNodeUuid(existing)) : "";
+      if (existing === child || (childUuid && existingUuid === childUuid)) {
+        alreadyAttached = true;
+        break;
+      }
+    }
+    if (!alreadyAttached) {
+      targetCollection.push(child);
+    }
+    installQDomParentAccessorForBinding(activeBinding, child, parent);
+    if (oldParent && oldParent !== parent) {
+      markRuntimeQDomDirty(activeBinding, oldParent);
+    }
+    if (parent) {
+      markRuntimeQDomDirty(activeBinding, parent);
+    }
+    markRuntimeQDomDirty(activeBinding, child);
+    resetBindingUuidMapState(activeBinding);
+    reindexBindingLiveQDomUuids(activeBinding);
+    syncGlobalQDomDataRegistryForBinding(activeBinding);
+    return updateQHtmlElement(activeBinding.host, {
+      forceBindings: true,
+      forceRender: true,
+      sourceSignal: "qdom.parentMutation",
+      skipSignalDispatch: true,
+    });
+  }
+
+  function setComponentParent(childElement, parentElement) {
+    if (!childElement || childElement.nodeType !== 1) {
+      return false;
+    }
+    const binding = resolveBindingForParentMutation(childElement) || resolveBindingForParentMutation(parentElement);
+    if (!binding) {
+      return false;
+    }
+    return setQDomNodeParent(binding, childElement, parentElement || null);
+  }
+
   function syncGlobalQDomDataRegistryForBinding(binding) {
     if (!binding || !binding.qdom || typeof core.walkQDom !== "function") {
       return;
@@ -36279,6 +36776,7 @@
         String(parentSource.kind || "").trim().toLowerCase() !== "document"
           ? normalizeQDomUuidValue(ensureQDomNodeUuid(parentSource))
           : "";
+      installQDomParentAccessorForBinding(binding, source, parentSource);
       const record = createBaseQDomDataRecordForNode(source, parentUuid, hostDescriptor);
       if (!record) {
         return false;
@@ -49730,6 +50228,7 @@
     unmountQHtmlElement: unmountQHtmlElement,
     getQDomForElement: getQDomForElement,
     updateQHtmlElement: updateQHtmlElement,
+    setComponentParent: setComponentParent,
     toQHtmlSource: toQHtmlSource,
     listRegisteredComponentIds: listRegisteredComponentIds,
     listRegisteredComponentSlots: listRegisteredComponentSlots,

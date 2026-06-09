@@ -535,6 +535,13 @@ q-component {
   style { display: block; width: 10px; }
   text { behavior script action }
 }
+q-component parent-box {
+  div {
+    class: "parent-box"
+    slot { }
+    slot { body }
+  }
+}
 one-slot-template {
   text { single slot template text }
 }
@@ -558,6 +565,20 @@ outer-frame {
       id: "wrapped-twice"
       text { Wrapped twice }
     }
+  }
+}
+parent-box parentA {
+  body {
+    parent-box childA {
+      body {
+        span { text { child content } }
+      }
+    }
+  }
+}
+parent-box parentB {
+  body {
+    span { text { parent b } }
   }
 }
 behavior-script-action-box { }
@@ -754,6 +775,23 @@ div { text: "hello world" span { html { <br> hello again } } }
     behaviorScriptBox.getAttribute('data-script-action-this') === '1',
     'Behavior q-script-action did not execute with component root context'
   );
+
+  const parentA = qhtml.parentA;
+  const parentB = qhtml.parentB;
+  assert(parentA, 'Root named component parentA was not exported');
+  assert(parentB, 'Root named component parentB was not exported');
+  assert(parentA.parent === null, 'Root named component parent should be null');
+  assert(parentB.parent === null, 'Second root named component parent should be null');
+  assert(typeof parentA.slot === 'function', 'Named component reference did not expose slot()');
+  const parentABody = parentA.slot('body');
+  assert(parentABody, 'Named component body slot did not resolve');
+  assert(parentABody.childA, 'Slot child named component was not exported through slot()');
+  assert(parentABody.childA.parent === parentA, 'Slot child parent did not resolve to owning named reference');
+  parentABody.childA.parent = parentB;
+  await delay(150);
+  assert(qhtml.parentB.childA, 'Reparented child was not exported under new parent');
+  assert(qhtml.parentB.childA.parent === qhtml.parentB, 'Reparented child parent did not resolve to new named reference');
+  assert(qhtml.parentB.childA.qdom().parent === qhtml.parentB.qdom(), 'Reparented child QDom parent was not updated');
 
   const currentMyDiv = document.querySelector('#myDiv');
   assert(currentMyDiv, '#myDiv not rendered after behavior q-script-action update');

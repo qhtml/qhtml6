@@ -309,70 +309,49 @@ grid-cells-theme {
         </div>
         <div class="example-body">
           <q-editor>
-q-import { q-components.qhtml }
+q-import { q-components.qhtml nocache }
+dark-theme {
+  q-modal mymodal {
+    id: "mymodal"
+    visible: false
+    titlebar {
+        text { System Configuration }
+      }
 
-q-style modal-open-button-style {
-  background-color: #16a34a
-  color: #f8fafc
-  border: 1px solid #15803d
-}
-q-style modal-container-override-style {
-  background-color: #ffedd5
-  color: #7c2d12
-}
-q-style modal-titlebar-override-style {
-  background-color: #ef4444
-  color: #f8fafc
-}
-q-style modal-close-override-style {
-  background-color: #7f1d1d
-  color: #f8fafc
-}
-q-style modal-title-override-style {
-  background-color: #fb923c
-  color: #111827
-}
-q-style modal-content-override-style {
-  background-color: #dbeafe
-  color: #1e3a8a
-}
-q-style modal-footer-override-style {
-  background-color: #fde047
-  color: #713f12
-}
+      header {
+        text { My Dialog Main Title }
+      }
 
-q-theme modal-demo-theme {
-  q-modal-theme { }
-  .modal-open-btn { modal-open-button-style }
-  .q-modal-container { modal-container-override-style }
-  .q-modal-titlebar { modal-titlebar-override-style }
-  .q-modal-closebutton { modal-close-override-style }
-  .q-modal-title { modal-title-override-style }
-  .q-modal-content { modal-content-override-style }
-  .q-modal-footer { modal-footer-override-style }
-  button { modal-open-button-style }
-}
+       main {
+        div {
+          text {
+            Here is the main dialog content.
+          }
+        }
 
-modal-demo-theme {
-  button.modal-open-btn.w3-button {
-    text { Open Modal }
-    onclick { modalUsage.show(); }
-  }
-  q-modal modalUsage {
-    id: "modal-usage"
-    title { h3 { text { q-modal Usage } } }
-    body {
-      p { text { Modal default colors are overridden externally via q-theme composition. } }
-      button.w3-button { text { In-modal button override } }
-    }
-    footer {
-      button.w3-button {
-        text { Close }
-        onclick { this.component.hide(); }
+        span {
+          text {
+            This area scrolls while the titlebar, header,
+            and footer remain visible.
+          }
+        }
+      }
+
+      footer {
+     text { Custom Foooter }
+        button {
+          text { Close }
+
+          onClick {
+            mymodal.visible = false
+          }
+        }
       }
     }
-  }
+button { text { Open Modal } onclick { $("#mymodal").visible = true;
+console.log("click event received", $("q-modal").visible);   } }
 }
+
           </q-editor>
         </div>
       </section>

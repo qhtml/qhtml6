@@ -1,7 +1,7 @@
 q-import { q-components/q-tech-tag.qhtml cache }
 q-import { q-components/q-tech-panel.qhtml cache }
 q-import { q-components/q-form.qhtml cache }
-q-import { q-components/q-modal.qhtml cache }
+q-import { q-components/q-modal.qhtml nocache }
 q-import { q-components/q-grid.qhtml cache }
 q-import { q-components/q-tabs.qhtml cache }
 q-import { q-components/q-list-view.qhtml cache }
@@ -19,5 +19,6 @@ q-import { q-components/q-popup-menu.qhtml cache }
 q-import { q-components/sdml-object.qhtml cache }
 q-import { q-components/q-particle-emitter.qhtml cache }
 q-import { q-components/q-tech-button.qhtml cache }
-q-import { q-components/q-control-arm-screen.qhtml cache }
+q-import { q-components/q-ui-components.qhtml nocache }
 q-import { q-components/q-vid-player.qhtml cache }
+q-import { q-components/dark-theme.qhtml cache }

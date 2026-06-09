@@ -1,320 +1,41 @@
-q-style qUiBarHost {
-  display: block
-  width: 100%
-  min-width: 0
-  height: auto
-  min-height: 100%
-  margin: 0
-  padding: 0
-  box-sizing: border-box
-  background: #0f0f0f
-  color: #ffffff
-  overflow: visible
+q-component q-dialog {
+  slot { root }
 }
 
-q-style qUiBarContents {
-  display: flex
-  align-items: center
-  justify-content: flex-start
-  gap: 0.85rem
-  flex-wrap: wrap
-  width: 100%
-  min-width: 0
-  min-height: 100%
-  margin: 0
-  padding: 0.5rem 0.75rem
-  box-sizing: border-box
+q-component q-card {
+  slot { root }
 }
 
-q-default-theme qUiBarDefaultTheme {
-  q-ui-bar { qUiBarHost }
-  .q-ui-bar-contents { qUiBarContents }
-}
+q-component q-titlebar {
+  slot { root }
 
-q-component q-ui-bar {
-  q-property height: "100%"
-  q-property background: "#0f0f0f"
-
-  function cssValue(value, fallback) {
-    var text = String(value == null ? "" : value).trim();
-    return text || fallback;
-  }
-
-  function applyBarStyleVars() {
-    this.style.display = "block";
-    this.style.width = "100%";
-    this.style.minWidth = "0";
-    this.style.height = "auto";
-    this.style.minHeight = this.cssValue(this.height, "100%");
-    this.style.margin = "0";
-    this.style.padding = "0";
-    this.style.boxSizing = "border-box";
-    this.style.background = this.cssValue(this.background, "#0f0f0f");
-    this.style.color = "#ffffff";
-    this.style.overflow = "visible";
-  }
-
-  onReady {
-    this.applyBarStyleVars();
-  }
-
-  onheightChanged(height) {
-    this.applyBarStyleVars();
-  }
-
-  onbackgroundChanged(background) {
-    this.applyBarStyleVars();
-  }
-
-  q-slot-default barContents {
-    q-ui-navbutton qUiBarDefaultHome {
-      url: "#"
-      navButtonText { text { Home } }
-    }
-    q-ui-navbutton qUiBarDefaultAbout {
-      url: "#"
-      navButtonText { text { About } }
-    }
-  }
-
-  qUiBarDefaultTheme {
-    div.q-ui-bar-contents {
-      slot { barContents }
-    }
+  q-slot-default root {
+    text { Title }
   }
 }
 
-q-style qUiNavButtonHost {
-  display: inline-block
-  margin: 0
-  padding: 0
-  box-sizing: border-box
+q-component q-header {
+  slot { root }
+
 }
 
-q-style qUiNavButtonSurface {
-  display: flex
-  align-items: center
-  justify-content: center
-  min-height: 2.25rem
-  min-width: 0
-  margin: 0
-  padding: 0.55rem 0.9rem
-  box-sizing: border-box
-  border-radius: 0.35rem
-  background: #1d4ed8
-  color: #ffffff
-  font-weight: 700
-  line-height: 1.2
-  text-decoration: none
-  cursor: pointer
-  user-select: none
+q-component q-main {
+  slot { root }
 }
 
-q-default-theme qUiNavButtonDefaultTheme {
-  q-ui-navbutton { qUiNavButtonHost }
-  .q-ui-navbutton-surface { qUiNavButtonSurface }
+q-component q-footer {
+  slot { root }
 }
 
-q-component q-ui-navbutton {
-  q-property background: "#1d4ed8"
-  q-property url: "#"
-
-  function cssValue(value, fallback) {
-    var text = String(value == null ? "" : value).trim();
-    return text || fallback;
-  }
-
-  function surface() {
-    return this.querySelector(".q-ui-navbutton-surface");
-  }
-
-  function applyNavButtonStyle() {
-    var surface = this.surface();
-    this.style.display = "inline-block";
-    this.style.margin = "0";
-    this.style.padding = "0";
-    this.style.boxSizing = "border-box";
-    if (!surface) {
-      return;
-    }
-    surface.style.background = this.cssValue(this.background, "#1d4ed8");
-  }
-
-  function navigate() {
-    var target = this.cssValue(this.url, "#");
-    if (!target || target === "#") {
-      return;
-    }
-    window.location.href = target;
-  }
-
-  onReady {
-    this.applyNavButtonStyle();
-  }
-
-  onbackgroundChanged(background) {
-    this.applyNavButtonStyle();
-  }
-
-  q-slot-default navButtonText {
-    text { Link }
-  }
-
-  qUiNavButtonDefaultTheme {
-    div.q-ui-navbutton-surface {
-      role: "button"
-      tabindex: "0"
-      onclick {
-        var root = this.closest("q-ui-navbutton");
-        if (root && root.navigate) {
-          root.navigate();
-        }
-      }
-
-      slot { navButtonText }
-    }
-  }
+q-component q-panel {
+  slot { root }
 }
 
-q-style qUiSplitLayoutHost {
-  display: block
-  width: 100%
-  height: 100%
-  min-width: 0
-  min-height: 0
-  margin: 0
-  padding: 0
-  box-sizing: border-box
+q-component q-sidebar-layout {
+  slot { root }
 }
 
-q-style qUiSplitLayoutRegion {
-  width: 100%
-  height: 100%
-  min-width: 0
-  min-height: 0
-  margin: 0
-  padding: 0
-  box-sizing: border-box
-  overflow: auto
-}
+q-component q-toggle-button {
+  slot { root }
 
-q-default-theme qUiSplitLayoutDefaultTheme {
-  q-ui-split-layout { qUiSplitLayoutHost }
-  .q-ui-split-layout-region { qUiSplitLayoutRegion }
-}
-
-q-component q-ui-split-layout {
-  q-property leftWidth: "50%"
-  q-property rightWidth: "rest"
-  q-property gap: "5px"
-
-  function cssValue(value, fallback) {
-    var text = String(value == null ? "" : value).trim();
-    return text || fallback;
-  }
-
-  function trackValue(value, fallback) {
-    var text = this.cssValue(value, fallback);
-    if (text.toLowerCase() === "rest") {
-      return "fill";
-    }
-    return text;
-  }
-
-  function syncSplitLayout() {
-    var layout = this.querySelector(".q-ui-split-layout");
-    var row = this.querySelector(".q-ui-split-layout-row");
-    var leftCol = this.querySelector(".q-ui-split-layout-left");
-    var rightCol = this.querySelector(".q-ui-split-layout-right");
-    var gapValue = this.cssValue(this.gap, "5px");
-    var leftValue = this.trackValue(this.leftWidth, "50%");
-    var rightValue = this.trackValue(this.rightWidth, "fill");
-
-    this.style.display = "block";
-    this.style.width = "100%";
-    this.style.height = "100%";
-    this.style.minWidth = "0";
-    this.style.minHeight = "0";
-    this.style.margin = "0";
-    this.style.padding = "0";
-    this.style.boxSizing = "border-box";
-
-    if (layout) {
-      layout.setAttribute("width", "100%");
-      layout.setAttribute("height", "100%");
-      layout.setAttribute("gap", gapValue);
-    }
-    if (row) {
-      row.setAttribute("height", "100%");
-      row.setAttribute("gap", gapValue);
-    }
-    if (leftCol) {
-      leftCol.setAttribute("width", leftValue);
-      leftCol.setAttribute("height", "100%");
-    }
-    if (rightCol) {
-      rightCol.setAttribute("width", rightValue);
-      rightCol.setAttribute("height", "100%");
-    }
-    if (layout && layout.relayout) {
-      layout.relayout();
-    }
-  }
-
-  onReady {
-    this.syncSplitLayout();
-  }
-
-  onleftWidthChanged(leftWidth) {
-    this.syncSplitLayout();
-  }
-
-  onrightWidthChanged(rightWidth) {
-    this.syncSplitLayout();
-  }
-
-  ongapChanged(gap) {
-    this.syncSplitLayout();
-  }
-
-  q-slot-default left {
-    div.q-ui-split-layout-default {
-      text { Left panel }
-    }
-  }
-
-  q-slot-default right {
-    div.q-ui-split-layout-default {
-      text { Right panel }
-    }
-  }
-
-  qUiSplitLayoutDefaultTheme {
-    q-layout.q-ui-split-layout {
-      width: "100%"
-      height: "100%"
-      gap: "5px"
-
-      q-row.q-ui-split-layout-row {
-        height: "100%"
-        gap: "5px"
-
-        q-col.q-ui-split-layout-left {
-          width: "50%"
-          height: "100%"
-          div.q-ui-split-layout-region.q-ui-split-layout-left-region {
-            slot { left }
-          }
-        }
-
-        q-col.q-ui-split-layout-right {
-          width: "fill"
-          height: "100%"
-          div.q-ui-split-layout-region.q-ui-split-layout-right-region {
-            slot { right }
-          }
-        }
-      }
-    }
-  }
 }

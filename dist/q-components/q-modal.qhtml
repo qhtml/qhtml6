@@ -1,120 +1,47 @@
-q-style q-modal-root-style {
-  q-style-class { w3-modal }
-}
-q-style q-modal-container-style {
-  q-style-class { w3-modal-content w3-card-4 w3-animate-zoom }
-  backgroundColor: rgb(230, 238, 249)
-  color: #0f172a
-}
-q-style q-modal-titlebar-style {
-  q-style-class { w3-center }
-  backgroundColor: rgb(222, 232, 246)
-  color: #0f172a
-}
-q-style q-modal-closebutton-style {
-  q-style-class { w3-button w3-xlarge w3-display-topright }
-  backgroundColor: rgb(203, 213, 225)
-  color: #0f172a
-}
-q-style q-modal-title-style {
-  q-style-class { w3-margin-top w3-large }
-  backgroundColor: rgb(230, 238, 249)
-  color: #0f172a
-}
-q-style q-modal-content-style {
-  q-style-class { w3-container w3-section }
-  backgroundColor: rgb(238, 243, 251)
-  color: #0f172a
-}
-q-style q-modal-footer-style {
-  q-style-class { w3-container w3-border-top w3-padding-16 }
-  backgroundColor: rgb(222, 232, 246)
-  color: #0f172a
-}
-q-default-theme q-modal-theme {
-  .q-modal-root { q-modal-root-style }
-  .q-modal-container { q-modal-container-style }
-  .q-modal-titlebar { q-modal-titlebar-style }
-  .q-modal-closebutton { q-modal-closebutton-style }
-  .q-modal-title { q-modal-title-style }
-  .q-modal-content { q-modal-content-style }
-  .q-modal-footer { q-modal-footer-style }
-}
-
+q-import { q-ui-components.qhtml }
 q-component q-modal {
-  function ensureOpenState() {
-    if (typeof this.__isOpen !== "boolean") {
-      this.__isOpen = false;
-    }
-    return this.__isOpen;
-  }
+  q-property visible: true
 
-  function modalRoot() {
-    return this.querySelector("[q-modal-root='1']");
-  }
+  onvisiblechanged { console.log("visible changed to",this.component.visible);  if (this.component.visible == false) { this.component.closest("q-modal").style.display = "none"; } else { this.component.closest("q-modal").style.display = "block" } }
+  onready { console.log("visible changed to",this.component.visible);  if (this.component.visible == false) { this.component.style.display = "none"; } else { this.component.style.display = "block"; } }
 
-  function setOpen(nextState) {
-    this.__isOpen = !!nextState;
-    this.isOpen = this.__isOpen;
-    var root = this.modalRoot();
-    if (root && root.style) {
-      root.style.display = this.__isOpen ? "block" : "none";
-    }
-    return this.__isOpen;
-  }
+  q-slot-default titlebar { text { Basic Titlebar Text } }
+q-slot-default header {     text { Basic Dialog Header } }
 
-  function show() {
-    this.setOpen(true);
-  }
+q-slot-default main {   text { Basic modal content } }
+q-slot-default footer {
+    button {
+            text { Close }
 
-  function hide() {
-    this.setOpen(false);
-  }
-
-  function toggle() {
-    this.setOpen(!this.ensureOpenState());
-  }
-
-  onReady {
-    this.ensureOpenState();
-    this.hide();
-  }
-
-  q-modal-theme {
-    div.q-modal-root {
-      q-modal-root: "1"
-      style { display: none; }
-
-      div.q-modal-container {
-        style { max-width: 600px; }
-
-        div.q-modal-titlebar {
-          br { }
-          span.q-modal-closebutton {
-            q-modal-close-trigger: "1"
-            title: "Close Modal"
-            onclick { this.closest("q-modal").hide(); }
-            html { &times; }
+            onclick {
+             this.component.closest("q-modal").visible = false;
+            console.log(this.component.closest("q-modal"))
+            }
           }
-          div.q-modal-title {
-            slot { title }
-            slot { heading }
-            slot { header }
-          }
+}
+q-dialog modalDialog {
+
+      q-card modalCard {
+      q-titlebar modalTitlebar{
+      slot { titlebar }
+
+
+
         }
 
-        div.q-modal-content {
-          slot { body }
-          slot { main }
-          slot { content }
+
+        q-header modalHeader {
+      slot { header }
         }
 
-        div.q-modal-footer {
-          slot { bottom }
-          slot { footer }
-          slot { foot }
+        q-main modalMain {
+         slot { main }
+        }
+
+        q-footer modalFooter {
+      slot { footer }
         }
       }
     }
-  }
 }
+
