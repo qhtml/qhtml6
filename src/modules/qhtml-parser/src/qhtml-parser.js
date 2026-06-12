@@ -799,6 +799,43 @@
     };
   }
 
+  function parseCssNumericLiteral(parser, options) {
+    const opts = options && typeof options === "object" ? options : {};
+    if (!core || typeof core.createCssValue !== "function") {
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+    const remainder = parser.source.slice(parser.index);
+    const match = remainder.match(/^-?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][+-]?\d+)?(?:px|%|vw|vh|rem|em)\b|-?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][+-]?\d+)?%/i);
+    if (!match) {
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+    const token = String(match[0] || "");
+    const rest = remainder.slice(token.length);
+    if (opts.singleValueOnly === true && !/^\s*(?:[;\n\r}]|$)/.test(rest)) {
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+    if (opts.typedValue === true && !/^(?:\s|,|;|\n|\r|}|$)/.test(rest)) {
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+    parser.index += token.length;
+    return {
+      matched: true,
+      value: core.createCssValue(token),
+    };
+  }
+
   function parseTypedArrayBodyToValue(rawBody, keywordAliases) {
     const body = String(rawBody || "");
     const trimmedBody = body.trim();
@@ -959,6 +996,11 @@
       return nestedContainer.value;
     }
 
+    const cssNumeric = parseCssNumericLiteral(parser, { typedValue: true });
+    if (cssNumeric.matched) {
+      return cssNumeric.value;
+    }
+
     const numeric = parseTypedNumericLiteral(parser);
     if (numeric.matched) {
       return numeric.value;
@@ -1072,6 +1114,10 @@
     const typedContainer = parseTypedContainerValue(parser, keywordAliases);
     if (typedContainer.matched) {
       return typedContainer.value;
+    }
+    const cssNumeric = parseCssNumericLiteral(parser, { singleValueOnly: true });
+    if (cssNumeric.matched) {
+      return cssNumeric.value;
     }
     return parseBareValue(parser);
   }
@@ -9364,6 +9410,15 @@
         outArray.push(resolveScopedPropertyValueReferences(value[i], scopedMaps, visitedRefs));
       }
       return outArray;
+    }
+    if (
+      value &&
+      typeof value === "object" &&
+      core &&
+      typeof core.isCssValue === "function" &&
+      (core.isCssValue(value) || value[core.QCSS_VALUE_MARKER] === true)
+    ) {
+      return typeof core.createCssValue === "function" ? core.createCssValue(value) : value;
     }
     if (value && typeof value === "object") {
       const outObject = {};

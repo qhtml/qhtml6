@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-06-07T06:37:22Z */
+/* generated: 2026-06-12T17:54:14Z */
 
 /*** BEGIN: src/modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -28,8 +28,750 @@
   const QDOM_TEMPLATE_OWNER_ATTR = "data-qdom-for";
   const UPDATE_NONCE_KEY = "update-nonce";
   const QDOM_UUID_KEY = "uuid";
+  const QCSS_VALUE_MARKER = "__qhtmlCssValue";
+  const QCSS_SUPPORTED_UNITS = new Set(["", "px", "%", "vw", "vh", "rem", "em"]);
+  const QCSS_LITERAL_PATTERN = /^\s*(-?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][+-]?\d+)?)\s*(px|%|vw|vh|rem|em)?\s*$/i;
+  const QCSS_LITERAL_TOKEN_PATTERN = /-?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][+-]?\d+)?(?:px|%|vw|vh|rem|em)\b|-?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][+-]?\d+)?%/gi;
   let qdomHostIdCounter = 0;
   let qdomUuidCounter = 0;
+
+  function normalizeCssUnit(unit) {
+    const normalized = String(unit || "").trim().toLowerCase();
+    return QCSS_SUPPORTED_UNITS.has(normalized) ? normalized : normalized;
+  }
+
+  function normalizeCssNumber(value) {
+    const numeric = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(numeric) ? numeric : 0;
+  }
+
+  function formatCssNumber(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return "0";
+    }
+    if (Object.is(numeric, -0)) {
+      return "0";
+    }
+    return String(Math.round(numeric * 1000000) / 1000000);
+  }
+
+  function getCssContextElement(context) {
+    if (context && typeof context === "object") {
+      if (context.nodeType === 1) {
+        return context;
+      }
+      if (context.component && context.component.nodeType === 1) {
+        return context.component;
+      }
+      if (context.host && context.host.nodeType === 1) {
+        return context.host;
+      }
+      if (context.element && context.element.nodeType === 1) {
+        return context.element;
+      }
+    }
+    return global && global.document && global.document.documentElement
+      ? global.document.documentElement
+      : null;
+  }
+
+  function readComputedStyleValue(element, propertyName) {
+    if (!element || !global || typeof global.getComputedStyle !== "function") {
+      return "";
+    }
+    try {
+      const computed = global.getComputedStyle(element);
+      if (!computed) {
+        return "";
+      }
+      const prop = String(propertyName || "").trim();
+      if (prop && typeof computed.getPropertyValue === "function") {
+        const cssName = prop.indexOf("-") >= 0 ? prop : prop.replace(/[A-Z]/g, function replaceUpper(match) {
+          return "-" + match.toLowerCase();
+        });
+        const direct = computed.getPropertyValue(cssName);
+        if (direct) {
+          return direct;
+        }
+      }
+      return prop && Object.prototype.hasOwnProperty.call(computed, prop) ? computed[prop] : "";
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function readCssPixelBasis(element, propertyName) {
+    const prop = String(propertyName || "").trim().toLowerCase();
+    const useHeight = prop === "height" || prop === "top" || prop === "bottom" || prop.indexOf("height") >= 0;
+    const useWidth = prop === "width" || prop === "left" || prop === "right" || prop.indexOf("width") >= 0;
+    const parent = element && element.parentNode && element.parentNode.nodeType === 1 ? element.parentNode : null;
+    const target = parent || element;
+    if (!target) {
+      return null;
+    }
+    if (useWidth) {
+      const width = Number(target.clientWidth || 0);
+      if (Number.isFinite(width) && width > 0) {
+        return width;
+      }
+      const computedWidth = parseFloat(readComputedStyleValue(target, "width"));
+      return Number.isFinite(computedWidth) ? computedWidth : null;
+    }
+    if (useHeight) {
+      const height = Number(target.clientHeight || 0);
+      if (Number.isFinite(height) && height > 0) {
+        return height;
+      }
+      const computedHeight = parseFloat(readComputedStyleValue(target, "height"));
+      return Number.isFinite(computedHeight) ? computedHeight : null;
+    }
+    return null;
+  }
+
+  class QCssValue {
+    constructor(options) {
+      const opts = options && typeof options === "object" ? options : {};
+      this[QCSS_VALUE_MARKER] = true;
+      this.value = Object.prototype.hasOwnProperty.call(opts, "value") ? normalizeCssNumber(opts.value) : 0;
+      this.unit = normalizeCssUnit(opts.unit);
+      this.op = String(opts.op || "").trim();
+      this.left = opts.left || null;
+      this.right = opts.right || null;
+      this.raw = typeof opts.raw === "string" ? opts.raw : "";
+      this.property = typeof opts.property === "string" ? opts.property : "";
+      defineCssContext(this, opts.context || null);
+    }
+
+    withContext(context, property) {
+      const next = new QCssValue({
+        value: this.value,
+        unit: this.unit,
+        op: this.op,
+        left: isCssValue(this.left) ? this.left.withContext(context, property) : this.left,
+        right: isCssValue(this.right) ? this.right.withContext(context, property) : this.right,
+        raw: this.raw,
+        property: typeof property === "string" && property ? property : this.property,
+        context: context || readCssContext(this),
+      });
+      return next;
+    }
+
+    toString() {
+      return serializeCssValue(this, readCssContext(this), this.property);
+    }
+
+    valueOf() {
+      const resolved = resolveCssValue(this, readCssContext(this), this.property);
+      return resolved && resolved.resolved ? resolved.value : Number.NaN;
+    }
+
+    [Symbol.toPrimitive](hint) {
+      if (hint === "number") {
+        return this.valueOf();
+      }
+      return this.toString();
+    }
+
+    toJSON() {
+      return {
+        [QCSS_VALUE_MARKER]: true,
+        value: this.value,
+        unit: this.unit,
+        op: this.op,
+        left: this.left,
+        right: this.right,
+        raw: this.raw,
+        property: this.property,
+      };
+    }
+  }
+
+  function defineCssContext(value, context) {
+    if (!value || typeof value !== "object") {
+      return value;
+    }
+    try {
+      Object.defineProperty(value, "__qhtmlCssContext", {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: context || null,
+      });
+    } catch (error) {
+      value.__qhtmlCssContext = context || null;
+    }
+    return value;
+  }
+
+  function readCssContext(value) {
+    return value && typeof value === "object" ? value.__qhtmlCssContext || null : null;
+  }
+
+  function isCssValue(value) {
+    return !!(value && typeof value === "object" && value[QCSS_VALUE_MARKER] === true);
+  }
+
+  function parseCssValue(value, options) {
+    if (isCssValue(value)) {
+      const opts = options && typeof options === "object" ? options : {};
+      return opts.context || opts.property ? value.withContext(opts.context || readCssContext(value), opts.property || value.property) : value;
+    }
+    if (value && typeof value === "object" && value[QCSS_VALUE_MARKER] === true) {
+      return createCssValue(value, "", options);
+    }
+    if (typeof value !== "string") {
+      return null;
+    }
+    const match = String(value || "").trim().match(QCSS_LITERAL_PATTERN);
+    if (!match) {
+      return null;
+    }
+    return createCssValue(Number(match[1]), match[2] || "", options);
+  }
+
+  function createCssValue(value, unit, options) {
+    const opts = options && typeof options === "object" ? options : {};
+    if (isCssValue(value)) {
+      return value.withContext(opts.context || readCssContext(value), opts.property || value.property);
+    }
+    if (value && typeof value === "object" && value[QCSS_VALUE_MARKER] === true) {
+      return new QCssValue({
+        value: value.value,
+        unit: value.unit,
+        op: value.op,
+        left: value.left ? createCssValue(value.left, "", opts) : null,
+        right: value.right ? createCssValue(value.right, "", opts) : null,
+        raw: value.raw,
+        property: opts.property || value.property,
+        context: opts.context || null,
+      });
+    }
+    if (typeof value === "string" && typeof unit === "undefined") {
+      const parsed = parseCssValue(value, opts);
+      if (parsed) {
+        return parsed;
+      }
+    }
+    return new QCssValue({
+      value: value,
+      unit: unit,
+      property: opts.property || "",
+      context: opts.context || null,
+    });
+  }
+
+  function createCssExpressionValue(op, left, right, options) {
+    const opts = options && typeof options === "object" ? options : {};
+    return new QCssValue({
+      op: op,
+      left: coerceCssOperand(left, opts),
+      right: coerceCssOperand(right, opts),
+      property: opts.property || "",
+      context: opts.context || null,
+    });
+  }
+
+  function unwrapCssOperandHandle(value) {
+    if (!value || (typeof value !== "object" && typeof value !== "function")) {
+      return value;
+    }
+    try {
+      if (value.__qhtmlVarHandle === true) {
+        if (typeof value.get === "function") {
+          return value.get();
+        }
+        if (typeof value.valueOf === "function") {
+          return value.valueOf();
+        }
+      }
+    } catch (error) {
+      return value;
+    }
+    return value;
+  }
+
+  function coerceCssOperand(value, options) {
+    const opts = options && typeof options === "object" ? options : {};
+    value = unwrapCssOperandHandle(value);
+    if (isCssValue(value) || (value && typeof value === "object" && value[QCSS_VALUE_MARKER] === true)) {
+      return createCssValue(value, "", opts);
+    }
+    const parsed = parseCssValue(value, opts);
+    if (parsed) {
+      return parsed;
+    }
+    return value;
+  }
+
+  function operandIsCssLike(value) {
+    return isCssValue(value) || !!parseCssValue(value);
+  }
+
+  function cssCalcOperand(value, context, property) {
+    const cssValue = coerceCssOperand(value, { context: context, property: property });
+    if (isCssValue(cssValue)) {
+      if (cssValue.op) {
+        return "(" + cssCalcOperand(cssValue.left, context, property) + " " + cssValue.op + " " + cssCalcOperand(cssValue.right, context, property) + ")";
+      }
+      return formatCssNumber(cssValue.value) + (cssValue.unit || "");
+    }
+    return String(cssValue == null ? "" : cssValue);
+  }
+
+  function resolveCssValue(value, context, property) {
+    const cssValue = coerceCssOperand(value, { context: context, property: property });
+    if (!isCssValue(cssValue)) {
+      const numeric = Number(cssValue);
+      return Number.isFinite(numeric)
+        ? { resolved: true, value: numeric, unit: "" }
+        : { resolved: false, value: Number.NaN, unit: "" };
+    }
+    const element = getCssContextElement(context || readCssContext(cssValue));
+    const prop = property || cssValue.property || "";
+    if (cssValue.op) {
+      const left = resolveCssValue(cssValue.left, element, prop);
+      const right = resolveCssValue(cssValue.right, element, prop);
+      if (left.resolved && right.resolved) {
+        if (cssValue.op === "+") {
+          return { resolved: true, value: left.value + right.value, unit: "px" };
+        }
+        if (cssValue.op === "-") {
+          return { resolved: true, value: left.value - right.value, unit: "px" };
+        }
+        if (cssValue.op === "*") {
+          return { resolved: true, value: left.value * right.value, unit: left.unit || right.unit || "" };
+        }
+        if (cssValue.op === "/") {
+          return right.value === 0
+            ? { resolved: false, value: Number.NaN, unit: "" }
+            : { resolved: true, value: left.value / right.value, unit: left.unit || "" };
+        }
+      }
+      return { resolved: false, value: Number.NaN, unit: "" };
+    }
+    const amount = Number(cssValue.value);
+    const unit = normalizeCssUnit(cssValue.unit);
+    if (!Number.isFinite(amount)) {
+      return { resolved: false, value: Number.NaN, unit: unit };
+    }
+    if (!unit || unit === "px") {
+      return { resolved: true, value: amount, unit: unit || "" };
+    }
+    if (unit === "vw") {
+      const width = global && Number(global.innerWidth || (global.document && global.document.documentElement && global.document.documentElement.clientWidth) || 0);
+      return Number.isFinite(width) && width > 0
+        ? { resolved: true, value: width * amount / 100, unit: "px" }
+        : { resolved: false, value: Number.NaN, unit: unit };
+    }
+    if (unit === "vh") {
+      const height = global && Number(global.innerHeight || (global.document && global.document.documentElement && global.document.documentElement.clientHeight) || 0);
+      return Number.isFinite(height) && height > 0
+        ? { resolved: true, value: height * amount / 100, unit: "px" }
+        : { resolved: false, value: Number.NaN, unit: unit };
+    }
+    if (unit === "rem") {
+      const root = global && global.document ? global.document.documentElement : null;
+      const fontSize = parseFloat(readComputedStyleValue(root, "font-size") || readComputedStyleValue(root, "fontSize") || "16");
+      return Number.isFinite(fontSize)
+        ? { resolved: true, value: amount * fontSize, unit: "px" }
+        : { resolved: false, value: Number.NaN, unit: unit };
+    }
+    if (unit === "em") {
+      const fontSize = parseFloat(readComputedStyleValue(element, "font-size") || readComputedStyleValue(element, "fontSize") || "16");
+      return Number.isFinite(fontSize)
+        ? { resolved: true, value: amount * fontSize, unit: "px" }
+        : { resolved: false, value: Number.NaN, unit: unit };
+    }
+    if (unit === "%") {
+      const basis = readCssPixelBasis(element, prop);
+      return Number.isFinite(basis)
+        ? { resolved: true, value: basis * amount / 100, unit: "px" }
+        : { resolved: false, value: Number.NaN, unit: unit };
+    }
+    return { resolved: false, value: Number.NaN, unit: unit };
+  }
+
+  function simplifyCssOperation(op, left, right, options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const leftValue = coerceCssOperand(left, opts);
+    const rightValue = coerceCssOperand(right, opts);
+    const leftCss = isCssValue(leftValue);
+    const rightCss = isCssValue(rightValue);
+    if (op === "+" && !leftCss && !rightCss) {
+      if (typeof leftValue === "string" || typeof rightValue === "string") {
+        return String(leftValue == null ? "" : leftValue) + String(rightValue == null ? "" : rightValue);
+      }
+      return Number(leftValue || 0) + Number(rightValue || 0);
+    }
+    if (op === "-" && !leftCss && !rightCss) {
+      return Number(leftValue || 0) - Number(rightValue || 0);
+    }
+    if (op === "*" && !leftCss && !rightCss) {
+      return Number(leftValue || 0) * Number(rightValue || 0);
+    }
+    if (op === "/" && !leftCss && !rightCss) {
+      return Number(rightValue || 0) === 0 ? Number.NaN : Number(leftValue || 0) / Number(rightValue || 0);
+    }
+    if ((op === "+" || op === "-") && leftCss && rightCss && !leftValue.op && !rightValue.op && leftValue.unit === rightValue.unit) {
+      return createCssValue(
+        op === "+" ? leftValue.value + rightValue.value : leftValue.value - rightValue.value,
+        leftValue.unit,
+        opts
+      );
+    }
+    if ((op === "*" || op === "/") && leftCss && !rightCss && !leftValue.op) {
+      const numeric = Number(rightValue);
+      if (Number.isFinite(numeric)) {
+        return createCssValue(op === "*" ? leftValue.value * numeric : leftValue.value / numeric, leftValue.unit, opts);
+      }
+    }
+    if (op === "*" && !leftCss && rightCss && !rightValue.op) {
+      const numeric = Number(leftValue);
+      if (Number.isFinite(numeric)) {
+        return createCssValue(rightValue.value * numeric, rightValue.unit, opts);
+      }
+    }
+    const expression = createCssExpressionValue(op, leftValue, rightValue, opts);
+    const resolved = resolveCssValue(expression, opts.context || null, opts.property || "");
+    return resolved.resolved ? createCssValue(resolved.value, "px", opts) : expression;
+  }
+
+  function serializeCssValue(value, context, property) {
+    const cssValue = coerceCssOperand(value, { context: context, property: property });
+    if (!isCssValue(cssValue)) {
+      return String(cssValue == null ? "" : cssValue);
+    }
+    const prop = property || cssValue.property || "";
+    const ctx = context || readCssContext(cssValue);
+    if (cssValue.op) {
+      const resolved = resolveCssValue(cssValue, ctx, prop);
+      if (resolved.resolved) {
+        return formatCssNumber(resolved.value) + "px";
+      }
+      return "calc(" + cssCalcOperand(cssValue.left, ctx, prop) + " " + cssValue.op + " " + cssCalcOperand(cssValue.right, ctx, prop) + ")";
+    }
+    return formatCssNumber(cssValue.value) + (cssValue.unit || "");
+  }
+
+  function cssAdd(left, right, options) {
+    return simplifyCssOperation("+", left, right, options);
+  }
+
+  function cssSub(left, right, options) {
+    return simplifyCssOperation("-", left, right, options);
+  }
+
+  function cssMul(left, right, options) {
+    return simplifyCssOperation("*", left, right, options);
+  }
+
+  function cssDiv(left, right, options) {
+    return simplifyCssOperation("/", left, right, options);
+  }
+
+  function createCssContextHelper(context, property) {
+    const opts = { context: context || null, property: property || "" };
+    return {
+      v: function cssContextValue(value, unit) {
+        return typeof unit === "undefined" ? createCssValue(value, undefined, opts) : createCssValue(value, unit, opts);
+      },
+      css: function cssContextCss(value, unit) {
+        return typeof unit === "undefined" ? createCssValue(value, undefined, opts) : createCssValue(value, unit, opts);
+      },
+      add: function cssContextAdd(left, right) {
+        return cssAdd(left, right, opts);
+      },
+      sub: function cssContextSub(left, right) {
+        return cssSub(left, right, opts);
+      },
+      mul: function cssContextMul(left, right) {
+        return cssMul(left, right, opts);
+      },
+      div: function cssContextDiv(left, right) {
+        return cssDiv(left, right, opts);
+      },
+      resolve: function cssContextResolve(value, targetContext, targetProperty) {
+        return resolveCssValue(value, targetContext || opts.context, targetProperty || opts.property);
+      },
+      serialize: function cssContextSerialize(value, targetContext, targetProperty) {
+        return serializeCssValue(value, targetContext || opts.context, targetProperty || opts.property);
+      },
+    };
+  }
+
+  function skipQuotedSource(source, index) {
+    const quote = source.charAt(index);
+    let cursor = index + 1;
+    while (cursor < source.length) {
+      const ch = source.charAt(cursor);
+      if (ch === "\\") {
+        cursor += 2;
+        continue;
+      }
+      cursor += 1;
+      if (ch === quote) {
+        break;
+      }
+    }
+    return cursor;
+  }
+
+  function splitTopLevelArguments(source) {
+    const args = [];
+    let depth = 0;
+    let start = 0;
+    let cursor = 0;
+    while (cursor < source.length) {
+      const ch = source.charAt(cursor);
+      if (ch === "\"" || ch === "'" || ch === "`") {
+        cursor = skipQuotedSource(source, cursor);
+        continue;
+      }
+      if (ch === "(" || ch === "[" || ch === "{") {
+        depth += 1;
+      } else if (ch === ")" || ch === "]" || ch === "}") {
+        depth = Math.max(0, depth - 1);
+      } else if (ch === "," && depth === 0) {
+        args.push(source.slice(start, cursor).trim());
+        start = cursor + 1;
+      }
+      cursor += 1;
+    }
+    const tail = source.slice(start).trim();
+    if (tail) {
+      args.push(tail);
+    }
+    return args;
+  }
+
+  function readBalancedExpressionCall(source, openIndex) {
+    let depth = 0;
+    let cursor = openIndex;
+    while (cursor < source.length) {
+      const ch = source.charAt(cursor);
+      if (ch === "\"" || ch === "'" || ch === "`") {
+        cursor = skipQuotedSource(source, cursor);
+        continue;
+      }
+      if (ch === "(") {
+        depth += 1;
+      } else if (ch === ")") {
+        depth -= 1;
+        if (depth === 0) {
+          return cursor + 1;
+        }
+      }
+      cursor += 1;
+    }
+    return source.length;
+  }
+
+  function tokenizeCssExpression(source) {
+    const text = String(source || "");
+    const tokens = [];
+    let cursor = 0;
+    while (cursor < text.length) {
+      const ch = text.charAt(cursor);
+      if (/\s/.test(ch)) {
+        cursor += 1;
+        continue;
+      }
+      QCSS_LITERAL_TOKEN_PATTERN.lastIndex = 0;
+      const literalMatch = QCSS_LITERAL_TOKEN_PATTERN.exec(text.slice(cursor));
+      QCSS_LITERAL_TOKEN_PATTERN.lastIndex = 0;
+      if (literalMatch && literalMatch.index === 0) {
+        const token = literalMatch[0];
+        const prev = cursor > 0 ? text.charAt(cursor - 1) : "";
+        const next = text.charAt(cursor + token.length);
+        if (!/[A-Za-z0-9_$.)\]]/.test(prev) && !/[A-Za-z0-9_$]/.test(next)) {
+          tokens.push({ type: "atom", text: "qcss.v(" + JSON.stringify(token) + ")", cssAware: true });
+          cursor += token.length;
+          continue;
+        }
+      }
+      if (ch === "\"" || ch === "'" || ch === "`") {
+        const end = skipQuotedSource(text, cursor);
+        const raw = text.slice(cursor, end);
+        tokens.push({ type: "atom", text: raw, cssAware: !!parseCssValue(raw.slice(1, -1)) });
+        cursor = end;
+        continue;
+      }
+      if (ch === "(" || ch === ")") {
+        tokens.push({ type: ch, text: ch, cssAware: false });
+        cursor += 1;
+        continue;
+      }
+      if (ch === "+" || ch === "-" || ch === "*" || ch === "/") {
+        tokens.push({ type: "op", text: ch, cssAware: false });
+        cursor += 1;
+        continue;
+      }
+      if (/[A-Za-z_$]/.test(ch)) {
+        const start = cursor;
+        cursor += 1;
+        while (cursor < text.length && /[A-Za-z0-9_$.]/.test(text.charAt(cursor))) {
+          cursor += 1;
+        }
+        if (text.charAt(cursor) === "(") {
+          const end = readBalancedExpressionCall(text, cursor);
+          tokens.push({ type: "atom", text: text.slice(start, end), cssAware: text.slice(start, end).indexOf("qcss.") >= 0 });
+          cursor = end;
+          continue;
+        }
+        const atom = text.slice(start, cursor);
+        tokens.push({ type: "atom", text: atom, cssAware: atom.indexOf(".style.") >= 0 || atom.indexOf("qcss.") >= 0 });
+        continue;
+      }
+      if (/\d/.test(ch) || (ch === "." && /\d/.test(text.charAt(cursor + 1)))) {
+        const match = text.slice(cursor).match(/^(?:\d+\.\d+|\d+|\.\d+)(?:[eE][+-]?\d+)?/);
+        if (match) {
+          tokens.push({ type: "atom", text: match[0], cssAware: false });
+          cursor += match[0].length;
+          continue;
+        }
+      }
+      return null;
+    }
+    return tokens;
+  }
+
+  function parseCssExpressionTokens(tokens) {
+    let cursor = 0;
+    function precedence(op) {
+      return op === "*" || op === "/" ? 2 : op === "+" || op === "-" ? 1 : 0;
+    }
+    function parsePrimary() {
+      const token = tokens[cursor];
+      if (!token) {
+        return { text: "", cssAware: false };
+      }
+      if (token.type === "op" && (token.text === "+" || token.text === "-")) {
+        cursor += 1;
+        const inner = parsePrimary();
+        return {
+          text: token.text === "-" ? "qcss.mul(" + inner.text + ", -1)" : inner.text,
+          cssAware: inner.cssAware,
+        };
+      }
+      if (token.type === "(") {
+        cursor += 1;
+        const inner = parseBinary(0);
+        if (tokens[cursor] && tokens[cursor].type === ")") {
+          cursor += 1;
+        }
+        return { text: "(" + inner.text + ")", cssAware: inner.cssAware };
+      }
+      if (token.type === "atom") {
+        cursor += 1;
+        return { text: token.text, cssAware: token.cssAware };
+      }
+      return { text: "", cssAware: false };
+    }
+    function parseBinary(minPrecedence) {
+      let left = parsePrimary();
+      while (cursor < tokens.length) {
+        const token = tokens[cursor];
+        if (!token || token.type !== "op") {
+          break;
+        }
+        const prec = precedence(token.text);
+        if (prec < minPrecedence || prec === 0) {
+          break;
+        }
+        cursor += 1;
+        const right = parseBinary(prec + 1);
+        const helper = token.text === "+"
+          ? "add"
+          : token.text === "-"
+            ? "sub"
+            : token.text === "*"
+              ? "mul"
+              : "div";
+        left = {
+          text: "qcss." + helper + "(" + left.text + ", " + right.text + ")",
+          cssAware: true,
+        };
+      }
+      return left;
+    }
+    const parsed = parseBinary(0);
+    if (cursor < tokens.length) {
+      return null;
+    }
+    return parsed;
+  }
+
+  function transformCssExpression(source) {
+    const text = String(source || "").trim();
+    if (!text || text.indexOf("=>") >= 0) {
+      return source;
+    }
+    QCSS_LITERAL_TOKEN_PATTERN.lastIndex = 0;
+    const containsCssLiteral = QCSS_LITERAL_TOKEN_PATTERN.test(text);
+    QCSS_LITERAL_TOKEN_PATTERN.lastIndex = 0;
+    if (!/[+\-*/]/.test(text) && !containsCssLiteral) {
+      QCSS_LITERAL_TOKEN_PATTERN.lastIndex = 0;
+      return source;
+    }
+    QCSS_LITERAL_TOKEN_PATTERN.lastIndex = 0;
+    const tokens = tokenizeCssExpression(text);
+    if (!tokens || tokens.length === 0) {
+      return source;
+    }
+    const parsed = parseCssExpressionTokens(tokens);
+    if (!parsed || (!parsed.cssAware && !/[+\-*/]/.test(text))) {
+      return source;
+    }
+    return parsed.text;
+  }
+
+  function transformCssScriptBody(source) {
+    const text = String(source || "");
+    let out = "";
+    let cursor = 0;
+    while (cursor < text.length) {
+      const ch = text.charAt(cursor);
+      if (ch === "\"" || ch === "'" || ch === "`") {
+        const end = skipQuotedSource(text, cursor);
+        out += text.slice(cursor, end);
+        cursor = end;
+        continue;
+      }
+      const returnMatch = text.slice(cursor).match(/^return\b/);
+      if (returnMatch) {
+        out += "return";
+        cursor += returnMatch[0].length;
+        const start = cursor;
+        while (cursor < text.length && text.charAt(cursor) !== ";" && text.charAt(cursor) !== "\n" && text.charAt(cursor) !== "\r" && text.charAt(cursor) !== "}") {
+          cursor += 1;
+        }
+        out += transformCssExpression(text.slice(start, cursor));
+        continue;
+      }
+      if (
+        ch === "=" &&
+        text.charAt(cursor - 1) !== "=" &&
+        text.charAt(cursor - 1) !== "!" &&
+        text.charAt(cursor - 1) !== "<" &&
+        text.charAt(cursor - 1) !== ">" &&
+        text.charAt(cursor + 1) !== "=" &&
+        text.charAt(cursor + 1) !== ">"
+      ) {
+        out += ch;
+        cursor += 1;
+        const start = cursor;
+        while (cursor < text.length && text.charAt(cursor) !== ";" && text.charAt(cursor) !== "\n" && text.charAt(cursor) !== "\r") {
+          cursor += 1;
+        }
+        out += transformCssExpression(text.slice(start, cursor));
+        continue;
+      }
+      out += ch;
+      cursor += 1;
+    }
+    return out;
+  }
 
   function normalizeQDomUuid(value) {
     if (typeof value !== "string") {
@@ -1457,8 +2199,22 @@
     QSlotDefaultNode: QSlotDefaultNode,
     QScriptRuleNode: QScriptRuleNode,
     QColorNode: QColorNode,
+    QCssValue: QCssValue,
     NODE_TYPES: NODE_TYPES,
     TEXT_ALIASES: TEXT_ALIASES,
+    QCSS_VALUE_MARKER: QCSS_VALUE_MARKER,
+    createCssValue: createCssValue,
+    parseCssValue: parseCssValue,
+    isCssValue: isCssValue,
+    serializeCssValue: serializeCssValue,
+    resolveCssValue: resolveCssValue,
+    cssAdd: cssAdd,
+    cssSub: cssSub,
+    cssMul: cssMul,
+    cssDiv: cssDiv,
+    createCssContextHelper: createCssContextHelper,
+    transformCssExpression: transformCssExpression,
+    transformCssScriptBody: transformCssScriptBody,
     createDocument: createDocument,
     createElementNode: createElementNode,
     createTextNode: createTextNode,
@@ -2300,6 +3056,43 @@
     };
   }
 
+  function parseCssNumericLiteral(parser, options) {
+    const opts = options && typeof options === "object" ? options : {};
+    if (!core || typeof core.createCssValue !== "function") {
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+    const remainder = parser.source.slice(parser.index);
+    const match = remainder.match(/^-?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][+-]?\d+)?(?:px|%|vw|vh|rem|em)\b|-?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][+-]?\d+)?%/i);
+    if (!match) {
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+    const token = String(match[0] || "");
+    const rest = remainder.slice(token.length);
+    if (opts.singleValueOnly === true && !/^\s*(?:[;\n\r}]|$)/.test(rest)) {
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+    if (opts.typedValue === true && !/^(?:\s|,|;|\n|\r|}|$)/.test(rest)) {
+      return {
+        matched: false,
+        value: null,
+      };
+    }
+    parser.index += token.length;
+    return {
+      matched: true,
+      value: core.createCssValue(token),
+    };
+  }
+
   function parseTypedArrayBodyToValue(rawBody, keywordAliases) {
     const body = String(rawBody || "");
     const trimmedBody = body.trim();
@@ -2460,6 +3253,11 @@
       return nestedContainer.value;
     }
 
+    const cssNumeric = parseCssNumericLiteral(parser, { typedValue: true });
+    if (cssNumeric.matched) {
+      return cssNumeric.value;
+    }
+
     const numeric = parseTypedNumericLiteral(parser);
     if (numeric.matched) {
       return numeric.value;
@@ -2573,6 +3371,10 @@
     const typedContainer = parseTypedContainerValue(parser, keywordAliases);
     if (typedContainer.matched) {
       return typedContainer.value;
+    }
+    const cssNumeric = parseCssNumericLiteral(parser, { singleValueOnly: true });
+    if (cssNumeric.matched) {
+      return cssNumeric.value;
     }
     return parseBareValue(parser);
   }
@@ -10865,6 +11667,15 @@
         outArray.push(resolveScopedPropertyValueReferences(value[i], scopedMaps, visitedRefs));
       }
       return outArray;
+    }
+    if (
+      value &&
+      typeof value === "object" &&
+      core &&
+      typeof core.isCssValue === "function" &&
+      (core.isCssValue(value) || value[core.QCSS_VALUE_MARKER] === true)
+    ) {
+      return typeof core.createCssValue === "function" ? core.createCssValue(value) : value;
     }
     if (value && typeof value === "object") {
       const outObject = {};
@@ -20110,7 +20921,8 @@
       " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
       "const qhtml = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtml === \"function\")" +
       " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n" +
-      "const css = function(value, unit){ var __qhtmlCssUnit = String(unit == null ? \"\" : unit).trim(); return /^(px|em|rem|vh|vw|vmin|vmax|svh|lvh|dvh|svw|lvw|dvw|%|ch|ex|cm|mm|in|pt|pc|q|fr|deg|rad|grad|turn|s|ms)$/i.test(__qhtmlCssUnit) ? String(value == null ? \"\" : value) + __qhtmlCssUnit : value; };\n";
+      "const qcss = (typeof globalThis !== \"undefined\" && globalThis.QHtml && typeof globalThis.QHtml.createCssContext === \"function\") ? globalThis.QHtml.createCssContext(this) : { v: function(value, unit){ return String(value == null ? \"\" : value) + String(unit == null ? \"\" : unit); }, css: function(value, unit){ return String(value == null ? \"\" : value) + String(unit == null ? \"\" : unit); }, add: function(a,b){ return a + b; }, sub: function(a,b){ return a - b; }, mul: function(a,b){ return a * b; }, div: function(a,b){ return a / b; } };\n" +
+      "const css = qcss.css;\n";
     const scopedBlock =
       "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
       "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
@@ -20426,7 +21238,11 @@
       return {
         matched: true,
         resolved: true,
-        value: unit ? String(value == null ? "" : value) + unit : String(value == null ? "" : value),
+        value: unit && core && typeof core.createCssValue === "function"
+          ? core.createCssValue(value, unit, { context: thisArg || (scope && scope.component) || null })
+          : unit
+            ? String(value == null ? "" : value) + unit
+            : String(value == null ? "" : value),
       };
     }
     return {
@@ -20496,6 +21312,9 @@
   function createInlineCssFormatter(thisArg, scope) {
     return function cssInlineFormatter(value, unitValue) {
       const unit = normalizeCssUnitToken(unitValue);
+      if (core && typeof core.createCssValue === "function") {
+        return unit ? core.createCssValue(value, unit, { context: thisArg || (scope && scope.component) || null }) : value;
+      }
       return unit ? String(value == null ? "" : value) + unit : value;
     };
   }
@@ -20948,7 +21767,14 @@
       return pathFallbackLiteral ? source : "";
     }
     try {
-      const evaluator = new Function("__qhtmlScope", "with(__qhtmlScope){ return (" + source + "); }");
+      if (core && typeof core.createCssContextHelper === "function" && !Object.prototype.hasOwnProperty.call(scope, "qcss")) {
+        scope.qcss = core.createCssContextHelper(thisArg || scope.component || null);
+        scope.css = scope.qcss.css;
+      }
+      const expressionSource = core && typeof core.transformCssExpression === "function"
+        ? core.transformCssExpression(source)
+        : source;
+      const evaluator = new Function("__qhtmlScope", "with(__qhtmlScope){ return (" + expressionSource + "); }");
       const evaluatedValue = evaluator.call(thisArg || scope, scope);
       return unwrapModelMethodBridgeValue(evaluatedValue, source);
     } catch (error) {
@@ -21782,7 +22608,10 @@
     if (typeof body !== "string" || body.length === 0) {
       return "";
     }
-    return rewriteHashSelectorShorthand(body);
+    const rewritten = rewriteHashSelectorShorthand(body);
+    return core && typeof core.transformCssScriptBody === "function"
+      ? core.transformCssScriptBody(rewritten)
+      : rewritten;
   }
 
   function normalizeHandlerParameterNames(entries) {
@@ -22417,7 +23246,7 @@
     const runStage = function runStage(stage) {
       try {
         const hasInterpolatedBody = hasInlineReferenceExpressions(stage.source);
-        const hookBody = hasInterpolatedBody
+        let hookBody = hasInterpolatedBody
           ? interpolateInlineReferenceExpressions(
               stage.source,
               thisArg || {},
@@ -22432,6 +23261,7 @@
               { scriptLiteral: true }
             )
           : stage.source;
+        hookBody = transformScriptBody(hookBody);
         ensureScopedSelectorShortcut(thisArg || {}, null);
         const fn = new Function("event", "document", withScopedSelectorPrelude(hookBody));
         const executionThis = thisArg || null;
@@ -22918,12 +23748,37 @@
   }
 
   function normalizeCssUnitPropertyValue(value) {
+    if (
+      core &&
+      typeof core.isCssValue === "function" &&
+      (core.isCssValue(value) || (value && typeof value === "object" && value[core.QCSS_VALUE_MARKER] === true))
+    ) {
+      return {
+        value: typeof core.createCssValue === "function" ? core.createCssValue(value) : value,
+        cssUnit: "",
+        matched: true,
+      };
+    }
     if (typeof value !== "string") {
       return {
         value: value,
         cssUnit: "",
         matched: false,
       };
+    }
+    if (core && typeof core.parseCssValue === "function") {
+      const parsedCssValue = core.parseCssValue(String(value || "").trim());
+      if (
+        parsedCssValue &&
+        typeof parsedCssValue === "object" &&
+        (!parsedCssValue.op || (parsedCssValue.left || parsedCssValue.right))
+      ) {
+        return {
+          value: typeof core.createCssValue === "function" ? core.createCssValue(parsedCssValue) : parsedCssValue,
+          cssUnit: String(parsedCssValue.unit || ""),
+          matched: true,
+        };
+      }
     }
     const match = String(value).match(CSS_UNIT_VALUE_PATTERN);
     if (!match) {
@@ -23086,9 +23941,17 @@
       const runtimeScope = scope || resolveInlineExpressionScope(hostElement, { component: hostElement });
       const evaluator = new Function(
         "scope",
+        "document",
+        "window",
+        "globalThis",
         "return (function(){ with (scope) { return (" + expression + "); } }).call(scope.component || null);"
       );
-      const resolved = evaluator(runtimeScope);
+      const resolved = evaluator(
+        runtimeScope,
+        runtimeScope && runtimeScope.document ? runtimeScope.document : global.document,
+        runtimeScope && runtimeScope.window ? runtimeScope.window : global,
+        runtimeScope && runtimeScope.globalThis ? runtimeScope.globalThis : global
+      );
       const unwrapped = unwrapQVarHandleValue(resolved);
       return unwrapped && unwrapped.style ? unwrapped : null;
     } catch (error) {
@@ -23169,7 +24032,10 @@
     if (!propertyName) {
       return false;
     }
-    const stringValue = String(value == null ? "" : value);
+    const stringValue =
+      core && typeof core.serializeCssValue === "function"
+        ? core.serializeCssValue(value, targetElement, propertyName)
+        : String(value == null ? "" : value);
     if (propertyName.indexOf("-") >= 0) {
       targetElement.style.setProperty(propertyName, stringValue);
     } else {
@@ -23191,8 +24057,7 @@
     }
     const declaredPropertySet = collectDeclaredComponentPropertySet(componentNode, instanceNode);
     const changedKey = String(changedPropertyName || "").trim().toLowerCase();
-    const scope = resolveInlineExpressionScope(hostElement, { component: hostElement });
-    const cssFormatter = createInlineCssFormatter(hostElement, scope);
+    const cssFormatter = createInlineCssFormatter(hostElement, null);
     for (let i = 0; i < bindings.length; i += 1) {
       const binding = bindings[i] && typeof bindings[i] === "object" ? bindings[i] : null;
       if (!binding) {
@@ -23214,7 +24079,7 @@
       if (!targetInfo.valid) {
         continue;
       }
-      const targetElement = resolveDeclaredCssBindingTarget(hostElement, targetInfo, scope);
+      const targetElement = resolveDeclaredCssBindingTarget(hostElement, targetInfo, null);
       if (!targetElement) {
         continue;
       }
@@ -23230,6 +24095,121 @@
       }
       writeCssBindingStyleValue(targetElement, targetInfo.styleProperty, cssFormatter(value, unit));
     }
+  }
+
+  function installDeclaredCssBindingSignalListeners(hostElement, componentNode, instanceNode) {
+    const bindings = collectDeclaredCssBindings(componentNode);
+    if (
+      !hostElement ||
+      bindings.length === 0 ||
+      typeof hostElement.addEventListener !== "function"
+    ) {
+      return;
+    }
+    const declaredPropertySet = collectDeclaredComponentPropertySet(componentNode, instanceNode);
+    const installed = hostElement.__qhtmlDeclaredCssBindingListeners instanceof Set
+      ? hostElement.__qhtmlDeclaredCssBindingListeners
+      : new Set();
+    hostElement.__qhtmlDeclaredCssBindingListeners = installed;
+    for (let i = 0; i < bindings.length; i += 1) {
+      const binding = bindings[i] && typeof bindings[i] === "object" ? bindings[i] : null;
+      if (!binding) {
+        continue;
+      }
+      const sourceInfo = normalizeDeclaredCssBindingSourceExpression(binding.sourceExpression);
+      if (!sourceInfo.valid) {
+        continue;
+      }
+      const propertyName = sourceInfo.propertyName;
+      const propertyKey = propertyName.toLowerCase();
+      if (!declaredPropertySet.has(propertyKey)) {
+        continue;
+      }
+      const targetInfo = normalizeDeclaredCssBindingTargetExpression(binding.targetExpression);
+      if (!targetInfo.valid) {
+        continue;
+      }
+      const listenerKey = propertyKey + "->" + String(binding.targetExpression || "").trim().toLowerCase();
+      if (installed.has(listenerKey)) {
+        continue;
+      }
+      const signalName = String(propertyName || "") + "Changed";
+      const handler = function onDeclaredCssBindingPropertyChanged() {
+        applyDeclaredCssBindingsForProperty(hostElement, componentNode, instanceNode, propertyName);
+      };
+      try {
+        hostElement.addEventListener(signalName, handler);
+        installed.add(listenerKey);
+      } catch (error) {
+        // Best-effort binding; direct q-property setter sync still covers normal writes.
+      }
+    }
+  }
+
+  function scheduleDeclaredCssBindingsAfterContentLoaded(hostElement, componentNode, instanceNode, targetDocument) {
+    const bindings = collectDeclaredCssBindings(componentNode);
+    if (!hostElement || bindings.length === 0) {
+      return;
+    }
+    if (hostElement.__qhtmlDeclaredCssBindingsScheduled === true) {
+      return;
+    }
+    try {
+      Object.defineProperty(hostElement, "__qhtmlDeclaredCssBindingsScheduled", {
+        value: true,
+        configurable: true,
+        writable: true,
+        enumerable: false,
+      });
+    } catch (error) {
+      hostElement.__qhtmlDeclaredCssBindingsScheduled = true;
+    }
+
+    const doc = targetDocument || hostElement.ownerDocument || global.document || null;
+    const state = doc && doc.__qhtmlContentLoadedState && typeof doc.__qhtmlContentLoadedState === "object" ? doc.__qhtmlContentLoadedState : null;
+    const runtimeManaged = !!(state && state.runtimeManaged);
+    const alreadySignaled = !!(state && Number(state.sequence || 0) > 0 && Number(state.pending || 0) === 0);
+    const runBindings = function runDeclaredCssBindingsAfterContentLoaded() {
+      if (hostElement.__qhtmlDeclaredCssBindingsActive === true) {
+        return;
+      }
+      hostElement.__qhtmlDeclaredCssBindingsActive = true;
+      installDeclaredCssBindingSignalListeners(hostElement, componentNode, instanceNode);
+      applyDeclaredCssBindingsForProperty(hostElement, componentNode, instanceNode, "");
+    };
+    const deferRun = function deferDeclaredCssBindingsAfterContentLoaded() {
+      scheduleReadyHookExecution(runBindings);
+    };
+
+    if (!runtimeManaged || alreadySignaled) {
+      deferRun();
+      return;
+    }
+    if (state && Array.isArray(state.callbacks)) {
+      state.callbacks.push(function onQHtmlContentLoadedCallbackForDeclaredCssBindings() {
+        deferRun();
+      });
+    }
+    if (!doc || typeof doc.addEventListener !== "function") {
+      deferRun();
+      return;
+    }
+    const handler = function onQHtmlContentLoadedForDeclaredCssBindings() {
+      if (typeof doc.removeEventListener === "function") {
+        doc.removeEventListener(QHTML_CONTENT_LOADED_EVENT, handler);
+      }
+      deferRun();
+    };
+    doc.addEventListener(QHTML_CONTENT_LOADED_EVENT, handler);
+    scheduleReadyHookExecution(function recheckDeclaredCssBindingsContentLoadedState() {
+      const latest = doc && doc.__qhtmlContentLoadedState && typeof doc.__qhtmlContentLoadedState === "object" ? doc.__qhtmlContentLoadedState : null;
+      if (latest && Number(latest.sequence || 0) > 0 && Number(latest.pending || 0) === 0) {
+        if (typeof doc.removeEventListener === "function") {
+          doc.removeEventListener(QHTML_CONTENT_LOADED_EVENT, handler);
+        }
+        deferRun();
+      }
+    });
   }
 
   function readCssUnitFromInlineScope(scope, propertyName) {
@@ -25708,11 +26688,67 @@
           declaredReferenceExpression = literalReference;
         }
       }
+      if (
+        !compiledBinding &&
+        !declaredReferenceExpression &&
+        typeof literalDefault === "string" &&
+        core &&
+        !(typeof core.parseCssValue === "function" && core.parseCssValue(String(literalDefault || "").trim())) &&
+        typeof core.transformCssExpression === "function"
+      ) {
+        const literalExpression = String(literalDefault || "").trim();
+        const transformedLiteralExpression = core.transformCssExpression(literalExpression);
+        if (transformedLiteralExpression !== literalExpression) {
+          compiledBinding = function declaredPropertyCssExpressionBinding() {
+            const scope = Object.create(null);
+            scope.window = global;
+            scope.globalThis = global;
+            if (this && typeof this === "object" && this.ownerDocument) {
+              scope.document = this.ownerDocument;
+            }
+            scope.this = this;
+            scope.component = this;
+            for (let pi = 0; pi < declaredProperties.length; pi += 1) {
+              const scopedPropertyName = declaredProperties[pi];
+              if (!scopedPropertyName || scopedPropertyName === propertyName || Object.prototype.hasOwnProperty.call(scope, scopedPropertyName)) {
+                continue;
+              }
+              try {
+                scope[scopedPropertyName] = this[scopedPropertyName];
+              } catch (ignoredScopedPropertyRead) {
+                // q-property arithmetic expressions resolve available peer properties best-effort.
+              }
+            }
+            if (typeof core.createCssContextHelper === "function" && !Object.prototype.hasOwnProperty.call(scope, "qcss")) {
+              scope.qcss = core.createCssContextHelper(this, propertyName);
+              scope.css = scope.qcss.css;
+            }
+            try {
+              const runtimeBinding = new Function("__qhtmlScope", "with(__qhtmlScope){ return (" + transformedLiteralExpression + "); }");
+              return runtimeBinding.call(this, scope);
+            } catch (error) {
+              if (global.console && typeof global.console.error === "function") {
+                global.console.error("qhtml declared property CSS expression failed:", propertyName, error);
+              }
+              return null;
+            }
+          };
+          literalDefault = undefined;
+        }
+      }
       if (!compiledBinding && !declaredReferenceExpression) {
         const normalizedDefault = normalizeCssUnitPropertyValue(literalDefault);
         if (normalizedDefault.matched) {
           literalDefault = normalizedDefault.value;
           literalDefaultCssUnit = normalizedDefault.cssUnit;
+          if (
+            core &&
+            typeof core.isCssValue === "function" &&
+            (core.isCssValue(literalDefault) || (literalDefault && typeof literalDefault === "object" && literalDefault[core.QCSS_VALUE_MARKER] === true)) &&
+            typeof core.createCssValue === "function"
+          ) {
+            literalDefault = core.createCssValue(literalDefault, "", { context: hostElement, property: propertyName });
+          }
         }
       }
       try {
@@ -25772,7 +26808,15 @@
           set: function setDeclaredComponentProperty(value) {
             const resolvedValue = resolveCallbackReferenceValue(value);
             const normalizedCssValue = normalizeCssUnitPropertyValue(resolvedValue);
-            const normalizedValue = normalizedCssValue.value;
+            let normalizedValue = normalizedCssValue.value;
+            if (
+              core &&
+              typeof core.isCssValue === "function" &&
+              (core.isCssValue(normalizedValue) || (normalizedValue && typeof normalizedValue === "object" && normalizedValue[core.QCSS_VALUE_MARKER] === true)) &&
+              typeof core.createCssValue === "function"
+            ) {
+              normalizedValue = core.createCssValue(normalizedValue, "", { context: this, property: propertyName });
+            }
             const normalizedCssUnit = normalizedCssValue.matched ? normalizedCssValue.cssUnit : "";
             if (normalizedValue && typeof normalizedValue.then === "function") {
               const self = this;
@@ -25854,12 +26898,16 @@
             if (hadValue && Object.is(previousValue, normalizedValue)) {
               writeTrackedDeclaredProperty(this, propertyName, normalizedValue);
               attachDeclaredPropertyModelListener(this, componentId, propertyName, normalizedValue);
-              applyDeclaredCssBindingsForProperty(this, componentNode, instanceNode, propertyName);
+              if (this.__qhtmlDeclaredCssBindingsActive === true) {
+                applyDeclaredCssBindingsForProperty(this, componentNode, instanceNode, propertyName);
+              }
               return;
             }
             writeTrackedDeclaredProperty(this, propertyName, normalizedValue);
             attachDeclaredPropertyModelListener(this, componentId, propertyName, normalizedValue);
-            applyDeclaredCssBindingsForProperty(this, componentNode, instanceNode, propertyName);
+            if (this.__qhtmlDeclaredCssBindingsActive === true) {
+              applyDeclaredCssBindingsForProperty(this, componentNode, instanceNode, propertyName);
+            }
             if (hadValue && !behaviorSuppressChanged) {
               if (
                 shouldLogQLoggerCategory(this, componentNode, instanceNode, "q-property") &&
@@ -30140,7 +31188,7 @@
     stripRenderedSlotElements(hostElement);
     applyRuntimeThemeRulesToHost(hostElement, instanceNode);
     bindDeclaredComponentPropertyNodes(componentNode, hostElement, context);
-    applyDeclaredCssBindingsForProperty(hostElement, componentNode, instanceNode, "");
+    scheduleDeclaredCssBindingsAfterContentLoaded(hostElement, componentNode, instanceNode, targetDocument);
 
     if (!context.disableLifecycleHooks) {
       runLifecycleHooks(instanceNode, hostElement, targetDocument);
@@ -34463,7 +35511,9 @@
       "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
       " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
       "const qhtml = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtml === \"function\")" +
-      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n";
+      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n" +
+      "const qcss = (typeof globalThis !== \"undefined\" && globalThis.QHtml && typeof globalThis.QHtml.createCssContext === \"function\") ? globalThis.QHtml.createCssContext(this) : { v: function(value, unit){ return String(value == null ? \"\" : value) + String(unit == null ? \"\" : unit); }, css: function(value, unit){ return String(value == null ? \"\" : value) + String(unit == null ? \"\" : unit); }, add: function(a,b){ return a + b; }, sub: function(a,b){ return a - b; }, mul: function(a,b){ return a * b; }, div: function(a,b){ return a / b; } };\n" +
+      "const css = qcss.css;\n";
     const scopedBlock =
       "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
       "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
@@ -34661,7 +35711,14 @@
       return unwrapModelMethodBridgeValue(directPathResult.value, source);
     }
     try {
-      const evaluator = new Function("__qhtmlScope", "with(__qhtmlScope){ return (" + source + "); }");
+      if (core && typeof core.createCssContextHelper === "function" && !Object.prototype.hasOwnProperty.call(scope, "qcss")) {
+        scope.qcss = core.createCssContextHelper(thisArg || scope.component || null);
+        scope.css = scope.qcss.css;
+      }
+      const expressionSource = core && typeof core.transformCssExpression === "function"
+        ? core.transformCssExpression(source)
+        : source;
+      const evaluator = new Function("__qhtmlScope", "with(__qhtmlScope){ return (" + expressionSource + "); }");
       const evaluatedValue = evaluator.call(thisArg || scope, scope);
       return unwrapModelMethodBridgeValue(evaluatedValue, source);
     } catch (error) {
@@ -39182,7 +40239,7 @@
     const executionThis = target || null;
     const runStage = function runStage(stageSource) {
       try {
-        const executableSource = interpolateInlineReferenceExpressions(
+        let executableSource = interpolateInlineReferenceExpressions(
           stageSource,
           target || {},
           {
@@ -39192,6 +40249,7 @@
           "qhtml lifecycle interpolation failed:",
           { scriptLiteral: true }
         );
+        executableSource = transformScriptBody(executableSource);
         ensureScopedSelectorShortcut(executionThis || {}, null);
         const fn = new Function("event", "document", withScopedSelectorPrelude(executableSource));
         const boundFn = fn.bind(executionThis);
@@ -39415,7 +40473,10 @@
     if (typeof body !== "string" || body.length === 0) {
       return "";
     }
-    return rewriteHashSelectorShorthand(body);
+    const rewritten = rewriteHashSelectorShorthand(body);
+    return core && typeof core.transformCssScriptBody === "function"
+      ? core.transformCssScriptBody(rewritten)
+      : rewritten;
   }
 
   function serializeSourceChildNode(node) {
@@ -50255,6 +51316,19 @@
     QProperty: renderer && renderer.QProperty ? renderer.QProperty : null,
     QComponentInstance: renderer && renderer.QComponentInstance ? renderer.QComponentInstance : null,
     QVar: renderer && renderer.QVar ? renderer.QVar : null,
+    QCssValue: core && core.QCssValue ? core.QCssValue : null,
+    cssValue: core && typeof core.createCssValue === "function" ? core.createCssValue : null,
+    cssCalc: core && typeof core.createCssContextHelper === "function"
+      ? function cssCalc(context, property) {
+          return core.createCssContextHelper(context || null, property || "");
+        }
+      : null,
+    createCssContext: core && typeof core.createCssContextHelper === "function"
+      ? function createRuntimeCssContext(context, property) {
+          return core.createCssContextHelper(context || null, property || "");
+        }
+      : null,
+    resolveCssValue: core && typeof core.resolveCssValue === "function" ? core.resolveCssValue : null,
     getQDomDataForUuid: getQDomDataForUuid,
     getQDomDataSnapshot: getQDomDataSnapshot,
     rootContext: {
@@ -50309,6 +51383,10 @@
   }
   if (runtimeApi.QVar) {
     global.QVar = runtimeApi.QVar;
+  }
+  if (runtimeApi.QCssValue) {
+    global.QCssValue = runtimeApi.QCssValue;
+    global.QCSSValue = runtimeApi.QCssValue;
   }
   global.qhtml = createQHtmlFragment;
 

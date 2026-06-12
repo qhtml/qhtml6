@@ -3537,7 +3537,9 @@
       "const $ = (this && typeof this.__qhtmlScopedSelector === \"function\")" +
       " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
       "const qhtml = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtml === \"function\")" +
-      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n";
+      " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n" +
+      "const qcss = (typeof globalThis !== \"undefined\" && globalThis.QHtml && typeof globalThis.QHtml.createCssContext === \"function\") ? globalThis.QHtml.createCssContext(this) : { v: function(value, unit){ return String(value == null ? \"\" : value) + String(unit == null ? \"\" : unit); }, css: function(value, unit){ return String(value == null ? \"\" : value) + String(unit == null ? \"\" : unit); }, add: function(a,b){ return a + b; }, sub: function(a,b){ return a - b; }, mul: function(a,b){ return a * b; }, div: function(a,b){ return a / b; } };\n" +
+      "const css = qcss.css;\n";
     const scopedBlock =
       "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
       "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
@@ -3735,7 +3737,14 @@
       return unwrapModelMethodBridgeValue(directPathResult.value, source);
     }
     try {
-      const evaluator = new Function("__qhtmlScope", "with(__qhtmlScope){ return (" + source + "); }");
+      if (core && typeof core.createCssContextHelper === "function" && !Object.prototype.hasOwnProperty.call(scope, "qcss")) {
+        scope.qcss = core.createCssContextHelper(thisArg || scope.component || null);
+        scope.css = scope.qcss.css;
+      }
+      const expressionSource = core && typeof core.transformCssExpression === "function"
+        ? core.transformCssExpression(source)
+        : source;
+      const evaluator = new Function("__qhtmlScope", "with(__qhtmlScope){ return (" + expressionSource + "); }");
       const evaluatedValue = evaluator.call(thisArg || scope, scope);
       return unwrapModelMethodBridgeValue(evaluatedValue, source);
     } catch (error) {
@@ -8256,7 +8265,7 @@
     const executionThis = target || null;
     const runStage = function runStage(stageSource) {
       try {
-        const executableSource = interpolateInlineReferenceExpressions(
+        let executableSource = interpolateInlineReferenceExpressions(
           stageSource,
           target || {},
           {
@@ -8266,6 +8275,7 @@
           "qhtml lifecycle interpolation failed:",
           { scriptLiteral: true }
         );
+        executableSource = transformScriptBody(executableSource);
         ensureScopedSelectorShortcut(executionThis || {}, null);
         const fn = new Function("event", "document", withScopedSelectorPrelude(executableSource));
         const boundFn = fn.bind(executionThis);
@@ -8489,7 +8499,10 @@
     if (typeof body !== "string" || body.length === 0) {
       return "";
     }
-    return rewriteHashSelectorShorthand(body);
+    const rewritten = rewriteHashSelectorShorthand(body);
+    return core && typeof core.transformCssScriptBody === "function"
+      ? core.transformCssScriptBody(rewritten)
+      : rewritten;
   }
 
   function serializeSourceChildNode(node) {
@@ -19329,6 +19342,19 @@
     QProperty: renderer && renderer.QProperty ? renderer.QProperty : null,
     QComponentInstance: renderer && renderer.QComponentInstance ? renderer.QComponentInstance : null,
     QVar: renderer && renderer.QVar ? renderer.QVar : null,
+    QCssValue: core && core.QCssValue ? core.QCssValue : null,
+    cssValue: core && typeof core.createCssValue === "function" ? core.createCssValue : null,
+    cssCalc: core && typeof core.createCssContextHelper === "function"
+      ? function cssCalc(context, property) {
+          return core.createCssContextHelper(context || null, property || "");
+        }
+      : null,
+    createCssContext: core && typeof core.createCssContextHelper === "function"
+      ? function createRuntimeCssContext(context, property) {
+          return core.createCssContextHelper(context || null, property || "");
+        }
+      : null,
+    resolveCssValue: core && typeof core.resolveCssValue === "function" ? core.resolveCssValue : null,
     getQDomDataForUuid: getQDomDataForUuid,
     getQDomDataSnapshot: getQDomDataSnapshot,
     rootContext: {
@@ -19383,6 +19409,10 @@
   }
   if (runtimeApi.QVar) {
     global.QVar = runtimeApi.QVar;
+  }
+  if (runtimeApi.QCssValue) {
+    global.QCssValue = runtimeApi.QCssValue;
+    global.QCSSValue = runtimeApi.QCssValue;
   }
   global.qhtml = createQHtmlFragment;
 

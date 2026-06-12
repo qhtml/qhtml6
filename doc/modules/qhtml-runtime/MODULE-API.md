@@ -130,7 +130,13 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   - `QHtml.QProperty` / global `QProperty`
   - `QHtml.QComponentInstance` / global `QComponentInstance`
   - `QHtml.QVar` / global `QVar`
+  - `QHtml.QCssValue` / global `QCssValue` / global `QCSSValue`
   - sourced from `dom-renderer` runtime type constructors
+- CSS numeric helper exports:
+  - `QHtml.cssValue(value, unit?, options?)` creates a CSS numeric value object.
+  - `QHtml.cssCalc(context?, property?)` and `QHtml.createCssContext(context?, property?)` return the scoped `qcss` helper namespace used by QHTML-owned expression transforms.
+  - `QHtml.resolveCssValue(value, context?, property?)` resolves a CSS numeric value to pixels when the DOM/computed-style context is sufficient.
+  - Existing `css(value, unit)` in QHTML script scopes remains compatible and returns CSS numeric values for recognized units.
 - Behavior/animation exports from `dom-renderer`:
   - `QHtml.qSet`, `QHtml.commitProperty`
   - `QHtml.registerBehavior`, `QHtml.getBehavior`, `QHtml.removeBehavior`

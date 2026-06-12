@@ -64,6 +64,8 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
     - declared properties can be authored with either:
       - `q-property name: value`
       - `property name: value` (shorthand alias)
+      - unquoted CSS numeric literals such as `100px`, `100%`, `50vh`, `10vw`, `1.25rem`, `0.5em`, and `-20px` are parsed as runtime CSS numeric values in value positions
+      - compound CSS numeric expressions such as `50vh - x` remain source expressions for runtime evaluation against the component context
     - `property: value` is treated as a normal assignment key (`property`) unless an identifier follows `property` (legacy `property name: ...` form)
     - `meta.qBindings` entries for assignment expressions (canonical `q-script`; `q-bind` parses as alias)
     - definition kind preservation for `q-component`, `q-template`, and `q-signal`
@@ -97,6 +99,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - valid only inside `q-component` definitions
       - the first expression must reference a `q-property` declared on the same definition (`this.component.prop`, `component.prop`, `this.prop`, or `prop`)
       - emitted as component metadata in `component.meta.__qhtmlCssBindings` and serialized back to `q-bind-css { source target }`
+      - source properties may hold CSS numeric value objects; rendering serializes them to CSS strings or `calc(...)`
     - callback declarations:
       - top-level `q-callback name(param1, ...) { ... }` emitted as QDom `kind: "callback"` nodes
       - component-local `q-callback name(param1, ...) { ... }` emitted in `component.callbackDeclarations`

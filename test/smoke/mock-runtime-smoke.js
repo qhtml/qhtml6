@@ -124,11 +124,49 @@ class DocumentFragment extends NodeBase {
   }
 }
 
+class StyleDeclaration {
+  constructor() {
+    this._values = Object.create(null);
+  }
+
+  _camelName(name) {
+    return String(name || '').trim().replace(/-([a-z])/g, (_, ch) => ch.toUpperCase());
+  }
+
+  setProperty(name, value) {
+    const cssName = String(name || '').trim();
+    const camelName = this._camelName(cssName);
+    const stringValue = String(value == null ? '' : value);
+    this._values[cssName] = stringValue;
+    this._values[camelName] = stringValue;
+    this[camelName] = stringValue;
+  }
+
+  getPropertyValue(name) {
+    const cssName = String(name || '').trim();
+    const camelName = this._camelName(cssName);
+    return this._values[cssName] || this._values[camelName] || this[camelName] || '';
+  }
+
+  removeProperty(name) {
+    const cssName = String(name || '').trim();
+    const camelName = this._camelName(cssName);
+    const previous = this.getPropertyValue(cssName);
+    delete this._values[cssName];
+    delete this._values[camelName];
+    delete this[camelName];
+    return previous;
+  }
+}
+
 class ElementNode extends NodeBase {
   constructor(tagName) {
     super(1);
     this.tagName = String(tagName || '').toUpperCase();
     this.attributes = {};
+    this.style = new StyleDeclaration();
+    this.clientWidth = 200;
+    this.clientHeight = 200;
     this._listeners = new Map();
     this._templateHtml = '';
     if (this.tagName === 'TEMPLATE') {
@@ -430,7 +468,29 @@ q-template import-shell {
 
   const qhtml = document.createElement('q-html');
   qhtml.id = 'test-qhtml';
-  qhtml.textContent = `
+  qhtml.textContent = process.env.QHTML_QBIND_CSS_SMOKE_ONLY === '1' ? `
+q-component mycomp {
+  q-property w: 5vw
+  q-property h: 50%
+  q-bind-css { this.component.w this.component.style.width }
+  q-bind-css { this.component.h this.component.style.height }
+  q-bind-css { this.component.h document.querySelector("#test").style.height }
+  q-bind-css { this.component.h document.querySelector("#test").style.#test.width }
+
+  div#test {
+    &nbsp;
+  }
+}
+
+mycomp comp1 { }
+button {
+  text { click here }
+  onclick {
+    comp1.h = 44vh;
+    comp1.w = comp1.h * 0.5;
+  }
+}
+` : `
 onLoad {
   this.setAttribute("data-host-ready", "1");
 }
@@ -535,6 +595,43 @@ q-component {
   style { display: block; width: 10px; }
   text { behavior script action }
 }
+q-component {
+  id: "css-box"
+  q-property x: 100px
+  q-property y: 50vh - x
+  q-property pct: 100%
+  q-property doubled: x * 2
+  q-bind-css { this.component.pct this.component.style.left }
+  onready {
+    this.component.style.width = this.component.x;
+    this.component.x = this.component.style.width + 10vw;
+  }
+  style { display: block; }
+  text { css numeric values }
+}
+q-component {
+  id: "css-primitive-box"
+  q-property x: 100px
+  q-property y: 50vh
+  q-property w: 120px
+  q-property doubled: w * 2
+  q-property halved: w / 2
+  q-property summed: 100px + 20px
+  q-property mixed: 30% + 4rem - 100px
+  q-bind-css { this.component.x this.component.style.width }
+  onready {
+    this.component.setAttribute("data-x", String(this.component.x));
+    this.component.setAttribute("data-y", String(this.component.y));
+    this.component.setAttribute("data-doubled", String(this.component.doubled));
+    this.component.setAttribute("data-halved", String(this.component.halved));
+    this.component.setAttribute("data-summed", String(this.component.summed));
+    this.component.setAttribute("data-mixed", String(this.component.mixed));
+    let localWidth = this.component.w;
+    localWidth = localWidth * 2;
+    this.component.setAttribute("data-local-width", String(localWidth));
+  }
+  text { primitive \${this.component.x} \${this.component.y} \${this.component.doubled} }
+}
 q-component parent-box {
   div {
     class: "parent-box"
@@ -582,6 +679,8 @@ parent-box parentB {
   }
 }
 behavior-script-action-box { }
+css-box { }
+css-primitive-box { }
 p,center,a { href: "https://www.example.com" text: "Visit Example" }
 w3-red,w3-panel,div { id: "myDiv" text: "Hover mouse here to see q-script" }
 div { text: "hello world" span { html { <br> hello again } } }
@@ -627,6 +726,25 @@ div { text: "hello world" span { html { <br> hello again } } }
     console,
     setTimeout,
     clearTimeout,
+    innerWidth: 200,
+    innerHeight: 200,
+    getComputedStyle(element) {
+      return {
+        fontSize: '16px',
+        width: element && element.style ? element.style.width || '200px' : '200px',
+        height: element && element.style ? element.style.height || '200px' : '200px',
+        getPropertyValue(name) {
+          if (element && element.style && typeof element.style.getPropertyValue === 'function') {
+            const direct = element.style.getPropertyValue(name);
+            if (direct) return direct;
+          }
+          if (name === 'font-size') return '16px';
+          if (name === 'width') return '200px';
+          if (name === 'height') return '200px';
+          return '';
+        },
+      };
+    },
     QHTML_PERSIST_QDOM_TEMPLATE: true,
     QHTML_TEMPLATE_PERSIST_DEBOUNCE_MS: 0,
   };
@@ -643,6 +761,28 @@ div { text: "hello world" span { html { <br> hello again } } }
   }
 
   assert(context.QHtml, 'QHtml API not exposed');
+  if (process.env.QHTML_QBIND_CSS_SMOKE_ONLY === '1') {
+    await delay(25);
+    const comp = document.querySelector('mycomp');
+    const testNode = document.querySelector('#test');
+    const button = document.querySelector('button');
+    assert(comp, 'q-bind-css smoke component was not rendered');
+    assert(testNode, 'q-bind-css smoke target was not rendered');
+    assert(button, 'q-bind-css smoke button was not rendered');
+    assert(comp.style.width === '5vw', 'q-bind-css did not initialize host width from q-property');
+    assert(comp.style.height === '50%', 'q-bind-css did not initialize host height from q-property');
+    assert(testNode.style.height === '50%', 'q-bind-css did not initialize document.querySelector target height');
+    button.dispatchEvent({ type: 'click' });
+    await delay(0);
+    assert(String(comp.h) === '44vh', 'button did not update named component h property');
+    assert(String(comp.w) === '22vh', 'button did not update named component w arithmetic value');
+    assert(comp.style.width === '22vh', 'q-bind-css did not synchronize host width after named property change');
+    assert(comp.style.height === '44vh', 'q-bind-css did not synchronize host height after named property change');
+    assert(testNode.style.height === '44vh', 'q-bind-css did not synchronize document.querySelector target after named property change');
+    context.QHtml.stopAutoMountObserver();
+    console.log('mock-runtime q-bind-css smoke ok');
+    return;
+  }
   assert(customElementRegistry.has('text-bar'), 'q-component text-bar was not registered as a custom element');
   assert(customElementRegistry.has('import-box'), 'Imported q-component import-box was not registered as a custom element');
   assert(customElementRegistry.has('one-slot-component'), 'Single-slot q-component was not registered as a custom element');
@@ -768,13 +908,50 @@ div { text: "hello world" span { html { <br> hello again } } }
   behaviorScriptBox.boxWidth = '42px';
   await delay(0);
   assert(
-    behaviorScriptBox.getAttribute('data-script-action-width') === '42',
+    behaviorScriptBox.getAttribute('data-script-action-width') === '42px',
     'Behavior q-script-action did not run after property animation completion'
   );
   assert(
     behaviorScriptBox.getAttribute('data-script-action-this') === '1',
     'Behavior q-script-action did not execute with component root context'
   );
+
+  await delay(5);
+  const cssBox = document.querySelector('css-box');
+  assert(cssBox, 'CSS numeric component was not rendered');
+  const cssHelper = context.QHtml.cssCalc(cssBox);
+  assert(String(context.QHtml.cssValue(100, 'px')) === '100px', 'CSS numeric helper did not serialize 100px');
+  assert(String(context.QHtml.cssValue('100px')) === '100px', 'Quoted CSS numeric string did not remain compatible');
+  assert(String(cssHelper.add(context.QHtml.cssValue('100px'), context.QHtml.cssValue('20px'))) === '120px', 'Same-unit CSS numeric addition did not preserve px unit');
+  assert(String(cssHelper.sub(context.QHtml.cssValue('50vh'), context.QHtml.cssValue('100px'))) === '0px', 'Mixed-unit viewport arithmetic did not resolve 50vh - 100px to 0px');
+  assert(String(cssBox.doubled) === '240px', 'CSS numeric multiplication did not preserve px unit');
+  assert(String(cssBox.x) === '120px', 'Style read arithmetic did not produce 120px');
+  assert(String(Number(cssBox.x)) === '120', 'CSS numeric valueOf did not resolve px primitive');
+  assert(String(context.QHtml.resolveCssValue(cssBox.pct, cssBox, 'left').value) === '200', 'Percent CSS numeric value did not resolve against parent width');
+  assert(String(cssHelper.add(cssBox.pct, context.QHtml.cssValue('100px'))).includes('calc('), 'Ambiguous mixed-unit math did not preserve calc()');
+  assert(cssBox.style.left === '100%', 'q-bind-css did not write CSS numeric percent to style.left');
+  const cssPrimitiveBox = document.querySelector('css-primitive-box');
+  assert(cssPrimitiveBox, 'CSS primitive component was not rendered');
+  assert(String(cssPrimitiveBox.x) === '100px', 'q-property x: 100px did not preserve px unit');
+  assert(String(cssPrimitiveBox.y) === '50vh', 'q-property y: 50vh did not preserve vh unit');
+  assert(String(cssPrimitiveBox.doubled) === '240px', 'q-property scalar multiplication did not preserve px unit');
+  assert(String(cssPrimitiveBox.halved) === '60px', 'q-property scalar division did not preserve px unit');
+  assert(String(cssPrimitiveBox.summed) === '120px', 'q-property same-unit addition did not preserve px unit');
+  assert(String(cssPrimitiveBox.mixed).includes('calc('), 'Ambiguous mixed-unit q-property did not preserve calc()');
+  assert(cssPrimitiveBox.getAttribute('data-x') === '100px', 'Template interpolation did not use CSS string form for px');
+  assert(cssPrimitiveBox.getAttribute('data-y') === '50vh', 'Template interpolation did not use CSS string form for vh');
+  assert(cssPrimitiveBox.getAttribute('data-doubled') === '240px', 'Interpolated scalar multiplication lost px unit');
+  assert(cssPrimitiveBox.getAttribute('data-local-width') === '240px', 'QHTML script scalar multiplication lost px unit');
+  assert(cssPrimitiveBox.style.width === '100px', 'q-bind-css did not receive CSS string form for width');
+  cssPrimitiveBox.x = context.QHtml.cssValue('120px');
+  await delay(0);
+  assert(cssPrimitiveBox.style.width === '120px', 'q-bind-css did not keep width synchronized after property change');
+  assert((qhtml.textContent || '').includes('primitive 100px 50vh 240px'), 'Text interpolation lost CSS primitive units');
+  if (process.env.QHTML_CSS_NUMERIC_SMOKE_ONLY === '1') {
+    context.QHtml.stopAutoMountObserver();
+    console.log('mock-runtime css numeric smoke ok');
+    return;
+  }
 
   const parentA = qhtml.parentA;
   const parentB = qhtml.parentB;

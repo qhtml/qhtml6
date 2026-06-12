@@ -3177,7 +3177,8 @@
       " ? this.__qhtmlScopedSelector : function(){ return null; };\n" +
       "const qhtml = (typeof globalThis !== \"undefined\" && typeof globalThis.qhtml === \"function\")" +
       " ? globalThis.qhtml : function(source){ return { __qhtmlFragment: true, source: String(source == null ? \"\" : source) }; };\n" +
-      "const css = function(value, unit){ var __qhtmlCssUnit = String(unit == null ? \"\" : unit).trim(); return /^(px|em|rem|vh|vw|vmin|vmax|svh|lvh|dvh|svw|lvw|dvw|%|ch|ex|cm|mm|in|pt|pc|q|fr|deg|rad|grad|turn|s|ms)$/i.test(__qhtmlCssUnit) ? String(value == null ? \"\" : value) + __qhtmlCssUnit : value; };\n";
+      "const qcss = (typeof globalThis !== \"undefined\" && globalThis.QHtml && typeof globalThis.QHtml.createCssContext === \"function\") ? globalThis.QHtml.createCssContext(this) : { v: function(value, unit){ return String(value == null ? \"\" : value) + String(unit == null ? \"\" : unit); }, css: function(value, unit){ return String(value == null ? \"\" : value) + String(unit == null ? \"\" : unit); }, add: function(a,b){ return a + b; }, sub: function(a,b){ return a - b; }, mul: function(a,b){ return a * b; }, div: function(a,b){ return a / b; } };\n" +
+      "const css = qcss.css;\n";
     const scopedBlock =
       "const __qhtmlRootHost = (this && this.nodeType === 1 && typeof this.closest === \"function\") ? this.closest(\"q-html\") : null;\n" +
       "const __qhtmlRootNamedValues = (__qhtmlRootHost && __qhtmlRootHost.__qhtmlNamedRuntimeValues && typeof __qhtmlRootHost.__qhtmlNamedRuntimeValues === \"object\") ? __qhtmlRootHost.__qhtmlNamedRuntimeValues : null;\n" +
@@ -3493,7 +3494,11 @@
       return {
         matched: true,
         resolved: true,
-        value: unit ? String(value == null ? "" : value) + unit : String(value == null ? "" : value),
+        value: unit && core && typeof core.createCssValue === "function"
+          ? core.createCssValue(value, unit, { context: thisArg || (scope && scope.component) || null })
+          : unit
+            ? String(value == null ? "" : value) + unit
+            : String(value == null ? "" : value),
       };
     }
     return {
@@ -3563,6 +3568,9 @@
   function createInlineCssFormatter(thisArg, scope) {
     return function cssInlineFormatter(value, unitValue) {
       const unit = normalizeCssUnitToken(unitValue);
+      if (core && typeof core.createCssValue === "function") {
+        return unit ? core.createCssValue(value, unit, { context: thisArg || (scope && scope.component) || null }) : value;
+      }
       return unit ? String(value == null ? "" : value) + unit : value;
     };
   }
@@ -4015,7 +4023,14 @@
       return pathFallbackLiteral ? source : "";
     }
     try {
-      const evaluator = new Function("__qhtmlScope", "with(__qhtmlScope){ return (" + source + "); }");
+      if (core && typeof core.createCssContextHelper === "function" && !Object.prototype.hasOwnProperty.call(scope, "qcss")) {
+        scope.qcss = core.createCssContextHelper(thisArg || scope.component || null);
+        scope.css = scope.qcss.css;
+      }
+      const expressionSource = core && typeof core.transformCssExpression === "function"
+        ? core.transformCssExpression(source)
+        : source;
+      const evaluator = new Function("__qhtmlScope", "with(__qhtmlScope){ return (" + expressionSource + "); }");
       const evaluatedValue = evaluator.call(thisArg || scope, scope);
       return unwrapModelMethodBridgeValue(evaluatedValue, source);
     } catch (error) {
@@ -4849,7 +4864,10 @@
     if (typeof body !== "string" || body.length === 0) {
       return "";
     }
-    return rewriteHashSelectorShorthand(body);
+    const rewritten = rewriteHashSelectorShorthand(body);
+    return core && typeof core.transformCssScriptBody === "function"
+      ? core.transformCssScriptBody(rewritten)
+      : rewritten;
   }
 
   function normalizeHandlerParameterNames(entries) {
@@ -5484,7 +5502,7 @@
     const runStage = function runStage(stage) {
       try {
         const hasInterpolatedBody = hasInlineReferenceExpressions(stage.source);
-        const hookBody = hasInterpolatedBody
+        let hookBody = hasInterpolatedBody
           ? interpolateInlineReferenceExpressions(
               stage.source,
               thisArg || {},
@@ -5499,6 +5517,7 @@
               { scriptLiteral: true }
             )
           : stage.source;
+        hookBody = transformScriptBody(hookBody);
         ensureScopedSelectorShortcut(thisArg || {}, null);
         const fn = new Function("event", "document", withScopedSelectorPrelude(hookBody));
         const executionThis = thisArg || null;
@@ -5985,12 +6004,37 @@
   }
 
   function normalizeCssUnitPropertyValue(value) {
+    if (
+      core &&
+      typeof core.isCssValue === "function" &&
+      (core.isCssValue(value) || (value && typeof value === "object" && value[core.QCSS_VALUE_MARKER] === true))
+    ) {
+      return {
+        value: typeof core.createCssValue === "function" ? core.createCssValue(value) : value,
+        cssUnit: "",
+        matched: true,
+      };
+    }
     if (typeof value !== "string") {
       return {
         value: value,
         cssUnit: "",
         matched: false,
       };
+    }
+    if (core && typeof core.parseCssValue === "function") {
+      const parsedCssValue = core.parseCssValue(String(value || "").trim());
+      if (
+        parsedCssValue &&
+        typeof parsedCssValue === "object" &&
+        (!parsedCssValue.op || (parsedCssValue.left || parsedCssValue.right))
+      ) {
+        return {
+          value: typeof core.createCssValue === "function" ? core.createCssValue(parsedCssValue) : parsedCssValue,
+          cssUnit: String(parsedCssValue.unit || ""),
+          matched: true,
+        };
+      }
     }
     const match = String(value).match(CSS_UNIT_VALUE_PATTERN);
     if (!match) {
@@ -6153,9 +6197,17 @@
       const runtimeScope = scope || resolveInlineExpressionScope(hostElement, { component: hostElement });
       const evaluator = new Function(
         "scope",
+        "document",
+        "window",
+        "globalThis",
         "return (function(){ with (scope) { return (" + expression + "); } }).call(scope.component || null);"
       );
-      const resolved = evaluator(runtimeScope);
+      const resolved = evaluator(
+        runtimeScope,
+        runtimeScope && runtimeScope.document ? runtimeScope.document : global.document,
+        runtimeScope && runtimeScope.window ? runtimeScope.window : global,
+        runtimeScope && runtimeScope.globalThis ? runtimeScope.globalThis : global
+      );
       const unwrapped = unwrapQVarHandleValue(resolved);
       return unwrapped && unwrapped.style ? unwrapped : null;
     } catch (error) {
@@ -6236,7 +6288,10 @@
     if (!propertyName) {
       return false;
     }
-    const stringValue = String(value == null ? "" : value);
+    const stringValue =
+      core && typeof core.serializeCssValue === "function"
+        ? core.serializeCssValue(value, targetElement, propertyName)
+        : String(value == null ? "" : value);
     if (propertyName.indexOf("-") >= 0) {
       targetElement.style.setProperty(propertyName, stringValue);
     } else {
@@ -6258,8 +6313,7 @@
     }
     const declaredPropertySet = collectDeclaredComponentPropertySet(componentNode, instanceNode);
     const changedKey = String(changedPropertyName || "").trim().toLowerCase();
-    const scope = resolveInlineExpressionScope(hostElement, { component: hostElement });
-    const cssFormatter = createInlineCssFormatter(hostElement, scope);
+    const cssFormatter = createInlineCssFormatter(hostElement, null);
     for (let i = 0; i < bindings.length; i += 1) {
       const binding = bindings[i] && typeof bindings[i] === "object" ? bindings[i] : null;
       if (!binding) {
@@ -6281,7 +6335,7 @@
       if (!targetInfo.valid) {
         continue;
       }
-      const targetElement = resolveDeclaredCssBindingTarget(hostElement, targetInfo, scope);
+      const targetElement = resolveDeclaredCssBindingTarget(hostElement, targetInfo, null);
       if (!targetElement) {
         continue;
       }
@@ -6297,6 +6351,121 @@
       }
       writeCssBindingStyleValue(targetElement, targetInfo.styleProperty, cssFormatter(value, unit));
     }
+  }
+
+  function installDeclaredCssBindingSignalListeners(hostElement, componentNode, instanceNode) {
+    const bindings = collectDeclaredCssBindings(componentNode);
+    if (
+      !hostElement ||
+      bindings.length === 0 ||
+      typeof hostElement.addEventListener !== "function"
+    ) {
+      return;
+    }
+    const declaredPropertySet = collectDeclaredComponentPropertySet(componentNode, instanceNode);
+    const installed = hostElement.__qhtmlDeclaredCssBindingListeners instanceof Set
+      ? hostElement.__qhtmlDeclaredCssBindingListeners
+      : new Set();
+    hostElement.__qhtmlDeclaredCssBindingListeners = installed;
+    for (let i = 0; i < bindings.length; i += 1) {
+      const binding = bindings[i] && typeof bindings[i] === "object" ? bindings[i] : null;
+      if (!binding) {
+        continue;
+      }
+      const sourceInfo = normalizeDeclaredCssBindingSourceExpression(binding.sourceExpression);
+      if (!sourceInfo.valid) {
+        continue;
+      }
+      const propertyName = sourceInfo.propertyName;
+      const propertyKey = propertyName.toLowerCase();
+      if (!declaredPropertySet.has(propertyKey)) {
+        continue;
+      }
+      const targetInfo = normalizeDeclaredCssBindingTargetExpression(binding.targetExpression);
+      if (!targetInfo.valid) {
+        continue;
+      }
+      const listenerKey = propertyKey + "->" + String(binding.targetExpression || "").trim().toLowerCase();
+      if (installed.has(listenerKey)) {
+        continue;
+      }
+      const signalName = String(propertyName || "") + "Changed";
+      const handler = function onDeclaredCssBindingPropertyChanged() {
+        applyDeclaredCssBindingsForProperty(hostElement, componentNode, instanceNode, propertyName);
+      };
+      try {
+        hostElement.addEventListener(signalName, handler);
+        installed.add(listenerKey);
+      } catch (error) {
+        // Best-effort binding; direct q-property setter sync still covers normal writes.
+      }
+    }
+  }
+
+  function scheduleDeclaredCssBindingsAfterContentLoaded(hostElement, componentNode, instanceNode, targetDocument) {
+    const bindings = collectDeclaredCssBindings(componentNode);
+    if (!hostElement || bindings.length === 0) {
+      return;
+    }
+    if (hostElement.__qhtmlDeclaredCssBindingsScheduled === true) {
+      return;
+    }
+    try {
+      Object.defineProperty(hostElement, "__qhtmlDeclaredCssBindingsScheduled", {
+        value: true,
+        configurable: true,
+        writable: true,
+        enumerable: false,
+      });
+    } catch (error) {
+      hostElement.__qhtmlDeclaredCssBindingsScheduled = true;
+    }
+
+    const doc = targetDocument || hostElement.ownerDocument || global.document || null;
+    const state = doc && doc.__qhtmlContentLoadedState && typeof doc.__qhtmlContentLoadedState === "object" ? doc.__qhtmlContentLoadedState : null;
+    const runtimeManaged = !!(state && state.runtimeManaged);
+    const alreadySignaled = !!(state && Number(state.sequence || 0) > 0 && Number(state.pending || 0) === 0);
+    const runBindings = function runDeclaredCssBindingsAfterContentLoaded() {
+      if (hostElement.__qhtmlDeclaredCssBindingsActive === true) {
+        return;
+      }
+      hostElement.__qhtmlDeclaredCssBindingsActive = true;
+      installDeclaredCssBindingSignalListeners(hostElement, componentNode, instanceNode);
+      applyDeclaredCssBindingsForProperty(hostElement, componentNode, instanceNode, "");
+    };
+    const deferRun = function deferDeclaredCssBindingsAfterContentLoaded() {
+      scheduleReadyHookExecution(runBindings);
+    };
+
+    if (!runtimeManaged || alreadySignaled) {
+      deferRun();
+      return;
+    }
+    if (state && Array.isArray(state.callbacks)) {
+      state.callbacks.push(function onQHtmlContentLoadedCallbackForDeclaredCssBindings() {
+        deferRun();
+      });
+    }
+    if (!doc || typeof doc.addEventListener !== "function") {
+      deferRun();
+      return;
+    }
+    const handler = function onQHtmlContentLoadedForDeclaredCssBindings() {
+      if (typeof doc.removeEventListener === "function") {
+        doc.removeEventListener(QHTML_CONTENT_LOADED_EVENT, handler);
+      }
+      deferRun();
+    };
+    doc.addEventListener(QHTML_CONTENT_LOADED_EVENT, handler);
+    scheduleReadyHookExecution(function recheckDeclaredCssBindingsContentLoadedState() {
+      const latest = doc && doc.__qhtmlContentLoadedState && typeof doc.__qhtmlContentLoadedState === "object" ? doc.__qhtmlContentLoadedState : null;
+      if (latest && Number(latest.sequence || 0) > 0 && Number(latest.pending || 0) === 0) {
+        if (typeof doc.removeEventListener === "function") {
+          doc.removeEventListener(QHTML_CONTENT_LOADED_EVENT, handler);
+        }
+        deferRun();
+      }
+    });
   }
 
   function readCssUnitFromInlineScope(scope, propertyName) {
@@ -8775,11 +8944,67 @@
           declaredReferenceExpression = literalReference;
         }
       }
+      if (
+        !compiledBinding &&
+        !declaredReferenceExpression &&
+        typeof literalDefault === "string" &&
+        core &&
+        !(typeof core.parseCssValue === "function" && core.parseCssValue(String(literalDefault || "").trim())) &&
+        typeof core.transformCssExpression === "function"
+      ) {
+        const literalExpression = String(literalDefault || "").trim();
+        const transformedLiteralExpression = core.transformCssExpression(literalExpression);
+        if (transformedLiteralExpression !== literalExpression) {
+          compiledBinding = function declaredPropertyCssExpressionBinding() {
+            const scope = Object.create(null);
+            scope.window = global;
+            scope.globalThis = global;
+            if (this && typeof this === "object" && this.ownerDocument) {
+              scope.document = this.ownerDocument;
+            }
+            scope.this = this;
+            scope.component = this;
+            for (let pi = 0; pi < declaredProperties.length; pi += 1) {
+              const scopedPropertyName = declaredProperties[pi];
+              if (!scopedPropertyName || scopedPropertyName === propertyName || Object.prototype.hasOwnProperty.call(scope, scopedPropertyName)) {
+                continue;
+              }
+              try {
+                scope[scopedPropertyName] = this[scopedPropertyName];
+              } catch (ignoredScopedPropertyRead) {
+                // q-property arithmetic expressions resolve available peer properties best-effort.
+              }
+            }
+            if (typeof core.createCssContextHelper === "function" && !Object.prototype.hasOwnProperty.call(scope, "qcss")) {
+              scope.qcss = core.createCssContextHelper(this, propertyName);
+              scope.css = scope.qcss.css;
+            }
+            try {
+              const runtimeBinding = new Function("__qhtmlScope", "with(__qhtmlScope){ return (" + transformedLiteralExpression + "); }");
+              return runtimeBinding.call(this, scope);
+            } catch (error) {
+              if (global.console && typeof global.console.error === "function") {
+                global.console.error("qhtml declared property CSS expression failed:", propertyName, error);
+              }
+              return null;
+            }
+          };
+          literalDefault = undefined;
+        }
+      }
       if (!compiledBinding && !declaredReferenceExpression) {
         const normalizedDefault = normalizeCssUnitPropertyValue(literalDefault);
         if (normalizedDefault.matched) {
           literalDefault = normalizedDefault.value;
           literalDefaultCssUnit = normalizedDefault.cssUnit;
+          if (
+            core &&
+            typeof core.isCssValue === "function" &&
+            (core.isCssValue(literalDefault) || (literalDefault && typeof literalDefault === "object" && literalDefault[core.QCSS_VALUE_MARKER] === true)) &&
+            typeof core.createCssValue === "function"
+          ) {
+            literalDefault = core.createCssValue(literalDefault, "", { context: hostElement, property: propertyName });
+          }
         }
       }
       try {
@@ -8839,7 +9064,15 @@
           set: function setDeclaredComponentProperty(value) {
             const resolvedValue = resolveCallbackReferenceValue(value);
             const normalizedCssValue = normalizeCssUnitPropertyValue(resolvedValue);
-            const normalizedValue = normalizedCssValue.value;
+            let normalizedValue = normalizedCssValue.value;
+            if (
+              core &&
+              typeof core.isCssValue === "function" &&
+              (core.isCssValue(normalizedValue) || (normalizedValue && typeof normalizedValue === "object" && normalizedValue[core.QCSS_VALUE_MARKER] === true)) &&
+              typeof core.createCssValue === "function"
+            ) {
+              normalizedValue = core.createCssValue(normalizedValue, "", { context: this, property: propertyName });
+            }
             const normalizedCssUnit = normalizedCssValue.matched ? normalizedCssValue.cssUnit : "";
             if (normalizedValue && typeof normalizedValue.then === "function") {
               const self = this;
@@ -8921,12 +9154,16 @@
             if (hadValue && Object.is(previousValue, normalizedValue)) {
               writeTrackedDeclaredProperty(this, propertyName, normalizedValue);
               attachDeclaredPropertyModelListener(this, componentId, propertyName, normalizedValue);
-              applyDeclaredCssBindingsForProperty(this, componentNode, instanceNode, propertyName);
+              if (this.__qhtmlDeclaredCssBindingsActive === true) {
+                applyDeclaredCssBindingsForProperty(this, componentNode, instanceNode, propertyName);
+              }
               return;
             }
             writeTrackedDeclaredProperty(this, propertyName, normalizedValue);
             attachDeclaredPropertyModelListener(this, componentId, propertyName, normalizedValue);
-            applyDeclaredCssBindingsForProperty(this, componentNode, instanceNode, propertyName);
+            if (this.__qhtmlDeclaredCssBindingsActive === true) {
+              applyDeclaredCssBindingsForProperty(this, componentNode, instanceNode, propertyName);
+            }
             if (hadValue && !behaviorSuppressChanged) {
               if (
                 shouldLogQLoggerCategory(this, componentNode, instanceNode, "q-property") &&
@@ -13207,7 +13444,7 @@
     stripRenderedSlotElements(hostElement);
     applyRuntimeThemeRulesToHost(hostElement, instanceNode);
     bindDeclaredComponentPropertyNodes(componentNode, hostElement, context);
-    applyDeclaredCssBindingsForProperty(hostElement, componentNode, instanceNode, "");
+    scheduleDeclaredCssBindingsAfterContentLoaded(hostElement, componentNode, instanceNode, targetDocument);
 
     if (!context.disableLifecycleHooks) {
       runLifecycleHooks(instanceNode, hostElement, targetDocument);

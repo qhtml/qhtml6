@@ -13,6 +13,8 @@ Exports via `globalThis.QHtmlModules.qdomCore`.
   - `content`, `contents`, `text`, `textcontents`, `innertext`.
 - `QDOM_UUID_KEY`
   - Metadata key (`meta.uuid`) used for stable per-node UUID identity.
+- `QCSS_VALUE_MARKER`
+  - Marker property used by runtime CSS numeric values.
 
 ### Constructors
 - `createDocument(options?)`
@@ -50,6 +52,10 @@ Exports via `globalThis.QHtmlModules.qdomCore`.
 - `createQColorNode(options?)`
   - Creates `QColorNode` entries used by runtime color helpers.
   - Supports schema mode (`{ name, value }`) and theme mode (`{ name, assignments }`).
+- `QCssValue(options)`
+  - Runtime value object for CSS numeric values and CSS arithmetic expressions.
+  - Carries numeric value, unit, optional expression operands, optional style property, and a non-enumerable DOM context reference.
+  - `toString()` returns CSS output (`px`, unit string, or `calc(...)`); `valueOf()` returns a resolved pixel number when resolution is possible.
 
 All constructors normalize missing fields, include `meta` objects, and produce runtime-safe defaults.
 
@@ -59,6 +65,14 @@ All constructors normalize missing fields, include `meta` objects, and produce r
 - `cloneDocument(documentNode)` — deep clone preserving document semantics.
 - `ensureStringArray(value)` — normalizes unknown value into string list.
 - `mergeClasses(existing, classNames)` — class dedupe and merge.
+- `createCssValue(value, unit?, options?)` — creates or re-contextualizes a CSS numeric value.
+- `parseCssValue(value, options?)` — parses strings such as `100px`, `50vh`, `10vw`, `1.25rem`, `0.5em`, `100%`, and unitless numbers.
+- `isCssValue(value)` — returns true for runtime CSS numeric values.
+- `serializeCssValue(value, context?, property?)` — serializes a CSS numeric value for style assignment.
+- `resolveCssValue(value, context?, property?)` — resolves a CSS numeric value to pixels when the context and property provide enough basis.
+- `cssAdd`, `cssSub`, `cssMul`, `cssDiv` — scoped arithmetic helpers used by QHTML-owned expression rewriting.
+- `createCssContextHelper(context?, property?)` — creates the small `qcss` helper namespace for lifecycle, handler, and q-property expression execution.
+- `transformCssExpression(source)` / `transformCssScriptBody(source)` — scoped QHTML expression transforms that rewrite CSS numeric arithmetic to helper calls.
 
 ### Reactivity
 - `observeQDom(documentNode, onChange)`
@@ -89,6 +103,7 @@ All constructors normalize missing fields, include `meta` objects, and produce r
 - Mutation observation marks touched objects and root document as dirty.
 - All QDom nodes now receive a stable `meta.uuid` when created unless one is explicitly supplied.
 - Runtime update routing now keys off UUID identity; nonce metadata is no longer required for render invalidation.
+- CSS numeric value resolution uses the closest DOM/component context when available. Ambiguous mixed-unit expressions remain unresolved so renderers can output `calc(...)` instead of guessing.
 - `walkQDom` traverses component `slotDefaults`, `repeater.templateNodes`, `repeater.model`, and nested model entry node payloads (`entry.nodes`) so internals are discoverable through QDom tooling.
 - `walkQDom` also traverses `struct.fields[].nodes` when field node payloads are present.
 - `walkQDom` traverses `viewport-instance.children` so responsive-gated QDom content remains discoverable through tooling.

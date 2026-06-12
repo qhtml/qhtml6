@@ -285,7 +285,24 @@ q-component animated-box {
 }
 ```
 
-The first `q-bind-css` expression must reference a `q-property` declared on the same component. The second expression must resolve to a writable style target such as `this.component.style.width`, a rendered child selector target such as `#label.style.width`, or a callable runtime target such as `labelElement().style.width` / `getLabel().style.width`. CSS units stored from values like `"200px"` are applied automatically through the same `css(value, unit)` formatting path; if the source property has no stored unit, the target's existing inline style unit is used as a fallback.
+The first `q-bind-css` expression must reference a `q-property` declared on the same component. The second expression must resolve to a writable style target such as `this.component.style.width`, a rendered child selector target such as `#label.style.width`, or a callable runtime target such as `labelElement().style.width` / `getLabel().style.width`. Component definition parsing records the binding metadata only. Each rendered component instance wires the source property's generated `<property>Changed` signal after QHTML content-loaded, then performs one initial post-load sync so selector and callable DOM targets exist before resolution. CSS numeric values are serialized with their CSS string form, so `QCssValue` values write as `100px`, `50vh`, or `calc(...)`; legacy unit sidecars from values like `"200px"` remain compatible.
+
+### CSS numeric values
+
+CSS numeric literals can be written without quotes in property and style value positions:
+
+```qhtml
+q-component box {
+  q-property x: 100px
+  q-property y: 50vh - x
+
+  q-bind-css { this.component.x this.component.style.left }
+}
+```
+
+Supported units are `px`, `%`, `vw`, `vh`, `rem`, `em`, and unitless numbers. QHTML stores unquoted CSS numeric values as runtime CSS value objects, so arithmetic such as `100px + 20px`, `50vh - x`, `x * 2`, and `x / 2` can be used in QHTML-owned property initializers and script expressions. Values resolve to pixels when the renderer has enough context, using the nearest component host or rendered DOM node; viewport units use the current viewport, `rem` uses the root font size, `em` uses the current element font size, and `%` uses the relevant parent width or height for dimensional properties.
+
+When mixed-unit math cannot be resolved exactly, QHTML preserves the expression as a valid `calc(...)` string for CSS output. Assigning a CSS numeric value to a style property writes a normal CSS string. Existing quoted values such as `"100px"` and existing `css(value, "px")` usage remain compatible.
 
 Resulting HTML:
 

@@ -145,17 +145,23 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - Standalone `<q-script-action>` elements autorun when rendered; inside animation groups they wait for the parent animation group to call `start()`. Returned thenables delay `ended`.
   - During animation-frame commits the declared setter runs under behavior bypass and suppresses normal property-changed emission.
   - The final animation or group completion writes the exact originally requested property value under behavior bypass without suppression, so `<property>Changed` / `on<Property>Changed` fires once after the child animation tree completes.
-  - Declared `q-property` setters parse CSS numeric values (`px`, `%`, `vh`, `vw`, `rem`, `em`, and related CSS length units), store the numeric portion, and keep unit metadata for explicit formatting through `css(value, "unit")`.
+  - Declared `q-property` setters accept runtime CSS numeric values (`px`, `%`, `vh`, `vw`, `rem`, `em`, and unitless numbers), preserve them as value objects, and attach component/property context for later resolution.
+  - Quoted CSS unit strings such as `"40px"` keep the legacy numeric-plus-unit sidecar behavior for compatibility with `css(value, "unit")`.
   - QDom property writes maintain `property_extensions[propName] = unit` for unit-bearing numeric values and remove that sidecar when a property returns to a unitless value.
   - A new external write while an animation is running cancels the current job and starts a new behavior job.
   - `q-property-animation` supports `target`, `duration`, `steps`, optional `from`, and optional `to`; omitted `target` defaults to the intercepted property, omitted `from` defaults to the current live target value, and omitted `to` defaults to the requested write value.
   - Behavior animation targets resolve to q-properties only; `.style` targets are intentionally skipped by behavior metadata execution.
   - Behavior-side `q-property-animation` hook blocks such as `onstarted { ... }`, `onstepped { ... }`, and `onstopped { ... }` execute with `this` bound to the behavior target and receive `(value, currentStep, progress)` values.
 - `q-bind-css { sourceProperty targetCssReference }` is component-local syntax sugar stored in `component.meta.__qhtmlCssBindings`.
+  - Component definition parsing records the binding metadata only. Each component instance wires bindings after QHTML content-loaded so rendered child selectors and callable DOM targets can resolve.
   - The renderer validates the source against declared component properties, connects to the generated `<property>Changed` signal, and assigns each new property value to the target reference.
   - The target reference must resolve to a writable object property at runtime, for example `this.component.style.width`; unresolved targets warn and are skipped.
-  - Numeric values assigned into CSSStyleDeclaration dimensional targets such as `style.width`, `style.height`, `style.left`, and `style.top` normalize to pixel strings.
-  - The initial property value is assigned once during component binding so CSS starts synchronized with the declared `q-property` value.
+  - CSS numeric value objects serialize to valid CSS strings on style assignment. Same-unit arithmetic preserves the unit, resolvable mixed-unit arithmetic writes pixels, and ambiguous mixed-unit arithmetic writes `calc(...)`.
+  - Legacy numeric values assigned into CSSStyleDeclaration dimensional targets such as `style.width`, `style.height`, `style.left`, and `style.top` normalize to pixel strings.
+  - The initial property value is assigned once after QHTML content-loaded so CSS starts synchronized with the declared `q-property` value without racing component subtree rendering.
+- QHTML-owned lifecycle, event, inline-reference, and declared-property expressions receive a small `qcss` helper namespace plus compatible `css(value, unit)` formatting.
+  - CSS numeric literals and arithmetic in those expression contexts are rewritten to helper calls instead of relying on JavaScript operator overloading.
+  - Resolution uses the current component host or style target when available, with document/viewport fallback.
 - `q-layout`, `q-row`, and `q-col` are renderer-owned layout keywords:
   - they render as lightweight layout DOM tags with built-in grid/table-like CSS behavior
   - `q-layout` defaults to row stacking; `q-row` defaults to column stacking; `q-col` can host nested rows, columns, or layouts
