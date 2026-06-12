@@ -22,9 +22,8 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Added `q-style-path-animation` for CSS motion-path animation sugar inside `q-style`.
 - Added behavior-compatible `q-property-animation`, `q-animation-queue`, `q-parallel-animation-group`, and `q-sequential-animation-group` support for grouped property-write animations.
 - Added `q-slot-default` for component slot fallback content and updated the UI component defaults that use it.
-- Added `q-ui-split-layout` and default slot content for the optional `q-ui-components.qhtml` component set.
 - Added the `q-vid` component stack and q-vid browser tooling for `.qvid` assets: source decoding/cache, painter-driven playback, and the user-facing `q-vid-player` canvas component.
-- Added HUD/control-arm visual assets and components, including `q-tech-button`, `q-control-arm-screen`, q-vid visual tests, and q-vid sample assets.
+- Added HUD/control-arm visual assets and components, including `q-tech-button`, q-vid visual tests, and q-vid sample assets.
 - Added `q-particle-emitter` as a QHTML wrapper component around the native `particle-emitter` element.
 
 ## 1. Quick Start
@@ -61,31 +60,9 @@ Assuming your `q-components.qhtml` is located in `the project folder /path/to/my
 
 Files:
 - Required: `qhtml.js`
-- Recommended: `q-components.qhtml`, `w3.qhtml`
-- Optional: `q-components.qhtml`; legacy tag helpers live under `legacy/w3-tags.js` and `legacy/bs-tags.js`
+- Optional: `q-components.qhtml`;
 - 
 
-### Generated W3CSS Theme
-
-`dist/w3.qhtml` is generated from `dist/w3.css` and provides a `q-theme w3-css` replacement for linking the W3CSS stylesheet directly.
-
-Regenerate it with:
-
-```bash
-node tools/w3-css-to-qhtml.js
-```
-
-Use it like any other QHTML import:
-
-```qhtml
-q-import { w3.qhtml }
-
-w3-css {
-  div.w3-container {
-    text { W3 themed content }
-  }
-}
-```
 
 ### 2. Write QHTML in a `<q-html>` tag
 
