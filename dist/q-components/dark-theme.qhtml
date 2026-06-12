@@ -1,0 +1,147 @@
+q-theme dark-theme {
+
+  q-dialog {
+    q-style {
+      position: fixed;
+      inset: 0;
+      zIndex: 1000;
+
+      display: flex;
+      alignItems: center;
+      justifyContent: center;
+
+      boxSizing: border-box;
+      padding: 24px;
+
+      backgroundColor: rgba(2, 6, 23, 0.72);
+      backdropFilter: blur(3px);
+    }
+  }
+
+  q-card {
+    q-style {
+      display: flex;
+      flexDirection: column;
+
+      boxSizing: border-box;
+      width: min(720px, 100%);
+      maxHeight: calc(100vh - 48px);
+
+      overflow: hidden;
+
+      backgroundColor: #111827;
+      color: #e5e7eb;
+
+      border: 1px solid #334155;
+      borderRadius: 12px;
+
+      boxShadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+    }
+  }
+
+  q-titlebar {
+    q-style {
+      flex: 0 0 auto;
+
+      display: flex;
+      alignItems: center;
+      justifyContent: center;
+
+      boxSizing: border-box;
+      minHeight: 42px;
+      padding: 8px 16px;
+
+      backgroundColor: #1e293b;
+      color: #f8fafc;
+
+      borderBottom: 1px solid #334155;
+
+      fontSize: 14px;
+      fontWeight: 600;
+      lineHeight: 1.25;
+      textAlign: center;
+
+      userSelect: none;
+    }
+  }
+
+  q-header {
+    q-style {
+      flex: 0 0 auto;
+
+      display: block;
+
+      boxSizing: border-box;
+      width: 100%;
+      padding: 18px 24px 14px 24px;
+
+      backgroundColor: #111827;
+      color: #f8fafc;
+
+      borderBottom: 1px solid #273449;
+
+      fontSize: 22px;
+      fontWeight: 700;
+      lineHeight: 1.25;
+      textAlign: center;
+
+      overflowWrap: anywhere;
+      wordBreak: break-word;
+    }
+  }
+
+  q-main {
+    q-style {
+      flex: 1 1 auto;
+      minHeight: 0;
+
+      display: flex;
+      flexDirection: column;
+      alignItems: center;
+
+      boxSizing: border-box;
+      width: 100%;
+      padding: 16px 24px;
+
+      overflowX: hidden;
+      overflowY: auto;
+      overscrollBehavior: contain;
+
+      backgroundColor: #0f172a;
+      color: #dbe4f0;
+
+      fontSize: 15px;
+      fontWeight: 400;
+      lineHeight: 1.4;
+      textAlign: center;
+
+      overflowWrap: anywhere;
+      wordBreak: break-word;
+      whiteSpace: normal;
+    }
+  }
+
+  q-footer {
+    q-style {
+      flex: 0 0 auto;
+
+      display: flex;
+      alignItems: center;
+      justifyContent: flex-end;
+      flexWrap: wrap;
+      gap: 10px;
+
+      boxSizing: border-box;
+      width: 100%;
+      padding: 12px 16px;
+
+      backgroundColor: #1e293b;
+      color: #e5e7eb;
+
+      borderTop: 1px solid #334155;
+
+      fontSize: 14px;
+      lineHeight: 1.25;
+    }
+  }
+}
