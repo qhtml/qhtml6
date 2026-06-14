@@ -13,7 +13,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "7.0.0";
+  const RUNTIME_VERSION = "7.0.1";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -6924,6 +6924,9 @@
     for (let i = 0; i < subscribers.length; i += 1) {
       const targetUuid = normalizeQDomUuidValue(subscribers[i]);
       if (!targetUuid) {
+        continue;
+      }
+      if (targetUuid === ownerUuid) {
         continue;
       }
       const host = resolveDispatchHostForUuid(targetUuid, ownerHost);

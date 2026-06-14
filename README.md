@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v7.0.0
+# QHTML.js v7.0.1
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -11,6 +11,14 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Dev testbed: https://qhtml.github.io/qhtml6/test/
 - Editor playground: https://qhtml.github.io/qhtml6/tools/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
+
+## Whats New in v7.0.1
+
+- Bumped the release line to `7.0.1`.
+- Added the `qhtml-wasm.js` loader entry point for initializing the QHTML Qt/WASM runtime before loading standard QHTML.
+- Added `qt-property-animation` support backed by the Qt/WASM `QPropertyAnimation` runtime.
+- Added visual tests for QHTML WASM loading, property animation, component property accessors, and WASM stress animation coverage.
+- Tightened CSS expression rewriting so normal JavaScript string concatenation is not converted into CSS `calc(...)` output.
 
 ## Whats New in v7.0.0
 

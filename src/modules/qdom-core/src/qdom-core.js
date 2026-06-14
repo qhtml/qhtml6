@@ -563,6 +563,40 @@
     return source.length;
   }
 
+  function sourceHasUnquotedPattern(source, pattern) {
+    const text = String(source || "");
+    let cursor = 0;
+    let segmentStart = 0;
+    function testSegment(end) {
+      if (end <= segmentStart) {
+        return false;
+      }
+      pattern.lastIndex = 0;
+      const matched = pattern.test(text.slice(segmentStart, end));
+      pattern.lastIndex = 0;
+      return matched;
+    }
+    while (cursor < text.length) {
+      const ch = text.charAt(cursor);
+      if (ch === "\"" || ch === "'" || ch === "`") {
+        if (testSegment(cursor)) {
+          return true;
+        }
+        cursor = skipQuotedSource(text, cursor);
+        segmentStart = cursor;
+        continue;
+      }
+      cursor += 1;
+    }
+    return testSegment(text.length);
+  }
+
+  function sourceHasCssExpressionSignal(source) {
+    return sourceHasUnquotedPattern(source, QCSS_LITERAL_TOKEN_PATTERN) ||
+      sourceHasUnquotedPattern(source, /(?:^|[^A-Za-z0-9_$])(?:qcss\s*\.|css\s*\()/g) ||
+      sourceHasUnquotedPattern(source, /\.style\./g);
+  }
+
   function tokenizeCssExpression(source) {
     const text = String(source || "");
     const tokens = [];
@@ -589,7 +623,7 @@
       if (ch === "\"" || ch === "'" || ch === "`") {
         const end = skipQuotedSource(text, cursor);
         const raw = text.slice(cursor, end);
-        tokens.push({ type: "atom", text: raw, cssAware: !!parseCssValue(raw.slice(1, -1)) });
+        tokens.push({ type: "atom", text: raw, cssAware: false });
         cursor = end;
         continue;
       }
@@ -703,14 +737,9 @@
     if (!text || text.indexOf("=>") >= 0) {
       return source;
     }
-    QCSS_LITERAL_TOKEN_PATTERN.lastIndex = 0;
-    const containsCssLiteral = QCSS_LITERAL_TOKEN_PATTERN.test(text);
-    QCSS_LITERAL_TOKEN_PATTERN.lastIndex = 0;
-    if (!/[+\-*/]/.test(text) && !containsCssLiteral) {
-      QCSS_LITERAL_TOKEN_PATTERN.lastIndex = 0;
+    if (!sourceHasCssExpressionSignal(text)) {
       return source;
     }
-    QCSS_LITERAL_TOKEN_PATTERN.lastIndex = 0;
     const tokens = tokenizeCssExpression(text);
     if (!tokens || tokens.length === 0) {
       return source;

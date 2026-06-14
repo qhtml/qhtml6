@@ -1,0 +1,63 @@
+<!--
+Copyright (C) 2024 The Qt Company Ltd.
+SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
+-->
+
+<!doctype html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+
+    <!--Set visual viewport size for mobile devices to the device size,
+        witch results in a scale of 1 and a 1:1 mapping between CSS pixels
+        and Qt device independent pixels. -->
+    <meta name="viewport" content="width=device-width, height=device-height, user-scalable=0"/>
+
+    <title>qhtml-qt</title>
+    <style>
+      /* Make the html body cover the entire (visual) viewport with no scroll bars. */
+      html, body { padding: 0; margin: 0; overflow: hidden; height: 100% }
+      #screen { width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+
+    <div id="screen"></div>
+
+
+    <script src="qhtml-qt.js"></script>
+
+    <script>
+let Module = null;
+
+async function init() {
+  Module = await window.qhtml_qt_entry();
+
+
+const obj = new Module.QObject();
+obj.setNumber("x", 0);
+
+obj.connect("xChanged", () => {
+  console.log("x =", obj.getNumber("x"));
+});
+
+const anim = new Module.QPropertyAnimation();
+anim.setTarget(obj);
+anim.setPropertyName("x");
+anim.setDuration(1000);
+anim.setStartNumber(0);
+anim.setEndNumber(500);
+anim.start();
+
+const timer = new Module.QTimer();
+timer.setInterval(250);
+timer.connect("timeout", () => console.log("tick"));
+timer.start();
+}
+
+window.addEventListener("load", init);
+</script>
+</script>
+  </body>
+</html>

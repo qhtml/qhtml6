@@ -149,6 +149,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - Declared `q-property` host setters:
   - treat `host.qdom()` props as source-of-truth for reads/writes when available.
   - sync value writes back to mapped QDom props when available.
+  - expose `component.setProperty(name, value)` and `component.getProperty(name, fallback?)` on rendered q-component instances; `setProperty()` routes through the same declared q-property setter as direct `component[name] = value`, so qdom sync, `q-bind-css`, and `<property>Changed` dispatch remain consistent.
   - normalize CSS unit-bearing string values such as `"40px"`, `"100vh"`, or `"50%"` into numeric property storage by dropping the recognized unit.
   - expose explicit unit formatting through `css(value, "px")`, `${css(width, "px")}`, `${css(height, "vh")}`, etc. so numeric q-property values can be written back to CSS intentionally.
   - install one-way `q-bind-css { <q-property ref> <target>.style.<property> }` projections from declared component q-properties to component-host, selector, or callable runtime targets after child DOM render.

@@ -26,3 +26,14 @@ wiki/*
 *.backup
 *.conf
 /dist/assets/tech-bg.png
+
+# Local release/archive leftovers
+/doc.zip
+/qhtml-old.js
+
+# Qt/WASM local CMake build output
+/src/modules/qhtml-qt/build/
+/src/modules/qhtml-qt/CMakeFiles/
+/src/modules/qhtml-qt/qhtml-qt_autogen/
+/src/modules/qhtml-qt/Makefile
+/src/modules/qhtml-qt/cmake_install.cmake

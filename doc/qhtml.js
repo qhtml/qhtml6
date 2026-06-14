@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-06-12T17:54:14Z */
+/* generated: 2026-06-14T03:50:56Z */
 
 /*** BEGIN: src/modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -567,6 +567,40 @@
     return source.length;
   }
 
+  function sourceHasUnquotedPattern(source, pattern) {
+    const text = String(source || "");
+    let cursor = 0;
+    let segmentStart = 0;
+    function testSegment(end) {
+      if (end <= segmentStart) {
+        return false;
+      }
+      pattern.lastIndex = 0;
+      const matched = pattern.test(text.slice(segmentStart, end));
+      pattern.lastIndex = 0;
+      return matched;
+    }
+    while (cursor < text.length) {
+      const ch = text.charAt(cursor);
+      if (ch === "\"" || ch === "'" || ch === "`") {
+        if (testSegment(cursor)) {
+          return true;
+        }
+        cursor = skipQuotedSource(text, cursor);
+        segmentStart = cursor;
+        continue;
+      }
+      cursor += 1;
+    }
+    return testSegment(text.length);
+  }
+
+  function sourceHasCssExpressionSignal(source) {
+    return sourceHasUnquotedPattern(source, QCSS_LITERAL_TOKEN_PATTERN) ||
+      sourceHasUnquotedPattern(source, /(?:^|[^A-Za-z0-9_$])(?:qcss\s*\.|css\s*\()/g) ||
+      sourceHasUnquotedPattern(source, /\.style\./g);
+  }
+
   function tokenizeCssExpression(source) {
     const text = String(source || "");
     const tokens = [];
@@ -593,7 +627,7 @@
       if (ch === "\"" || ch === "'" || ch === "`") {
         const end = skipQuotedSource(text, cursor);
         const raw = text.slice(cursor, end);
-        tokens.push({ type: "atom", text: raw, cssAware: !!parseCssValue(raw.slice(1, -1)) });
+        tokens.push({ type: "atom", text: raw, cssAware: false });
         cursor = end;
         continue;
       }
@@ -707,14 +741,9 @@
     if (!text || text.indexOf("=>") >= 0) {
       return source;
     }
-    QCSS_LITERAL_TOKEN_PATTERN.lastIndex = 0;
-    const containsCssLiteral = QCSS_LITERAL_TOKEN_PATTERN.test(text);
-    QCSS_LITERAL_TOKEN_PATTERN.lastIndex = 0;
-    if (!/[+\-*/]/.test(text) && !containsCssLiteral) {
-      QCSS_LITERAL_TOKEN_PATTERN.lastIndex = 0;
+    if (!sourceHasCssExpressionSignal(text)) {
       return source;
     }
-    QCSS_LITERAL_TOKEN_PATTERN.lastIndex = 0;
     const tokens = tokenizeCssExpression(text);
     if (!tokens || tokens.length === 0) {
       return source;
@@ -17895,6 +17924,12 @@
       const map = this.host[Q_PROPERTY_INSTANCES_KEY];
       return map && typeof map === "object" && map[key] instanceof QProperty ? map[key] : null;
     }
+    getProperty(name, fallbackValue) {
+      return getComponentHostProperty(this.host, name, fallbackValue);
+    }
+    setProperty(name, value) {
+      return setComponentHostProperty(this.host, name, value);
+    }
     signal(name) {
       const key = String(name || "").trim();
       if (!this.host || !key) {
@@ -18187,6 +18222,127 @@
       map[name] = new QProperty(owner, name);
     }
     return map[name];
+  }
+
+  function normalizeComponentPropertyAccessName(name) {
+    return String(name == null ? "" : name).trim();
+  }
+
+  function resolveComponentPropertyHost(target) {
+    if (!target || target.nodeType !== 1) {
+      return null;
+    }
+    if (
+      (typeof target.getAttribute === "function" && target.getAttribute("qhtml-component-instance") === "1") ||
+      target[Q_COMPONENT_INSTANCE_META_KEY]
+    ) {
+      return target;
+    }
+    return ensureComponentSelfReference(target);
+  }
+
+  function getComponentHostProperty(target, name, fallbackValue) {
+    const host = resolveComponentPropertyHost(target);
+    const key = normalizeComponentPropertyAccessName(name);
+    if (!host || !key) {
+      return fallbackValue;
+    }
+    if (key in host) {
+      return host[key];
+    }
+    const map = host[Q_PROPERTY_INSTANCES_KEY];
+    if (map && typeof map === "object" && map[key] instanceof QProperty) {
+      return map[key].value;
+    }
+    try {
+      const qdomNode = typeof host.qdom === "function" ? host.qdom() : null;
+      if (qdomNode && qdomNode.props && typeof qdomNode.props === "object" && Object.prototype.hasOwnProperty.call(qdomNode.props, key)) {
+        return qdomNode.props[key];
+      }
+      if (qdomNode && typeof qdomNode.property === "function") {
+        const qdomValue = qdomNode.property(key);
+        return typeof qdomValue === "undefined" ? fallbackValue : qdomValue;
+      }
+    } catch (error) {
+      // fall through to fallback
+    }
+    return fallbackValue;
+  }
+
+  function setComponentHostProperty(target, name, value) {
+    const host = resolveComponentPropertyHost(target);
+    const key = normalizeComponentPropertyAccessName(name);
+    if (!host || !key || INVALID_METHOD_NAMES.has(key)) {
+      return value;
+    }
+    host[key] = value;
+    return host[key];
+  }
+
+  function installComponentPropertyAccessors(hostElement) {
+    if (!hostElement || hostElement.nodeType !== 1) {
+      return;
+    }
+    const ElementCtor = global.HTMLElement || global.Element;
+    const proto = ElementCtor && ElementCtor.prototype ? ElementCtor.prototype : null;
+    if (proto) {
+      if (!Object.prototype.hasOwnProperty.call(proto, "getProperty")) {
+        try {
+          Object.defineProperty(proto, "getProperty", {
+            configurable: true,
+            enumerable: false,
+            writable: true,
+            value: function getQHtmlComponentProperty(name, fallbackValue) {
+              return getComponentHostProperty(this, name, fallbackValue);
+            },
+          });
+        } catch (error) {
+          // fallback to per-host accessor below
+        }
+      }
+      if (!Object.prototype.hasOwnProperty.call(proto, "setProperty")) {
+        try {
+          Object.defineProperty(proto, "setProperty", {
+            configurable: true,
+            enumerable: false,
+            writable: true,
+            value: function setQHtmlComponentProperty(name, value) {
+              return setComponentHostProperty(this, name, value);
+            },
+          });
+        } catch (error) {
+          // fallback to per-host accessor below
+        }
+      }
+    }
+    if (typeof hostElement.getProperty !== "function") {
+      try {
+        Object.defineProperty(hostElement, "getProperty", {
+          configurable: true,
+          enumerable: false,
+          writable: true,
+          value: function getQHtmlComponentHostProperty(name, fallbackValue) {
+            return getComponentHostProperty(this, name, fallbackValue);
+          },
+        });
+      } catch (error) {
+        // keep component rendering functional when accessors cannot be installed
+      }
+    }
+    if (typeof hostElement.setProperty !== "function") {
+      try {
+        Object.defineProperty(hostElement, "setProperty", {
+          configurable: true,
+          enumerable: false,
+          writable: true,
+          value: function setQHtmlComponentHostProperty(name, value) {
+            return setComponentHostProperty(this, name, value);
+          },
+        });
+      } catch (error) {
+        // keep component rendering functional when accessors cannot be installed
+      }
+    }
   }
 
   function registerQComponentInstanceType(hostElement, componentNode) {
@@ -23796,6 +23952,23 @@
     };
   }
 
+  function shouldCompileDeclaredPropertyCssExpression(value) {
+    if (typeof value !== "string") {
+      return false;
+    }
+    const source = String(value || "").trim();
+    if (!source) {
+      return false;
+    }
+    if (
+      CSS_UNIT_VALUE_PATTERN.test(source) ||
+      /-?(?:\d+|\d*\.\d+)(?:[eE][+-]?\d+)?\s*(?:px|em|rem|vh|vw|vmin|vmax|svh|lvh|dvh|svw|lvw|dvw|%|ch|ex|cm|mm|in|pt|pc|q|fr|deg|rad|grad|turn|s|ms)\b/i.test(source)
+    ) {
+      return true;
+    }
+    return /(?:^|[\s)])[-+*/](?:$|[\s(])/.test(source);
+  }
+
   function ensureQDomCssUnitStore(qdomNode) {
     if (!qdomNode || typeof qdomNode !== "object") {
       return null;
@@ -26511,6 +26684,7 @@
     }
     ensureComponentSelfReference(hostElement);
     registerQComponentInstanceType(hostElement, componentNode);
+    installComponentPropertyAccessors(hostElement);
     ensureScopedSelectorShortcut(hostElement, null);
     const componentDefinitionType = inferDefinitionType(componentNode);
     const isWorkerDefinition = componentDefinitionType === "worker";
@@ -26692,6 +26866,7 @@
         !compiledBinding &&
         !declaredReferenceExpression &&
         typeof literalDefault === "string" &&
+        shouldCompileDeclaredPropertyCssExpression(literalDefault) &&
         core &&
         !(typeof core.parseCssValue === "function" && core.parseCssValue(String(literalDefault || "").trim())) &&
         typeof core.transformCssExpression === "function"
@@ -28285,6 +28460,9 @@
     }
     if (global.QHTML_UUID_LOOKUP_MAP && typeof global.QHTML_UUID_LOOKUP_MAP.get === "function") {
       const lookup = global.QHTML_UUID_LOOKUP_MAP.get(handle[QCONTEXT_SYMBOL_UUID_KEY]);
+      if (lookup && typeof lookup === "object" && lookup.dom && lookup.dom.nodeType === 1) {
+        return lookup.dom;
+      }
       if (lookup && typeof lookup === "object" && lookup.pointer && typeof lookup.pointer === "object") {
         return lookup.pointer;
       }
@@ -31987,7 +32165,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "7.0.0";
+  const RUNTIME_VERSION = "7.0.1";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -38898,6 +39076,9 @@
     for (let i = 0; i < subscribers.length; i += 1) {
       const targetUuid = normalizeQDomUuidValue(subscribers[i]);
       if (!targetUuid) {
+        continue;
+      }
+      if (targetUuid === ownerUuid) {
         continue;
       }
       const host = resolveDispatchHostForUuid(targetUuid, ownerHost);
@@ -51411,7 +51592,7 @@
   }
 
   const api = runtime;
-  api.version = "7.0.0";
+  api.version = "7.0.1";
   global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {

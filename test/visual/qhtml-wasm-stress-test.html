@@ -1,0 +1,224 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Qt WASM QPropertyAnimation Stress Test</title>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #05070c;
+      color: white;
+      font-family: system-ui, sans-serif;
+    }
+
+    #stage {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .box {
+      position: absolute;
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(0,180,255,0.8), rgba(120,0,255,0.8));
+      box-shadow: 0 0 18px rgba(0,180,255,0.45);
+      will-change: transform, width, height;
+    }
+
+    #hud {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      padding: 10px 12px;
+      background: rgba(0,0,0,0.6);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      z-index: 999;
+      font-size: 13px;
+    }
+
+    button {
+      margin-right: 6px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="stage"></div>
+
+  <div id="hud">
+    <button id="start">Start</button>
+    <button id="stop">Stop</button>
+    <span id="status">Loading...</span>
+  </div>
+
+  <script src="../../dist/qhtml-wasm.js"></script>
+
+
+  <script>
+    const CONFIG = {
+      boxCount: 275,
+      minSize: 30,
+      maxSize: 370,
+      minDuration: 2850,
+      maxDuration: 5200,
+      properties: ["x", "y"]
+    };
+
+    let actors = [];
+
+    const rand = (min, max) => Math.random() * (max - min) + min;
+    const randInt = (min, max) => Math.floor(rand(min, max + 1));
+
+    function viewportBounds() {
+      return {
+        width: window.innerWidth,
+        height: window.innerHeight
+      };
+    }
+
+    function randomTarget(prop) {
+      const bounds = viewportBounds();
+
+      switch (prop) {
+        case "x":
+          return rand(0, Math.max(0, bounds.width - CONFIG.maxSize));
+
+        case "y":
+          return rand(0, Math.max(0, bounds.height - CONFIG.maxSize));
+
+        case "width":
+        case "height":
+          return rand(CONFIG.minSize, CONFIG.maxSize);
+
+        default:
+          return 0;
+      }
+    }
+
+    function applyActorStyle(actor) {
+      const x = actor.obj.getNumber("x");
+      const y = actor.obj.getNumber("y");
+      const width = actor.obj.getNumber("width");
+      const height = actor.obj.getNumber("height");
+
+      actor.el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      actor.el.style.width = `${width}px`;
+      actor.el.style.height = `${height}px`;
+    }
+
+    function makeAnimation(actor, prop) {
+      const anim = new Module.QPropertyAnimation();
+
+      const start = actor.obj.getNumber(prop);
+      const end = randomTarget(prop);
+      const duration = randInt(CONFIG.minDuration, CONFIG.maxDuration);
+
+      anim.setTarget(actor.obj);
+      anim.setPropertyName(prop);
+      anim.setDuration(duration);
+      anim.setStartNumber(start);
+      anim.setEndNumber(end);
+
+      anim.connect("finished", () => {
+        if (!actor.running) return;
+
+        const next = makeAnimation(actor, prop);
+        actor.animations[prop] = next;
+        next.start();
+      });
+
+      return anim;
+    }
+
+    function createActor(index) {
+      const stage = document.querySelector("#stage");
+      const el = document.createElement("div");
+
+      el.className = "box";
+      el.textContent = index + 1;
+      el.style.display = "grid";
+      el.style.placeItems = "center";
+      el.style.fontSize = "12px";
+
+      stage.appendChild(el);
+
+      const obj = new Module.QObject();
+
+      obj.setNumber("x", randomTarget("x"));
+      obj.setNumber("y", randomTarget("y"));
+      obj.setNumber("width", randomTarget("width"));
+      obj.setNumber("height", randomTarget("height"));
+
+      const actor = {
+        index,
+        el,
+        obj,
+        animations: {},
+        running: false
+      };
+
+      for (const prop of CONFIG.properties) {
+        obj.connect(`${prop}Changed`, () => {
+          applyActorStyle(actor);
+        });
+      }
+
+      applyActorStyle(actor);
+
+      return actor;
+    }
+
+    function startActor(actor) {
+      actor.running = true;
+
+      for (const prop of CONFIG.properties) {
+        actor.animations[prop] = makeAnimation(actor, prop);
+        actor.animations[prop].start();
+      }
+    }
+
+    function stopActor(actor) {
+      actor.running = false;
+
+      for (const prop of CONFIG.properties) {
+        const anim = actor.animations[prop];
+        if (anim) anim.stop();
+      }
+    }
+
+    function startAll() {
+      for (const actor of actors) {
+        startActor(actor);
+      }
+    }
+
+    function stopAll() {
+      for (const actor of actors) {
+        stopActor(actor);
+      }
+    }
+
+    async function init() {
+      Module = await window.qhtml_qt_entry();
+
+      document.querySelector("#status").textContent = "Qt WASM ready";
+
+      for (let i = 0; i < CONFIG.boxCount; i++) {
+        actors.push(createActor(i));
+      }
+
+      document.querySelector("#start").onclick = startAll;
+      document.querySelector("#stop").onclick = stopAll;
+
+      startAll();
+    }
+
+    window.addEventListener("load", init);
+  </script>
+</body>
+</html>
