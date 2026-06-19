@@ -1,0 +1,155 @@
+q-class qt-property-animation {
+  constructor() {
+    this.duration = this.readNumber(this.duration, 1000);
+    this.from = this.readNumber(this.from, 0);
+    this.to = this.readNumber(this.to, 100);
+    this.running = this.readBoolean(this.running, false);
+    this.repeat = this.readBoolean(this.repeat, false);
+    this.propertyName = this.propertyName == null ? "x" : String(this.propertyName);
+    this.target = this.target || null;
+    this.animationObject = this.animationObject || null;
+    this.animation = this.animation || null;
+    this.unit = this.unit || "";
+    this.stepped = this.createSignal();
+    this.initError = null;
+    this.init();
+    this.exposeElementApi();
+  }
+
+  function exposeElementApi() {
+    var element = this.element();
+    if (!element) { return; }
+    element.init = this.init.bind(this);
+    element.start = this.start.bind(this);
+    element.stop = this.stop.bind(this);
+    element.restart = this.restart.bind(this);
+    element.applyTargetProperty = this.applyTargetProperty.bind(this);
+    element.propertyChanged = this.propertyChanged.bind(this);
+    element.stepped = this.stepped;
+  }
+
+  function readNumber(value, fallback) {
+    var n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  function readBoolean(value, fallback) {
+    if (value === true || value === false) { return value; }
+    if (value == null || value === "") { return !!fallback; }
+    var text = String(value).trim().toLowerCase();
+    if (text === "true" || text === "1" || text === "yes" || text === "running") { return true; }
+    if (text === "false" || text === "0" || text === "no" || text === "stopped") { return false; }
+    return !!fallback;
+  }
+
+  function createSignal() {
+    var listeners = [];
+    var signal = function() {
+      var args = Array.prototype.slice.call(arguments);
+      for (var i = 0; i < listeners.length; i += 1) {
+        try {
+          listeners[i].apply(null, args);
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    };
+    signal.connect = function(handler) {
+      if (typeof handler === "function" && listeners.indexOf(handler) < 0) {
+        listeners.push(handler);
+      }
+      return handler;
+    };
+    signal.disconnect = function(handler) {
+      var idx = listeners.indexOf(handler);
+      if (idx >= 0) {
+        listeners.splice(idx, 1);
+      }
+    };
+    return signal;
+  }
+
+  function applyTargetProperty(propName, value) {
+    if (!this.target || typeof this.target.setProperty !== "function") { return; }
+    this.target.setProperty(propName, value);
+  }
+
+  function propertyChanged(propName, value) {
+    this.applyTargetProperty(propName, value);
+    this.stepped(value);
+  }
+
+  function init() {
+    try {
+      if (!globalThis.Module || typeof Module.QObject !== "function" || typeof Module.QPropertyAnimation !== "function") {
+        this.initError = new Error("qt-property-animation requires Module.QObject and Module.QPropertyAnimation");
+        return null;
+      }
+
+      var self = this;
+      var propName = String(this.propertyName || "x");
+      var startValue = this.readNumber(this.from, 0);
+      var endValue = this.readNumber(this.to, 100);
+      var object1 = new Module.QObject();
+      var animation1 = new Module.QPropertyAnimation();
+
+      object1.setNumber(propName, startValue);
+      animation1.setTarget(object1);
+      animation1.setPropertyName(propName);
+      animation1.setDuration(this.readNumber(this.duration, 1000));
+      animation1.setStartNumber(startValue);
+      animation1.setEndNumber(endValue);
+
+      object1.connect(propName + "Changed", function(value) {
+        var currentValue = Number.isFinite(Number(value)) ? Number(value) : object1.getNumber(propName);
+        self.propertyChanged(propName, currentValue);
+      });
+
+      if (this.repeat && typeof animation1.connect === "function") {
+        animation1.connect("finished", function() {
+          if (self.running && self.animation) {
+            self.animation.start();
+          }
+        });
+      }
+
+      this.animation = animation1;
+      this.animationObject = object1;
+      this.initError = null;
+
+      if (this.running) {
+        this.start();
+      }
+
+      return animation1;
+    } catch (err) {
+      this.initError = err;
+      console.log(err);
+      return null;
+    }
+  }
+
+  function start() {
+    if (!this.animation) {
+      this.init();
+    }
+    if (!this.animation) {
+      return null;
+    }
+    this.running = true;
+    return this.animation.start();
+  }
+
+  function stop() {
+    this.running = false;
+    if (this.animation && typeof this.animation.stop === "function") {
+      return this.animation.stop();
+    }
+    return null;
+  }
+
+  function restart() {
+    this.stop();
+    return this.start();
+  }
+}

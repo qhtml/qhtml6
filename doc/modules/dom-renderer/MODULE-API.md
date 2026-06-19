@@ -10,6 +10,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - `collectComponentRegistry(documentNode)`
   - Returns `Map<componentId, componentDefinitionNode>`.
   - Also includes `q-struct` definitions keyed by `structId`.
+  - Also includes `q-class` definitions keyed by `classId`.
   - Also includes `q-viewport` definitions keyed by `viewportId`.
   - Walks nested definition locations including repeater template/model payloads.
 - `renderDocumentToFragment(documentNode, targetDocument?, options?)`
@@ -39,6 +40,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
 - `model` (repeater model container consumed by repeater rendering)
 - `component-instance`, `template-instance`
 - `struct`, `struct-instance` (`q-struct` data definitions/instances; scope registration only, no direct DOM output)
+- `class`, `class-instance` (`q-class` JavaScript-backed definitions/instances; definitions register constructors, instances render custom DOM elements and scoped runtime objects)
 - `viewport`, `viewport-instance` (`q-viewport` responsive definitions/instances; definition nodes register only, instances render a live `<q-viewport>` gate wrapper)
 - `slot` projection containers
 - `q-signal` definitions invoked through `component-instance` dispatch behavior
@@ -70,6 +72,14 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - bare dot-walk field values stay live as declarative bindings until assigned from JavaScript
   - assigning `someName.field = value` stores a literal override on the struct instance QDom and removes the active binding for that field
   - function fields return callable JavaScript function references, so `someName.fn()` works in interpolation and handlers
+- Named `q-class` definitions and instances register into lexical/runtime context frames:
+  - declaration form: `q-class SomeClass { ... }`
+  - instance form: `SomeClass someName(args) { id: "x" slotName { ... } }`
+  - definitions expose `SomeClass` as a JavaScript constructor in scope, so handlers and property expressions can use `new SomeClass(...)`
+  - declarative instances render as `<someclass ...>` custom elements and register `someName` as the constructed class object
+  - instance attributes/props are applied to the class object before user constructor code runs; with inheritance, this happens during `super(...)`
+  - unquoted instance attributes/props that resolve to named runtime values are passed to the constructor as object references, while quoted values remain literal text
+  - class objects expose `qdom()`, `element()`, `children()`, and `slots()` helpers for the backing `QDomClassInstance`
 - Named `q-state-machine` hosts are registered in lexical/runtime scope by machine name:
   - declaration form: `q-state-machine machineName { stateName { ... } }`
   - renders through the normal q-component host path as `<q-state-machine q-component="q-state-machine" qhtml-component-instance="1">`.
@@ -195,6 +205,9 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - expose explicit unit formatting through `css(value, "px")`, `${css(width, "px")}`, `${css(height, "vh")}`, etc. so numeric q-property values can be written back to CSS intentionally.
   - track previous values in a per-component property-state map stored on QDom metadata.
   - preserve a raw assigned-value slot for public getter reads (`instance.prop` returns the raw assigned value when present).
+  - preserve arbitrary JavaScript object/function references assigned to declared properties, including external handles such as Qt/WASM objects; `instance.prop`, `this.component.prop`, `instance.getProperty(name)`, and named-instance dot-walk reads return the same object identity that was assigned.
+  - store QHTML named-instance/context proxy assignments as UUID reference tokens internally, so `target: comp1` does not retain a stale DOM element while public reads resolve through the live UUID lookup map.
+  - route `component.setProperty(name, value)` through declared q-property setters when present; for undeclared dynamic properties it also mirrors the value into the live QDom property map so subsequent `getProperty()` / `qdom().getProperty()` calls can resolve the same public value.
   - keep runtime-internal property bookkeeping/listeners private (not exposed through normal property getter reads).
   - skip re-render when value is unchanged (`Object.is`).
   - dispatch bubbling `q-property-changed` custom events for real value changes.

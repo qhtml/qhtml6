@@ -5,10 +5,10 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd -- "$SCRIPT_DIR/.." && pwd)
 DIST_DIR="$PROJECT_ROOT/dist"
 OUT_FILE="$DIST_DIR/qhtml.js"
-WASM_OUT_FILE="$DIST_DIR/qhtml-wasm.js"
 WASM_SRC_FILE="$PROJECT_ROOT/src/qhtml-wasm.js"
-WASM_ASSET_SRC_DIR="$DIST_DIR/q-components/qhtml-qt"
 WASM_ASSET_OUT_DIR="$DIST_DIR/qhtml-wasm"
+WASM_OUT_FILE="$WASM_ASSET_OUT_DIR/qhtml-wasm.js"
+WASM_ASSET_SRC_DIR="$WASM_ASSET_OUT_DIR"
 DOC_OUT_FILE="$PROJECT_ROOT/doc/qhtml.js"
 
 mkdir -p "$DIST_DIR"
@@ -52,19 +52,24 @@ if [[ ! -f "$WASM_SRC_FILE" ]]; then
   exit 1
 fi
 
+mkdir -p "$WASM_ASSET_OUT_DIR"
 cp "$WASM_SRC_FILE" "$WASM_OUT_FILE"
 echo "Wrote $WASM_OUT_FILE"
 
-mkdir -p "$WASM_ASSET_OUT_DIR"
 for wasm_asset in qtloader.js qhtml-qt.js qhtml-qt.wasm; do
   src_asset="$WASM_ASSET_SRC_DIR/$wasm_asset"
+  dest_asset="$WASM_ASSET_OUT_DIR/$wasm_asset"
   if [[ ! -f "$src_asset" ]]; then
     echo "Missing wasm asset: $src_asset" >&2
     exit 1
   fi
 
-  cp "$src_asset" "$WASM_ASSET_OUT_DIR/$wasm_asset"
-  echo "Wrote $WASM_ASSET_OUT_DIR/$wasm_asset"
+  if [[ "$src_asset" != "$dest_asset" ]]; then
+    cp "$src_asset" "$dest_asset"
+    echo "Wrote $dest_asset"
+  else
+    echo "Verified $dest_asset"
+  fi
 done
 
 if [[ -d "$PROJECT_ROOT/doc" ]]; then

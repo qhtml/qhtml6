@@ -201,6 +201,7 @@ Runtime mount/update engine for `<q-html>` in browser environments.
   6. runtime root context (`QHtml.rootContext`)
 - Named instance references are UUID-backed handles and resolve lazily through UUID maps.
 - `q-template` aliases are head-only symbols (template type markers); member dot-walk on template aliases is rejected by resolver.
+- `q-class` definitions expose scoped JavaScript constructors, and `q-class` instances expose scoped constructed objects while their backing `class-instance` QDom nodes remain eligible for attribute synchronization and UUID lookup.
 
 ## `.qdom()` and node list helpers
 - `host.qdom()` / `element.qdom()` return facades over source QDom nodes.

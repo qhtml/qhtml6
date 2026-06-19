@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="../../">
+  <title>QHTML q-property object reference test</title>
+  <script>window.QHTML_EVENT_LOOP_MODE = "queued";</script>
+  <script src="dist/qhtml.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 24px; }
+    #result { padding: 12px; border: 1px solid #94a3b8; }
+    .pass { color: #047857; }
+    .fail { color: #b91c1c; }
+  </style>
+</head>
+<body>
+<h1>q-property Object Reference</h1>
+<q-html>
+q-component object-sink {
+  q-property payload: "unset"
+  q-property viaSet: "unset"
+
+  function payloadIs(value) {
+    return this.component.payload === value;
+  }
+
+  function viaSetIs(value) {
+    return this.component.viaSet === value;
+  }
+}
+
+q-component object-reference-runner {
+  object-sink sink1 { }
+  object-sink sink2 { }
+
+  div#result { text { waiting } }
+
+  onready {
+    var result = this.querySelector("#result") || document.querySelector("#result");
+    try {
+      var qtLike = {
+        type: "qt-like",
+        getNumber: function(name) { return name === "x" ? 42 : 0; }
+      };
+      var directObject = { type: "direct" };
+      var dynamicObject = { type: "dynamic" };
+      var dotWalkObject = { type: "dot-walk" };
+      var sink1Element = sink1.__qhtmlAliasTarget;
+
+      sink1.payload = qtLike;
+      sink1.setProperty("viaSet", directObject);
+      sink1.setProperty("dynamicRef", dynamicObject);
+      sink2.payload = dotWalkObject;
+      sink2.setProperty("viaSet", sink1);
+
+      var directOk =
+        sink1.payload === qtLike &&
+        sink1.getProperty("payload") === qtLike &&
+        sink1.qdom().getProperty("payload") === qtLike &&
+        sink1.payload.getNumber("x") === 42;
+
+      var setPropertyOk =
+        sink1.viaSet === directObject &&
+        sink1.getProperty("viaSet") === directObject &&
+        sink1.qdom().getProperty("viaSet") === directObject &&
+        sink1.viaSetIs(directObject) === true;
+
+      var dynamicOk =
+        sink1.dynamicRef === dynamicObject &&
+        sink1.getProperty("dynamicRef") === dynamicObject &&
+        sink1.qdom().getProperty("dynamicRef") === dynamicObject;
+
+      var dotWalkOk =
+        sink2.payload === dotWalkObject &&
+        sink2.payloadIs(dotWalkObject) === true;
+
+      function readQdomUuid(value) {
+        if (!value || typeof value.qdom !== "function") { return ""; }
+        var node = value.qdom();
+        return node && node.meta ? String(node.meta.uuid || "") : "";
+      }
+
+      var proxyUnwrappedOk =
+        sink1Element &&
+        readQdomUuid(sink2.viaSet) === readQdomUuid(sink1Element) &&
+        readQdomUuid(sink2.getProperty("viaSet")) === readQdomUuid(sink1Element) &&
+        readQdomUuid(sink2.qdom().getProperty("viaSet")) === readQdomUuid(sink1Element);
+
+      var storedReference = sink2.qdom().props ? sink2.qdom().props.viaSet : null;
+      var sink1Uuid = sink1Element && sink1Element.qdom && sink1Element.qdom().meta ? sink1Element.qdom().meta.uuid : "";
+      var storedLookup = storedReference && window.QHTML_UUID_LOOKUP_MAP && typeof window.QHTML_UUID_LOOKUP_MAP.get === "function"
+        ? window.QHTML_UUID_LOOKUP_MAP.get(storedReference.__qhtmlPropertyReferenceUuid)
+        : null;
+      var proxyStoredAsUuidOk =
+        storedReference &&
+        storedReference.__qhtmlPropertyReference === true &&
+        storedLookup &&
+        readQdomUuid(storedLookup.dom) === sink1Uuid &&
+        storedReference !== sink1Element;
+
+      var ok = directOk && setPropertyOk && dynamicOk && dotWalkOk && proxyUnwrappedOk && proxyStoredAsUuidOk;
+      result.className = ok ? "pass" : "fail";
+      result.textContent = ok
+        ? "object-reference-ok"
+        : "object-reference-fail direct=" + directOk + " setProperty=" + setPropertyOk + " dynamic=" + dynamicOk + " dotWalk=" + dotWalkOk + " proxyUnwrapped=" + proxyUnwrappedOk + " proxyStoredAsUuid=" + proxyStoredAsUuidOk + " targetUuid=" + readQdomUuid(sink1Element) + " viaUuid=" + readQdomUuid(sink2.viaSet) + " getUuid=" + readQdomUuid(sink2.getProperty("viaSet")) + " qdomUuid=" + readQdomUuid(sink2.qdom().getProperty("viaSet")) + " viaType=" + Object.prototype.toString.call(sink2.viaSet);
+    } catch (err) {
+      result.className = "fail";
+      result.textContent = "object-reference-error " + (err && err.message ? err.message : String(err));
+    }
+  }
+}
+
+object-reference-runner { }
+</q-html>
+</body>
+</html>

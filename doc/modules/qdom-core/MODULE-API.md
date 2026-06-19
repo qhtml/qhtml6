@@ -8,7 +8,7 @@ Exports via `globalThis.QHtmlModules.qdomCore`.
 
 ### Constants
 - `NODE_TYPES`
-  - `document`, `element`, `text`, `raw-html`, `model`, `repeater`, `component`, `component-instance`, `template-instance`, `struct`, `struct-instance`, `viewport`, `viewport-instance`, `slot`, `slot-default`, `script-rule`, `color`.
+  - `document`, `element`, `text`, `raw-html`, `model`, `repeater`, `component`, `component-instance`, `template-instance`, `struct`, `struct-instance`, `class`, `class-instance`, `viewport`, `viewport-instance`, `slot`, `slot-default`, `script-rule`, `color`.
 - `TEXT_ALIASES`
   - `content`, `contents`, `text`, `textcontents`, `innertext`.
 - `QDOM_UUID_KEY`
@@ -42,6 +42,11 @@ Exports via `globalThis.QHtmlModules.qdomCore`.
 - `createStructInstanceNode(options?)`
   - Creates data-only typed struct instances with `structId`, `fields`, and instance alias metadata.
   - Struct instance nodes render no DOM and are consumed by `dom-renderer` as named runtime values.
+- `createClassNode(options?)`
+  - Creates `q-class` definition nodes with `classId`, optional `extendsClassId`, constructor metadata, methods, slot declarations, and `definitionType: "class"`.
+- `createClassInstanceNode(options?)`
+  - Creates rendered typed class instances with `classId`, attributes, props, constructor argument source, slots, children, and instance alias metadata.
+  - Class instances render as custom DOM elements and are also consumed by `dom-renderer` as JavaScript class-backed runtime values.
 - `createViewportNode(options?)`
   - Creates named `q-viewport` responsive condition definitions with `viewportId` and `constraints`.
 - `createViewportInstanceNode(options?)`
@@ -106,6 +111,7 @@ All constructors normalize missing fields, include `meta` objects, and produce r
 - CSS numeric value resolution uses the closest DOM/component context when available. Ambiguous mixed-unit expressions remain unresolved so renderers can output `calc(...)` instead of guessing.
 - `walkQDom` traverses component `slotDefaults`, `repeater.templateNodes`, `repeater.model`, and nested model entry node payloads (`entry.nodes`) so internals are discoverable through QDom tooling.
 - `walkQDom` also traverses `struct.fields[].nodes` when field node payloads are present.
+- `walkQDom` traverses `class.templateNodes`, `class-instance.slots`, and `class-instance.children`.
 - `walkQDom` traverses `viewport-instance.children` so responsive-gated QDom content remains discoverable through tooling.
 
 ## Module dependencies

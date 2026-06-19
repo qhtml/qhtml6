@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-06-14T03:50:56Z */
+/* generated: 2026-06-19T00:59:28Z */
 
 /*** BEGIN: src/modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {
@@ -17,6 +17,8 @@
     templateInstance: "template-instance",
     struct: "struct",
     structInstance: "struct-instance",
+    class: "class",
+    classInstance: "class-instance",
     slot: "slot",
     slotDefault: "slot-default",
     scriptRule: "script-rule",
@@ -1043,6 +1045,58 @@
     }
   }
 
+  class QClassNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      const classId = String(opts.classId || opts.componentId || "").trim();
+      super(NODE_TYPES.class, opts.meta);
+      this.classId = classId;
+      this.componentId = classId;
+      this.definitionType = "class";
+      this.extendsClassId = String(opts.extendsClassId || opts.extendsComponentId || "").trim();
+      this.constructorDefinition =
+        opts.constructorDefinition && typeof opts.constructorDefinition === "object"
+          ? Object.assign({}, opts.constructorDefinition)
+          : null;
+      this.methods = Array.isArray(opts.methods) ? opts.methods.slice() : [];
+      this.slotDeclarations = Array.isArray(opts.slotDeclarations) ? opts.slotDeclarations.slice() : [];
+      this.templateNodes = Array.isArray(opts.templateNodes) ? opts.templateNodes : [];
+    }
+  }
+
+  class QClassInstanceNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      const id = String(opts.classId || opts.componentId || opts.tagName || "").trim().toLowerCase();
+      super(NODE_TYPES.classInstance, opts.meta);
+      this.classId = id;
+      this.componentId = id;
+      this.tagName = id;
+      this.attributes = Object.assign({}, opts.attributes || {});
+      this.props = Object.assign({}, opts.props || {});
+      this.constructorArguments = Array.isArray(opts.constructorArguments) ? opts.constructorArguments.slice() : [];
+      this.argumentSource = typeof opts.argumentSource === "string" ? opts.argumentSource : "";
+      this.slots = Array.isArray(opts.slots) ? opts.slots : [];
+      this.children = Array.isArray(opts.children) ? opts.children : [];
+      this.textContent = typeof opts.textContent === "string" ? opts.textContent : null;
+      this.lifecycleScripts = Array.isArray(opts.lifecycleScripts) ? opts.lifecycleScripts : [];
+      this.selectorMode = opts.selectorMode || "single";
+      this.selectorChain = Array.isArray(opts.selectorChain) ? opts.selectorChain.slice() : [id];
+    }
+
+    properties() {
+      return Object.assign({}, this.props || {});
+    }
+
+    getProperty(key) {
+      const name = String(key || "").trim();
+      if (!name || !this.props || typeof this.props !== "object") {
+        return undefined;
+      }
+      return Object.prototype.hasOwnProperty.call(this.props, name) ? this.props[name] : undefined;
+    }
+  }
+
   class QComponentInstanceNode extends QDomNode {
     constructor(options) {
       const opts = options || {};
@@ -1323,6 +1377,14 @@
     return new QStructInstanceNode(options || {});
   }
 
+  function createClassNode(options) {
+    return new QClassNode(options || {});
+  }
+
+  function createClassInstanceNode(options) {
+    return new QClassInstanceNode(options || {});
+  }
+
   function normalizeInstanceKind(kind) {
     const value = String(kind || "").trim().toLowerCase();
     if (value === NODE_TYPES.templateInstance || value === "template") {
@@ -1419,6 +1481,9 @@
           walkNodes(field.nodes, visitor, node, path.concat("fields", j, "nodes"));
         }
       }
+      if (node.kind === NODE_TYPES.class && Array.isArray(node.templateNodes)) {
+        walkNodes(node.templateNodes, visitor, node, path.concat("templateNodes"));
+      }
       if (node.kind === NODE_TYPES.model && Array.isArray(node.entries)) {
         for (let j = 0; j < node.entries.length; j += 1) {
           const entry = node.entries[j];
@@ -1437,13 +1502,17 @@
         }
       }
       if (
-        (node.kind === NODE_TYPES.componentInstance || node.kind === NODE_TYPES.templateInstance) &&
+        (node.kind === NODE_TYPES.componentInstance ||
+          node.kind === NODE_TYPES.templateInstance ||
+          node.kind === NODE_TYPES.classInstance) &&
         readSlotNodes(node).length >= 0
       ) {
         walkNodes(readSlotNodes(node), visitor, node, path.concat("slots"));
       }
       if (
-        (node.kind === NODE_TYPES.componentInstance || node.kind === NODE_TYPES.templateInstance) &&
+        (node.kind === NODE_TYPES.componentInstance ||
+          node.kind === NODE_TYPES.templateInstance ||
+          node.kind === NODE_TYPES.classInstance) &&
         Array.isArray(node.children)
       ) {
         walkNodes(node.children, visitor, node, path.concat("children"));
@@ -1855,6 +1924,35 @@
         meta: reviveQDomTree(value.meta || {}),
       });
     }
+    if (kind === NODE_TYPES.class) {
+      return createClassNode({
+        classId: value.classId || value.componentId,
+        extendsClassId: value.extendsClassId || value.extendsComponentId,
+        constructorDefinition: reviveQDomTree(value.constructorDefinition || null),
+        methods: reviveQDomTree(Array.isArray(value.methods) ? value.methods : []),
+        slotDeclarations: reviveQDomTree(Array.isArray(value.slotDeclarations) ? value.slotDeclarations : []),
+        templateNodes: reviveQDomTree(Array.isArray(value.templateNodes) ? value.templateNodes : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
+    if (kind === NODE_TYPES.classInstance) {
+      return createClassInstanceNode({
+        classId: value.classId || value.componentId || value.tagName,
+        componentId: value.componentId,
+        tagName: value.tagName,
+        attributes: reviveQDomTree(value.attributes || {}),
+        props: reviveQDomTree(value.props || {}),
+        constructorArguments: reviveQDomTree(Array.isArray(value.constructorArguments) ? value.constructorArguments : []),
+        argumentSource: value.argumentSource,
+        slots: reviveQDomTree(Array.isArray(value.slots) ? value.slots : []),
+        children: reviveQDomTree(Array.isArray(value.children) ? value.children : []),
+        textContent: value.textContent,
+        lifecycleScripts: reviveQDomTree(Array.isArray(value.lifecycleScripts) ? value.lifecycleScripts : []),
+        selectorMode: value.selectorMode,
+        selectorChain: reviveQDomTree(Array.isArray(value.selectorChain) ? value.selectorChain : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
     if (kind === NODE_TYPES.componentInstance || kind === NODE_TYPES.templateInstance) {
       return createComponentInstanceNode({
         kind: kind,
@@ -2222,6 +2320,8 @@
     QComponentNode: QComponentNode,
     QStructNode: QStructNode,
     QStructInstanceNode: QStructInstanceNode,
+    QClassNode: QClassNode,
+    QClassInstanceNode: QClassInstanceNode,
     QComponentInstanceNode: QComponentInstanceNode,
     QTemplateInstanceNode: QTemplateInstanceNode,
     QSlotNode: QSlotNode,
@@ -2254,6 +2354,8 @@
     createComponentInstanceNode: createComponentInstanceNode,
     createStructNode: createStructNode,
     createStructInstanceNode: createStructInstanceNode,
+    createClassNode: createClassNode,
+    createClassInstanceNode: createClassInstanceNode,
     createSlotNode: createSlotNode,
     createSlotDefaultNode: createSlotDefaultNode,
     createScriptRule: createScriptRule,
@@ -2318,6 +2420,7 @@
   const CANONICAL_KEYWORD_TARGETS = new Set([
     "q-component",
     "q-struct",
+    "q-class",
     "q-worker",
     "q-template",
     "q-macro",
@@ -4745,6 +4848,42 @@
     return out;
   }
 
+  function parseQClassDefinitionAfterKeyword(parser, keywordSnapshot, start, keyword) {
+    const classId = parseIdentifier(parser);
+    const normalizedClassId = String(classId || "").trim();
+    if (!normalizedClassId) {
+      throw ParseError("Expected class name after " + keyword, parser.index);
+    }
+    skipWhitespace(parser);
+    let extendsClassId = "";
+    const extendsToken = scanIdentifierTokenAt(parser.source, parser.index);
+    if (extendsToken && extendsToken.nameLower === "extends") {
+      parseIdentifier(parser);
+      skipWhitespace(parser);
+      const baseName = parseIdentifier(parser);
+      extendsClassId = String(baseName || "").trim();
+      if (!extendsClassId) {
+        throw ParseError("Expected base class name after extends", parser.index);
+      }
+      skipWhitespace(parser);
+    }
+    if (peek(parser) !== "{") {
+      throw ParseError("Expected '{' after " + keyword + " class name", parser.index);
+    }
+    consume(parser);
+    const body = readBalancedBlockContent(parser);
+    return {
+      type: "QClassDefinition",
+      classId: normalizedClassId,
+      extendsClassId: extendsClassId,
+      body: body,
+      keywords: keywordSnapshot,
+      start: start,
+      end: parser.index,
+      raw: parser.source.slice(start, parser.index),
+    };
+  }
+
   function normalizeEventBlockParameterNames(entries) {
     const input = Array.isArray(entries) ? entries : [];
     const out = [];
@@ -5203,6 +5342,10 @@
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
         const nextChar = peek(parser);
+        if (nameLower === "q-class" && nextChar !== "{" && nextChar !== ",") {
+          items.push(parseQClassDefinitionAfterKeyword(parser, keywordSnapshot, itemStart, nameLower));
+          continue;
+        }
         if ((nameLower === "q-logger" || nameLower === "q-perf" || nameLower === "q-anchor") && nextChar === "{") {
           consume(parser);
           const directiveBody = readBalancedBlockContent(parser);
@@ -5941,7 +6084,7 @@
             continue;
           }
         }
-        if (isIdentifierStartChar(nextChar)) {
+        if (nameLower !== "function" && isIdentifierStartChar(nextChar)) {
           const instanceAliasStart = parser.index;
           const instanceAlias = parseReferenceIdentifier(parser);
           const selectorWithAliasShorthand =
@@ -5949,6 +6092,12 @@
               ? parseSelectorTokenTail(parser, name)
               : name;
           skipWhitespace(parser);
+          let instanceArguments = "";
+          if (peek(parser) === "(") {
+            consume(parser);
+            instanceArguments = readBalancedParenthesizedContent(parser);
+            skipWhitespace(parser);
+          }
           if (peek(parser) === "{") {
             consume(parser);
             const childItems = parseBlockItems(parser, scopedKeywordAliases);
@@ -5957,6 +6106,7 @@
               type: "Element",
               selectors: [selectorWithAliasShorthand],
               instanceAlias: String(instanceAlias || "").trim(),
+              instanceArguments: instanceArguments,
               prefixDirectives: [],
               items: childItems,
               keywords: keywordSnapshot,
@@ -6455,6 +6605,11 @@
         }
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
+
+        if (firstLower === "q-class" && peek(parser) !== "{" && peek(parser) !== ",") {
+          body.push(parseQClassDefinitionAfterKeyword(parser, keywordSnapshot, start, firstLower));
+          continue;
+        }
 
         if ((firstLower === "q-logger" || firstLower === "q-perf" || firstLower === "q-anchor") && peek(parser) === "{") {
           consume(parser);
@@ -7284,7 +7439,7 @@
           continue;
         }
 
-        if (isIdentifierStartChar(peek(parser))) {
+        if (firstLower !== "function" && isIdentifierStartChar(peek(parser))) {
           const instanceAliasStart = parser.index;
           const instanceAlias = parseReferenceIdentifier(parser);
           const selectorWithAliasShorthand =
@@ -7292,6 +7447,12 @@
               ? parseSelectorTokenTail(parser, firstSelector)
               : firstSelector;
           skipWhitespace(parser);
+          let instanceArguments = "";
+          if (peek(parser) === "(") {
+            consume(parser);
+            instanceArguments = readBalancedParenthesizedContent(parser);
+            skipWhitespace(parser);
+          }
           if (peek(parser) === "{") {
             const prefixDirectives = parseLeadingSelectorDirectiveBlocks(parser);
             skipWhitespace(parser);
@@ -7305,6 +7466,7 @@
               type: "Element",
               selectors: [selectorWithAliasShorthand],
               instanceAlias: String(instanceAlias || "").trim(),
+              instanceArguments: instanceArguments,
               prefixDirectives: prefixDirectives,
               items: items,
               keywords: keywordSnapshot,
@@ -12121,6 +12283,14 @@
       if (Array.isArray(node.templateNodes) && node.templateNodes.length > 0) {
         collectSlotNamesFromNodes(node.templateNodes, set);
       }
+      if (Array.isArray(node.slotDeclarations) && node.slotDeclarations.length > 0) {
+        for (let si = 0; si < node.slotDeclarations.length; si += 1) {
+          const slotName = String(node.slotDeclarations[si] || "").trim();
+          if (slotName) {
+            set.add(slotName);
+          }
+        }
+      }
       const slotNodes = readNodeSlots(node);
       if (slotNodes.length > 0) {
         collectSlotNamesFromNodes(slotNodes, set);
@@ -12132,6 +12302,15 @@
 
   function collectSlotDefaultNamesFromDefinition(definitionNode, intoSet) {
     const set = intoSet || new Set();
+    const slotDeclarations = Array.isArray(definitionNode && definitionNode.slotDeclarations)
+      ? definitionNode.slotDeclarations
+      : [];
+    for (let i = 0; i < slotDeclarations.length; i += 1) {
+      const slotName = String(slotDeclarations[i] || "").trim();
+      if (slotName) {
+        set.add(slotName);
+      }
+    }
     const slotDefaults = Array.isArray(definitionNode && definitionNode.slotDefaults)
       ? definitionNode.slotDefaults
       : [];
@@ -12223,10 +12402,10 @@
   }
 
   function resolveSingleSlotNameForDefinition(definitionNode) {
-    if (!definitionNode || !Array.isArray(definitionNode.templateNodes)) {
+    if (!definitionNode || (!Array.isArray(definitionNode.templateNodes) && !Array.isArray(definitionNode.slotDeclarations))) {
       return "";
     }
-    const declaredSlotNames = collectSlotNamesFromNodes(definitionNode.templateNodes);
+    const declaredSlotNames = collectSlotNamesFromNodes(Array.isArray(definitionNode.templateNodes) ? definitionNode.templateNodes : []);
     collectSlotDefaultNamesFromDefinition(definitionNode, declaredSlotNames);
     const slotNames = Array.from(declaredSlotNames);
     return slotNames.length === 1 ? slotNames[0] : "";
@@ -12607,6 +12786,16 @@
     );
   }
 
+  function isClassDefinitionNode(node) {
+    return !!(
+      node &&
+      typeof node === "object" &&
+      core.NODE_TYPES &&
+      core.NODE_TYPES.class &&
+      node.kind === core.NODE_TYPES.class
+    );
+  }
+
   function normalizeStructFieldName(value) {
     const source = String(value || "").trim();
     if (!source) {
@@ -12772,6 +12961,180 @@
     }
   }
 
+  function splitTopLevelCommaExpressions(source) {
+    const text = String(source || "");
+    const out = [];
+    let quote = "";
+    let escaped = false;
+    let parenDepth = 0;
+    let braceDepth = 0;
+    let bracketDepth = 0;
+    let start = 0;
+    for (let i = 0; i < text.length; i += 1) {
+      const ch = text.charAt(i);
+      if (quote) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === "`") {
+        quote = ch;
+        continue;
+      }
+      if (ch === "(") {
+        parenDepth += 1;
+        continue;
+      }
+      if (ch === ")") {
+        parenDepth = Math.max(0, parenDepth - 1);
+        continue;
+      }
+      if (ch === "{") {
+        braceDepth += 1;
+        continue;
+      }
+      if (ch === "}") {
+        braceDepth = Math.max(0, braceDepth - 1);
+        continue;
+      }
+      if (ch === "[") {
+        bracketDepth += 1;
+        continue;
+      }
+      if (ch === "]") {
+        bracketDepth = Math.max(0, bracketDepth - 1);
+        continue;
+      }
+      if (ch === "," && parenDepth === 0 && braceDepth === 0 && bracketDepth === 0) {
+        const entry = text.slice(start, i).trim();
+        if (entry) {
+          out.push(entry);
+        }
+        start = i + 1;
+      }
+    }
+    const last = text.slice(start).trim();
+    if (last) {
+      out.push(last);
+    }
+    return out;
+  }
+
+  function parseQClassBody(classId, bodySource) {
+    const parser = parserFor(String(bodySource || ""));
+    const constructors = [];
+    const methods = [];
+    const slotDeclarations = [];
+    const rawMembers = [];
+    const normalizedClassId = String(classId || "").trim();
+
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+      const memberStart = parser.index;
+      if (!isIdentifierStartChar(peek(parser))) {
+        parser.index += 1;
+        continue;
+      }
+      const first = parseIdentifier(parser);
+      const firstLower = String(first || "").trim().toLowerCase();
+      skipWhitespace(parser);
+      if (firstLower === "slot" && peek(parser) === "{") {
+        consume(parser);
+        const slotBody = readBalancedBlockContent(parser);
+        const slotNames = splitTokens(slotBody).map(function normalizeSlotToken(token) {
+          return String(token || "").trim();
+        }).filter(Boolean);
+        for (let i = 0; i < slotNames.length; i += 1) {
+          slotDeclarations.push(slotNames[i]);
+        }
+        continue;
+      }
+
+      let methodName = first;
+      let isConstructor = firstLower === "constructor" || first === normalizedClassId;
+      if (firstLower === "function") {
+        skipWhitespace(parser);
+        methodName = parseIdentifier(parser);
+        isConstructor = String(methodName || "").trim() === normalizedClassId || String(methodName || "").trim().toLowerCase() === "constructor";
+        skipWhitespace(parser);
+      }
+      if (peek(parser) !== "(") {
+        const boundary = findItemBoundaryInSource(parser.source, memberStart, { mode: "block", stopChar: "}" });
+        rawMembers.push(parser.source.slice(memberStart, boundary).trim());
+        parser.index = boundary;
+        continue;
+      }
+      consume(parser);
+      const parameters = readBalancedParenthesizedContent(parser);
+      skipWhitespace(parser);
+      if (peek(parser) !== "{") {
+        const boundary = findItemBoundaryInSource(parser.source, memberStart, { mode: "block", stopChar: "}" });
+        rawMembers.push(parser.source.slice(memberStart, boundary).trim());
+        parser.index = boundary;
+        continue;
+      }
+      consume(parser);
+      const memberBody = readBalancedBlockContent(parser);
+      const entry = {
+        name: String(methodName || "").trim(),
+        signature: String(methodName || "").trim() + "(" + String(parameters || "").trim() + ")",
+        parameters: String(parameters || "").trim(),
+        body: compactScriptBody(memberBody || ""),
+        source: parser.source.slice(memberStart, parser.index),
+      };
+      if (isConstructor) {
+        constructors.push(entry);
+      } else if (entry.name) {
+        methods.push(entry);
+      }
+    }
+
+    return {
+      constructorDefinition: constructors.length > 0 ? constructors[constructors.length - 1] : null,
+      methods: methods,
+      slotDeclarations: slotDeclarations,
+      rawMembers: rawMembers.filter(Boolean),
+    };
+  }
+
+  function buildClassNodeFromAst(astElement) {
+    const classId = String(astElement && astElement.classId || "").trim();
+    if (!classId) {
+      throw new Error("q-class definition requires a name.");
+    }
+    const parsedBody = parseQClassBody(classId, astElement.body || "");
+    const classNode = core.createClassNode({
+      classId: classId,
+      extendsClassId: String(astElement && astElement.extendsClassId || "").trim(),
+      constructorDefinition: parsedBody.constructorDefinition,
+      methods: parsedBody.methods,
+      slotDeclarations: parsedBody.slotDeclarations,
+      meta: {
+        originalSource: astElement.raw || "",
+        sourceRange:
+          typeof astElement.start === "number" && typeof astElement.end === "number"
+            ? [astElement.start, astElement.end]
+            : null,
+        __qhtmlClassBody: String(astElement.body || ""),
+        __qhtmlClassRawMembers: parsedBody.rawMembers,
+      },
+    });
+    applyKeywordAliasesToNode(classNode, astElement.keywords);
+    return classNode;
+  }
+
   function buildStructNodeFromAst(astElement) {
     const structId = String(astElement && astElement.instanceAlias || "").trim();
     if (!structId) {
@@ -12821,6 +13184,93 @@
     });
   }
 
+  function convertElementInvocationToClassInstance(elementNode, definitionNode) {
+    const slotFills = splitInvocationSlotFills(elementNode, definitionNode);
+    const invocationAttributes = Object.assign({}, elementNode.attributes || {});
+    const sourceBindings =
+      elementNode && elementNode.meta && Array.isArray(elementNode.meta.qBindings) ? elementNode.meta.qBindings : [];
+    const mappedBindings = [];
+    for (let i = 0; i < sourceBindings.length; i += 1) {
+      const candidate = sourceBindings[i];
+      if (!candidate || typeof candidate !== "object") {
+        continue;
+      }
+      const assignment = parseAssignmentName(candidate.name);
+      const targetName = String(assignment.name || "").trim();
+      if (!targetName) {
+        continue;
+      }
+      mappedBindings.push(
+        Object.assign({}, candidate, {
+          name: targetName,
+          targetHint: String(candidate.targetHint || assignment.hint || "auto").trim().toLowerCase() || "auto",
+          targetCollection: "attributes",
+        })
+      );
+    }
+
+    const instanceMeta = Object.assign({}, elementNode.meta || {});
+    const instanceAlias =
+      elementNode &&
+      elementNode.meta &&
+      typeof elementNode.meta === "object" &&
+      typeof elementNode.meta.__qhtmlInstanceAlias === "string"
+        ? String(elementNode.meta.__qhtmlInstanceAlias || "").trim()
+        : "";
+    if (!instanceAlias) {
+      throw new Error("q-class instance requires a typed name: '" + String(elementNode.tagName || "").trim() + "'.");
+    }
+    instanceMeta.__qhtmlInstanceAlias = instanceAlias;
+    if (mappedBindings.length > 0) {
+      instanceMeta.qBindings = mappedBindings;
+    } else if (Object.prototype.hasOwnProperty.call(instanceMeta, "qBindings")) {
+      delete instanceMeta.qBindings;
+    }
+
+    const slots = [];
+    const flattenedChildren = [];
+    slotFills.forEach(function eachSlot(children, slotName) {
+      const slotChildren = Array.isArray(children) ? children : [];
+      slots.push(
+        core.createSlotNode({
+          name: slotName,
+          children: slotChildren,
+          meta: {
+            generated: true,
+            originalSource: elementNode.meta && elementNode.meta.originalSource ? elementNode.meta.originalSource : null,
+          },
+        })
+      );
+      for (let i = 0; i < slotChildren.length; i += 1) {
+        flattenedChildren.push(slotChildren[i]);
+      }
+    });
+
+    const argumentSource =
+      elementNode && elementNode.meta && typeof elementNode.meta.__qhtmlInstanceArguments === "string"
+        ? String(elementNode.meta.__qhtmlInstanceArguments || "").trim()
+        : "";
+
+    return core.createClassInstanceNode({
+      classId: String(definitionNode.classId || definitionNode.componentId || elementNode.tagName || "").trim().toLowerCase(),
+      componentId: String(definitionNode.classId || definitionNode.componentId || elementNode.tagName || "").trim().toLowerCase(),
+      tagName: String(elementNode.tagName || definitionNode.classId || definitionNode.componentId || "").trim().toLowerCase(),
+      attributes: invocationAttributes,
+      props: Object.assign({}, invocationAttributes),
+      constructorArguments: splitTopLevelCommaExpressions(argumentSource),
+      argumentSource: argumentSource,
+      slots: slots,
+      lifecycleScripts: Array.isArray(elementNode.lifecycleScripts) ? elementNode.lifecycleScripts.slice() : [],
+      children: flattenedChildren,
+      textContent: typeof elementNode.textContent === "string" ? elementNode.textContent : null,
+      selectorMode: elementNode.selectorMode || "single",
+      selectorChain: Array.isArray(elementNode.selectorChain)
+        ? elementNode.selectorChain.slice()
+        : [String(elementNode.tagName || definitionNode.classId || "").trim().toLowerCase()],
+      meta: instanceMeta,
+    });
+  }
+
   function buildDefinitionRegistry(nodes) {
     const registry = new Map();
     const list = Array.isArray(nodes) ? nodes : [];
@@ -12832,6 +13282,11 @@
       }
       if (node.kind === core.NODE_TYPES.component) {
         const key = String(node.componentId || "").trim().toLowerCase();
+        if (key) {
+          registry.set(key, node);
+        }
+      } else if (isClassDefinitionNode(node)) {
+        const key = String(node.classId || node.componentId || "").trim().toLowerCase();
         if (key) {
           registry.set(key, node);
         }
@@ -12870,7 +13325,7 @@
       }
     }
 
-    if (node.kind === core.NODE_TYPES.component || isStructDefinitionNode(node)) {
+    if (node.kind === core.NODE_TYPES.component || isStructDefinitionNode(node) || isClassDefinitionNode(node)) {
       if (Array.isArray(node.templateNodes)) {
         node.templateNodes = normalizeNodesForDefinitions(node.templateNodes, definitionRegistry);
       }
@@ -12951,6 +13406,9 @@
         const definitionNode = definitionRegistry.get(tag);
         if (isStructDefinitionNode(definitionNode)) {
           return convertElementInvocationToStructInstance(node, definitionNode);
+        }
+        if (isClassDefinitionNode(definitionNode)) {
+          return convertElementInvocationToClassInstance(node, definitionNode);
         }
         return convertElementInvocationToInstance(node, definitionNode, definitionRegistry);
       }
@@ -15991,6 +16449,9 @@
           leaf.meta = {};
         }
         leaf.meta.__qhtmlInstanceAlias = instanceAlias;
+        if (typeof astElement.instanceArguments === "string" && astElement.instanceArguments.trim()) {
+          leaf.meta.__qhtmlInstanceArguments = astElement.instanceArguments;
+        }
         const potentialStructFields = tryReadStructFieldsFromAstItems(astElement.items);
         if (potentialStructFields) {
           leaf.meta.__qhtmlStructFieldOverrides = potentialStructFields;
@@ -16058,6 +16519,9 @@
         leaf.meta = {};
       }
       leaf.meta.__qhtmlInstanceAlias = instanceAlias;
+      if (typeof astElement.instanceArguments === "string" && astElement.instanceArguments.trim()) {
+        leaf.meta.__qhtmlInstanceArguments = astElement.instanceArguments;
+      }
       const potentialStructFields = tryReadStructFieldsFromAstItems(astElement.items);
       if (potentialStructFields) {
         leaf.meta.__qhtmlStructFieldOverrides = potentialStructFields;
@@ -16084,6 +16548,10 @@
 
     if (item.type === "Element") {
       return buildElementFromAst(item, source, context);
+    }
+
+    if (item.type === "QClassDefinition") {
+      return buildClassNodeFromAst(item);
     }
 
     if (item.type === "TemplateDefinition") {
@@ -17301,6 +17769,72 @@
       return lines.join("\n");
     }
 
+    if (core.NODE_TYPES.class && node.kind === core.NODE_TYPES.class) {
+      const classId = String(node.classId || node.componentId || "").trim();
+      const extendsClassId = String(node.extendsClassId || "").trim();
+      const head = indent + "q-class " + classId + (extendsClassId ? " extends " + extendsClassId : "") + " {";
+      const lines = [head];
+      if (node.constructorDefinition) {
+        const ctor = Object.assign({}, node.constructorDefinition, {
+          name: "constructor",
+          signature: "constructor(" + String(node.constructorDefinition.parameters || "").trim() + ")",
+        });
+        lines.push(serializeFunctionBlock(ctor, indentLevel + 1));
+      }
+      const methods = Array.isArray(node.methods) ? node.methods : [];
+      for (let i = 0; i < methods.length; i += 1) {
+        lines.push(serializeFunctionBlock(methods[i], indentLevel + 1));
+      }
+      const slots = Array.isArray(node.slotDeclarations) ? node.slotDeclarations : [];
+      for (let i = 0; i < slots.length; i += 1) {
+        const slotName = String(slots[i] || "").trim();
+        if (slotName) {
+          lines.push(indent + "  slot { " + slotName + " }");
+        }
+      }
+      lines.push(indent + "}");
+      return lines.join("\n");
+    }
+
+    if (core.NODE_TYPES.classInstance && node.kind === core.NODE_TYPES.classInstance) {
+      const classId = String(node.classId || node.componentId || node.tagName || "").trim().toLowerCase();
+      const instanceAlias =
+        node &&
+        node.meta &&
+        typeof node.meta === "object" &&
+        typeof node.meta.__qhtmlInstanceAlias === "string"
+          ? String(node.meta.__qhtmlInstanceAlias || "").trim()
+          : "";
+      const argumentSource = String(node.argumentSource || "").trim();
+      const head = classId + (instanceAlias ? " " + instanceAlias : "") + (argumentSource ? "(" + argumentSource + ")" : "");
+      const lines = [indent + head + " {"];
+      const attrs = Object.assign({}, node.attributes || {});
+      const bindings = collectNodeBindingsByTarget(node, "attributes");
+      const keys = Object.keys(attrs);
+      for (let i = 0; i < keys.length; i += 1) {
+        const key = keys[i];
+        if (bindings.has(key)) {
+          lines.push(serializeBindingAssignment(key, bindings.get(key), indentLevel + 1));
+        } else {
+          lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
+        }
+      }
+      const serializedSlotNodes = Array.isArray(node.slots) ? node.slots : [];
+      for (let i = 0; i < serializedSlotNodes.length; i += 1) {
+        const slotNode = serializedSlotNodes[i];
+        if (!slotNode || slotNode.kind !== core.NODE_TYPES.slot) {
+          continue;
+        }
+        lines.push(serializeSlotNode(slotNode, indentLevel + 1));
+      }
+      const children = Array.isArray(node.children) ? node.children : [];
+      for (let i = 0; i < children.length; i += 1) {
+        lines.push(serializeNode(children[i], indentLevel + 1));
+      }
+      lines.push(indent + "}");
+      return lines.join("\n");
+    }
+
     if (node.kind === core.NODE_TYPES.component) {
       const explicitDefinitionType = String(node.definitionType || "").trim().toLowerCase();
       const definitionType =
@@ -17794,6 +18328,8 @@
   const QCONTEXT_SYMBOL_HEAD_ONLY_KEY = "__qhtmlContextSymbolHeadOnly";
   const QCONTEXT_OWNER_TYPE_NAME_KEY = "__qhtmlContextOwnerTypeName";
   const QCONTEXT_OWNER_PARENT_HANDLE_KEY = "__qhtmlContextOwnerParentHandle";
+  const QHTML_PROPERTY_REFERENCE_FLAG = "__qhtmlPropertyReference";
+  const QHTML_PROPERTY_REFERENCE_UUID_KEY = "__qhtmlPropertyReferenceUuid";
   const Q_VAR_NODE_KIND = "q-var";
   const Q_SWITCH_NODE_KIND = "q-switch";
   const Q_TIMER_NODE_KIND = "q-timer";
@@ -18257,11 +18793,11 @@
     try {
       const qdomNode = typeof host.qdom === "function" ? host.qdom() : null;
       if (qdomNode && qdomNode.props && typeof qdomNode.props === "object" && Object.prototype.hasOwnProperty.call(qdomNode.props, key)) {
-        return qdomNode.props[key];
+        return resolveCallbackReferenceValue(qdomNode.props[key]);
       }
       if (qdomNode && typeof qdomNode.property === "function") {
         const qdomValue = qdomNode.property(key);
-        return typeof qdomValue === "undefined" ? fallbackValue : qdomValue;
+        return typeof qdomValue === "undefined" ? fallbackValue : resolveCallbackReferenceValue(qdomValue);
       }
     } catch (error) {
       // fall through to fallback
@@ -18275,8 +18811,57 @@
     if (!host || !key || INVALID_METHOD_NAMES.has(key)) {
       return value;
     }
-    host[key] = value;
+    const storageValue = createQHtmlPropertyReferenceValue(value);
+    const descriptor = Object.getOwnPropertyDescriptor(host, key);
+    const hasDeclaredSetter = !!(descriptor && typeof descriptor.set === "function");
+    host[key] = hasDeclaredSetter ? storageValue : resolveCallbackReferenceValue(storageValue);
+    if (!hasDeclaredSetter) {
+      syncComponentHostPropertyQDomValue(host, key, storageValue);
+    }
     return host[key];
+  }
+
+  function syncComponentHostPropertyQDomValue(hostElement, propertyName, value) {
+    if (!hostElement || !propertyName) {
+      return;
+    }
+    let qdomNode = null;
+    try {
+      qdomNode = typeof hostElement.qdom === "function" ? hostElement.qdom() : null;
+    } catch (error) {
+      qdomNode = null;
+    }
+    if (!qdomNode || typeof qdomNode !== "object") {
+      return;
+    }
+    try {
+      if (typeof qdomNode.setProperty === "function") {
+        qdomNode.setProperty(propertyName, value);
+        return;
+      }
+    } catch (error) {
+      // fall through to direct props sync
+    }
+    if (!qdomNode.props || typeof qdomNode.props !== "object" || Array.isArray(qdomNode.props)) {
+      qdomNode.props = {};
+    }
+    qdomNode.props[propertyName] = value;
+  }
+
+  function readUuidForDomElementByLookup(element) {
+    if (!element || element.nodeType !== 1 || !global.QHTML_UUID_LOOKUP_MAP || typeof global.QHTML_UUID_LOOKUP_MAP.forEach !== "function") {
+      return "";
+    }
+    let matched = "";
+    global.QHTML_UUID_LOOKUP_MAP.forEach(function eachLookup(lookupEntry, uuid) {
+      if (matched || !lookupEntry || typeof lookupEntry !== "object") {
+        return;
+      }
+      if (lookupEntry.dom === element) {
+        matched = String(uuid || "").trim();
+      }
+    });
+    return matched;
   }
 
   function installComponentPropertyAccessors(hostElement) {
@@ -18581,7 +19166,68 @@
     return null;
   }
 
+  function isQHtmlPropertyReferenceValue(value) {
+    return !!(value && typeof value === "object" && value[QHTML_PROPERTY_REFERENCE_FLAG] === true);
+  }
+
+  function resolveQHtmlPropertyReferenceValue(value) {
+    if (!isQHtmlPropertyReferenceValue(value)) {
+      return value;
+    }
+    const uuid = String(value[QHTML_PROPERTY_REFERENCE_UUID_KEY] || value.uuid || "").trim();
+    if (!uuid) {
+      return value;
+    }
+    if (global.QHTML_UUID_LOOKUP_MAP && typeof global.QHTML_UUID_LOOKUP_MAP.get === "function") {
+      const lookup = global.QHTML_UUID_LOOKUP_MAP.get(uuid);
+      if (lookup && typeof lookup === "object" && lookup.dom && lookup.dom.nodeType === 1) {
+        return lookup.dom;
+      }
+      if (lookup && typeof lookup === "object" && lookup.pointer && typeof lookup.pointer === "object") {
+        return lookup.pointer;
+      }
+    }
+    if (global.QHTML_UUID_MAP && typeof global.QHTML_UUID_MAP.get === "function") {
+      const mapped = global.QHTML_UUID_MAP.get(uuid);
+      if (mapped && typeof mapped === "object") {
+        return mapped;
+      }
+    }
+    return value;
+  }
+
+  function createQHtmlPropertyReferenceValue(value) {
+    let uuid = "";
+    if (isContextSymbolHandle(value)) {
+      if (value.__qhtmlAliasTarget && typeof value.__qhtmlAliasTarget === "object") {
+        uuid = readUuidForDomElementByLookup(value.__qhtmlAliasTarget) || readHostQDomUuid(value.__qhtmlAliasTarget);
+      }
+      if (!uuid) {
+        uuid = String(value[QCONTEXT_SYMBOL_UUID_KEY] || value.uuid || "").trim();
+      }
+    } else if (value && typeof value === "object" && value.nodeType === 1 && typeof value.qdom === "function") {
+      uuid = readUuidForDomElementByLookup(value) || readHostQDomUuid(value);
+    } else if (value && typeof value === "object" && value.meta && typeof value.meta[QDOM_UUID_META_KEY] === "string") {
+      uuid = String(value.meta[QDOM_UUID_META_KEY] || "").trim();
+    }
+    if (!uuid) {
+      return value;
+    }
+    const reference = {};
+    reference[QHTML_PROPERTY_REFERENCE_FLAG] = true;
+    reference[QHTML_PROPERTY_REFERENCE_UUID_KEY] = uuid;
+    reference.uuid = uuid;
+    return reference;
+  }
+
   function resolveCallbackReferenceValue(value) {
+    if (isQHtmlPropertyReferenceValue(value)) {
+      return resolveQHtmlPropertyReferenceValue(value);
+    }
+    if (isContextSymbolHandle(value)) {
+      const resolvedTarget = readHandleResolutionTarget(value);
+      return resolvedTarget || value;
+    }
     if (typeof value !== "string") {
       return value;
     }
@@ -20040,7 +20686,11 @@
     if (core.NODE_TYPES.text && node.kind === core.NODE_TYPES.text) {
       return String(node.value || "");
     }
-    if (node.kind !== core.NODE_TYPES.element && node.kind !== core.NODE_TYPES.componentInstance) {
+    if (
+      node.kind !== core.NODE_TYPES.element &&
+      node.kind !== core.NODE_TYPES.componentInstance &&
+      (!core.NODE_TYPES.classInstance || node.kind !== core.NODE_TYPES.classInstance)
+    ) {
       return "";
     }
     let out = "";
@@ -20407,6 +21057,11 @@
       }
       if (node.kind === core.NODE_TYPES.component) {
         const id = String(node.componentId || "").trim().toLowerCase();
+        if (id) {
+          registry.set(id, node);
+        }
+      } else if (core.NODE_TYPES.class && node.kind === core.NODE_TYPES.class) {
+        const id = String(node.classId || node.componentId || "").trim().toLowerCase();
         if (id) {
           registry.set(id, node);
         }
@@ -22393,7 +23048,9 @@
         clone.children = materializeSlots(clone.children, slotFills);
       }
       if (
-        (clone.kind === core.NODE_TYPES.componentInstance || clone.kind === core.NODE_TYPES.templateInstance) &&
+        (clone.kind === core.NODE_TYPES.componentInstance ||
+          clone.kind === core.NODE_TYPES.templateInstance ||
+          (core.NODE_TYPES.classInstance && clone.kind === core.NODE_TYPES.classInstance)) &&
         readRendererSlotNodes(clone).length > 0
       ) {
         const slotNodes = readRendererSlotNodes(clone);
@@ -22409,7 +23066,9 @@
         writeRendererSlotNodes(clone, slotNodes);
       }
       if (
-        (clone.kind === core.NODE_TYPES.componentInstance || clone.kind === core.NODE_TYPES.templateInstance) &&
+        (clone.kind === core.NODE_TYPES.componentInstance ||
+          clone.kind === core.NODE_TYPES.templateInstance ||
+          (core.NODE_TYPES.classInstance && clone.kind === core.NODE_TYPES.classInstance)) &&
         Array.isArray(clone.children) &&
         clone.children.length > 0
       ) {
@@ -26981,10 +27640,13 @@
             return resolveCallbackReferenceValue(literalDefault);
           },
           set: function setDeclaredComponentProperty(value) {
-            const resolvedValue = resolveCallbackReferenceValue(value);
+            const storageInputValue = createQHtmlPropertyReferenceValue(value);
+            const resolvedValue = resolveCallbackReferenceValue(storageInputValue);
+            const isPropertyReferenceValue = isQHtmlPropertyReferenceValue(storageInputValue);
             const normalizedCssValue = normalizeCssUnitPropertyValue(resolvedValue);
-            let normalizedValue = normalizedCssValue.value;
+            let normalizedValue = isPropertyReferenceValue ? storageInputValue : normalizedCssValue.value;
             if (
+              !isPropertyReferenceValue &&
               core &&
               typeof core.isCssValue === "function" &&
               (core.isCssValue(normalizedValue) || (normalizedValue && typeof normalizedValue === "object" && normalizedValue[core.QCSS_VALUE_MARKER] === true)) &&
@@ -26992,7 +27654,8 @@
             ) {
               normalizedValue = core.createCssValue(normalizedValue, "", { context: this, property: propertyName });
             }
-            const normalizedCssUnit = normalizedCssValue.matched ? normalizedCssValue.cssUnit : "";
+            const normalizedCssUnit = !isPropertyReferenceValue && normalizedCssValue.matched ? normalizedCssValue.cssUnit : "";
+            const publicNextValue = resolveCallbackReferenceValue(normalizedValue);
             if (normalizedValue && typeof normalizedValue.then === "function") {
               const self = this;
               Promise.resolve(normalizedValue)
@@ -27017,7 +27680,7 @@
             const trackedState = readTrackedDeclaredProperty(this, propertyName);
             if (trackedState.exists) {
               hadValue = true;
-              previousValue = trackedState.value;
+              previousValue = resolveCallbackReferenceValue(trackedState.value);
             }
             try {
               const qdomNode = readHostQDomNode(this);
@@ -27032,7 +27695,7 @@
             }
             if (!hadValue && Object.prototype.hasOwnProperty.call(this, storageKey)) {
               hadValue = true;
-              previousValue = this[storageKey];
+              previousValue = resolveCallbackReferenceValue(this[storageKey]);
             }
             if (!hadValue) {
               try {
@@ -27052,13 +27715,13 @@
             const behaviorBypassed = this[behaviorBypassKey] === true;
             const behaviorSuppressChanged = this[behaviorSuppressKey] === true;
             if (Object.prototype.hasOwnProperty.call(this, behaviorPreviousKey)) {
-              previousValue = this[behaviorPreviousKey];
+              previousValue = resolveCallbackReferenceValue(this[behaviorPreviousKey]);
               hadValue = true;
             }
             if (
               !behaviorBypassed &&
-              !Object.is(previousValue, normalizedValue) &&
-              startDeclaredPropertyBehavior(this, componentNode, propertyName, resolvedValue, normalizedValue, previousValue)
+              !Object.is(previousValue, publicNextValue) &&
+              startDeclaredPropertyBehavior(this, componentNode, propertyName, resolvedValue, publicNextValue, previousValue)
             ) {
               return;
             }
@@ -27070,7 +27733,7 @@
             } catch (syncError) {
               // best-effort qdom sync for declared property writes
             }
-            if (hadValue && Object.is(previousValue, normalizedValue)) {
+            if (hadValue && Object.is(previousValue, publicNextValue)) {
               writeTrackedDeclaredProperty(this, propertyName, normalizedValue);
               attachDeclaredPropertyModelListener(this, componentId, propertyName, normalizedValue);
               if (this.__qhtmlDeclaredCssBindingsActive === true) {
@@ -27094,10 +27757,10 @@
                   componentUuid: readHostQDomUuid(this),
                   property: propertyName,
                   previousValue: previousValue,
-                  value: normalizedValue,
+                  value: publicNextValue,
                 });
               }
-              emitDeclaredPropertyChangedEvent(this, componentId, propertyName, normalizedValue, previousValue);
+              emitDeclaredPropertyChangedEvent(this, componentId, propertyName, publicNextValue, previousValue);
             }
           },
         });
@@ -28633,7 +29296,12 @@
         }
         const resolvedTarget = readHandleResolutionTarget(target);
         if (resolvedTarget && typeof resolvedTarget === "object") {
-          resolvedTarget[prop] = value;
+          const key = typeof prop === "string" ? String(prop || "").trim() : "";
+          if (key && resolvedTarget.nodeType === 1 && typeof resolvedTarget.setProperty === "function" && !(prop in resolvedTarget)) {
+            resolvedTarget.setProperty(key, value);
+          } else {
+            resolvedTarget[prop] = value;
+          }
         }
         return true;
       },
@@ -30759,6 +31427,11 @@
         return;
       }
 
+      if (core.NODE_TYPES.class && node.kind === core.NODE_TYPES.class) {
+        registerQClassDefinition(node, parent, context);
+        return;
+      }
+
       if (core.NODE_TYPES.struct && node.kind === core.NODE_TYPES.struct) {
         const structId = String(node.structId || node.componentId || "").trim().toLowerCase();
         if (structId && context && context.componentRegistry instanceof Map) {
@@ -30773,6 +31446,16 @@
         const structNode = registry && typeof registry.get === "function" ? registry.get(key) : null;
         if (structNode && core.NODE_TYPES.struct && structNode.kind === core.NODE_TYPES.struct) {
           renderStructInstance(structNode, node, parent, targetDocument, context);
+        }
+        return;
+      }
+
+      if (core.NODE_TYPES.classInstance && node.kind === core.NODE_TYPES.classInstance) {
+        const registry = context.componentRegistry;
+        const key = String(node.classId || node.componentId || node.tagName || "").toLowerCase();
+        const classNode = registry && typeof registry.get === "function" ? registry.get(key) : null;
+        if (classNode && core.NODE_TYPES.class && classNode.kind === core.NODE_TYPES.class) {
+          renderClassInstance(classNode, node, parent, targetDocument, context);
         }
         return;
       }
@@ -30805,9 +31488,13 @@
 	      const registry = context.componentRegistry;
 	      const component = registry.get(tagName);
 	
-	      if (component && !isLayoutKeywordElement) {
+      if (component && !isLayoutKeywordElement) {
 	        if (core.NODE_TYPES.struct && component.kind === core.NODE_TYPES.struct) {
 	          renderStructInstance(component, createStructInstanceNodeFromElement(node, component), parent, targetDocument, context);
+	          return;
+	        }
+	        if (core.NODE_TYPES.class && component.kind === core.NODE_TYPES.class) {
+	          renderClassInstance(component, node, parent, targetDocument, context);
 	          return;
 	        }
 	        renderComponentInstance(component, node, parent, targetDocument, context);
@@ -31575,6 +32262,394 @@
     renderComponentHostInstance(effectiveComponentNode, instanceNode, parent, targetDocument, context);
   }
 
+  function readClassInstanceAlias(instanceNode) {
+    return String(
+      instanceNode &&
+      instanceNode.meta &&
+      typeof instanceNode.meta === "object" &&
+      typeof instanceNode.meta.__qhtmlInstanceAlias === "string"
+        ? instanceNode.meta.__qhtmlInstanceAlias
+        : ""
+    ).trim();
+  }
+
+  function sanitizeQClassConstructorName(name) {
+    const source = String(name || "").trim();
+    return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(source) ? source : "QDomClass";
+  }
+
+  function hasDirectSuperCall(source) {
+    return /\bsuper\s*\(/.test(String(source || ""));
+  }
+
+  function ensureClassTypeCache(context) {
+    if (!context || typeof context !== "object") {
+      return new Map();
+    }
+    if (!(context.__qhtmlClassTypeCache instanceof Map)) {
+      context.__qhtmlClassTypeCache = new Map();
+    }
+    return context.__qhtmlClassTypeCache;
+  }
+
+  function ensureClassInitialStack(context) {
+    if (!context || typeof context !== "object") {
+      return [];
+    }
+    if (!Array.isArray(context.__qhtmlClassInitialStack)) {
+      context.__qhtmlClassInitialStack = [];
+    }
+    return context.__qhtmlClassInitialStack;
+  }
+
+  function pushQClassInitialProps(context, payload) {
+    ensureClassInitialStack(context).push(payload && typeof payload === "object" ? payload : {});
+  }
+
+  function peekQClassInitialProps(context) {
+    const stack = ensureClassInitialStack(context);
+    return stack.length > 0 ? stack[stack.length - 1] : {};
+  }
+
+  function popQClassInitialProps(context) {
+    const stack = ensureClassInitialStack(context);
+    if (stack.length > 0) {
+      stack.pop();
+    }
+  }
+
+  function createQDomClassBase(context) {
+    return class QDomClassBase {
+      constructor() {
+        const initial = peekQClassInitialProps(context);
+        const props = initial && initial.props && typeof initial.props === "object" ? initial.props : {};
+        Object.assign(this, props);
+        try {
+          Object.defineProperty(this, "__qhtmlQDomNode", {
+            value: initial && initial.qdom ? initial.qdom : null,
+            configurable: true,
+            writable: true,
+          });
+          Object.defineProperty(this, "__qhtmlElement", {
+            value: initial && initial.element ? initial.element : null,
+            configurable: true,
+            writable: true,
+          });
+        } catch (error) {
+          this.__qhtmlQDomNode = initial && initial.qdom ? initial.qdom : null;
+          this.__qhtmlElement = initial && initial.element ? initial.element : null;
+        }
+      }
+
+      qdom() {
+        return this.__qhtmlQDomNode || null;
+      }
+
+      element() {
+        return this.__qhtmlElement || null;
+      }
+
+      children() {
+        const node = this.qdom();
+        return node && Array.isArray(node.children) ? node.children : [];
+      }
+
+      slots() {
+        const node = this.qdom();
+        if (!node || typeof node !== "object") {
+          return [];
+        }
+        if (Array.isArray(node.slots)) {
+          return node.slots;
+        }
+        if (Array.isArray(node.__qhtmlSlotNodes)) {
+          return node.__qhtmlSlotNodes;
+        }
+        return [];
+      }
+    };
+  }
+
+  function buildQClassConstructorSource(classNode) {
+    const className = sanitizeQClassConstructorName(classNode && (classNode.classId || classNode.componentId));
+    const ctor = classNode && classNode.constructorDefinition && typeof classNode.constructorDefinition === "object"
+      ? classNode.constructorDefinition
+      : null;
+    const ctorParams = ctor ? String(ctor.parameters || "").trim() : "";
+    let ctorBody = ctor ? String(ctor.body || "") : "";
+    if (!hasDirectSuperCall(ctorBody)) {
+      ctorBody = "super(...arguments);\n" + ctorBody;
+    }
+    const lines = ["return class " + className + " extends __qhtmlBase {"];
+    lines.push("constructor(" + ctorParams + ") {");
+    lines.push(ctorBody);
+    lines.push("}");
+    const methods = Array.isArray(classNode && classNode.methods) ? classNode.methods : [];
+    for (let i = 0; i < methods.length; i += 1) {
+      const method = methods[i];
+      const name = sanitizeQClassConstructorName(method && method.name);
+      if (!name || name === "QDomClass") {
+        continue;
+      }
+      lines.push(name + "(" + String(method.parameters || "").trim() + ") {");
+      lines.push(String(method.body || ""));
+      lines.push("}");
+    }
+    lines.push("}");
+    return lines.join("\n");
+  }
+
+  function resolveQClassRuntimeType(classNode, context) {
+    if (!classNode || typeof classNode !== "object") {
+      return null;
+    }
+    const classId = String(classNode.classId || classNode.componentId || "").trim();
+    const key = classId.toLowerCase();
+    if (!key) {
+      return null;
+    }
+    const cache = ensureClassTypeCache(context);
+    if (cache.has(key)) {
+      return cache.get(key);
+    }
+    const baseId = String(classNode.extendsClassId || "").trim().toLowerCase();
+    let baseCtor = createQDomClassBase(context);
+    if (baseId && context && context.componentRegistry instanceof Map) {
+      const baseNode = context.componentRegistry.get(baseId);
+      if (baseNode && core.NODE_TYPES.class && baseNode.kind === core.NODE_TYPES.class) {
+        const resolvedBase = resolveQClassRuntimeType(baseNode, context);
+        if (typeof resolvedBase === "function") {
+          baseCtor = resolvedBase;
+        }
+      }
+    }
+    let RuntimeClass = null;
+    try {
+      RuntimeClass = new Function("__qhtmlBase", buildQClassConstructorSource(classNode))(baseCtor);
+    } catch (error) {
+      if (global.console && typeof global.console.error === "function") {
+        global.console.error("qhtml q-class constructor compile failed:", error);
+      }
+      RuntimeClass = class QDomInvalidClass extends baseCtor {};
+    }
+    RuntimeClass.__qhtmlClassNode = classNode;
+    RuntimeClass.__qhtmlClassId = classId;
+    RuntimeClass.__qhtmlCreateInstance = function createQClassInstance(initialProps, args) {
+      const ctorArgs = Array.isArray(args) ? args : [];
+      pushQClassInitialProps(context, initialProps || {});
+      try {
+        return Reflect.construct(RuntimeClass, ctorArgs);
+      } finally {
+        popQClassInitialProps(context);
+      }
+    };
+    cache.set(key, RuntimeClass);
+    return RuntimeClass;
+  }
+
+  function registerQClassDefinition(classNode, parent, context) {
+    const classId = String(classNode && (classNode.classId || classNode.componentId) || "").trim();
+    if (!classId) {
+      return;
+    }
+    if (context && context.componentRegistry instanceof Map) {
+      context.componentRegistry.set(classId.toLowerCase(), classNode);
+    }
+    const runtimeType = resolveQClassRuntimeType(classNode, context);
+    if (runtimeType) {
+      registerNamedRuntimeValueAlias(context, classId, runtimeType);
+    }
+  }
+
+  function evaluateQClassArguments(instanceNode, parent, context) {
+    const expressions = Array.isArray(instanceNode && instanceNode.constructorArguments)
+      ? instanceNode.constructorArguments
+      : [];
+    if (expressions.length === 0) {
+      return [];
+    }
+    const scope = buildInterpolationScope(context, parent && parent.nodeType === 1 ? parent : null);
+    const out = [];
+    for (let i = 0; i < expressions.length; i += 1) {
+      const expression = String(expressions[i] || "").trim();
+      if (!expression) {
+        continue;
+      }
+      out.push(
+        evaluateInlineReferenceExpression(
+          expression,
+          parent && parent.nodeType === 1 ? parent : null,
+          scope,
+          "qhtml q-class constructor argument evaluation failed:",
+          { pathFallbackLiteral: false, allowBareDotWalk: true }
+        )
+      );
+    }
+    return out;
+  }
+
+  function escapeQClassPropNameForRegExp(name) {
+    return String(name || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function readQuotedQClassInitialPropMap(instanceNode) {
+    const out = Object.create(null);
+    const source =
+      instanceNode &&
+      instanceNode.meta &&
+      typeof instanceNode.meta.originalSource === "string"
+        ? instanceNode.meta.originalSource
+        : "";
+    const fields =
+      instanceNode &&
+      instanceNode.meta &&
+      Array.isArray(instanceNode.meta.__qhtmlStructFieldOverrides)
+        ? instanceNode.meta.__qhtmlStructFieldOverrides
+        : [];
+    if (!source || fields.length === 0) {
+      return out;
+    }
+    for (let i = 0; i < fields.length; i += 1) {
+      const name = String(fields[i] && fields[i].name || "").trim();
+      if (!name) {
+        continue;
+      }
+      const pattern = new RegExp("(^|[\\s{;])" + escapeQClassPropNameForRegExp(name) + "\\s*:\\s*([\"'`])");
+      out[name] = pattern.test(source);
+    }
+    return out;
+  }
+
+  function isBareQClassReferenceExpression(expression) {
+    return /^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(String(expression || "").trim());
+  }
+
+  function hasQClassScopeReference(expression, scope) {
+    const parts = String(expression || "").trim().split(".");
+    let cursor = scope;
+    for (let i = 0; i < parts.length; i += 1) {
+      const part = parts[i];
+      if (!cursor || !(part in Object(cursor))) {
+        return false;
+      }
+      cursor = cursor[part];
+    }
+    return true;
+  }
+
+  function unwrapQClassInitialPropValue(value) {
+    if (isContextSymbolHandle(value) && value.__qhtmlAliasTarget && typeof value.__qhtmlAliasTarget === "object") {
+      return value.__qhtmlAliasTarget;
+    }
+    return value;
+  }
+
+  function evaluateQClassInitialPropValue(name, value, quotedProps, scope, parent, context) {
+    if (typeof value !== "string") {
+      return unwrapQClassInitialPropValue(value);
+    }
+    const expression = String(value || "").trim();
+    if (!expression || (quotedProps && quotedProps[name])) {
+      return value;
+    }
+    if (isBareQClassReferenceExpression(expression) && !hasQClassScopeReference(expression, scope)) {
+      return value;
+    }
+    try {
+      return unwrapQClassInitialPropValue(
+        evaluateInlineReferenceExpression(
+          expression,
+          parent && parent.nodeType === 1 ? parent : null,
+          scope,
+          "qhtml q-class initial property evaluation failed:",
+          { pathFallbackLiteral: false, allowBareDotWalk: true }
+        )
+      );
+    } catch (error) {
+      return value;
+    }
+  }
+
+  function evaluateQClassInitialProps(instanceNode, parent, context) {
+    const raw = Object.assign({}, instanceNode && instanceNode.props || {}, instanceNode && instanceNode.attributes || {});
+    const quotedProps = readQuotedQClassInitialPropMap(instanceNode);
+    const scope = buildInterpolationScope(context, parent && parent.nodeType === 1 ? parent : null);
+    const out = {};
+    const names = Object.keys(raw);
+    for (let i = 0; i < names.length; i += 1) {
+      const name = names[i];
+      out[name] = evaluateQClassInitialPropValue(name, raw[name], quotedProps, scope, parent, context);
+    }
+    return out;
+  }
+
+  function renderClassInstance(classNode, instanceNode, parent, targetDocument, context) {
+    const tagName = String(instanceNode && (instanceNode.tagName || instanceNode.classId || instanceNode.componentId) || "q-class-instance")
+      .trim()
+      .toLowerCase();
+    const element = targetDocument.createElement(tagName);
+    bindRuntimeContextToTarget(
+      element,
+      context[QCONTEXT_SCOPE_FRAME_KEY],
+      context[QCONTEXT_RUNTIME_FRAME_KEY]
+    );
+    const interpolationScope = buildInterpolationScope(context, parent && parent.nodeType === 1 ? parent : null);
+    setElementAttributes(element, instanceNode.attributes || {}, {
+      thisArg: element,
+      scope: interpolationScope,
+      eventAttributeParameters:
+        instanceNode && instanceNode.meta && instanceNode.meta.__qhtmlEventAttributeParams
+          ? instanceNode.meta.__qhtmlEventAttributeParams
+          : null,
+      eventAttributeThen:
+        instanceNode && instanceNode.meta && instanceNode.meta.__qhtmlEventAttributeThen
+          ? instanceNode.meta.__qhtmlEventAttributeThen
+          : null,
+    });
+    parent.appendChild(element);
+    if (context.capture) {
+      if (context.capture.nodeMap) {
+        context.capture.nodeMap.set(element, instanceNode);
+      }
+      if (context.capture.componentMap && context.componentHostStack.length > 0) {
+        context.capture.componentMap.set(element, context.componentHostStack[context.componentHostStack.length - 1]);
+      }
+      if (context.capture.slotMap && context.slotStack.length > 0) {
+        context.capture.slotMap.set(element, context.slotStack[context.slotStack.length - 1]);
+      }
+    }
+    const runtimeType = resolveQClassRuntimeType(classNode, context);
+    const initialProps = evaluateQClassInitialProps(instanceNode, parent, context);
+    const args = evaluateQClassArguments(instanceNode, parent, context);
+    const value =
+      runtimeType && typeof runtimeType.__qhtmlCreateInstance === "function"
+        ? runtimeType.__qhtmlCreateInstance({ props: initialProps, qdom: instanceNode, element: element }, args)
+        : initialProps;
+    try {
+      Object.defineProperty(element, "__qhtmlClassInstance", {
+        value: value,
+        configurable: true,
+        writable: true,
+      });
+    } catch (error) {
+      element.__qhtmlClassInstance = value;
+    }
+    const alias = readClassInstanceAlias(instanceNode);
+    if (alias) {
+      registerNamedRuntimeValueAlias(context, alias, value);
+    }
+    const childContext = createChildRenderContext(context, {});
+    pushInstanceAliasScope(childContext);
+    try {
+      const children = Array.isArray(instanceNode.children) ? instanceNode.children : [];
+      for (let i = 0; i < children.length; i += 1) {
+        renderNode(children[i], element, targetDocument, childContext);
+      }
+    } finally {
+      popInstanceAliasScope(childContext);
+    }
+  }
+
   function normalizeStructFieldMap(fields) {
     const map = new Map();
     const list = Array.isArray(fields) ? fields : [];
@@ -32165,7 +33240,7 @@
   const sdmlStateByDocument = new WeakMap();
   const definitionRegistry = new Map();
   const registeredCustomElements = new Set();
-  const RUNTIME_VERSION = "7.0.1";
+  const RUNTIME_VERSION = "7.1.0";
   const IMPORT_CACHE_RECORDS_KEY = "qhtml.import.records";
   const IMPORT_CACHE_INDEX_KEY = "qhtml.import.index";
   let elementPrototypeQdomAccessorInstalled = false;
@@ -32211,6 +33286,8 @@
   const QCONTEXT_SYMBOL_UUID_KEY = "__qhtmlContextSymbolUuid";
   const QCONTEXT_SYMBOL_KIND_KEY = "__qhtmlContextSymbolKind";
   const QCONTEXT_SYMBOL_HEAD_ONLY_KEY = "__qhtmlContextSymbolHeadOnly";
+  const QHTML_PROPERTY_REFERENCE_FLAG = "__qhtmlPropertyReference";
+  const QHTML_PROPERTY_REFERENCE_UUID_KEY = "__qhtmlPropertyReferenceUuid";
   const Q_MODEL_VIEW_INSTANCE_ATTR = "q-model-view-instance";
   const Q_MODEL_VIEW_SCOPE_TAG = "q-model-view-scope";
   const QDOM_UPDATE_EVENT_NAME = "qhtml:update";
@@ -33391,7 +34468,7 @@
     if (kind === "component") {
       return "q-component " + String(targetNode.componentId || "unnamed").trim();
     }
-    if (kind === "component-instance" || kind === "template-instance") {
+    if (kind === "component-instance" || kind === "template-instance" || kind === "class-instance") {
       const tag = String(targetNode.tagName || targetNode.componentId || "component").trim();
       return tag || "component";
     }
@@ -33447,7 +34524,7 @@
       }
       return String(targetNode.tagName || "element");
     }
-    if (kind === "component" || kind === "component-instance" || kind === "template-instance") {
+    if (kind === "component" || kind === "component-instance" || kind === "template-instance" || kind === "class-instance") {
       return String(targetNode.componentId || targetNode.tagName || "component");
     }
     if (kind === "repeater") {
@@ -39058,6 +40135,53 @@
     return pointer && typeof pointer === "object" ? pointer : null;
   }
 
+  function isQHtmlPropertyReferenceValue(value) {
+    return !!(value && typeof value === "object" && value[QHTML_PROPERTY_REFERENCE_FLAG] === true);
+  }
+
+  function resolveQHtmlPropertyReferenceValue(value) {
+    if (!isQHtmlPropertyReferenceValue(value)) {
+      return value;
+    }
+    const uuid = normalizeQDomUuidValue(value[QHTML_PROPERTY_REFERENCE_UUID_KEY] || value.uuid || "");
+    if (!uuid) {
+      return value;
+    }
+    const lookup = globalUuidLookupRegistry.get(uuid);
+    if (lookup && typeof lookup === "object" && lookup.dom && lookup.dom.nodeType === 1) {
+      return lookup.dom;
+    }
+    if (lookup && typeof lookup === "object" && lookup.pointer && typeof lookup.pointer === "object") {
+      return lookup.pointer;
+    }
+    const pointer = resolveUuidPointer(uuid);
+    return pointer && typeof pointer === "object" ? pointer : value;
+  }
+
+  function createQHtmlPropertyReferenceValue(value) {
+    let uuid = "";
+    if (value && typeof value === "object" && value[QCONTEXT_SYMBOL_HANDLE_FLAG] === true) {
+      if (value.__qhtmlAliasTarget && typeof value.__qhtmlAliasTarget === "object" && value.__qhtmlAliasTarget.nodeType === 1) {
+        uuid = normalizeQDomUuidValue(readUuidForDomElementByLookup(value.__qhtmlAliasTarget) || "");
+      }
+      if (!uuid) {
+        uuid = normalizeQDomUuidValue(value[QCONTEXT_SYMBOL_UUID_KEY] || value.uuid || "");
+      }
+    } else if (value && typeof value === "object" && value.nodeType === 1) {
+      uuid = normalizeQDomUuidValue(readUuidForDomElementByLookup(value) || "");
+    } else if (value && typeof value === "object" && value.meta && typeof value.meta[QDOM_UUID_META_KEY] === "string") {
+      uuid = normalizeQDomUuidValue(value.meta[QDOM_UUID_META_KEY] || "");
+    }
+    if (!uuid) {
+      return value;
+    }
+    const reference = {};
+    reference[QHTML_PROPERTY_REFERENCE_FLAG] = true;
+    reference[QHTML_PROPERTY_REFERENCE_UUID_KEY] = uuid;
+    reference.uuid = uuid;
+    return reference;
+  }
+
   function forEachPropertyChangeSubscriberTarget(payload, callback) {
     if (typeof callback !== "function") {
       return;
@@ -43803,7 +44927,7 @@
       return false;
     }
     const kind = String(qdomNode.kind || "").trim().toLowerCase();
-    return kind === "element" || kind === "component-instance" || kind === "template-instance";
+    return kind === "element" || kind === "component-instance" || kind === "template-instance" || kind === "class-instance";
   }
 
   function setQDomNodeAttributeValue(qdomNode, name, nextValue) {
@@ -44588,7 +45712,7 @@
       return null;
     }
     const targetKind = String(normalizedTarget.kind || "").trim().toLowerCase();
-    if (targetKind === "component-instance" || targetKind === "template-instance") {
+    if (targetKind === "component-instance" || targetKind === "template-instance" || targetKind === "class-instance") {
       return normalizedTarget;
     }
     const cache = ensureBindingComponentScopeCache(binding);
@@ -44612,7 +45736,7 @@
 
       const kind = String(normalized.kind || "").trim().toLowerCase();
       const nextScope =
-        kind === "component-instance" || kind === "template-instance" ? normalized : activeScope;
+        kind === "component-instance" || kind === "template-instance" || kind === "class-instance" ? normalized : activeScope;
 
       if (cache) {
         cache.set(normalized, nextScope || null);
@@ -44878,7 +46002,7 @@
           }
         }
         if (
-          (nodeKind === "element" || nodeKind === "component-instance" || nodeKind === "template-instance") &&
+          (nodeKind === "element" || nodeKind === "component-instance" || nodeKind === "template-instance" || nodeKind === "class-instance") &&
           nodeCandidate.attributes &&
           typeof nodeCandidate.attributes === "object" &&
           query.charAt(0) === "#" &&
@@ -46949,7 +48073,7 @@
         if (kind === "component") {
           return String(node.componentId || "component").trim() || "component";
         }
-        if (kind === "component-instance" || kind === "template-instance") {
+        if (kind === "component-instance" || kind === "template-instance" || kind === "class-instance") {
           return String(node.componentId || node.tagName || kind).trim() || kind;
         }
         if (kind === "slot") {
@@ -47456,7 +48580,7 @@
 
       function selectNodeName(targetNode) {
         const kind = normalizedKind(targetNode);
-        if (kind === "component" || kind === "component-instance" || kind === "template-instance") {
+        if (kind === "component" || kind === "component-instance" || kind === "template-instance" || kind === "class-instance") {
           return String(targetNode.componentId || targetNode.tagName || "").trim().toLowerCase();
         }
         return String(targetNode && targetNode.tagName ? targetNode.tagName : "").trim().toLowerCase();
@@ -49152,10 +50276,11 @@
           if (!key) {
             return installQDomFactories(node);
           }
+          const storageValue = createQHtmlPropertyReferenceValue(value);
           if (!node.props || typeof node.props !== "object" || Array.isArray(node.props)) {
             node.props = {};
           }
-          node.props[key] = value;
+          node.props[key] = storageValue;
           if (!Array.isArray(node.properties)) {
             node.properties = [];
           }
@@ -49168,7 +50293,7 @@
             if (String(entry.name || "").trim() !== key) {
               continue;
             }
-            entry.value = value;
+            entry.value = storageValue;
             matched = true;
             break;
           }
@@ -49176,7 +50301,7 @@
             node.properties.push({
               kind: "property",
               name: key,
-              value: value,
+              value: storageValue,
             });
           }
           markRuntimeQDomDirty(binding, node);
@@ -49197,7 +50322,7 @@
           }
           if (node.props && typeof node.props === "object" && !Array.isArray(node.props)) {
             if (Object.prototype.hasOwnProperty.call(node.props, key)) {
-              return node.props[key];
+              return resolveQHtmlPropertyReferenceValue(node.props[key]);
             }
           }
           if (Array.isArray(node.properties)) {
@@ -49209,7 +50334,7 @@
               if (String(entry.name || "").trim() !== key) {
                 continue;
               }
-              return entry.value;
+              return resolveQHtmlPropertyReferenceValue(entry.value);
             }
           }
           return undefined;
@@ -51592,7 +52717,7 @@
   }
 
   const api = runtime;
-  api.version = "7.0.1";
+  api.version = "7.1.0";
   global.QHTML_VERSION = api.version;
 
   api.parseQHtml = function parseQHtml(source) {

@@ -32,6 +32,7 @@
   const CANONICAL_KEYWORD_TARGETS = new Set([
     "q-component",
     "q-struct",
+    "q-class",
     "q-worker",
     "q-template",
     "q-macro",
@@ -2459,6 +2460,42 @@
     return out;
   }
 
+  function parseQClassDefinitionAfterKeyword(parser, keywordSnapshot, start, keyword) {
+    const classId = parseIdentifier(parser);
+    const normalizedClassId = String(classId || "").trim();
+    if (!normalizedClassId) {
+      throw ParseError("Expected class name after " + keyword, parser.index);
+    }
+    skipWhitespace(parser);
+    let extendsClassId = "";
+    const extendsToken = scanIdentifierTokenAt(parser.source, parser.index);
+    if (extendsToken && extendsToken.nameLower === "extends") {
+      parseIdentifier(parser);
+      skipWhitespace(parser);
+      const baseName = parseIdentifier(parser);
+      extendsClassId = String(baseName || "").trim();
+      if (!extendsClassId) {
+        throw ParseError("Expected base class name after extends", parser.index);
+      }
+      skipWhitespace(parser);
+    }
+    if (peek(parser) !== "{") {
+      throw ParseError("Expected '{' after " + keyword + " class name", parser.index);
+    }
+    consume(parser);
+    const body = readBalancedBlockContent(parser);
+    return {
+      type: "QClassDefinition",
+      classId: normalizedClassId,
+      extendsClassId: extendsClassId,
+      body: body,
+      keywords: keywordSnapshot,
+      start: start,
+      end: parser.index,
+      raw: parser.source.slice(start, parser.index),
+    };
+  }
+
   function normalizeEventBlockParameterNames(entries) {
     const input = Array.isArray(entries) ? entries : [];
     const out = [];
@@ -2917,6 +2954,10 @@
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
         const nextChar = peek(parser);
+        if (nameLower === "q-class" && nextChar !== "{" && nextChar !== ",") {
+          items.push(parseQClassDefinitionAfterKeyword(parser, keywordSnapshot, itemStart, nameLower));
+          continue;
+        }
         if ((nameLower === "q-logger" || nameLower === "q-perf" || nameLower === "q-anchor") && nextChar === "{") {
           consume(parser);
           const directiveBody = readBalancedBlockContent(parser);
@@ -3655,7 +3696,7 @@
             continue;
           }
         }
-        if (isIdentifierStartChar(nextChar)) {
+        if (nameLower !== "function" && isIdentifierStartChar(nextChar)) {
           const instanceAliasStart = parser.index;
           const instanceAlias = parseReferenceIdentifier(parser);
           const selectorWithAliasShorthand =
@@ -3663,6 +3704,12 @@
               ? parseSelectorTokenTail(parser, name)
               : name;
           skipWhitespace(parser);
+          let instanceArguments = "";
+          if (peek(parser) === "(") {
+            consume(parser);
+            instanceArguments = readBalancedParenthesizedContent(parser);
+            skipWhitespace(parser);
+          }
           if (peek(parser) === "{") {
             consume(parser);
             const childItems = parseBlockItems(parser, scopedKeywordAliases);
@@ -3671,6 +3718,7 @@
               type: "Element",
               selectors: [selectorWithAliasShorthand],
               instanceAlias: String(instanceAlias || "").trim(),
+              instanceArguments: instanceArguments,
               prefixDirectives: [],
               items: childItems,
               keywords: keywordSnapshot,
@@ -4169,6 +4217,11 @@
         }
 
         const keywordSnapshot = keywordAliasesToObject(scopedKeywordAliases);
+
+        if (firstLower === "q-class" && peek(parser) !== "{" && peek(parser) !== ",") {
+          body.push(parseQClassDefinitionAfterKeyword(parser, keywordSnapshot, start, firstLower));
+          continue;
+        }
 
         if ((firstLower === "q-logger" || firstLower === "q-perf" || firstLower === "q-anchor") && peek(parser) === "{") {
           consume(parser);
@@ -4998,7 +5051,7 @@
           continue;
         }
 
-        if (isIdentifierStartChar(peek(parser))) {
+        if (firstLower !== "function" && isIdentifierStartChar(peek(parser))) {
           const instanceAliasStart = parser.index;
           const instanceAlias = parseReferenceIdentifier(parser);
           const selectorWithAliasShorthand =
@@ -5006,6 +5059,12 @@
               ? parseSelectorTokenTail(parser, firstSelector)
               : firstSelector;
           skipWhitespace(parser);
+          let instanceArguments = "";
+          if (peek(parser) === "(") {
+            consume(parser);
+            instanceArguments = readBalancedParenthesizedContent(parser);
+            skipWhitespace(parser);
+          }
           if (peek(parser) === "{") {
             const prefixDirectives = parseLeadingSelectorDirectiveBlocks(parser);
             skipWhitespace(parser);
@@ -5019,6 +5078,7 @@
               type: "Element",
               selectors: [selectorWithAliasShorthand],
               instanceAlias: String(instanceAlias || "").trim(),
+              instanceArguments: instanceArguments,
               prefixDirectives: prefixDirectives,
               items: items,
               keywords: keywordSnapshot,
@@ -9835,6 +9895,14 @@
       if (Array.isArray(node.templateNodes) && node.templateNodes.length > 0) {
         collectSlotNamesFromNodes(node.templateNodes, set);
       }
+      if (Array.isArray(node.slotDeclarations) && node.slotDeclarations.length > 0) {
+        for (let si = 0; si < node.slotDeclarations.length; si += 1) {
+          const slotName = String(node.slotDeclarations[si] || "").trim();
+          if (slotName) {
+            set.add(slotName);
+          }
+        }
+      }
       const slotNodes = readNodeSlots(node);
       if (slotNodes.length > 0) {
         collectSlotNamesFromNodes(slotNodes, set);
@@ -9846,6 +9914,15 @@
 
   function collectSlotDefaultNamesFromDefinition(definitionNode, intoSet) {
     const set = intoSet || new Set();
+    const slotDeclarations = Array.isArray(definitionNode && definitionNode.slotDeclarations)
+      ? definitionNode.slotDeclarations
+      : [];
+    for (let i = 0; i < slotDeclarations.length; i += 1) {
+      const slotName = String(slotDeclarations[i] || "").trim();
+      if (slotName) {
+        set.add(slotName);
+      }
+    }
     const slotDefaults = Array.isArray(definitionNode && definitionNode.slotDefaults)
       ? definitionNode.slotDefaults
       : [];
@@ -9937,10 +10014,10 @@
   }
 
   function resolveSingleSlotNameForDefinition(definitionNode) {
-    if (!definitionNode || !Array.isArray(definitionNode.templateNodes)) {
+    if (!definitionNode || (!Array.isArray(definitionNode.templateNodes) && !Array.isArray(definitionNode.slotDeclarations))) {
       return "";
     }
-    const declaredSlotNames = collectSlotNamesFromNodes(definitionNode.templateNodes);
+    const declaredSlotNames = collectSlotNamesFromNodes(Array.isArray(definitionNode.templateNodes) ? definitionNode.templateNodes : []);
     collectSlotDefaultNamesFromDefinition(definitionNode, declaredSlotNames);
     const slotNames = Array.from(declaredSlotNames);
     return slotNames.length === 1 ? slotNames[0] : "";
@@ -10321,6 +10398,16 @@
     );
   }
 
+  function isClassDefinitionNode(node) {
+    return !!(
+      node &&
+      typeof node === "object" &&
+      core.NODE_TYPES &&
+      core.NODE_TYPES.class &&
+      node.kind === core.NODE_TYPES.class
+    );
+  }
+
   function normalizeStructFieldName(value) {
     const source = String(value || "").trim();
     if (!source) {
@@ -10486,6 +10573,180 @@
     }
   }
 
+  function splitTopLevelCommaExpressions(source) {
+    const text = String(source || "");
+    const out = [];
+    let quote = "";
+    let escaped = false;
+    let parenDepth = 0;
+    let braceDepth = 0;
+    let bracketDepth = 0;
+    let start = 0;
+    for (let i = 0; i < text.length; i += 1) {
+      const ch = text.charAt(i);
+      if (quote) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === "`") {
+        quote = ch;
+        continue;
+      }
+      if (ch === "(") {
+        parenDepth += 1;
+        continue;
+      }
+      if (ch === ")") {
+        parenDepth = Math.max(0, parenDepth - 1);
+        continue;
+      }
+      if (ch === "{") {
+        braceDepth += 1;
+        continue;
+      }
+      if (ch === "}") {
+        braceDepth = Math.max(0, braceDepth - 1);
+        continue;
+      }
+      if (ch === "[") {
+        bracketDepth += 1;
+        continue;
+      }
+      if (ch === "]") {
+        bracketDepth = Math.max(0, bracketDepth - 1);
+        continue;
+      }
+      if (ch === "," && parenDepth === 0 && braceDepth === 0 && bracketDepth === 0) {
+        const entry = text.slice(start, i).trim();
+        if (entry) {
+          out.push(entry);
+        }
+        start = i + 1;
+      }
+    }
+    const last = text.slice(start).trim();
+    if (last) {
+      out.push(last);
+    }
+    return out;
+  }
+
+  function parseQClassBody(classId, bodySource) {
+    const parser = parserFor(String(bodySource || ""));
+    const constructors = [];
+    const methods = [];
+    const slotDeclarations = [];
+    const rawMembers = [];
+    const normalizedClassId = String(classId || "").trim();
+
+    while (!eof(parser)) {
+      skipWhitespaceAndSemicolons(parser);
+      if (eof(parser)) {
+        break;
+      }
+      const memberStart = parser.index;
+      if (!isIdentifierStartChar(peek(parser))) {
+        parser.index += 1;
+        continue;
+      }
+      const first = parseIdentifier(parser);
+      const firstLower = String(first || "").trim().toLowerCase();
+      skipWhitespace(parser);
+      if (firstLower === "slot" && peek(parser) === "{") {
+        consume(parser);
+        const slotBody = readBalancedBlockContent(parser);
+        const slotNames = splitTokens(slotBody).map(function normalizeSlotToken(token) {
+          return String(token || "").trim();
+        }).filter(Boolean);
+        for (let i = 0; i < slotNames.length; i += 1) {
+          slotDeclarations.push(slotNames[i]);
+        }
+        continue;
+      }
+
+      let methodName = first;
+      let isConstructor = firstLower === "constructor" || first === normalizedClassId;
+      if (firstLower === "function") {
+        skipWhitespace(parser);
+        methodName = parseIdentifier(parser);
+        isConstructor = String(methodName || "").trim() === normalizedClassId || String(methodName || "").trim().toLowerCase() === "constructor";
+        skipWhitespace(parser);
+      }
+      if (peek(parser) !== "(") {
+        const boundary = findItemBoundaryInSource(parser.source, memberStart, { mode: "block", stopChar: "}" });
+        rawMembers.push(parser.source.slice(memberStart, boundary).trim());
+        parser.index = boundary;
+        continue;
+      }
+      consume(parser);
+      const parameters = readBalancedParenthesizedContent(parser);
+      skipWhitespace(parser);
+      if (peek(parser) !== "{") {
+        const boundary = findItemBoundaryInSource(parser.source, memberStart, { mode: "block", stopChar: "}" });
+        rawMembers.push(parser.source.slice(memberStart, boundary).trim());
+        parser.index = boundary;
+        continue;
+      }
+      consume(parser);
+      const memberBody = readBalancedBlockContent(parser);
+      const entry = {
+        name: String(methodName || "").trim(),
+        signature: String(methodName || "").trim() + "(" + String(parameters || "").trim() + ")",
+        parameters: String(parameters || "").trim(),
+        body: compactScriptBody(memberBody || ""),
+        source: parser.source.slice(memberStart, parser.index),
+      };
+      if (isConstructor) {
+        constructors.push(entry);
+      } else if (entry.name) {
+        methods.push(entry);
+      }
+    }
+
+    return {
+      constructorDefinition: constructors.length > 0 ? constructors[constructors.length - 1] : null,
+      methods: methods,
+      slotDeclarations: slotDeclarations,
+      rawMembers: rawMembers.filter(Boolean),
+    };
+  }
+
+  function buildClassNodeFromAst(astElement) {
+    const classId = String(astElement && astElement.classId || "").trim();
+    if (!classId) {
+      throw new Error("q-class definition requires a name.");
+    }
+    const parsedBody = parseQClassBody(classId, astElement.body || "");
+    const classNode = core.createClassNode({
+      classId: classId,
+      extendsClassId: String(astElement && astElement.extendsClassId || "").trim(),
+      constructorDefinition: parsedBody.constructorDefinition,
+      methods: parsedBody.methods,
+      slotDeclarations: parsedBody.slotDeclarations,
+      meta: {
+        originalSource: astElement.raw || "",
+        sourceRange:
+          typeof astElement.start === "number" && typeof astElement.end === "number"
+            ? [astElement.start, astElement.end]
+            : null,
+        __qhtmlClassBody: String(astElement.body || ""),
+        __qhtmlClassRawMembers: parsedBody.rawMembers,
+      },
+    });
+    applyKeywordAliasesToNode(classNode, astElement.keywords);
+    return classNode;
+  }
+
   function buildStructNodeFromAst(astElement) {
     const structId = String(astElement && astElement.instanceAlias || "").trim();
     if (!structId) {
@@ -10535,6 +10796,93 @@
     });
   }
 
+  function convertElementInvocationToClassInstance(elementNode, definitionNode) {
+    const slotFills = splitInvocationSlotFills(elementNode, definitionNode);
+    const invocationAttributes = Object.assign({}, elementNode.attributes || {});
+    const sourceBindings =
+      elementNode && elementNode.meta && Array.isArray(elementNode.meta.qBindings) ? elementNode.meta.qBindings : [];
+    const mappedBindings = [];
+    for (let i = 0; i < sourceBindings.length; i += 1) {
+      const candidate = sourceBindings[i];
+      if (!candidate || typeof candidate !== "object") {
+        continue;
+      }
+      const assignment = parseAssignmentName(candidate.name);
+      const targetName = String(assignment.name || "").trim();
+      if (!targetName) {
+        continue;
+      }
+      mappedBindings.push(
+        Object.assign({}, candidate, {
+          name: targetName,
+          targetHint: String(candidate.targetHint || assignment.hint || "auto").trim().toLowerCase() || "auto",
+          targetCollection: "attributes",
+        })
+      );
+    }
+
+    const instanceMeta = Object.assign({}, elementNode.meta || {});
+    const instanceAlias =
+      elementNode &&
+      elementNode.meta &&
+      typeof elementNode.meta === "object" &&
+      typeof elementNode.meta.__qhtmlInstanceAlias === "string"
+        ? String(elementNode.meta.__qhtmlInstanceAlias || "").trim()
+        : "";
+    if (!instanceAlias) {
+      throw new Error("q-class instance requires a typed name: '" + String(elementNode.tagName || "").trim() + "'.");
+    }
+    instanceMeta.__qhtmlInstanceAlias = instanceAlias;
+    if (mappedBindings.length > 0) {
+      instanceMeta.qBindings = mappedBindings;
+    } else if (Object.prototype.hasOwnProperty.call(instanceMeta, "qBindings")) {
+      delete instanceMeta.qBindings;
+    }
+
+    const slots = [];
+    const flattenedChildren = [];
+    slotFills.forEach(function eachSlot(children, slotName) {
+      const slotChildren = Array.isArray(children) ? children : [];
+      slots.push(
+        core.createSlotNode({
+          name: slotName,
+          children: slotChildren,
+          meta: {
+            generated: true,
+            originalSource: elementNode.meta && elementNode.meta.originalSource ? elementNode.meta.originalSource : null,
+          },
+        })
+      );
+      for (let i = 0; i < slotChildren.length; i += 1) {
+        flattenedChildren.push(slotChildren[i]);
+      }
+    });
+
+    const argumentSource =
+      elementNode && elementNode.meta && typeof elementNode.meta.__qhtmlInstanceArguments === "string"
+        ? String(elementNode.meta.__qhtmlInstanceArguments || "").trim()
+        : "";
+
+    return core.createClassInstanceNode({
+      classId: String(definitionNode.classId || definitionNode.componentId || elementNode.tagName || "").trim().toLowerCase(),
+      componentId: String(definitionNode.classId || definitionNode.componentId || elementNode.tagName || "").trim().toLowerCase(),
+      tagName: String(elementNode.tagName || definitionNode.classId || definitionNode.componentId || "").trim().toLowerCase(),
+      attributes: invocationAttributes,
+      props: Object.assign({}, invocationAttributes),
+      constructorArguments: splitTopLevelCommaExpressions(argumentSource),
+      argumentSource: argumentSource,
+      slots: slots,
+      lifecycleScripts: Array.isArray(elementNode.lifecycleScripts) ? elementNode.lifecycleScripts.slice() : [],
+      children: flattenedChildren,
+      textContent: typeof elementNode.textContent === "string" ? elementNode.textContent : null,
+      selectorMode: elementNode.selectorMode || "single",
+      selectorChain: Array.isArray(elementNode.selectorChain)
+        ? elementNode.selectorChain.slice()
+        : [String(elementNode.tagName || definitionNode.classId || "").trim().toLowerCase()],
+      meta: instanceMeta,
+    });
+  }
+
   function buildDefinitionRegistry(nodes) {
     const registry = new Map();
     const list = Array.isArray(nodes) ? nodes : [];
@@ -10546,6 +10894,11 @@
       }
       if (node.kind === core.NODE_TYPES.component) {
         const key = String(node.componentId || "").trim().toLowerCase();
+        if (key) {
+          registry.set(key, node);
+        }
+      } else if (isClassDefinitionNode(node)) {
+        const key = String(node.classId || node.componentId || "").trim().toLowerCase();
         if (key) {
           registry.set(key, node);
         }
@@ -10584,7 +10937,7 @@
       }
     }
 
-    if (node.kind === core.NODE_TYPES.component || isStructDefinitionNode(node)) {
+    if (node.kind === core.NODE_TYPES.component || isStructDefinitionNode(node) || isClassDefinitionNode(node)) {
       if (Array.isArray(node.templateNodes)) {
         node.templateNodes = normalizeNodesForDefinitions(node.templateNodes, definitionRegistry);
       }
@@ -10665,6 +11018,9 @@
         const definitionNode = definitionRegistry.get(tag);
         if (isStructDefinitionNode(definitionNode)) {
           return convertElementInvocationToStructInstance(node, definitionNode);
+        }
+        if (isClassDefinitionNode(definitionNode)) {
+          return convertElementInvocationToClassInstance(node, definitionNode);
         }
         return convertElementInvocationToInstance(node, definitionNode, definitionRegistry);
       }
@@ -13705,6 +14061,9 @@
           leaf.meta = {};
         }
         leaf.meta.__qhtmlInstanceAlias = instanceAlias;
+        if (typeof astElement.instanceArguments === "string" && astElement.instanceArguments.trim()) {
+          leaf.meta.__qhtmlInstanceArguments = astElement.instanceArguments;
+        }
         const potentialStructFields = tryReadStructFieldsFromAstItems(astElement.items);
         if (potentialStructFields) {
           leaf.meta.__qhtmlStructFieldOverrides = potentialStructFields;
@@ -13772,6 +14131,9 @@
         leaf.meta = {};
       }
       leaf.meta.__qhtmlInstanceAlias = instanceAlias;
+      if (typeof astElement.instanceArguments === "string" && astElement.instanceArguments.trim()) {
+        leaf.meta.__qhtmlInstanceArguments = astElement.instanceArguments;
+      }
       const potentialStructFields = tryReadStructFieldsFromAstItems(astElement.items);
       if (potentialStructFields) {
         leaf.meta.__qhtmlStructFieldOverrides = potentialStructFields;
@@ -13798,6 +14160,10 @@
 
     if (item.type === "Element") {
       return buildElementFromAst(item, source, context);
+    }
+
+    if (item.type === "QClassDefinition") {
+      return buildClassNodeFromAst(item);
     }
 
     if (item.type === "TemplateDefinition") {
@@ -15010,6 +15376,72 @@
         if (serializedField) {
           lines.push(serializedField);
         }
+      }
+      lines.push(indent + "}");
+      return lines.join("\n");
+    }
+
+    if (core.NODE_TYPES.class && node.kind === core.NODE_TYPES.class) {
+      const classId = String(node.classId || node.componentId || "").trim();
+      const extendsClassId = String(node.extendsClassId || "").trim();
+      const head = indent + "q-class " + classId + (extendsClassId ? " extends " + extendsClassId : "") + " {";
+      const lines = [head];
+      if (node.constructorDefinition) {
+        const ctor = Object.assign({}, node.constructorDefinition, {
+          name: "constructor",
+          signature: "constructor(" + String(node.constructorDefinition.parameters || "").trim() + ")",
+        });
+        lines.push(serializeFunctionBlock(ctor, indentLevel + 1));
+      }
+      const methods = Array.isArray(node.methods) ? node.methods : [];
+      for (let i = 0; i < methods.length; i += 1) {
+        lines.push(serializeFunctionBlock(methods[i], indentLevel + 1));
+      }
+      const slots = Array.isArray(node.slotDeclarations) ? node.slotDeclarations : [];
+      for (let i = 0; i < slots.length; i += 1) {
+        const slotName = String(slots[i] || "").trim();
+        if (slotName) {
+          lines.push(indent + "  slot { " + slotName + " }");
+        }
+      }
+      lines.push(indent + "}");
+      return lines.join("\n");
+    }
+
+    if (core.NODE_TYPES.classInstance && node.kind === core.NODE_TYPES.classInstance) {
+      const classId = String(node.classId || node.componentId || node.tagName || "").trim().toLowerCase();
+      const instanceAlias =
+        node &&
+        node.meta &&
+        typeof node.meta === "object" &&
+        typeof node.meta.__qhtmlInstanceAlias === "string"
+          ? String(node.meta.__qhtmlInstanceAlias || "").trim()
+          : "";
+      const argumentSource = String(node.argumentSource || "").trim();
+      const head = classId + (instanceAlias ? " " + instanceAlias : "") + (argumentSource ? "(" + argumentSource + ")" : "");
+      const lines = [indent + head + " {"];
+      const attrs = Object.assign({}, node.attributes || {});
+      const bindings = collectNodeBindingsByTarget(node, "attributes");
+      const keys = Object.keys(attrs);
+      for (let i = 0; i < keys.length; i += 1) {
+        const key = keys[i];
+        if (bindings.has(key)) {
+          lines.push(serializeBindingAssignment(key, bindings.get(key), indentLevel + 1));
+        } else {
+          lines.push(indent + "  " + key + ": " + serializeAssignmentValue(attrs[key]));
+        }
+      }
+      const serializedSlotNodes = Array.isArray(node.slots) ? node.slots : [];
+      for (let i = 0; i < serializedSlotNodes.length; i += 1) {
+        const slotNode = serializedSlotNodes[i];
+        if (!slotNode || slotNode.kind !== core.NODE_TYPES.slot) {
+          continue;
+        }
+        lines.push(serializeSlotNode(slotNode, indentLevel + 1));
+      }
+      const children = Array.isArray(node.children) ? node.children : [];
+      for (let i = 0; i < children.length; i += 1) {
+        lines.push(serializeNode(children[i], indentLevel + 1));
       }
       lines.push(indent + "}");
       return lines.join("\n");

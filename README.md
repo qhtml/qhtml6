@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v7.0.1
+# QHTML.js v7.1.0
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,13 +12,15 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/tools/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v7.0.1
+## Whats New in v7.1.0
 
-- Bumped the release line to `7.0.1`.
-- Added the `qhtml-wasm.js` loader entry point for initializing the QHTML Qt/WASM runtime before loading standard QHTML.
-- Added `qt-property-animation` support backed by the Qt/WASM `QPropertyAnimation` runtime.
-- Added visual tests for QHTML WASM loading, property animation, component property accessors, and WASM stress animation coverage.
-- Tightened CSS expression rewriting so normal JavaScript string concatenation is not converted into CSS `calc(...)` output.
+- Bumped the release line to `7.1.0`.
+- Added `q-class` for JavaScript-backed QDOM classes with constructors, methods, inheritance, slots, typed declarative instances, and runtime `new ClassName(...)` usage.
+- Added `QDomClass` / `QDomClassInstance` rendering support so declarative class instances render as custom DOM tags while exposing `qdom()`, `element()`, `children()`, and `slots()` helpers.
+- Updated q-class initial props so unquoted named references such as `target: target1` resolve to live runtime objects before constructor code runs, while quoted values remain literal text.
+- Converted the Qt/WASM `qt-object` and `qt-property-animation` wrappers to q-class based elements under `dist/qhtml-wasm/`.
+- Updated `qt-property-animation` to use an internal `Module.QObject` animation target and forward Qt property changes directly through `this.target.setProperty(propName, value)`.
+- Added q-class visual and smoke coverage, including the stress test that generates 2000 q-class instances on demand and reports runtime timing.
 
 ## Whats New in v7.0.0
 

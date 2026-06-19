@@ -8,7 +8,7 @@ Exports via `globalThis.QHtmlModules.qdomCore`.
 
 ### Constants
 - `NODE_TYPES`
-  - `document`, `element`, `text`, `raw-html`, `model`, `repeater`, `component`, `component-instance`, `template-instance`, `struct`, `struct-instance`, `slot`, `script-rule`, `color`.
+  - `document`, `element`, `text`, `raw-html`, `model`, `repeater`, `component`, `component-instance`, `template-instance`, `struct`, `struct-instance`, `class`, `class-instance`, `slot`, `script-rule`, `color`.
 - `TEXT_ALIASES`
   - `content`, `contents`, `text`, `textcontents`, `innertext`.
 - `QDOM_UUID_KEY`
@@ -40,6 +40,11 @@ Exports via `globalThis.QHtmlModules.qdomCore`.
 - `createStructInstanceNode(options?)`
   - Creates data-only typed struct instances with `structId`, `fields`, and instance alias metadata.
   - Struct instance nodes render no DOM and are consumed by `dom-renderer` as named runtime values.
+- `createClassNode(options?)`
+  - Creates `q-class` definition nodes with `classId`, optional `extendsClassId`, constructor metadata, methods, slot declarations, and `definitionType: "class"`.
+- `createClassInstanceNode(options?)`
+  - Creates rendered typed class instances with `classId`, attributes, props, constructor argument source, slots, children, and instance alias metadata.
+  - Class instances render as custom DOM elements and are also consumed by `dom-renderer` as JavaScript class-backed runtime values.
 - `createSlotNode(options?)`
 - `createScriptRule(options?)`
 - `createQColorNode(options?)`
@@ -86,6 +91,7 @@ All constructors normalize missing fields, include `meta` objects, and produce r
 - Runtime update routing now keys off UUID identity; nonce metadata is no longer required for render invalidation.
 - `walkQDom` traverses `repeater.templateNodes`, `repeater.model`, and nested model entry node payloads (`entry.nodes`) so repeater internals are discoverable through QDom tooling.
 - `walkQDom` also traverses `struct.fields[].nodes` when field node payloads are present.
+- `walkQDom` traverses `class.templateNodes`, `class-instance.slots`, and `class-instance.children`.
 
 ## Module dependencies
 - No internal dependency on parser/renderer/runtime.

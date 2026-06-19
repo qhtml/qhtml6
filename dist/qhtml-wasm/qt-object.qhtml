@@ -1,0 +1,53 @@
+q-class qt-object {
+   constructor() {
+      this.pobject = this.pobject || null;
+      this.init();
+      this.exposeElementApi();
+   }
+
+   function exposeElementApi() {
+      var element = this.element();
+      if (!element) { return; }
+      element.object = this.object.bind(this);
+      element.init = this.init.bind(this);
+      element.setNumber = this.setNumber.bind(this);
+      element.getNumber = this.getNumber.bind(this);
+      element.connect = this.connect.bind(this);
+   }
+
+   function object() {
+      if (!this.pobject) {
+         this.init();
+      }
+      return this.pobject;
+   }
+
+   function init() {
+      if (this.pobject) {
+         return this.pobject;
+      }
+      if (!globalThis.Module || typeof Module.QObject !== "function") {
+         this.initError = new Error("qt-object requires Module.QObject");
+         return null;
+      }
+      this.pobject = new Module.QObject();
+      this.initError = null;
+      return this.pobject;
+   }
+
+   function setNumber(propName, value) {
+      var object = this.object();
+      if (!object) { return; }
+      object.setNumber(propName, Number(value));
+   }
+
+   function getNumber(propName) {
+      var object = this.object();
+      return object ? object.getNumber(propName) : undefined;
+   }
+
+   function connect(signalName, handler) {
+      var object = this.object();
+      return object ? object.connect(signalName, handler) : null;
+   }
+}

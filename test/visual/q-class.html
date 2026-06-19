@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="../../">
+  <title>QHTML q-class test</title>
+  <script>window.QHTML_EVENT_LOOP_MODE = "queued";</script>
+  <script src="dist/qhtml.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; background: #f8fafc; color: #0f172a; }
+    h1 { font-size: 22px; margin: 0 0 16px; }
+    #result { border: 1px solid #94a3b8; background: #ffffff; padding: 14px; max-width: 680px; }
+    #result.pass { border-color: #047857; color: #047857; }
+    #result.fail { border-color: #b91c1c; color: #b91c1c; }
+    myclass { display: block; margin-top: 12px; padding: 10px; border: 1px dashed #64748b; }
+  </style>
+</head>
+<body data-qclass-status="waiting">
+<h1>q-class</h1>
+
+<q-html>
+q-class baseThing {
+  constructor(prefix) {
+    this.prefix = prefix;
+  }
+
+  function baseLabel() {
+    return this.prefix + ":" + this.id;
+  }
+}
+
+q-class myClass extends baseThing {
+  slot { myslot }
+
+  myClass(prefix, suffix) {
+    super(prefix);
+    this.suffix = suffix;
+    this.readyValue = this.id + ":" + suffix;
+  }
+
+  function label() {
+    return this.baseLabel() + ":" + this.suffix;
+  }
+}
+
+myClass myObject("pre", "done") {
+  id: "visual-qclass-instance"
+  myslot {
+    div { text { slotted child rendered } }
+  }
+}
+
+div#result {
+  text { waiting }
+  onready {
+    var rendered = document.querySelector("myclass#visual-qclass-instance");
+    var objectOk =
+      typeof myObject === "object" &&
+      myObject.readyValue === "visual-qclass-instance:done" &&
+      myObject.label() === "pre:visual-qclass-instance:done" &&
+      myObject.qdom() &&
+      myObject.element() === rendered &&
+      myObject.slots().length === 1;
+    var domOk = rendered && rendered.textContent.indexOf("slotted child rendered") !== -1;
+    var fresh = typeof myClass === "function" ? new myClass("x", "y") : null;
+    var ctorOk = fresh && fresh.prefix === "x" && fresh.suffix === "y";
+    var ok = objectOk && domOk && ctorOk;
+    this.className = ok ? "pass" : "fail";
+    this.textContent = ok ? "q-class-ok" : "q-class-fail object=" + objectOk + " dom=" + domOk + " ctor=" + ctorOk;
+    document.body.setAttribute("data-qclass-status", ok ? "pass" : "fail");
+  }
+}
+</q-html>
+</body>
+</html>

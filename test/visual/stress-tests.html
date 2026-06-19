@@ -354,7 +354,7 @@ q-timer accRefreshTimer {
           <h2>Stress Tests</h2>
           <span class="badge pending">section</span>
         </div>
-        <div class="test-expected"><strong>Includes:</strong> tests 49, 67, 88, 89, 90, 91, 92</div>
+        <div class="test-expected"><strong>Includes:</strong> tests 49, 67, 88, 89, 90, 91, 92, 93</div>
         <div style="padding:10px; font-size:13px; color:#425b78;">Higher-load model/view, UUID lookup, fan-out, randomized component, and regression stress coverage. <a href="test/index.html">Back to test index</a>.</div>
       </article>
       <article class="test-card" id="card-49">
@@ -805,6 +805,92 @@ onReady {
   var acc = document.querySelector("#acc-main");
   if (acc) {
     acc.resultReported(92, this.innerHTML);
+  }
+}
+        </q-html>
+      </article>
+      <article class="test-card" id="card-93">
+        <div class="test-head">
+          <h2>93. q-class constructor creates many child QDom divs</h2>
+          <span id="badge-93" class="badge pending">pending</span>
+        </div>
+        <div class="test-expected"><strong>Expected:</strong> q-class-generated | count=2000 | instances=2000 | random-ok | ms=</div>
+        <q-html id="host-t93" data-test-no="93">
+q-class divFactory {
+  constructor(count) {
+    this.instances = [];
+    var total = Math.max(0, Number(count) || 0);
+    var modules = globalThis.QHtmlModules || {};
+    var core = modules.qdomCore;
+    var target = this.qdom();
+
+    function generatedDivRecord(index, value) {
+      this.index = index;
+      this.value = value;
+    }
+
+    if (target && !Array.isArray(target.children)) {
+      target.children = [];
+    }
+
+    for (var i = 0; i < total; i += 1) {
+      var record = new generatedDivRecord(i, Math.random());
+      this.instances.push(record);
+
+      if (core && target && Array.isArray(target.children)) {
+        var child = core.createElementNode({
+          tagName: "div",
+          attributes: {
+            class: "t93-generated",
+            "data-index": String(i)
+          },
+          children: [
+            core.createRawHtmlNode({
+              html: String(record.value)
+            })
+          ]
+        });
+        target.children.push(child);
+      }
+    }
+  }
+}
+divFactory myfactory(2000) { }
+
+div#t93-out { text { q-class-generated | count=2000 | instances=2000 | random-ok | ms= } }
+div#t93-done { text { 0 } }
+
+onReady {
+  var startedAt = Date.now();
+  var rows = document.querySelectorAll("#host-t93 .t93-generated");
+  var instanceCount = myfactory && Array.isArray(myfactory.instances) ? myfactory.instances.length : 0;
+  var randomOk = true;
+  for (var i = 0; i < rows.length; i += 1) {
+    var value = Number(String(rows[i].innerHTML || rows[i].textContent || "").trim());
+    if (!Number.isFinite(value) || value < 0 || value >= 1) {
+      randomOk = false;
+      break;
+    }
+  }
+  var elapsed = Date.now() - startedAt;
+  var ok = rows.length === 2000 && instanceCount === 2000 && randomOk;
+  var result = ok
+    ? "q-class-generated | count=2000 | instances=2000 | random-ok | ms=" + elapsed
+    : "q-class-fail | count=" + rows.length + " | instances=" + instanceCount + " | random=" + randomOk + " | ms=" + elapsed;
+  $("#t93-out").textContent = result;
+  $("#t93-done").textContent = ok ? "1" : "0";
+
+  var acc = document.querySelector("#acc-main");
+  if (acc) {
+    if (typeof acc.outcomeReported === "function") {
+      acc.outcomeReported(93, ok, result);
+    } else {
+      acc.setPassing(93, ok);
+      acc.setResult(93, result);
+      if (typeof acc.showResults === "function") {
+        acc.showResults();
+      }
+    }
   }
 }
         </q-html>

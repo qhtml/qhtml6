@@ -13,6 +13,8 @@
     templateInstance: "template-instance",
     struct: "struct",
     structInstance: "struct-instance",
+    class: "class",
+    classInstance: "class-instance",
     slot: "slot",
     slotDefault: "slot-default",
     scriptRule: "script-rule",
@@ -1039,6 +1041,58 @@
     }
   }
 
+  class QClassNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      const classId = String(opts.classId || opts.componentId || "").trim();
+      super(NODE_TYPES.class, opts.meta);
+      this.classId = classId;
+      this.componentId = classId;
+      this.definitionType = "class";
+      this.extendsClassId = String(opts.extendsClassId || opts.extendsComponentId || "").trim();
+      this.constructorDefinition =
+        opts.constructorDefinition && typeof opts.constructorDefinition === "object"
+          ? Object.assign({}, opts.constructorDefinition)
+          : null;
+      this.methods = Array.isArray(opts.methods) ? opts.methods.slice() : [];
+      this.slotDeclarations = Array.isArray(opts.slotDeclarations) ? opts.slotDeclarations.slice() : [];
+      this.templateNodes = Array.isArray(opts.templateNodes) ? opts.templateNodes : [];
+    }
+  }
+
+  class QClassInstanceNode extends QDomNode {
+    constructor(options) {
+      const opts = options || {};
+      const id = String(opts.classId || opts.componentId || opts.tagName || "").trim().toLowerCase();
+      super(NODE_TYPES.classInstance, opts.meta);
+      this.classId = id;
+      this.componentId = id;
+      this.tagName = id;
+      this.attributes = Object.assign({}, opts.attributes || {});
+      this.props = Object.assign({}, opts.props || {});
+      this.constructorArguments = Array.isArray(opts.constructorArguments) ? opts.constructorArguments.slice() : [];
+      this.argumentSource = typeof opts.argumentSource === "string" ? opts.argumentSource : "";
+      this.slots = Array.isArray(opts.slots) ? opts.slots : [];
+      this.children = Array.isArray(opts.children) ? opts.children : [];
+      this.textContent = typeof opts.textContent === "string" ? opts.textContent : null;
+      this.lifecycleScripts = Array.isArray(opts.lifecycleScripts) ? opts.lifecycleScripts : [];
+      this.selectorMode = opts.selectorMode || "single";
+      this.selectorChain = Array.isArray(opts.selectorChain) ? opts.selectorChain.slice() : [id];
+    }
+
+    properties() {
+      return Object.assign({}, this.props || {});
+    }
+
+    getProperty(key) {
+      const name = String(key || "").trim();
+      if (!name || !this.props || typeof this.props !== "object") {
+        return undefined;
+      }
+      return Object.prototype.hasOwnProperty.call(this.props, name) ? this.props[name] : undefined;
+    }
+  }
+
   class QComponentInstanceNode extends QDomNode {
     constructor(options) {
       const opts = options || {};
@@ -1319,6 +1373,14 @@
     return new QStructInstanceNode(options || {});
   }
 
+  function createClassNode(options) {
+    return new QClassNode(options || {});
+  }
+
+  function createClassInstanceNode(options) {
+    return new QClassInstanceNode(options || {});
+  }
+
   function normalizeInstanceKind(kind) {
     const value = String(kind || "").trim().toLowerCase();
     if (value === NODE_TYPES.templateInstance || value === "template") {
@@ -1415,6 +1477,9 @@
           walkNodes(field.nodes, visitor, node, path.concat("fields", j, "nodes"));
         }
       }
+      if (node.kind === NODE_TYPES.class && Array.isArray(node.templateNodes)) {
+        walkNodes(node.templateNodes, visitor, node, path.concat("templateNodes"));
+      }
       if (node.kind === NODE_TYPES.model && Array.isArray(node.entries)) {
         for (let j = 0; j < node.entries.length; j += 1) {
           const entry = node.entries[j];
@@ -1433,13 +1498,17 @@
         }
       }
       if (
-        (node.kind === NODE_TYPES.componentInstance || node.kind === NODE_TYPES.templateInstance) &&
+        (node.kind === NODE_TYPES.componentInstance ||
+          node.kind === NODE_TYPES.templateInstance ||
+          node.kind === NODE_TYPES.classInstance) &&
         readSlotNodes(node).length >= 0
       ) {
         walkNodes(readSlotNodes(node), visitor, node, path.concat("slots"));
       }
       if (
-        (node.kind === NODE_TYPES.componentInstance || node.kind === NODE_TYPES.templateInstance) &&
+        (node.kind === NODE_TYPES.componentInstance ||
+          node.kind === NODE_TYPES.templateInstance ||
+          node.kind === NODE_TYPES.classInstance) &&
         Array.isArray(node.children)
       ) {
         walkNodes(node.children, visitor, node, path.concat("children"));
@@ -1851,6 +1920,35 @@
         meta: reviveQDomTree(value.meta || {}),
       });
     }
+    if (kind === NODE_TYPES.class) {
+      return createClassNode({
+        classId: value.classId || value.componentId,
+        extendsClassId: value.extendsClassId || value.extendsComponentId,
+        constructorDefinition: reviveQDomTree(value.constructorDefinition || null),
+        methods: reviveQDomTree(Array.isArray(value.methods) ? value.methods : []),
+        slotDeclarations: reviveQDomTree(Array.isArray(value.slotDeclarations) ? value.slotDeclarations : []),
+        templateNodes: reviveQDomTree(Array.isArray(value.templateNodes) ? value.templateNodes : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
+    if (kind === NODE_TYPES.classInstance) {
+      return createClassInstanceNode({
+        classId: value.classId || value.componentId || value.tagName,
+        componentId: value.componentId,
+        tagName: value.tagName,
+        attributes: reviveQDomTree(value.attributes || {}),
+        props: reviveQDomTree(value.props || {}),
+        constructorArguments: reviveQDomTree(Array.isArray(value.constructorArguments) ? value.constructorArguments : []),
+        argumentSource: value.argumentSource,
+        slots: reviveQDomTree(Array.isArray(value.slots) ? value.slots : []),
+        children: reviveQDomTree(Array.isArray(value.children) ? value.children : []),
+        textContent: value.textContent,
+        lifecycleScripts: reviveQDomTree(Array.isArray(value.lifecycleScripts) ? value.lifecycleScripts : []),
+        selectorMode: value.selectorMode,
+        selectorChain: reviveQDomTree(Array.isArray(value.selectorChain) ? value.selectorChain : []),
+        meta: reviveQDomTree(value.meta || {}),
+      });
+    }
     if (kind === NODE_TYPES.componentInstance || kind === NODE_TYPES.templateInstance) {
       return createComponentInstanceNode({
         kind: kind,
@@ -2218,6 +2316,8 @@
     QComponentNode: QComponentNode,
     QStructNode: QStructNode,
     QStructInstanceNode: QStructInstanceNode,
+    QClassNode: QClassNode,
+    QClassInstanceNode: QClassInstanceNode,
     QComponentInstanceNode: QComponentInstanceNode,
     QTemplateInstanceNode: QTemplateInstanceNode,
     QSlotNode: QSlotNode,
@@ -2250,6 +2350,8 @@
     createComponentInstanceNode: createComponentInstanceNode,
     createStructNode: createStructNode,
     createStructInstanceNode: createStructInstanceNode,
+    createClassNode: createClassNode,
+    createClassInstanceNode: createClassInstanceNode,
     createSlotNode: createSlotNode,
     createSlotDefaultNode: createSlotDefaultNode,
     createScriptRule: createScriptRule,

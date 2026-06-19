@@ -23,13 +23,12 @@ SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
   </head>
   <body>
 
-    <div id="screen"></div>
 
 
-    <script src="qhtml-qt.js"></script>
+    <script src="qhtml-wasm.js"></script>
 
     <script>
-let Module = null;
+/* let Module = null;
 
 async function init() {
   Module = await window.qhtml_qt_entry();
@@ -37,27 +36,59 @@ async function init() {
 
 const obj = new Module.QObject();
 obj.setNumber("x", 0);
-
+var start = Date.now();
 obj.connect("xChanged", () => {
   console.log("x =", obj.getNumber("x"));
+
 });
 
 const anim = new Module.QPropertyAnimation();
 anim.setTarget(obj);
 anim.setPropertyName("x");
-anim.setDuration(1000);
+anim.setDuration(15000);
 anim.setStartNumber(0);
-anim.setEndNumber(500);
+anim.setEndNumber(1500);
 anim.start();
-
-const timer = new Module.QTimer();
-timer.setInterval(250);
-timer.connect("timeout", () => console.log("tick"));
+var timers = [];
+var timerIdx = ({ });
+for (var i=0; i<5; i++) {
+var timer = new Module.QTimer();
+timer.setInterval(1);
+timers.push(timer);
+timerIdx[timer] = i
+timer.connect("timeout", () => { if (obj.getNumber("x") < 1500) { console.log(Math.random() * 100, Date.now() - start) } });
 timer.start();
+;
+}
 }
 
-window.addEventListener("load", init);
+window.addEventListener("load", init); */
 </script>
-</script>
+
+<q-html>
+q-import { qt-object.qhtml }
+q-import { qt-property-animation.qhtml }
+q-component mycomp {
+q-property x: 100
+div {
+  text { comp1.x = 100 }
+}
+onxchanged(value) {
+  var node = this.querySelector("div");
+  if (node) {
+    node.textContent = "comp1.x = " + Math.round(Number(this.component.x));
+  }
+}
+}
+mycomp comp1 { }
+qt-property-animation anim1 {
+from: 100
+to: 500
+duration: 5000
+running: true
+target: comp1
+propertyName: "x"
+}
+</q-html>
   </body>
 </html>

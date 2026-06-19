@@ -1,12 +1,14 @@
 # QHTML.js Change Log
 
-## Whats New in v7.0.1
+## Whats New in v7.0.2
 
-- Bumped the release line to `7.0.1`.
-- Added the `qhtml-wasm.js` loader entry point and bundled Qt/WASM runtime assets.
-- Added the `qt-property-animation` component for driving QHTML component properties through Qt/WASM `QPropertyAnimation`.
-- Added visual coverage for QHTML WASM loading, WASM stress animation, and component property accessor behavior.
-- Fixed CSS expression rewriting so JavaScript string concatenation remains plain JavaScript unless the expression explicitly uses CSS units or CSS helpers.
+- Bumped the release line to `7.0.2`.
+- Added the `qhtml-wasm.js` loader entry point for initializing the QHTML Qt/WASM runtime before loading standard QHTML.
+- Added `qt-property-animation` support backed by the Qt/WASM `QPropertyAnimation` runtime.
+- Moved the QHTML Qt/WASM runtime assets into `dist/qhtml-wasm/`.
+- Updated q-property reference storage so QHTML named-instance assignments are stored internally by UUID and resolve through the live UUID lookup on public reads.
+- Added visual tests for QHTML WASM loading, property animation, component property accessors, and WASM stress animation coverage.
+- Tightened CSS expression rewriting so normal JavaScript string concatenation is not converted into CSS `calc(...)` output.
 
 ## Whats New in v6.9.9
 

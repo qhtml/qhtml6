@@ -47,6 +47,12 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
       - `Name instanceName { field { overrideValue } ... }` emits QDom `kind: "struct-instance"` with alias metadata and override fields
       - struct fields accept literal strings/numbers/booleans/null, bare dot-walk bindings, and function values (`field { function() { ... } }`)
       - q-struct definitions and instances are data-only; they do not parse slots, signals, lifecycle hooks, or component runtime methods
+    - q-class JavaScript-backed definitions:
+      - `q-class ClassName { constructor(params) { ... } function methodName() { ... } }` emits QDom `kind: "class"` with constructor and method metadata
+      - `q-class ClassName extends BaseClass { ClassName(params) { super(params); ... } }` records `extendsClassId` and accepts both `constructor(...)` and `ClassName(...)` constructor forms
+      - `slot { slotName }` inside a q-class definition declares accepted slot fill names
+      - `ClassName instanceName(args) { id: "x" slotName { ... } }` emits QDom `kind: "class-instance"` with alias metadata, raw/evaluable constructor arguments, attributes/props, slots, and children
+      - q-class definitions do not render DOM; q-class instances render as custom DOM tags named after the class id
     - q-viewport responsive definitions:
       - `q-viewport name { minWidth: 75vw; minHeight: 500px }` emits QDom `kind: "viewport"` with `viewportId` and `constraints`
       - `name { ... }` emits QDom `kind: "viewport-instance"` with inherited constraints and child QDom content
@@ -208,6 +214,7 @@ Exports via `globalThis.QHtmlModules.qhtmlParser`.
   - Serializes array/object assignment values using typed container syntax (`q-array { ... }` / `q-map { ... }`) instead of stringifying them.
   - Serializes dirty `q-state-machine` component-instance nodes back to named state-machine block syntax using stored state metadata.
   - Serializes `struct` and `struct-instance` QDom nodes back to `q-struct` and typed instance syntax.
+  - Serializes `class` and `class-instance` QDom nodes back to `q-class` and typed instance syntax when original source is not being preserved.
   - Serializes `viewport` and `viewport-instance` QDom nodes back to `q-viewport` and named viewport invocation syntax.
 - Serializes behavior metadata back to `behavior on <property> { q-property-animation { ... } }`.
 - Serializes `q-bind-css` metadata back to `q-bind-css { source target }`.

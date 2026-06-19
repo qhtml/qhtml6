@@ -1,0 +1,279 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="../../dist/qhtml.js"></script>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      color: #d8f7ff;
+      background: black;
+      font-family: system-ui, sans-serif;
+    }
+  </style>
+</head>
+<body>
+<q-html>
+q-painter q-neon-panel-painter {
+  q-property accent: "#00f6ff"
+  q-property fill: "rgba(5,22,30,.94)"
+  q-property seed: "117"
+
+  onpaint {
+    function num(v, f) {
+      var n = Number.parseFloat(String(v == null ? "" : v));
+      return Number.isFinite(n) ? n : f;
+    }
+
+    function rng(seed) {
+      var s = Number(seed) >>> 0;
+      return function() {
+        s = ((1664525 * s) + 1013904223) >>> 0;
+        return s / 4294967296;
+      };
+    }
+
+    var ctx = this.context;
+    var w = this.width;
+    var h = this.height;
+    var accent = String(this.accent || "#00f6ff");
+    var fill = String(this.fill || "rgba(5,22,30,.94)");
+    var rand = rng(num(this.seed, 117));
+
+    var pad = Math.min(w, h) * .08;
+    var x0 = pad;
+    var y0 = pad;
+    var ww = w - pad * 2;
+    var hh = h - pad * 2;
+
+    var cut = Math.min(ww, hh) * .085;
+    var outer = Math.min(ww, hh) * .045;
+    var inner = Math.min(ww, hh) * .105;
+
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.beginPath();
+    ctx.moveTo(x0 + cut, y0);
+    ctx.lineTo(x0 + ww - cut, y0);
+    ctx.lineTo(x0 + ww, y0 + cut);
+    ctx.lineTo(x0 + ww, y0 + hh - cut);
+    ctx.lineTo(x0 + ww - cut, y0 + hh);
+    ctx.lineTo(x0 + cut, y0 + hh);
+    ctx.lineTo(x0, y0 + hh - cut);
+    ctx.lineTo(x0, y0 + cut);
+    ctx.closePath();
+
+    ctx.fillStyle = fill;
+    ctx.shadowColor = accent;
+    ctx.shadowBlur = 28;
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(120,255,255,.45)";
+    ctx.stroke();
+
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(0,246,255,.28)";
+
+    for (var i = 0; i < 140; i += 1) {
+      var side = i % 4;
+      var x = x0 + inner + rand() * Math.max(1, ww - inner * 2);
+      var y = y0 + inner + rand() * Math.max(1, hh - inner * 2);
+
+      if (side === 0) y = y0 + outer + rand() * 90;
+      if (side === 1) y = y0 + hh - outer - rand() * 90;
+      if (side === 2) x = x0 + outer + rand() * 90;
+      if (side === 3) x = x0 + ww - outer - rand() * 90;
+
+      var dx = 16 + rand() * 80;
+      var dy = (rand() > .5 ? 1 : -1) * (8 + rand() * 34);
+
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + (side === 3 ? -dx : dx), y);
+      ctx.lineTo(x + (side === 3 ? -dx : dx), y + dy);
+      ctx.lineTo(x + (side === 3 ? -dx - 24 : dx + 24), y + dy);
+      ctx.stroke();
+
+      if (rand() > .65) {
+        ctx.fillStyle = "rgba(0,246,255,.65)";
+        ctx.fillRect(x - 2, y - 2, 4, 4);
+      }
+
+      if (rand() > .78) {
+        ctx.fillStyle = "rgba(120,255,255,.75)";
+        ctx.fillRect(x + (side === 3 ? -dx - 44 : dx + 24), y + dy - 1, 22 + rand() * 28, 2);
+      }
+    }
+
+    ctx.shadowColor = accent;
+    ctx.shadowBlur = 22;
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = accent;
+
+    ctx.beginPath();
+    ctx.moveTo(x0 + inner, y0 + inner);
+    ctx.lineTo(x0 + ww * .46, y0 + inner);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x0 + ww * .54, y0 + inner);
+    ctx.lineTo(x0 + ww - inner, y0 + inner);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x0 + inner, y0 + hh - inner);
+    ctx.lineTo(x0 + ww * .46, y0 + hh - inner);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x0 + ww * .54, y0 + hh - inner);
+    ctx.lineTo(x0 + ww - inner, y0 + hh - inner);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x0 + inner, y0 + inner);
+    ctx.lineTo(x0 + inner, y0 + hh * .40);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x0 + inner, y0 + hh * .60);
+    ctx.lineTo(x0 + inner, y0 + hh - inner);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x0 + ww - inner, y0 + inner);
+    ctx.lineTo(x0 + ww - inner, y0 + hh * .40);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x0 + ww - inner, y0 + hh * .60);
+    ctx.lineTo(x0 + ww - inner, y0 + hh - inner);
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+  }
+}
+
+q-style q-neon-panel-surface-style {
+  q-style-class { q-neon-panel-surface }
+  display: block
+  position: relative
+  background-repeat: no-repeat
+  background-size: 100% 100%
+  background-position: center
+
+  q-style-painter {
+    background { q-neon-panel-painter }
+  }
+}
+
+q-theme q-neon-panel-theme {
+  .q-neon-panel-primer { q-neon-panel-surface-style }
+}
+
+q-component q-neon-panel {
+  q-property accent: "#00f6ff"
+  q-property fill: "rgba(5,22,30,.94)"
+  q-property seed: "117"
+
+  function hostElement() {
+    return this.component || this;
+  }
+
+  function directPanelDivs() {
+    var host = this.hostElement();
+    var out = [];
+    for (var i = 0; i < host.children.length; i += 1) {
+      var child = host.children[i];
+      if (
+        String(child.tagName || "").toLowerCase() === "div" &&
+        String(child.getAttribute("q-neon-panel-primer") || "") !== "1"
+      ) {
+        out.push(child);
+      }
+    }
+    return out;
+  }
+
+  function painterBackgroundImage() {
+    var host = this.hostElement();
+    var primer = host.querySelector("[q-neon-panel-primer='1']");
+    var fromPrimer = primer && primer.style ? String(primer.style.backgroundImage || "") : "";
+    if (fromPrimer.indexOf("paint(") >= 0) {
+      return fromPrimer;
+    }
+    return "";
+  }
+
+  function applyNeonPanelProperties() {
+    var targets = this.directPanelDivs();
+    var paintBackground = this.painterBackgroundImage();
+
+    for (var i = 0; i < targets.length; i += 1) {
+      var target = targets[i];
+
+      target.classList.add("q-neon-panel-surface");
+      target.style.setProperty("--accent", String(this.hostElement().accent));
+      target.style.setProperty("--fill", String(this.hostElement().fill));
+      target.style.setProperty("--seed", String(this.hostElement().seed));
+
+      if (paintBackground) {
+        target.style.setProperty("background-image", paintBackground);
+      }
+
+      target.style.setProperty("background-repeat", "no-repeat");
+      target.style.setProperty("background-size", "100% 100%");
+      target.style.setProperty("background-position", "center");
+    }
+  }
+
+  onready {
+    this.component.applyNeonPanelProperties();
+  }
+
+  onaccentchanged { this.component.applyNeonPanelProperties(); }
+  onfillchanged { this.component.applyNeonPanelProperties(); }
+  onseedchanged { this.component.applyNeonPanelProperties(); }
+
+  q-slot-default default {
+    h2 { text { Neon Panel } }
+  }
+
+  q-neon-panel-theme {
+    q-neon-panel-surface-style,div.q-neon-panel-primer {
+      q-neon-panel-primer: "1"
+      aria-hidden: "true"
+      style { display: none; width: 1px; height: 1px; }
+      text { }
+    }
+
+    div {
+      style {
+        width: 820px;
+        min-height: 460px;
+        padding: 130px 120px;
+        box-sizing: border-box;
+        color: #d8fbff;
+      }
+
+      slot { default }
+    }
+  }
+}
+q-neon-panel {
+  seed: "881"
+  accent: "#00f6ff"
+
+  default {
+    h1 { text { SYSTEM READY } }
+    p { text { Your content goes in the open center. } }
+  }
+}
+</q-html>
+</body>
+</html>
