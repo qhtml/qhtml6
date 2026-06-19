@@ -1,5 +1,15 @@
 # QHTML.js Change Log
 
+## Whats New in v7.1.0
+
+- Bumped the release line to `7.1.0`.
+- Added `q-class` for JavaScript-backed QDOM classes with constructors, methods, inheritance, slots, typed declarative instances, and runtime `new ClassName(...)` usage.
+- Added `QDomClass` / `QDomClassInstance` rendering support so declarative class instances render as custom DOM tags while exposing `qdom()`, `element()`, `children()`, and `slots()` helpers.
+- Updated q-class initial props so unquoted named references such as `target: target1` resolve to live runtime objects before constructor code runs, while quoted values remain literal text.
+- Converted the Qt/WASM `qt-object` and `qt-property-animation` wrappers to q-class based elements under `dist/qhtml-wasm/`.
+- Updated `qt-property-animation` to use an internal `Module.QObject` animation target and forward Qt property changes directly through `this.target.setProperty(propName, value)`.
+- Added q-class visual and smoke coverage, including the stress test that generates 2000 q-class instances on demand and reports runtime timing.
+
 ## Whats New in v7.0.2
 
 - Bumped the release line to `7.0.2`.

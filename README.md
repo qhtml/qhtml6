@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v7.1.0
+# QHTML.js v7.1.1
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,15 +12,14 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/tools/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v7.1.0
+## Whats New in v7.1.1
 
-- Bumped the release line to `7.1.0`.
-- Added `q-class` for JavaScript-backed QDOM classes with constructors, methods, inheritance, slots, typed declarative instances, and runtime `new ClassName(...)` usage.
-- Added `QDomClass` / `QDomClassInstance` rendering support so declarative class instances render as custom DOM tags while exposing `qdom()`, `element()`, `children()`, and `slots()` helpers.
-- Updated q-class initial props so unquoted named references such as `target: target1` resolve to live runtime objects before constructor code runs, while quoted values remain literal text.
-- Converted the Qt/WASM `qt-object` and `qt-property-animation` wrappers to q-class based elements under `dist/qhtml-wasm/`.
-- Updated `qt-property-animation` to use an internal `Module.QObject` animation target and forward Qt property changes directly through `this.target.setProperty(propName, value)`.
-- Added q-class visual and smoke coverage, including the stress test that generates 2000 q-class instances on demand and reports runtime timing.
+- Bumped the release line to `7.1.1`.
+- Added Qt/WASM `QHtmlParser` and QObject-backed QDom bindings for browser access through `Module.QHtmlParser`, `Module.QDomBuilder`, and typed QDom node constructors.
+- Added symbolic AST-to-QDom conversion in the Qt module, including q-component, q-class, q-object/struct, slot, script-rule, and typed instance node support.
+- Added `dist/qt-wasm/` release output for Qt/WASM `.js` and `.wasm` assets copied from the Qt build directory.
+- Added the lightweight `q-shadow-root` component file under `dist/q-components/`.
+- Documented the new `qhtml-qt` browser-facing API in `doc/modules/qhtml-qt/MODULE-API.md`.
 
 ## Whats New in v7.0.0
 
