@@ -32,6 +32,10 @@ wiki/*
 /qhtml-old.js
 
 # Qt/WASM local CMake build output
+*/CMakefiles/*
+*/CMakeFiles/*
+qhtml-qt_autogen
+*/qhtml-qt/*/build/Testing/*
 /src/modules/qhtml-qt/build/
 /src/modules/qhtml-qt/CMakeFiles/
 /src/modules/qhtml-qt/qhtml-qt_autogen/

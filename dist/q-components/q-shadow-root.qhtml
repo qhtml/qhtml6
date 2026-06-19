@@ -1,0 +1,28 @@
+q-component q-shadow-root {
+  q-property mode: "open"
+  q-signal ready(root)
+
+  slot { default }
+
+  function mountShadowRoot() {
+    var host = this.component || this;
+    var root = host.__qhtmlShadowRoot || host.shadowRoot || null;
+    if (!root && typeof host.attachShadow === "function") {
+      root = host.attachShadow({ mode: String(host.mode || "open") === "closed" ? "closed" : "open" });
+    }
+    if (!root) {
+      return null;
+    }
+    host.__qhtmlShadowRoot = root;
+    host.root = root;
+    while (host.firstChild) {
+      root.appendChild(host.firstChild);
+    }
+    host.ready(root);
+    return root;
+  }
+
+  onready {
+    this.component.mountShadowRoot();
+  }
+}

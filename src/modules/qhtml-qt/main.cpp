@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <string>
+#include "qhtml_parser.h"
 
 using emscripten::class_;
 using emscripten::function;
@@ -220,6 +221,31 @@ private:
     QPropertyAnimation *animation = nullptr;
 };
 
+class JsQHtmlParser {
+public:
+    JsQHtmlParser() = default;
+
+    std::string toASTJson(const std::string &source) const {
+        return parser.toASTJson(QString::fromStdString(source)).toStdString();
+    }
+
+    val toAST(const std::string &source) const {
+        const std::string json = toASTJson(source);
+        return val::global("JSON").call<val>("parse", json);
+    }
+
+    std::string createParserUuid() const {
+        return QHtmlParser::createParserUuid().toStdString();
+    }
+
+    std::string normalizeWasmMode(const std::string &value) const {
+        return QHtmlParser::normalizeWasmMode(QString::fromStdString(value)).toStdString();
+    }
+
+private:
+    QHtmlParser parser;
+};
+
 
 EMSCRIPTEN_BINDINGS(qhtml_qt_core) {
     class_<JsQObject>("QObject")
@@ -261,8 +287,12 @@ EMSCRIPTEN_BINDINGS(qhtml_qt_core) {
         .function("pause", &JsPropertyAnimation::pause)
         .function("resume", &JsPropertyAnimation::resume);
 
-
-
+    class_<JsQHtmlParser>("QHtmlParser")
+        .constructor<>()
+        .function("toAST", &JsQHtmlParser::toAST)
+        .function("toASTJson", &JsQHtmlParser::toASTJson)
+        .function("createParserUuid", &JsQHtmlParser::createParserUuid)
+        .function("normalizeWasmMode", &JsQHtmlParser::normalizeWasmMode);
 
 }
 

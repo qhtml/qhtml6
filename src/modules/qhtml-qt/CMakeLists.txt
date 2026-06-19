@@ -8,6 +8,7 @@ qt_standard_project_setup()
 qt_add_executable(qhtml-qt
     main.cpp
     qhtml_parser.cpp qhtml_parser.h
+    qhtml_qdom.cpp qhtml_qdom.h
 )
 
 target_link_libraries(qhtml-qt

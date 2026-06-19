@@ -9,6 +9,8 @@ WASM_SRC_FILE="$PROJECT_ROOT/src/qhtml-wasm.js"
 WASM_ASSET_OUT_DIR="$DIST_DIR/qhtml-wasm"
 WASM_OUT_FILE="$WASM_ASSET_OUT_DIR/qhtml-wasm.js"
 WASM_ASSET_SRC_DIR="$WASM_ASSET_OUT_DIR"
+QT_WASM_BUILD_DIR="$PROJECT_ROOT/src/modules/qhtml-qt/build/qhtml-qt/MinSizeRel/WebAssembly_Qt_6_11_1_single_threaded"
+QT_WASM_OUT_DIR="$DIST_DIR/qt-wasm"
 DOC_OUT_FILE="$PROJECT_ROOT/doc/qhtml.js"
 
 mkdir -p "$DIST_DIR"
@@ -71,6 +73,28 @@ for wasm_asset in qtloader.js qhtml-qt.js qhtml-qt.wasm; do
     echo "Verified $dest_asset"
   fi
 done
+
+if [[ -d "$QT_WASM_BUILD_DIR" ]]; then
+  mkdir -p "$QT_WASM_OUT_DIR"
+  shopt -s nullglob
+  qt_wasm_assets=("$QT_WASM_BUILD_DIR"/*.wasm "$QT_WASM_BUILD_DIR"/*.js)
+  shopt -u nullglob
+
+  if (( ${#qt_wasm_assets[@]} == 0 )); then
+    echo "Warning: no Qt wasm .wasm or .js assets found in $QT_WASM_BUILD_DIR" >&2
+  fi
+
+  for qt_wasm_asset in "${qt_wasm_assets[@]}"; do
+    dest_asset="$QT_WASM_OUT_DIR/$(basename "$qt_wasm_asset")"
+    cp "$qt_wasm_asset" "$dest_asset"
+    if [[ "$dest_asset" == *.js ]]; then
+      sed -i -e $'s/\r$//' -e 's/[[:blank:]]*$//' "$dest_asset"
+    fi
+    echo "Wrote $dest_asset"
+  done
+else
+  echo "Warning: Qt wasm build output directory not found: $QT_WASM_BUILD_DIR" >&2
+fi
 
 if [[ -d "$PROJECT_ROOT/doc" ]]; then
   cp "$OUT_FILE" "$DOC_OUT_FILE"
