@@ -1,8 +1,11 @@
 #include "qhtml_qdom.h"
 
 #include <QByteArray>
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QJsonParseError>
+#include <QJsonValue>
 #include <QMetaType>
 #include <QtGlobal>
 #include <QUuid>
@@ -50,7 +53,22 @@ QVariantList jsonToList(const QString &json)
 
 QString variantToJson(const QVariant &value)
 {
-    return QString::fromUtf8(QJsonDocument::fromVariant(value).toJson(QJsonDocument::Compact));
+    if (!value.isValid()) {
+        return QStringLiteral("null");
+    }
+
+    const QJsonValue jsonValue = QJsonValue::fromVariant(value);
+    if (jsonValue.isObject()) {
+        return QString::fromUtf8(QJsonDocument(jsonValue.toObject()).toJson(QJsonDocument::Compact));
+    }
+    if (jsonValue.isArray()) {
+        return QString::fromUtf8(QJsonDocument(jsonValue.toArray()).toJson(QJsonDocument::Compact));
+    }
+
+    QJsonArray wrapped;
+    wrapped.append(jsonValue);
+    const QString wrappedJson = QString::fromUtf8(QJsonDocument(wrapped).toJson(QJsonDocument::Compact));
+    return wrappedJson.mid(1, wrappedJson.size() - 2);
 }
 
 QString variantToString(const QVariant &value)
@@ -184,6 +202,29 @@ QDomNode::QDomNode(const std::string &kind)
 QString QDomNode::kind() const { return m_kind; }
 std::string QDomNode::kindJs() const { return qToStd(kind()); }
 
+std::string QDomNode::objectNameJs() const { return qToStd(objectName()); }
+void QDomNode::setObjectNameJs(const std::string &name) { setObjectName(jsToQString(name)); }
+
+QDomNode *QDomNode::parentNode() const
+{
+    return dynamic_cast<QDomNode *>(parent());
+}
+
+void QDomNode::setParentNode(QDomNode *parent)
+{
+    if (parent) {
+        parent->addChild(this);
+        return;
+    }
+
+    if (auto *oldParent = parentNode()) {
+        oldParent->removeChild(this);
+        return;
+    }
+
+    setParent(nullptr);
+}
+
 QString QDomNode::uuid() const { return m_uuid; }
 std::string QDomNode::uuidJs() const { return qToStd(uuid()); }
 void QDomNode::setUuid(const QString &uuid) { m_uuid = uuid; }
@@ -252,11 +293,6 @@ std::string QDomNode::childrenJson() const
         }
     }
     return qToStd(variantToJson(items));
-}
-
-QDomNode *QDomNode::parentNode() const
-{
-    return dynamic_cast<QDomNode *>(parent());
 }
 
 QDomNode *QDomNode::findByUuid(const QString &uuid) const
@@ -394,6 +430,20 @@ bool QDomNode::hasProperty(const std::string &name) const
     return property(name.c_str()).isValid();
 }
 
+std::string QDomNode::propertyJson(const std::string &name) const
+{
+    return qToStd(variantToJson(property(name.c_str())));
+}
+
+std::string QDomNode::propertyKeysJson() const
+{
+    QStringList keys;
+    for (const QByteArray &name : dynamicPropertyNames()) {
+        keys.append(QString::fromUtf8(name));
+    }
+    return qToStd(variantToJson(keys));
+}
+
 QVariantMap QDomNode::toVariantMap() const
 {
     QVariantMap out;
@@ -439,6 +489,58 @@ std::string QDomNode::toJsonJs() const
 }
 
 #ifdef __EMSCRIPTEN__
+void QDomNode::setPropertyValueJs(const std::string &name, emscripten::val value)
+{
+    if (value.isUndefined()) {
+        setProperty(name.c_str(), QVariant());
+        return;
+    }
+
+    const std::string json = emscripten::val::global("JSON").call<std::string>("stringify", value);
+    setProperty(name.c_str(), jsonToVariant(jsToQString(json)));
+}
+
+emscripten::val QDomNode::propertyValueJs(const std::string &name) const
+{
+    return emscripten::val::global("JSON").call<emscripten::val>("parse", propertyJson(name));
+}
+
+int QDomNode::connectJs(const std::string &signalName, emscripten::val callback)
+{
+    if (callback.isUndefined() || callback.isNull()) {
+        return 0;
+    }
+
+    JsSignalConnection connection;
+    connection.id = m_nextConnectionId++;
+    connection.signalName = jsToQString(signalName);
+    connection.callback = callback;
+    m_signalConnections.append(connection);
+    return connection.id;
+}
+
+bool QDomNode::disconnectJs(int connectionId)
+{
+    for (int i = 0; i < m_signalConnections.size(); ++i) {
+        if (m_signalConnections.at(i).id == connectionId) {
+            m_signalConnections.removeAt(i);
+            return true;
+        }
+    }
+    return false;
+}
+
+void QDomNode::emitJs(const std::string &signalName, emscripten::val payload)
+{
+    const QString key = jsToQString(signalName);
+    const QList<JsSignalConnection> connections = m_signalConnections;
+    for (const JsSignalConnection &connection : connections) {
+        if (connection.signalName == key && !connection.callback.isUndefined() && !connection.callback.isNull()) {
+            connection.callback(payload);
+        }
+    }
+}
+
 emscripten::val QDomNode::toObjectJs() const
 {
     return emscripten::val::global("JSON").call<emscripten::val>("parse", toJsonJs());
@@ -1181,6 +1283,69 @@ void QDomBuilder::registerDefinition(const QVariantMap &item, QDomNode *)
     }
 }
 
+QDomDocument::~QDomDocument()
+{
+    delete m_root;
+}
+
+QDomDocument *QDomDocument::fromASTJson(const std::string &json)
+{
+    delete m_root;
+    m_root = m_builder.fromASTJson(json);
+    return this;
+}
+
+QDomDocumentNode *QDomDocument::root() const
+{
+    return m_root;
+}
+
+QDomElementNode *QDomDocument::createElement(const std::string &tagName) const
+{
+    return new QDomElementNode(tagName);
+}
+
+QDomTextNode *QDomDocument::createText(const std::string &text) const
+{
+    return new QDomTextNode(text);
+}
+
+QDomNode *QDomDocument::createInstance(const std::string &typeName, const std::string &name, const std::string &argsJson) const
+{
+    auto *node = new QDomComponentInstanceNode(typeName);
+    node->setAliasJs(name);
+    node->setMetaValue(QStringLiteral("arguments"), jsonToVariant(jsToQString(argsJson)));
+    return node;
+}
+
+QDomNode *QDomDocument::findByUuid(const std::string &uuid) const
+{
+    return m_root ? m_root->findByUuidJs(uuid) : nullptr;
+}
+
+QDomNode *QDomDocument::findByName(const std::string &name) const
+{
+    return m_root ? m_root->findByNameJs(name) : nullptr;
+}
+
+QDomNode *QDomDocument::findByKind(const std::string &kind) const
+{
+    return m_root ? m_root->findByKindJs(kind) : nullptr;
+}
+
+QDomNode *QDomDocument::find(const std::string &query) const
+{
+    return m_root ? m_root->findJs(query) : nullptr;
+}
+
+#ifdef __EMSCRIPTEN__
+QDomDocument *QDomDocument::fromAST(emscripten::val ast)
+{
+    const std::string json = emscripten::val::global("JSON").call<std::string>("stringify", ast);
+    return fromASTJson(json);
+}
+#endif
+
 #ifdef __EMSCRIPTEN__
 using emscripten::allow_raw_pointers;
 using emscripten::base;
@@ -1191,6 +1356,10 @@ EMSCRIPTEN_BINDINGS(qhtml_qdom_core) {
         .constructor<>()
         .constructor<std::string>()
         .function("kind", &QDomNode::kindJs)
+        .function("objectName", &QDomNode::objectNameJs)
+        .function("setObjectName", &QDomNode::setObjectNameJs)
+        .function("parent", &QDomNode::parentNode, allow_raw_pointers())
+        .function("setParent", &QDomNode::setParentNode, allow_raw_pointers())
         .function("uuid", &QDomNode::uuidJs)
         .function("setUuid", &QDomNode::setUuidJs)
         .function("domUuid", &QDomNode::domUuidJs)
@@ -1218,6 +1387,13 @@ EMSCRIPTEN_BINDINGS(qhtml_qdom_core) {
         .function("numberProperty", &QDomNode::numberProperty)
         .function("boolProperty", &QDomNode::boolProperty)
         .function("hasProperty", &QDomNode::hasProperty)
+        .function("setPropertyValue", &QDomNode::setPropertyValueJs)
+        .function("propertyValue", &QDomNode::propertyValueJs)
+        .function("propertyJson", &QDomNode::propertyJson)
+        .function("propertyKeys", &QDomNode::propertyKeysJson)
+        .function("connect", &QDomNode::connectJs)
+        .function("disconnect", &QDomNode::disconnectJs)
+        .function("emit", &QDomNode::emitJs)
         .function("toJson", &QDomNode::toJsonJs)
         .function("toObject", &QDomNode::toObjectJs);
 
@@ -1378,5 +1554,18 @@ EMSCRIPTEN_BINDINGS(qhtml_qdom_core) {
         .constructor<>()
         .function("fromASTJson", &QDomBuilder::fromASTJson, allow_raw_pointers())
         .function("fromAST", &QDomBuilder::fromAST, allow_raw_pointers());
+
+    class_<QDomDocument>("QDomDocument")
+        .constructor<>()
+        .function("fromASTJson", &QDomDocument::fromASTJson, allow_raw_pointers())
+        .function("fromAST", &QDomDocument::fromAST, allow_raw_pointers())
+        .function("root", &QDomDocument::root, allow_raw_pointers())
+        .function("createElement", &QDomDocument::createElement, allow_raw_pointers())
+        .function("createText", &QDomDocument::createText, allow_raw_pointers())
+        .function("createInstance", &QDomDocument::createInstance, allow_raw_pointers())
+        .function("findByUuid", &QDomDocument::findByUuid, allow_raw_pointers())
+        .function("findByName", &QDomDocument::findByName, allow_raw_pointers())
+        .function("findByKind", &QDomDocument::findByKind, allow_raw_pointers())
+        .function("find", &QDomDocument::find, allow_raw_pointers());
 }
 #endif

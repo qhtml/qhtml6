@@ -218,6 +218,16 @@ private:
         return m_source.mid(start, m_index - start);
     }
 
+    QString parseTypeIdentifier()
+    {
+        skipWhitespace();
+        const int start = m_index;
+        while (!eof() && isIdentifierChar(peek())) {
+            ++m_index;
+        }
+        return m_source.mid(start, m_index - start);
+    }
+
     QString readBalanced(QChar open, QChar close)
     {
         QString out;
@@ -615,7 +625,7 @@ private:
 
     QVariantMap parseNamedBlock(int start, const QString &type, const QString &nameKey)
     {
-        const QString name = parseReferenceIdentifier();
+        const QString name = parseTypeIdentifier();
         skipWhitespace();
         QVariantList children;
         if (peek() == QLatin1Char('{')) {
@@ -634,7 +644,7 @@ private:
 
     QVariantMap parseNamedBody(int start, const QString &type, const QString &nameKey)
     {
-        const QString name = parseReferenceIdentifier();
+        const QString name = parseTypeIdentifier();
         skipWhitespace();
         QString body;
         if (peek() == QLatin1Char('{')) {

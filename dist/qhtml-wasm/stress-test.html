@@ -56,8 +56,7 @@
     <span id="status">Loading...</span>
   </div>
 
-  <script src="./qhtml-qt.js"></script>
-  <script src="./qtloader.js"></script>
+  <script src="./qhtml-wasm-glue.js"></script>
 
   <script>
     const CONFIG = {
@@ -205,7 +204,11 @@
     }
 
     async function init() {
-      Module = await window.qhtml_qt_entry();
+      Module = await window.qhtml_qt_entry({
+        locateFile(path) {
+          return path === "qhtml-qt.wasm" ? "./qhtml-wasm.wasm" : path;
+        }
+      });
 
       document.querySelector("#status").textContent = "Qt WASM ready";
 

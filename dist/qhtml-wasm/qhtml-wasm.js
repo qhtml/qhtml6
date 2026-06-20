@@ -6,8 +6,6 @@ var Module;
   const globalScope = typeof globalThis !== "undefined" ? globalThis : window;
   const currentScript = document.currentScript;
   const base = new URL(".", currentScript && currentScript.src ? currentScript.src : window.location.href).href;
-  const qtBase = base + "qhtml-wasm/";
-  const qhtmlSrc = base + "qhtml.js";
 
   if (globalScope.QHTMLQtReady) {
     return;
@@ -15,75 +13,67 @@ var Module;
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = src;
-      s.onload = resolve;
-      s.onerror = () => reject(new Error("Failed to load " + src));
-      document.head.appendChild(s);
+      const script = document.createElement("script");
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error("Failed to load " + src));
+      document.head.appendChild(script);
     });
   }
 
-  function createQtApi(Module) {
+  function createQtApi(qtModule) {
     return {
-      Module,
-      QObject: Module.QObject,
-      QTimer: Module.QTimer,
-      QPropertyAnimation: Module.QPropertyAnimation,
+      Module: qtModule,
+      QObject: qtModule.QObject,
+      QTimer: qtModule.QTimer,
+      QPropertyAnimation: qtModule.QPropertyAnimation,
+      QHtmlParser: qtModule.QHtmlParser,
+      QDomDocument: qtModule.QDomDocument,
       createQObject() {
-        return new Module.QObject();
+        return new qtModule.QObject();
       },
       createTimer() {
-        return new Module.QTimer();
+        return new qtModule.QTimer();
       },
       createPropertyAnimation() {
-        return new Module.QPropertyAnimation();
+        return new qtModule.QPropertyAnimation();
+      },
+      createDocument(sourceOrAst) {
+        return this.qdom.createDocument(sourceOrAst);
+      },
+      mountQHtmlElement(hostElement) {
+        return this.renderer.mountQHtmlElement(hostElement);
+      },
+      mountAll(root) {
+        return this.renderer.mountAll(root);
       }
     };
   }
 
-  function waitForQHtmlRuntime() {
-    const startedAt = Date.now();
-    const timeoutMs = 15000;
-
-    return new Promise((resolve, reject) => {
-      function check() {
-        if (globalScope.QHtml && typeof globalScope.QHtml.mountQHtmlElement === "function") {
-          resolve(globalScope.QHtml);
-          return;
-        }
-
-        if (Date.now() - startedAt > timeoutMs) {
-          reject(new Error("Timed out waiting for qhtml.js runtime"));
-          return;
-        }
-
-        setTimeout(check, 10);
-      }
-
-      check();
-    });
-  }
-
-  function loadQHtmlRuntime() {
-    const scriptPromise = loadScript(qhtmlSrc);
-    const runtimePromise = waitForQHtmlRuntime();
-
-    scriptPromise.catch(() => {});
-    return Promise.race([
-      Promise.all([scriptPromise, runtimePromise]).then(([, runtime]) => runtime),
-      runtimePromise
-    ]);
+  function mountWhenReady(api) {
+    const run = () => api.mountAll(document);
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", run, { once: true });
+    } else {
+      run();
+    }
   }
 
   async function boot() {
-    await loadScript(qtBase + "qtloader.js");
-    await loadScript(qtBase + "qhtml-qt.js");
+    await loadScript(base + "qhtml-wasm-glue.js");
 
     if (typeof globalScope.qhtml_qt_entry !== "function") {
-      throw new Error("qhtml_qt_entry was not registered by qhtml-qt.js");
+      throw new Error("qhtml_qt_entry was not registered by qhtml-wasm-glue.js");
     }
 
-    const qtModule = await globalScope.qhtml_qt_entry().then(function(module) {
+    const qtModule = await globalScope.qhtml_qt_entry({
+      locateFile(path) {
+        if (path === "qhtml-qt.wasm") {
+          return base + "qhtml-wasm.wasm";
+        }
+        return base + path;
+      }
+    }).then((module) => {
       Module = module;
       globalScope.Module = module;
       return module;
@@ -93,10 +83,17 @@ var Module;
     globalScope.QtWasm = qtModule;
     globalScope.QHTMLQt = api;
 
-    await loadQHtmlRuntime();
+    await loadScript(base + "qhtml-wasm-dom-runtime.js");
+    await loadScript(base + "qhtml-wasm-dom-renderer.js");
+
+    api.qdom = globalScope.QHTMLWasmDomRuntime.create({ Module: qtModule, Qt: api });
+    api.renderer = globalScope.QHTMLWasmDomRenderer.create(api.qdom);
+    globalScope.QHtml = api.renderer.createFacade();
+
+    mountWhenReady(api);
 
     document.dispatchEvent(new CustomEvent("QHTMLQtReady", {
-      detail: { Module: qtModule, Qt: api }
+      detail: { Module: qtModule, Qt: api, QHtml: globalScope.QHtml }
     }));
 
     return api;

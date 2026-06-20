@@ -33,6 +33,11 @@ public:
     QString kind() const;
     std::string kindJs() const;
 
+    std::string objectNameJs() const;
+    void setObjectNameJs(const std::string &name);
+    QDomNode *parentNode() const;
+    void setParentNode(QDomNode *parent);
+
     QString uuid() const;
     std::string uuidJs() const;
     void setUuid(const QString &uuid);
@@ -49,7 +54,6 @@ public:
     QDomNode *childAt(int index) const;
     int childCount() const;
     std::string childrenJson() const;
-    QDomNode *parentNode() const;
 
     QDomNode *findByUuid(const QString &uuid) const;
     QDomNode *findByUuidJs(const std::string &uuid) const;
@@ -78,12 +82,19 @@ public:
     double numberProperty(const std::string &name) const;
     bool boolProperty(const std::string &name) const;
     bool hasProperty(const std::string &name) const;
+    std::string propertyJson(const std::string &name) const;
+    std::string propertyKeysJson() const;
 
     QVariantMap toVariantMap() const;
     QString toJson() const;
     std::string toJsonJs() const;
 
 #ifdef __EMSCRIPTEN__
+    void setPropertyValueJs(const std::string &name, emscripten::val value);
+    emscripten::val propertyValueJs(const std::string &name) const;
+    int connectJs(const std::string &signalName, emscripten::val callback);
+    bool disconnectJs(int connectionId);
+    void emitJs(const std::string &signalName, emscripten::val payload);
     emscripten::val toObjectJs() const;
 #endif
 
@@ -98,6 +109,17 @@ private:
     QString m_domUuid;
     QVariantMap m_meta;
     QList<QDomNode *> m_childNodes;
+
+#ifdef __EMSCRIPTEN__
+    struct JsSignalConnection {
+        int id = 0;
+        QString signalName;
+        emscripten::val callback = emscripten::val::undefined();
+    };
+
+    int m_nextConnectionId = 1;
+    QList<JsSignalConnection> m_signalConnections;
+#endif
 };
 
 class QDomDocumentNode : public QDomNode
@@ -548,6 +570,31 @@ private:
     QSet<QString> m_templateDefinitions;
     QSet<QString> m_classDefinitions;
     QSet<QString> m_structDefinitions;
+};
+
+class QDomDocument
+{
+public:
+    QDomDocument() = default;
+    ~QDomDocument();
+
+    QDomDocument *fromASTJson(const std::string &json);
+    QDomDocumentNode *root() const;
+    QDomElementNode *createElement(const std::string &tagName) const;
+    QDomTextNode *createText(const std::string &text) const;
+    QDomNode *createInstance(const std::string &typeName, const std::string &name, const std::string &argsJson) const;
+    QDomNode *findByUuid(const std::string &uuid) const;
+    QDomNode *findByName(const std::string &name) const;
+    QDomNode *findByKind(const std::string &kind) const;
+    QDomNode *find(const std::string &query) const;
+
+#ifdef __EMSCRIPTEN__
+    QDomDocument *fromAST(emscripten::val ast);
+#endif
+
+private:
+    QDomBuilder m_builder;
+    QDomDocumentNode *m_root = nullptr;
 };
 
 #endif // QHTML_QDOM_H

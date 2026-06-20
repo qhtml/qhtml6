@@ -8,6 +8,12 @@
 #include <QByteArray>
 #include <QEasingCurve>
 #include <QDebug>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QJsonValue>
+#include <QMetaType>
 
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
@@ -15,10 +21,48 @@
 #include <memory>
 #include <string>
 #include "qhtml_parser.h"
+#include "qhtml_qdom.h"
 
 using emscripten::class_;
 using emscripten::function;
 using emscripten::val;
+
+namespace {
+
+QVariant jsonToVariant(const std::string &json)
+{
+    QJsonParseError error;
+    const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(json), &error);
+    if (error.error != QJsonParseError::NoError || doc.isNull()) {
+        return QString::fromStdString(json);
+    }
+    return doc.toVariant();
+}
+
+std::string variantToJson(const QVariant &value)
+{
+    if (!value.isValid()) {
+        return "null";
+    }
+
+    const QJsonValue jsonValue = QJsonValue::fromVariant(value);
+    if (jsonValue.isObject()) {
+        return QJsonDocument(jsonValue.toObject()).toJson(QJsonDocument::Compact).toStdString();
+    }
+    if (jsonValue.isArray()) {
+        return QJsonDocument(jsonValue.toArray()).toJson(QJsonDocument::Compact).toStdString();
+    }
+
+    QJsonArray wrapped;
+    wrapped.append(jsonValue);
+    std::string wrappedJson = QJsonDocument(wrapped).toJson(QJsonDocument::Compact).toStdString();
+    if (wrappedJson.size() >= 2) {
+        return wrappedJson.substr(1, wrappedJson.size() - 2);
+    }
+    return "null";
+}
+
+} // namespace
 
 class JsQObject : public QObject {
     Q_OBJECT
@@ -33,6 +77,36 @@ public:
 
     std::string objectNameJs() const {
         return objectName().toStdString();
+    }
+
+    JsQObject *parentJs() const {
+        return qobject_cast<JsQObject *>(parent());
+    }
+
+    void setParentJs(JsQObject *parentObject) {
+        setParent(parentObject);
+    }
+
+    JsQObject *childAt(int index) const {
+        const auto childList = children();
+        if (index < 0 || index >= childList.size())
+            return nullptr;
+        return qobject_cast<JsQObject *>(childList.at(index));
+    }
+
+    int childCount() const {
+        return children().size();
+    }
+
+    std::string childrenJson() const {
+        QVariantList out;
+        for (QObject *child : children()) {
+            QVariantMap item;
+            item.insert(QStringLiteral("objectName"), child->objectName());
+            item.insert(QStringLiteral("className"), QString::fromUtf8(child->metaObject()->className()));
+            out.append(item);
+        }
+        return variantToJson(out);
     }
 
     void setString(const std::string &name, const std::string &value) {
@@ -50,6 +124,16 @@ public:
         emitSignal(name + "Changed");
     }
 
+    void setPropertyValue(const std::string &name, val value) {
+        if (value.isUndefined()) {
+            setProperty(name.c_str(), QVariant());
+        } else {
+            const std::string json = val::global("JSON").call<std::string>("stringify", value);
+            setProperty(name.c_str(), jsonToVariant(json));
+        }
+        emitSignalWithPayload(name + "Changed", value);
+    }
+
     std::string getString(const std::string &name) const {
         return property(name.c_str()).toString().toStdString();
     }
@@ -62,23 +146,59 @@ public:
         return property(name.c_str()).toBool();
     }
 
-    void connectJs(const std::string &signalName, val callback) {
-        callbacks[QString::fromStdString(signalName)].append(callback);
+    val propertyValue(const std::string &name) const {
+        return val::global("JSON").call<val>("parse", propertyJson(name));
+    }
+
+    std::string propertyJson(const std::string &name) const {
+        return variantToJson(property(name.c_str()));
+    }
+
+    std::string propertyKeys() const {
+        QStringList keys;
+        for (const QByteArray &name : dynamicPropertyNames()) {
+            keys.append(QString::fromUtf8(name));
+        }
+        return variantToJson(keys);
+    }
+
+    int connectJs(const std::string &signalName, val callback) {
+        if (callback.isUndefined() || callback.isNull())
+            return 0;
+
+        const int id = nextConnectionId++;
+        callbacks.insert(id, {id, QString::fromStdString(signalName), callback});
+        return id;
+    }
+
+    bool disconnectJs(int connectionId) {
+        return callbacks.remove(connectionId) > 0;
     }
 
     void emitSignal(const std::string &signalName) {
-        const QString key = QString::fromStdString(signalName);
-        const auto list = callbacks.value(key);
+        emitSignalWithPayload(signalName, val::undefined());
+    }
 
-        for (const val &cb : list) {
-            if (!cb.isUndefined() && !cb.isNull()) {
-                cb();
+    void emitSignalWithPayload(const std::string &signalName, val payload) {
+        const QString key = QString::fromStdString(signalName);
+        const auto list = callbacks.values();
+
+        for (const auto &connection : list) {
+            if (connection.signalName == key && !connection.callback.isUndefined() && !connection.callback.isNull()) {
+                connection.callback(payload);
             }
         }
     }
 
 protected:
-    QHash<QString, QList<val>> callbacks;
+    struct JsConnection {
+        int id = 0;
+        QString signalName;
+        val callback = val::undefined();
+    };
+
+    int nextConnectionId = 1;
+    QHash<int, JsConnection> callbacks;
 };
 
 class JsTimer : public JsQObject {
@@ -252,14 +372,25 @@ EMSCRIPTEN_BINDINGS(qhtml_qt_core) {
     .constructor<>()
         .function("setObjectName", &JsQObject::setObjectNameJs)
         .function("objectName", &JsQObject::objectNameJs)
+        .function("parent", &JsQObject::parentJs, emscripten::allow_raw_pointers())
+        .function("setParent", &JsQObject::setParentJs, emscripten::allow_raw_pointers())
+        .function("childAt", &JsQObject::childAt, emscripten::allow_raw_pointers())
+        .function("childCount", &JsQObject::childCount)
+        .function("children", &JsQObject::childrenJson)
         .function("setString", &JsQObject::setString)
         .function("setNumber", &JsQObject::setNumber)
         .function("setBool", &JsQObject::setBool)
         .function("getString", &JsQObject::getString)
         .function("getNumber", &JsQObject::getNumber)
         .function("getBool", &JsQObject::getBool)
+        .function("setPropertyValue", &JsQObject::setPropertyValue)
+        .function("propertyValue", &JsQObject::propertyValue)
+        .function("propertyJson", &JsQObject::propertyJson)
+        .function("propertyKeys", &JsQObject::propertyKeys)
         .function("connect", &JsQObject::connectJs)
-        .function("emit", &JsQObject::emitSignal);
+        .function("disconnect", &JsQObject::disconnectJs)
+        .function("emit", &JsQObject::emitSignalWithPayload)
+        .function("emitSignal", &JsQObject::emitSignal);
 
     class_<JsTimer, emscripten::base<JsQObject>>("QTimer")
         .constructor<>()

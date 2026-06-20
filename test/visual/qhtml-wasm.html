@@ -2,77 +2,211 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>QHTML Qt WASM Stress Test</title>
-    <script src="../../dist/qhtml-wasm.js"></script>
+    <title>QHTML Qt WASM QDom Runtime</title>
+    <script src="../../dist/qhtml-wasm/qhtml-wasm.js"></script>
     <style>
+      :root {
+        color-scheme: dark;
+      }
+
       body {
         margin: 0;
-        overflow: hidden;
-        background: #05070c;
-        color: white;
-        font-family: system-ui, sans-serif;
+        min-height: 100vh;
+        background: #101317;
+        color: #f4f1e8;
+        font: 15px/1.45 system-ui, sans-serif;
       }
 
-      q-html,
-      stress-stage {
-        position: relative;
-        display: block;
-        width: 100vw;
-        height: 100vh;
-        overflow: hidden;
-      }
-
-      animated-stress-box {
-        display: contents;
-      }
-
-      stress-box {
-        position: absolute;
+      main {
         display: grid;
-        place-items: center;
-        border: 1px solid rgba(255,255,255,0.35);
-        border-radius: 12px;
-        background: linear-gradient(135deg, rgba(0,180,255,0.8), rgba(120,0,255,0.8));
-        box-shadow: 0 0 18px rgba(0,180,255,0.45);
-        color: rgba(255,255,255,0.85);
-        font-size: 12px;
-        will-change: left, top, width, height;
+        grid-template-columns: minmax(260px, 380px) 1fr;
+        gap: 18px;
+        min-height: 100vh;
+        padding: 18px;
+        box-sizing: border-box;
       }
 
-      qt-property-animation {
-        display: none;
+      aside,
+      section {
+        min-width: 0;
       }
 
-      #hud {
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        padding: 10px 12px;
-        background: rgba(0,0,0,0.6);
-        border: 1px solid rgba(255,255,255,0.2);
+      h1 {
+        margin: 0 0 12px;
+        font-size: 20px;
+        font-weight: 650;
+      }
+
+      #status {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: 0 10px;
+        border-radius: 6px;
+        background: #353b45;
+        color: #f4f1e8;
+        font-weight: 650;
+      }
+
+      #status[data-state="pass"] {
+        background: #176b54;
+      }
+
+      #status[data-state="fail"] {
+        background: #9b2f36;
+      }
+
+      #checks {
+        display: grid;
+        gap: 7px;
+        margin-top: 14px;
+      }
+
+      .check {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 7px 0;
+        border-bottom: 1px solid #303741;
+      }
+
+      .check span:last-child {
+        font-weight: 650;
+      }
+
+      q-html {
+        display: block;
+        min-height: calc(100vh - 36px);
+        padding: 18px;
+        box-sizing: border-box;
+        border-left: 1px solid #303741;
+      }
+
+      wasm-card {
+        display: block;
+        max-width: 520px;
+        padding: 18px;
+        border: 1px solid #4b806f;
         border-radius: 8px;
-        z-index: 999;
-        font-size: 13px;
+        background: #18251f;
       }
 
-      button {
-        margin-right: 6px;
+      #prop-target {
+        margin-top: 12px;
+        padding: 10px;
+        border-radius: 6px;
+        background: #252b34;
+      }
+
+      @media (max-width: 760px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+
+        q-html {
+          min-height: 360px;
+          border-left: 0;
+          border-top: 1px solid #303741;
+        }
       }
     </style>
   </head>
   <body>
-    <div id="hud">
-      <button id="start">Start</button>
-      <button id="stop">Stop</button>
-      <span id="status">Loading...</span>
-    </div>
+    <main>
+      <aside>
+        <h1>Qt WASM QDom Runtime</h1>
+        <div id="status" data-state="loading">Loading</div>
+        <div id="checks"></div>
+      </aside>
 
-    <q-html id="stress-qhtml">
-    q-import { ../../dist/q-components/qt-object.qhtml }
-q-import { ../../dist/q-components/qt-property-animation.qhtml }
-qt-object myobj {  }}
-button { onclick { myobj.setNumber("width", 250); } text { test } }
-button { onclick { console.log(myobj.object().getNumber("width")) } text { test } }
-</q-html>
+      <section>
+        <q-html id="wasm-fixture">
+q-component wasm-card {
+  slot { body }
+}
+
+wasm-card proofCard {
+  id: "component-proof"
+  data-role: "component"
+  body {
+    div#inside {
+      text { Component child rendered }
+    }
+  }
+}
+
+div#prop-target {
+  text { Property target }
+}
+        </q-html>
+      </section>
+    </main>
+
+    <script>
+      const status = document.getElementById("status");
+      const checks = document.getElementById("checks");
+
+      function addCheck(name, pass, detail) {
+        const row = document.createElement("div");
+        row.className = "check";
+        row.innerHTML = "<span></span><span></span>";
+        row.children[0].textContent = name;
+        row.children[1].textContent = pass ? "pass" : "fail";
+        row.children[1].title = detail || "";
+        checks.appendChild(row);
+        if (!pass) {
+          throw new Error(name + (detail ? ": " + detail : ""));
+        }
+      }
+
+      function scriptLoaded(fileName) {
+        return Array.from(document.scripts).some((script) => {
+          const src = script.getAttribute("src") || "";
+          return src.endsWith(fileName);
+        });
+      }
+
+      QHTMLQtReady.then((Qt) => {
+        const Module = Qt.Module;
+        const parser = new Module.QHtmlParser();
+        const ast = parser.toAST('div#ast-proof { text { AST ok } }');
+        const doc = new Module.QDomDocument().fromAST(ast);
+        const root = doc.root();
+        const fixture = document.getElementById("wasm-fixture");
+        const target = document.getElementById("prop-target");
+        const card = document.querySelector("wasm-card");
+
+        addCheck("qhtml.js not loaded", !scriptLoaded("../../dist/qhtml.js") && !scriptLoaded("../qhtml.js") && !scriptLoaded("/qhtml.js"));
+        addCheck("parser returns AST", ast && ast.type === "QHtmlDocument");
+        addCheck("QDomDocument root", root && root.kind() === "document");
+        addCheck("Qt parent/child traversal", root.childCount() > 0 && root.childAt(0).parent().uuid() === root.uuid());
+        addCheck("rendered .qdom()", target && typeof target.qdom === "function");
+
+        target.qdom().setProperty("proofValue", "qt-property-ok");
+        addCheck("qdom property write", target.qdom().property("proofValue") === "qt-property-ok");
+
+        let signalPayload = "";
+        const connectionId = target.qdom().connect("proof", (payload) => {
+          signalPayload = payload && payload.value;
+        });
+        target.qdom().emit("proof", { value: "signal-ok" });
+        target.qdom().disconnect(connectionId);
+        addCheck("Qt signal callback", signalPayload === "signal-ok");
+
+        addCheck("component instance element", !!card && card.qdom().kind() === "component-instance");
+        addCheck("component child rendered", !!document.getElementById("inside"));
+        addCheck("host qdom document", fixture.qdom().kind() === "document");
+
+        status.textContent = "All checks passed";
+        status.dataset.state = "pass";
+        document.body.dataset.status = "pass";
+      }).catch((error) => {
+        status.textContent = "Failed";
+        status.dataset.state = "fail";
+        document.body.dataset.status = "fail";
+        document.body.dataset.error = error && error.message ? error.message : String(error);
+        console.error(error);
+      });
+    </script>
   </body>
 </html>

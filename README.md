@@ -17,9 +17,9 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Bumped the release line to `7.1.1`.
 - Added Qt/WASM `QHtmlParser` and QObject-backed QDom bindings for browser access through `Module.QHtmlParser`, `Module.QDomBuilder`, and typed QDom node constructors.
 - Added symbolic AST-to-QDom conversion in the Qt module, including q-component, q-class, q-object/struct, slot, script-rule, and typed instance node support.
-- Added `dist/qt-wasm/` release output for Qt/WASM `.js` and `.wasm` assets copied from the Qt build directory.
+- Added `dist/qhtml-wasm/` release output for Qt/WASM assets, with the generated Qt glue and wasm copied as `qhtml-wasm-glue.js` and `qhtml-wasm.wasm`.
 - Added the lightweight `q-shadow-root` component file under `dist/q-components/`.
-- Documented the new `qhtml-qt` browser-facing API in `doc/modules/qhtml-qt/MODULE-API.md`.
+- Documented the new QHTML Qt/WASM browser-facing API in `doc/modules/qhtml-qt/MODULE-API.md`.
 
 ## Whats New in v7.0.0
 
