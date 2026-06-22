@@ -125,14 +125,54 @@ q-component wasm-card {
   slot { body }
 }
 
+q-class contextModel {
+}
+
 wasm-card proofCard {
   id: "component-proof"
   data-role: "component"
+  message: "context-ok"
+
+  q-var scopedValue {
+    "var-ok"
+  }
+
+  function handleProof(payload) {
+    globalThis.__qhtmlWasmSignalPayload = payload.value;
+  }
+
+  q-connect {
+    proofCard.proof proofCard.handleProof
+  }
+
   body {
     div#inside {
       text { Component child rendered }
     }
+
+    div#context-text {
+      text { ${proofCard.message} ${scopedValue} }
+    }
+
+    button#context-button {
+      text { Run context event }
+      onclick {
+        proofCard.message = "event-updated";
+        this.setAttribute("data-clicked", proofCard.message);
+      }
+    }
   }
+}
+
+contextModel modelOne {
+  id: "class-proof"
+  div#class-child {
+    text { ${modelOne.id} }
+  }
+}
+
+div#outside-scope {
+  text { ${scopedValue} }
 }
 
 div#prop-target {
@@ -195,6 +235,14 @@ div#prop-target {
 
         addCheck("component instance element", !!card && card.qdom().kind() === "component-instance");
         addCheck("component child rendered", !!document.getElementById("inside"));
+        addCheck("context interpolation", document.getElementById("context-text").textContent.trim() === "context-ok var-ok");
+        addCheck("context lexical isolation", document.getElementById("outside-scope").textContent.trim() !== "var-ok");
+        const contextButton = document.getElementById("context-button");
+        contextButton.click();
+        addCheck("context event write", card.qdom().property("message") === "event-updated" && contextButton.getAttribute("data-clicked") === "event-updated");
+        card.qdom().emit("proof", { value: "qconnect-ok" });
+        addCheck("q-connect scoped signal", globalThis.__qhtmlWasmSignalPayload === "qconnect-ok");
+        addCheck("class instance context alias", document.getElementById("class-child").textContent.trim() === "class-proof");
         addCheck("host qdom document", fixture.qdom().kind() === "document");
 
         status.textContent = "All checks passed";

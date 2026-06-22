@@ -171,3 +171,16 @@ window.QHtml;
 ```
 
 `QHTMLQt` owns the Qt module and helpers. `QHtml` is a small compatibility facade with `mountQHtmlElement`, `mountAll`, `parse`, and `createDocument` for simple WASM-backed mounting.
+
+The browser-side WASM runtime also owns QHTML Context behavior for the Qt path. It keeps lexical named-instance aliases, scoped `q-var` values, inline expression interpolation, event/lifecycle script scope, and `q-connect` wiring in JavaScript while reading and writing QDom identity, properties, and signals through Qt-backed node handles. The facade exposes root context helpers:
+
+```js
+QHtml.rootContext.set(name, value);
+QHtml.rootContext.get(name);
+QHtml.rootContext.has(name);
+QHtml.rootContext.child(parent);
+QHtml.rootContext.toObject();
+QHtml.setContextProperty(name, value);
+QHtml.getContextProperty(name);
+QHtml.createChildContext(parent);
+```

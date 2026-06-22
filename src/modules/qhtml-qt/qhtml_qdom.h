@@ -25,6 +25,8 @@
 
 class QDomNode : public QObject
 {
+    Q_OBJECT
+
 public:
     explicit QDomNode(const QString &kind = QStringLiteral("node"), QObject *parent = nullptr);
     explicit QDomNode(const std::string &kind);
@@ -75,6 +77,13 @@ public:
     void setMetaJson(const QString &json);
     void setMetaJsonJs(const std::string &json);
 
+    void setAnchorRule(const QString &name, const QString &target);
+    void setAnchorRuleJs(const std::string &name, const std::string &target);
+    QString anchorRule(const QString &name) const;
+    std::string anchorRuleJs(const std::string &name) const;
+    QString anchorRulesJson() const;
+    std::string anchorRulesJsonJs() const;
+
     void setStringProperty(const std::string &name, const std::string &value);
     void setNumberProperty(const std::string &name, double value);
     void setBoolProperty(const std::string &name, bool value);
@@ -95,6 +104,8 @@ public:
     int connectJs(const std::string &signalName, emscripten::val callback);
     bool disconnectJs(int connectionId);
     void emitJs(const std::string &signalName, emscripten::val payload);
+    void dispatchSignalJs(const std::string &signalName, emscripten::val payload);
+    void dispatchPropertyChangedJs(const std::string &propertyName, emscripten::val value, emscripten::val previous);
     emscripten::val toObjectJs() const;
 #endif
 
@@ -563,6 +574,9 @@ private:
     QDomNode *createRenderableNode(const QString &selector, const QVariantMap &item);
     void appendConvertedItems(QDomNode *parent, const QVariantList &items);
     void applyProperty(QDomNode *node, const QVariantMap &item);
+    void applyDeclaredProperty(QDomNode *node, const QVariantMap &item);
+    bool applyAnchorDirective(QDomNode *node, const QVariantMap &item);
+    bool applyBehaviorDirective(QDomNode *node, const QVariantMap &item);
     void copyCommonMeta(QDomNode *node, const QVariantMap &item);
     void registerDefinition(const QVariantMap &item, QDomNode *node);
 

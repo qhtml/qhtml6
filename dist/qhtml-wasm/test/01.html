@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QHTML WASM Core Syntax Test 01</title>
+  <script src="../qhtml-wasm.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f6f8fb;
+      color: #172033;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    main {
+      width: min(1120px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 48px;
+    }
+
+    h1 {
+      margin: 0 0 20px;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    section {
+      margin: 0 0 16px;
+      padding: 16px;
+      border: 1px solid #d8e0eb;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    q-html {
+      display: block;
+      min-height: 54px;
+    }
+
+    .pass {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 10px;
+      border-radius: 6px;
+      background: #13795b;
+      color: #ffffff;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .box {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .card {
+      border: 1px solid #8fb4d8;
+      background: #eef6ff;
+    }
+
+    .primary {
+      outline: 2px solid #2563eb;
+      outline-offset: 2px;
+    }
+
+    .inline-panel {
+      display: inline-block;
+    }
+
+    .anchor-stage {
+      position: relative;
+      min-height: 108px;
+      padding: 10px;
+      border: 1px dashed #94a3b8;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .marker {
+      display: inline-flex;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: #1d4ed8;
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    .anchored {
+      display: inline-flex;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: #f59e0b;
+      color: #111827;
+      font-weight: 800;
+    }
+
+    .panel-fill {
+      display: block;
+      min-height: 34px;
+      padding: 8px 10px;
+      box-sizing: border-box;
+      border-radius: 6px;
+      background: #1d4ed8;
+      color: #ffffff;
+      font-weight: 800;
+    }
+
+    #test105div {
+      display: block;
+      width: 100px;
+      min-height: 34px;
+      padding: 8px 10px;
+      box-sizing: border-box;
+      border-radius: 6px;
+      background: #13795b;
+      color: #ffffff;
+      font-weight: 800;
+      transition: background-color 160ms linear;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>QHTML WASM Core Syntax Test 01</h1>
+
+    <section>
+      <h2>Elements and nesting</h2>
+      <q-html>
+div.box {
+  h3 { text { PASSED } }
+  p  { text { Nested element rendered. } }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>Selector chains</h2>
+      <q-html>
+div.box,section.inline-panel,h3.pass { text { PASSED } }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>Class and id shorthand</h2>
+      <q-html>
+div#main.card.box {
+  p.pass { text { PASSED } }
+}
+
+q-component my-card {
+  div.box { text { PASSED } }
+}
+
+my-card#card-1.primary { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>Attributes</h2>
+      <q-html>
+a.pass {
+  href: "https://example.com"
+  target: "_blank"
+  text { PASSED }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>text, html, and style blocks</h2>
+      <q-html>
+p.pass {
+  style { font-size: 20px; margin: 0; }
+  text { PASSED }
+}
+
+div.box {
+  html { &lt;strong class="pass"&gt;PASSED&lt;/strong&gt; }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>Anchor positioning</h2>
+      <q-html>
+q-component marker {
+  div.marker { text { ${this.component.label} } }
+}
+
+div.anchor-stage {
+  marker menu { label: "Anchor" }
+
+  div.anchored {
+    q-anchor-left { menu.right }
+    q-anchor-top { menu.bottom }
+    text { PASSED }
+  }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>Behavior and NumberAnimation</h2>
+      <q-html>
+q-component animated-panel {
+  q-property panelWidth: "50%"
+
+  behavior on panelWidth {
+    NumberAnimation {
+      duration: 1000
+      easing: "easeInOutQuad"
+    }
+  }
+
+  div.panel-fill {
+    style { width: 50%; }
+    text { PASSED }
+  }
+
+  onready {
+    this.querySelector(".panel-fill").style.width = "50%"
+  }
+
+  onpanelWidthchanged(value) {
+    this.querySelector(".panel-fill").style.width = value;
+  }
+
+  onclick {
+    this.panelWidth = "100%"
+  }
+}
+
+animated-panel panelDemo { }
+
+q-timer panelTrigger {
+  interval: 5000
+  running: true
+  repeat: false
+  ontimeout() {
+    panelDemo.panelWidth = "100%"
+  }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>Queued animation and script action</h2>
+      <q-html>
+q-component testelement {
+ q-property width: 100
+
+  behavior on width {
+    q-queued-animation {
+      q-property-animation {
+        duration: 1600
+      }
+
+      q-script-action {
+        this.querySelector("#test105div").innerHTML = "PASSED"
+      }
+    }
+  }
+
+  onready {
+    this.width = 500
+  }
+
+  onwidthchanged(newwidth) {
+    document.querySelector("#test105div").style.width = String(newwidth) + "px";
+  }
+
+  div#test105div {
+    text { testing.. }
+  }
+}
+
+testelement myelement { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>q-class JavaScript constructor</h2>
+      <q-html>
+q-class myclass {
+  myclass() {
+    this.variable = 500;
+    this.result = "PASSED";
+    myfunc();
+  }
+
+  function myfunc() {
+    return this.result;
+  }
+}
+
+q-component class-user {
+  div.pass.class-result { text { waiting } }
+
+  onready {
+    var obj = new myclass();
+    this.querySelector(".class-result").textContent = obj.myfunc();
+  }
+}
+
+class-user { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>q-class signal bridge</h2>
+      <q-html>
+q-class signalmodel {
+  q-signal fired(value)
+
+  function fire(value) {
+    this.fired(value)
+  }
+}
+
+q-component signal-bridge-view {
+  signalmodel bridgeModel { }
+
+  div.pass.class-signal-result { text { waiting } }
+
+  onready {
+    bridgeModel.qdom().connect("fired", function(value) {
+      document.querySelector(".class-signal-result").textContent = value;
+    });
+    bridgeModel.fire("PASSED");
+  }
+}
+
+signal-bridge-view { }
+      </q-html>
+    </section>
+  </main>
+</body>
+</html>

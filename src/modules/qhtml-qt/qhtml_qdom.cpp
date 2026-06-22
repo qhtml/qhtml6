@@ -117,6 +117,45 @@ QString selectorTagName(const QString &selector)
     return tag.isEmpty() ? selector.trimmed() : tag;
 }
 
+QString normalizeAnchorRuleName(const QString &value)
+{
+    QString key = value.trimmed().toLower();
+    if (key.startsWith(QStringLiteral("q-anchor-"))) {
+        key = key.mid(QStringLiteral("q-anchor-").size());
+    } else if (key == QLatin1String("q-anchor")) {
+        key.clear();
+    }
+    if (key == QLatin1String("horizontalcenter")) {
+        return QStringLiteral("hcenter");
+    }
+    if (key == QLatin1String("verticalcenter")) {
+        return QStringLiteral("vcenter");
+    }
+    return key;
+}
+
+bool isAnchorRuleName(const QString &value)
+{
+    const QString key = normalizeAnchorRuleName(value);
+    return key == QLatin1String("left") ||
+        key == QLatin1String("right") ||
+        key == QLatin1String("top") ||
+        key == QLatin1String("bottom") ||
+        key == QLatin1String("center") ||
+        key == QLatin1String("hcenter") ||
+        key == QLatin1String("vcenter") ||
+        key == QLatin1String("fill");
+}
+
+QString anchoredSideTarget(const QString &target, const QString &side)
+{
+    const QString trimmed = target.trimmed();
+    if (trimmed.isEmpty() || trimmed.contains(QLatin1Char('.'))) {
+        return trimmed;
+    }
+    return trimmed + QLatin1Char('.') + side;
+}
+
 void applySelectorAttributes(QDomElementNode *node, const QString &selector)
 {
     if (!node) {
@@ -183,6 +222,30 @@ QString slotNameFromElementItem(const QVariantMap &item)
         }
     }
     return item.value(QStringLiteral("instanceAlias")).toString();
+}
+
+QString textBodyFromItems(const QVariantList &items)
+{
+    QStringList parts;
+    for (const QVariant &entry : items) {
+        const QVariantMap child = entry.toMap();
+        const QString type = child.value(QStringLiteral("type")).toString();
+        if (type == QLatin1String("TextBlock") || type == QLatin1String("RawTextLine")) {
+            const QString text = child.value(QStringLiteral("text")).toString().trimmed();
+            if (!text.isEmpty()) {
+                parts.append(text);
+            }
+        } else if (type == QLatin1String("Property")) {
+            const QString name = child.value(QStringLiteral("name")).toString().trimmed();
+            const QString value = child.contains(QStringLiteral("rawValue"))
+                ? child.value(QStringLiteral("rawValue")).toString().trimmed()
+                : child.value(QStringLiteral("value")).toString().trimmed();
+            if (!name.isEmpty() && !value.isEmpty()) {
+                parts.append(name + QStringLiteral(": ") + value);
+            }
+        }
+    }
+    return parts.join(QLatin1Char(' ')).trimmed();
 }
 
 } // namespace
@@ -395,6 +458,61 @@ std::string QDomNode::metaJsonJs() const { return qToStd(metaJson()); }
 void QDomNode::setMetaJson(const QString &json) { m_meta = jsonToMap(json); }
 void QDomNode::setMetaJsonJs(const std::string &json) { setMetaJson(jsToQString(json)); }
 
+void QDomNode::setAnchorRule(const QString &name, const QString &target)
+{
+    const QString key = normalizeAnchorRuleName(name);
+    if (!isAnchorRuleName(key)) {
+        return;
+    }
+
+    QVariantMap rules = m_meta.value(QStringLiteral("__qhtmlAnchorRules")).toMap();
+    const QString trimmedTarget = target.trimmed();
+    if (trimmedTarget.isEmpty()) {
+        rules.remove(key);
+    } else if (key == QLatin1String("fill")) {
+        rules.insert(QStringLiteral("fill"), trimmedTarget);
+        rules.insert(QStringLiteral("left"), anchoredSideTarget(trimmedTarget, QStringLiteral("left")));
+        rules.insert(QStringLiteral("right"), anchoredSideTarget(trimmedTarget, QStringLiteral("right")));
+        rules.insert(QStringLiteral("top"), anchoredSideTarget(trimmedTarget, QStringLiteral("top")));
+        rules.insert(QStringLiteral("bottom"), anchoredSideTarget(trimmedTarget, QStringLiteral("bottom")));
+        rules.insert(QStringLiteral("center"), anchoredSideTarget(trimmedTarget, QStringLiteral("center")));
+    } else {
+        rules.insert(key, trimmedTarget);
+    }
+
+    if (rules.isEmpty()) {
+        m_meta.remove(QStringLiteral("__qhtmlAnchorRules"));
+    } else {
+        m_meta.insert(QStringLiteral("__qhtmlAnchorRules"), rules);
+    }
+}
+
+void QDomNode::setAnchorRuleJs(const std::string &name, const std::string &target)
+{
+    setAnchorRule(jsToQString(name), jsToQString(target));
+}
+
+QString QDomNode::anchorRule(const QString &name) const
+{
+    const QVariantMap rules = m_meta.value(QStringLiteral("__qhtmlAnchorRules")).toMap();
+    return variantToString(rules.value(normalizeAnchorRuleName(name)));
+}
+
+std::string QDomNode::anchorRuleJs(const std::string &name) const
+{
+    return qToStd(anchorRule(jsToQString(name)));
+}
+
+QString QDomNode::anchorRulesJson() const
+{
+    return variantToJson(m_meta.value(QStringLiteral("__qhtmlAnchorRules")).toMap());
+}
+
+std::string QDomNode::anchorRulesJsonJs() const
+{
+    return qToStd(anchorRulesJson());
+}
+
 void QDomNode::setStringProperty(const std::string &name, const std::string &value)
 {
     setProperty(name.c_str(), jsToQString(value));
@@ -539,6 +657,51 @@ void QDomNode::emitJs(const std::string &signalName, emscripten::val payload)
             connection.callback(payload);
         }
     }
+}
+
+void QDomNode::dispatchSignalJs(const std::string &signalName, emscripten::val payload)
+{
+    static const std::string dispatchSignalName = "__qhtmlSignalDispatched";
+    emitJs(signalName, payload);
+    if (signalName == dispatchSignalName) {
+        return;
+    }
+
+    emscripten::val event = emscripten::val::object();
+    event.set("type", std::string("signal"));
+    event.set("signalName", signalName);
+    event.set("name", signalName);
+    event.set("payload", payload);
+    event.set("value", payload);
+    event.set("uuid", uuidJs());
+    event.set("sourceUuid", uuidJs());
+    event.set("domUuid", domUuidJs());
+    event.set("objectName", objectNameJs());
+    emitJs(dispatchSignalName, event);
+}
+
+void QDomNode::dispatchPropertyChangedJs(const std::string &propertyName, emscripten::val value, emscripten::val previous)
+{
+    static const std::string propertyDispatchName = "__qhtmlPropertyDispatched";
+    static const std::string signalDispatchName = "__qhtmlSignalDispatched";
+    const std::string signalName = propertyName + "Changed";
+
+    emscripten::val event = emscripten::val::object();
+    event.set("type", std::string("property"));
+    event.set("signalName", signalName);
+    event.set("name", signalName);
+    event.set("propertyName", propertyName);
+    event.set("value", value);
+    event.set("previous", previous);
+    event.set("payload", value);
+    event.set("uuid", uuidJs());
+    event.set("sourceUuid", uuidJs());
+    event.set("domUuid", domUuidJs());
+    event.set("objectName", objectNameJs());
+
+    emitJs(signalName, event);
+    emitJs(propertyDispatchName, event);
+    emitJs(signalDispatchName, event);
 }
 
 emscripten::val QDomNode::toObjectJs() const
@@ -1165,6 +1328,16 @@ QDomNode *QDomBuilder::convertElement(const QVariantMap &item)
             applyProperty(current, childItem);
             continue;
         }
+        if (childItem.value(QStringLiteral("type")).toString() == QLatin1String("QPropertyDeclaration")) {
+            applyDeclaredProperty(current, childItem);
+            continue;
+        }
+        if (applyAnchorDirective(current, childItem)) {
+            continue;
+        }
+        if (applyBehaviorDirective(current, childItem)) {
+            continue;
+        }
         if (QDomNode *child = convertItem(childItem)) {
             current->addChild(child);
         }
@@ -1217,6 +1390,16 @@ void QDomBuilder::appendConvertedItems(QDomNode *parent, const QVariantList &ite
             applyProperty(parent, item);
             continue;
         }
+        if (item.value(QStringLiteral("type")).toString() == QLatin1String("QPropertyDeclaration")) {
+            applyDeclaredProperty(parent, item);
+            continue;
+        }
+        if (applyAnchorDirective(parent, item)) {
+            continue;
+        }
+        if (applyBehaviorDirective(parent, item)) {
+            continue;
+        }
         if (QDomNode *child = convertItem(item)) {
             parent->addChild(child);
         }
@@ -1233,6 +1416,11 @@ void QDomBuilder::applyProperty(QDomNode *node, const QVariantMap &item)
         ? item.value(QStringLiteral("value"))
         : item.value(QStringLiteral("rawValue"));
 
+    if (name.startsWith(QStringLiteral("q-anchor-")) && isAnchorRuleName(name)) {
+        node->setAnchorRule(name, value.toString());
+        return;
+    }
+
     if (auto *element = dynamic_cast<QDomElementNode *>(node)) {
         element->setAttribute(name, value);
     } else if (auto *classInstance = dynamic_cast<QDomClassInstanceNode *>(node)) {
@@ -1246,6 +1434,85 @@ void QDomBuilder::applyProperty(QDomNode *node, const QVariantMap &item)
     } else {
         node->setMetaValue(name, value);
     }
+}
+
+void QDomBuilder::applyDeclaredProperty(QDomNode *node, const QVariantMap &item)
+{
+    if (!node) {
+        return;
+    }
+    const QString name = item.value(QStringLiteral("name")).toString().trimmed();
+    if (name.isEmpty()) {
+        return;
+    }
+    const QVariant value = item.contains(QStringLiteral("value"))
+        ? item.value(QStringLiteral("value"))
+        : item.value(QStringLiteral("rawValue"));
+    node->setProperty(name.toUtf8().constData(), value);
+}
+
+bool QDomBuilder::applyAnchorDirective(QDomNode *node, const QVariantMap &item)
+{
+    if (!node || item.value(QStringLiteral("type")).toString() != QLatin1String("Element")) {
+        return false;
+    }
+
+    const QStringList selectors = variantStringList(item.value(QStringLiteral("selectors")));
+    if (selectors.isEmpty()) {
+        return false;
+    }
+
+    const QString tag = selectorTagName(selectors.first()).toLower();
+    if (tag == QLatin1String("q-anchor")) {
+        bool applied = false;
+        const QVariantList children = item.value(QStringLiteral("items")).toList();
+        for (const QVariant &entry : children) {
+            const QVariantMap child = entry.toMap();
+            if (child.value(QStringLiteral("type")).toString() != QLatin1String("Property")) {
+                continue;
+            }
+            const QString name = child.value(QStringLiteral("name")).toString();
+            if (!isAnchorRuleName(name)) {
+                continue;
+            }
+            const QString target = child.contains(QStringLiteral("rawValue"))
+                ? child.value(QStringLiteral("rawValue")).toString()
+                : child.value(QStringLiteral("value")).toString();
+            node->setAnchorRule(name, target);
+            applied = true;
+        }
+        return applied;
+    }
+
+    if (!tag.startsWith(QStringLiteral("q-anchor-")) || !isAnchorRuleName(tag)) {
+        return false;
+    }
+
+    const QString target = textBodyFromItems(item.value(QStringLiteral("items")).toList());
+    node->setAnchorRule(tag, target);
+    return true;
+}
+
+bool QDomBuilder::applyBehaviorDirective(QDomNode *node, const QVariantMap &item)
+{
+    if (!node || item.value(QStringLiteral("type")).toString() != QLatin1String("BehaviorBlock")) {
+        return false;
+    }
+
+    const QString propertyName = item.value(QStringLiteral("propertyName")).toString().trimmed();
+    if (propertyName.isEmpty()) {
+        return true;
+    }
+
+    QVariantMap behaviors = jsonToMap(node->metaValue(QStringLiteral("__qhtmlBehaviors")));
+    QVariantMap behavior;
+    behavior.insert(QStringLiteral("propertyName"), propertyName);
+    behavior.insert(QStringLiteral("body"), item.value(QStringLiteral("body")));
+    behavior.insert(QStringLiteral("items"), item.value(QStringLiteral("items")));
+    behavior.insert(QStringLiteral("raw"), item.value(QStringLiteral("raw")));
+    behaviors.insert(propertyName, behavior);
+    node->setMetaValue(QStringLiteral("__qhtmlBehaviors"), behaviors);
+    return true;
 }
 
 void QDomBuilder::copyCommonMeta(QDomNode *node, const QVariantMap &item)
@@ -1380,6 +1647,9 @@ EMSCRIPTEN_BINDINGS(qhtml_qdom_core) {
         .function("metaValue", &QDomNode::metaValueJs)
         .function("metaJson", &QDomNode::metaJsonJs)
         .function("setMetaJson", &QDomNode::setMetaJsonJs)
+        .function("setAnchorRule", &QDomNode::setAnchorRuleJs)
+        .function("anchorRule", &QDomNode::anchorRuleJs)
+        .function("anchorRulesJson", &QDomNode::anchorRulesJsonJs)
         .function("setStringProperty", &QDomNode::setStringProperty)
         .function("setNumberProperty", &QDomNode::setNumberProperty)
         .function("setBoolProperty", &QDomNode::setBoolProperty)
@@ -1394,6 +1664,8 @@ EMSCRIPTEN_BINDINGS(qhtml_qdom_core) {
         .function("connect", &QDomNode::connectJs)
         .function("disconnect", &QDomNode::disconnectJs)
         .function("emit", &QDomNode::emitJs)
+        .function("dispatchSignal", &QDomNode::dispatchSignalJs)
+        .function("dispatchPropertyChanged", &QDomNode::dispatchPropertyChangedJs)
         .function("toJson", &QDomNode::toJsonJs)
         .function("toObject", &QDomNode::toObjectJs);
 

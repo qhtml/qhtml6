@@ -407,6 +407,14 @@ private:
             return parseCallback(start);
         }
 
+        if (nameLower == QLatin1String("q-property") && peek() != QLatin1Char('{')) {
+            return parseQPropertyDeclaration(start);
+        }
+
+        if (nameLower == QLatin1String("behavior")) {
+            return parseBehaviorBlock(start);
+        }
+
         if (nameLower == QLatin1String("q-var") && peek() != QLatin1Char('{')) {
             return parseNamedBody(start, QStringLiteral("QVarDeclaration"), QStringLiteral("name"));
         }
@@ -717,6 +725,53 @@ private:
             {QStringLiteral("parameters"), splitParameters(parameters)},
             {QStringLiteral("signature"), name.trimmed() + QLatin1Char('(') + parameters.trimmed() + QLatin1Char(')')},
             {QStringLiteral("body"), body},
+        }), start, m_index);
+    }
+
+    QVariantMap parseQPropertyDeclaration(int start)
+    {
+        const QString name = parseReferenceIdentifier();
+        skipWhitespace();
+        QString rawValue;
+        QVariant value;
+        if (peek() == QLatin1Char(':')) {
+            consume();
+            rawValue = parseBareValue();
+            value = valueFromRaw(rawValue);
+        }
+        return withCommon(mapOf({
+            {QStringLiteral("type"), QStringLiteral("QPropertyDeclaration")},
+            {QStringLiteral("name"), name.trimmed()},
+            {QStringLiteral("rawValue"), rawValue},
+            {QStringLiteral("value"), value},
+        }), start, m_index);
+    }
+
+    QVariantMap parseBehaviorBlock(int start)
+    {
+        QString keyword = parseReferenceIdentifier();
+        QString propertyName;
+        if (keyword.toLower() == QLatin1String("on")) {
+            propertyName = parseReferenceIdentifier();
+        } else {
+            propertyName = keyword;
+        }
+
+        skipWhitespace();
+        QString body;
+        QVariantList children;
+        if (peek() == QLatin1Char('{')) {
+            consume();
+            body = readBalanced(QLatin1Char('{'), QLatin1Char('}'));
+            SymbolicParser nested(body);
+            children = nested.parseItems(QChar());
+        }
+
+        return withCommon(mapOf({
+            {QStringLiteral("type"), QStringLiteral("BehaviorBlock")},
+            {QStringLiteral("propertyName"), propertyName.trimmed()},
+            {QStringLiteral("body"), body},
+            {QStringLiteral("items"), children},
         }), start, m_index);
     }
 
