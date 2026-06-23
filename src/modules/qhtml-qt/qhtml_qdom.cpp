@@ -1257,6 +1257,27 @@ QDomNode *QDomBuilder::convertItem(const QVariantMap &item)
         auto *model = new QDomModelNode(item.value(QStringLiteral("name")).toString());
         model->setMetaValue(QStringLiteral("body"), item.value(QStringLiteral("body")).toString());
         node = model;
+    } else if (type == QLatin1String("QStyleDefinition") ||
+               type == QLatin1String("QThemeDefinition") ||
+               type == QLatin1String("QDefaultThemeDefinition") ||
+               type == QLatin1String("QTransitionDefinition") ||
+               type == QLatin1String("QPainterDefinition")) {
+        QString kind = QStringLiteral("style-resource");
+        if (type == QLatin1String("QStyleDefinition")) {
+            kind = QStringLiteral("style-definition");
+        } else if (type == QLatin1String("QThemeDefinition")) {
+            kind = QStringLiteral("theme-definition");
+        } else if (type == QLatin1String("QDefaultThemeDefinition")) {
+            kind = QStringLiteral("default-theme-definition");
+        } else if (type == QLatin1String("QTransitionDefinition")) {
+            kind = QStringLiteral("transition-definition");
+        } else if (type == QLatin1String("QPainterDefinition")) {
+            kind = QStringLiteral("painter-definition");
+        }
+        node = new QDomNode(kind);
+        node->setMetaValue(QStringLiteral("name"), item.value(QStringLiteral("name")).toString());
+        node->setMetaValue(QStringLiteral("body"), item.value(QStringLiteral("body")).toString());
+        node->setMetaValue(QStringLiteral("resourceType"), type);
     } else if (type == QLatin1String("QScriptInline") || type == QLatin1String("QScriptActionBlock")) {
         auto *script = new QDomScriptRuleNode(type);
         script->setBody(item.value(QStringLiteral("script")).toString());

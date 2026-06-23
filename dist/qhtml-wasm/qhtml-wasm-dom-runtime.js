@@ -552,12 +552,14 @@
     }
     if (
       tag === "q-queued-animation" ||
+      tag === "q-ordered-animation" ||
       tag === "q-animation-queue" ||
       tag === "q-sequential-animation" ||
       tag === "q-sequential-animation-group" ||
+      tag === "orderedanimation" ||
       tag === "sequentialanimation"
     ) {
-      return "queued";
+      return tag === "q-ordered-animation" || tag === "orderedanimation" ? "ordered" : "queued";
     }
     if (
       tag === "q-async-animation" ||
@@ -612,7 +614,7 @@
         children.push(childAnimation);
       }
     }
-    if (normalizedType === "queued" || normalizedType === "async") {
+    if (normalizedType === "queued" || normalizedType === "ordered" || normalizedType === "async") {
       config.children = children;
     }
     return applyLooseAnimationProperties(config, item.raw);
@@ -642,13 +644,16 @@
 
   function endpointParts(source) {
     const text = normalizeName(source);
-    const dot = text.lastIndexOf(".");
-    if (dot <= 0 || dot >= text.length - 1) {
+    const callMatch = text.match(/^(.+?)\s*\(([^)]*)\)\s*$/);
+    const path = callMatch ? normalizeName(callMatch[1]) : text;
+    const dot = path.lastIndexOf(".");
+    if (dot <= 0 || dot >= path.length - 1) {
       return null;
     }
     return {
-      target: text.slice(0, dot),
-      member: text.slice(dot + 1)
+      target: path.slice(0, dot),
+      member: path.slice(dot + 1),
+      parameters: callMatch ? String(callMatch[2] || "").split(",").map(normalizeName).filter(Boolean) : []
     };
   }
 
@@ -961,6 +966,97 @@
       return false;
     }
 
+    function createNativeOrderedAnimationChain(proxyTarget, node, propertyName, previous, requestedValue, animation, refs) {
+      const children = Array.isArray(animation && animation.children) ? animation.children : [];
+      const nativeChildren = [];
+      for (const child of children) {
+        const nativeChild = createNativeAnimationNode(proxyTarget, node, propertyName, previous, requestedValue, child, refs);
+        if (!nativeChild || !nativeChild.object) {
+          return null;
+        }
+        nativeChildren.push(nativeChild.object);
+      }
+
+      let running = false;
+      let active = null;
+      let activeConnection = 0;
+      let nextConnectionId = 1;
+      const listeners = new Map();
+
+      const chain = {
+        start() {
+          if (running) {
+            chain.stop();
+          }
+          running = true;
+          startChild(0);
+          return chain;
+        },
+        stop() {
+          running = false;
+          if (active && activeConnection && typeof active.disconnect === "function") {
+            active.disconnect(activeConnection);
+          }
+          activeConnection = 0;
+          if (active && typeof active.stop === "function") {
+            active.stop();
+          }
+          active = null;
+          return chain;
+        },
+        connect(signalName, callback) {
+          if (normalizeName(signalName) !== "finished" || typeof callback !== "function") {
+            return 0;
+          }
+          const id = nextConnectionId++;
+          listeners.set(id, callback);
+          return id;
+        },
+        disconnect(connectionId) {
+          return listeners.delete(connectionId);
+        }
+      };
+
+      function emitFinished() {
+        running = false;
+        active = null;
+        activeConnection = 0;
+        for (const callback of Array.from(listeners.values())) {
+          callback();
+        }
+      }
+
+      function startChild(index) {
+        if (!running) {
+          return;
+        }
+        if (index >= nativeChildren.length) {
+          emitFinished();
+          return;
+        }
+        active = nativeChildren[index];
+        const startNext = () => {
+          if (active && activeConnection && typeof active.disconnect === "function") {
+            active.disconnect(activeConnection);
+          }
+          activeConnection = 0;
+          startChild(index + 1);
+        };
+        activeConnection = typeof active.connect === "function" ? active.connect("finished", startNext) : 0;
+        if (typeof active.start === "function") {
+          active.start();
+        }
+        if (!activeConnection) {
+          startNext();
+        }
+      }
+
+      if (refs) {
+        refs.push(chain);
+      }
+      return { kind: "ordered", object: chain };
+    }
+
     function createNativeAnimationNode(proxyTarget, node, propertyName, previous, requestedValue, animation, refs) {
       const item = animation || { type: "property" };
       if (item.type === "property") {
@@ -979,6 +1075,9 @@
           refs.push(scriptAction.object);
         }
         return scriptAction;
+      }
+      if (item.type === "ordered") {
+        return createNativeOrderedAnimationChain(proxyTarget, node, propertyName, previous, requestedValue, item, refs);
       }
       const GroupType = item.type === "async" ? Module.QParallelAnimationGroup : Module.QSequentialAnimationGroup;
       if (typeof GroupType !== "function") {
@@ -1204,7 +1303,7 @@
       if (item.type === "async") {
         return Promise.all(children.map((child) => runBehaviorAnimationNode(proxyTarget, node, propertyName, previous, requestedValue, child, token))).then(() => undefined);
       }
-      if (item.type === "queued") {
+      if (item.type === "queued" || item.type === "ordered") {
         return children.reduce(
           (chain, child) => chain.then(() => runBehaviorAnimationNode(proxyTarget, node, propertyName, previous, requestedValue, child, token)),
           Promise.resolve()
@@ -1537,6 +1636,17 @@
         }
       };
       return shim;
+    }
+
+    function createInstance(typeName, name, args) {
+      const values = Array.isArray(args) ? args : args == null ? [] : [args];
+      const node = new Module.QDomDocument().createInstance(
+        String(typeName || ""),
+        String(name || ""),
+        JSON.stringify(values)
+      );
+      rememberHandle(node);
+      return node;
     }
 
     function createQtSignalFacade(owner, signalName, normalizePayload) {
@@ -2261,6 +2371,7 @@
       rememberDom,
       createFacade,
       createDocument,
+      createInstance,
       parse,
       childAt,
       children,

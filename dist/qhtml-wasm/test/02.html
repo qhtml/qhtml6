@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QHTML WASM Components Visual Test 02</title>
+  <script src="../qhtml-wasm.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f6f8fb;
+      color: #172033;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    main {
+      width: min(1120px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 48px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .intro {
+      margin: 0 0 20px;
+      color: #475569;
+      font-size: 14px;
+    }
+
+    section {
+      margin: 0 0 16px;
+      padding: 16px;
+      border: 1px solid #d8e0eb;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    q-html {
+      display: block;
+      min-height: 42px;
+    }
+
+    .pass {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 10px;
+      border-radius: 6px;
+      background: #13795b;
+      color: #ffffff;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .box {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .slot-shell {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid #94a3b8;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .notice-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    notice-card article {
+      display: inline-flex;
+      min-width: 84px;
+      min-height: 30px;
+      align-items: center;
+      justify-content: center;
+      padding: 0 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #f8fafc;
+    }
+
+    button {
+      min-height: 30px;
+      padding: 0 10px;
+      border: 1px solid #94a3b8;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #172033;
+      font: inherit;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>QHTML WASM Components Visual Test 02</h1>
+    <p class="intro">Each section mirrors one feature item from doc/03-components/index.html. A visible green PASSED marker is enough for human review.</p>
+
+    <section>
+      <h2>1. Basic component structure</h2>
+      <q-html>
+q-component basic-structure {
+  div.pass { text { PASSED } }
+}
+
+basic-structure { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>2. Instantiation</h2>
+      <q-html>
+q-component instantiated-card {
+  div.pass { text { PASSED } }
+}
+
+instantiated-card { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>3. Named instances</h2>
+      <q-html>
+q-component named-card {
+  q-property label: "PASSED"
+  div.pass { text { ${card1.label} } }
+}
+
+named-card card1 { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>4. q-properties</h2>
+      <q-html>
+q-component property-card {
+  q-property title: "PASSED"
+  div.pass { text { ${title} } }
+}
+
+property-card { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>5. Accessing q-properties from JavaScript</h2>
+      <q-html>
+q-component js-property-card {
+  q-property count: 0
+
+  oncountchanged(value) {
+    this.querySelector("#count-out").textContent = Number(value) === 1 ? "PASSED" : "waiting";
+    this.querySelector("#count-out").className = Number(value) === 1 ? "pass" : "";
+  }
+
+  onready {
+    this.count = Number(this.count) + 1;
+  }
+
+  div#count-out { text { waiting } }
+}
+
+js-property-card { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>6a. Scope and context</h2>
+      <q-html>
+q-component comp-a {
+  q-property value: "PASSED"
+}
+
+comp-a rootA { }
+
+q-component comp-b {
+  q-property fromRoot: rootA.value
+  div.pass { text { ${fromRoot} } }
+}
+
+comp-b { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>6b. Named references declaratively</h2>
+      <q-html>
+q-component source-box {
+  q-property title: "PASSED"
+}
+
+source-box source1 { }
+
+q-component target-box {
+  q-property copiedTitle: source1.title
+  div.pass { text { ${copiedTitle} } }
+}
+
+target-box { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>6c. Dot walking</h2>
+      <q-html>
+q-component catalog-store {
+  q-property title: "PASSED"
+  q-property currency: "USD"
+}
+
+catalog-store store1 { }
+
+div.pass { text { ${store1.title} (${store1.currency}) } }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>7. Dynamic components with a slot</h2>
+      <q-html>
+q-component panel-box {
+  div.slot-shell {
+    h3 { text { Panel shell } }
+    slot { body }
+  }
+}
+
+panel-box {
+  body {
+    div.pass { text { PASSED } }
+  }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>7b. Slot defaults</h2>
+      <q-html>
+q-component notice-card {
+  q-slot-default body {
+    div.pass { text { PASSED default } }
+  }
+
+  article {
+    slot { body }
+  }
+}
+
+div.notice-row {
+  notice-card { }
+  notice-card { body { div.pass { text { PASSED custom } } } }
+  notice-card { body { } }
+  div.pass { text { PASSED empty slot } }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>8. q-signals</h2>
+      <q-html>
+q-component signal-declaration-card {
+  q-signal sent(message)
+
+  onready {
+    if (typeof this.sent === "function") {
+      this.querySelector("#signal-declared").textContent = "PASSED";
+      this.querySelector("#signal-declared").className = "pass";
+    }
+  }
+
+  div#signal-declared { text { waiting } }
+}
+
+signal-declaration-card { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>9. on&lt;signal&gt; handlers</h2>
+      <q-html>
+q-component signal-handler-card {
+  q-signal sent(message)
+
+  onsent(message) {
+    this.querySelector("#signal-out").textContent = String(message);
+    this.querySelector("#signal-out").className = "pass";
+  }
+
+  onready {
+    this.sent("PASSED");
+  }
+
+  div#signal-out { text { waiting } }
+}
+
+signal-handler-card { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>10. q-connect</h2>
+      <q-html>
+q-component connect-sender {
+  q-signal sent(message)
+
+  function sendNow(message) {
+    this.sent(message);
+  }
+}
+
+q-component connect-receiver {
+  q-property value: "waiting"
+
+  function onMessage(message) {
+    this.value = message;
+  }
+
+  onvaluechanged(value) {
+    this.querySelector("#connect-out").textContent = String(value);
+    this.querySelector("#connect-out").className = "pass";
+  }
+
+  div#connect-out { text { waiting } }
+}
+
+connect-sender sender1 { }
+connect-receiver receiver1 { }
+
+q-connect { sender1.sent receiver1.onMessage }
+
+q-component connect-driver {
+  onready {
+    sender1.sendNow("PASSED");
+  }
+}
+
+connect-driver { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>11. on&lt;property&gt;changed { }</h2>
+      <q-html>
+q-component changed-hook-card {
+  q-property count: 0
+
+  oncountchanged(value) {
+    this.querySelector("#changed-out").textContent = Number(value) === 1 ? "PASSED" : "waiting";
+    this.querySelector("#changed-out").className = Number(value) === 1 ? "pass" : "";
+  }
+
+  onready {
+    this.count = 1;
+  }
+
+  div#changed-out { text { waiting } }
+}
+
+changed-hook-card { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>12. onready</h2>
+      <q-html>
+q-component ready-card {
+  onready {
+    this.querySelector("#ready-out").textContent = "PASSED";
+    this.querySelector("#ready-out").className = "pass";
+  }
+
+  div#ready-out { text { waiting } }
+}
+
+ready-card { }
+      </q-html>
+    </section>
+  </main>
+</body>
+</html>

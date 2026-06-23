@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v7.1.1
+# QHTML.js v7.1.2
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,14 +12,13 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/tools/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v7.1.1
+## Whats New in v7.1.2
 
-- Bumped the release line to `7.1.1`.
-- Added Qt/WASM `QHtmlParser` and QObject-backed QDom bindings for browser access through `Module.QHtmlParser`, `Module.QDomBuilder`, and typed QDom node constructors.
-- Added symbolic AST-to-QDom conversion in the Qt module, including q-component, q-class, q-object/struct, slot, script-rule, and typed instance node support.
-- Added `dist/qhtml-wasm/` release output for Qt/WASM assets, with the generated Qt glue and wasm copied as `qhtml-wasm-glue.js` and `qhtml-wasm.wasm`.
-- Added the lightweight `q-shadow-root` component file under `dist/q-components/`.
-- Documented the new QHTML Qt/WASM browser-facing API in `doc/modules/qhtml-qt/MODULE-API.md`.
+- Bumped the release line to `7.1.2`.
+- Added Qt/WASM visual milestone pages for component, style/theme, signal/connect, and stress-animation coverage under `dist/qhtml-wasm/test/`.
+- Added q-style and q-theme QDom resource support in the Qt/WASM parser and browser renderer path.
+- Expanded Qt/WASM signal and q-connect handling for call-shaped endpoints, lifecycle hook wiring, and dynamic q-class instance creation.
+- Updated the Qt/WASM stress page to use a single q-class-driven rectangle implementation with continuously randomized animated geometry.
 
 ## Whats New in v7.0.0
 

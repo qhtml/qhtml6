@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QHTML WASM Signals Visual Test 04</title>
+  <script src="../qhtml-wasm.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f6f8fb;
+      color: #172033;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    main {
+      width: min(1120px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 48px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .intro {
+      margin: 0 0 20px;
+      color: #475569;
+      font-size: 14px;
+    }
+
+    section {
+      margin: 0 0 16px;
+      padding: 16px;
+      border: 1px solid #d8e0eb;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    q-html {
+      display: block;
+      min-height: 44px;
+    }
+
+    .pass {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 10px;
+      border-radius: 6px;
+      background: #13795b;
+      color: #ffffff;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .stack {
+      display: grid;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>QHTML WASM Signals Visual Test 04</h1>
+    <p class="intro">Each section focuses on q-signal, on&lt;signal&gt; hooks, q-connect, QObject-backed q-class signals, and property changed hooks.</p>
+
+    <section>
+      <h2>1. on&lt;signal&gt;(param) lifecycle hook</h2>
+      <q-html>
+q-component signal-lifecycle-card {
+  q-signal completed(message)
+
+  oncompleted(message) {
+    this.querySelector("#signal-lifecycle-out").textContent = String(message);
+    this.querySelector("#signal-lifecycle-out").className = "pass";
+  }
+
+  onready {
+    this.completed("PASSED");
+  }
+
+  div#signal-lifecycle-out { text { waiting } }
+}
+
+signal-lifecycle-card { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>2. object.&lt;signal&gt;(param) from JavaScript</h2>
+      <q-html>
+q-component signal-object-call-card {
+  q-signal manual(message)
+
+  onmanual(message) {
+    this.querySelector("#object-call-out").textContent = String(message);
+    this.querySelector("#object-call-out").className = "pass";
+  }
+
+  onready {
+    this.manual("PASSED");
+  }
+
+  div#object-call-out { text { waiting } }
+}
+
+signal-object-call-card { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>3. q-connect direct in scope</h2>
+      <q-html>
+q-component direct-sender {
+  q-signal sent(message)
+
+  function sendNow(message) {
+    this.sent(message);
+  }
+}
+
+q-component direct-receiver {
+  function accept(message) {
+    this.querySelector("#direct-connect-out").textContent = String(message);
+    this.querySelector("#direct-connect-out").className = "pass";
+  }
+
+  div#direct-connect-out { text { waiting } }
+}
+
+direct-sender directSender { }
+direct-receiver directReceiver { }
+
+q-connect { directSender.sent(message) directReceiver.accept(message) }
+
+q-component direct-driver {
+  onready {
+    directSender.sendNow("PASSED");
+  }
+}
+
+direct-driver { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>4. q-connect with this.&lt;signal&gt;(param)</h2>
+      <q-html>
+q-component internal-connect-card {
+  q-signal internalPing(message)
+
+  function mark(message) {
+    this.querySelector("#internal-connect-out").textContent = String(message);
+    this.querySelector("#internal-connect-out").className = "pass";
+  }
+
+  q-connect { this.internalPing(message) this.mark(message) }
+
+  onready {
+    this.internalPing("PASSED");
+  }
+
+  div#internal-connect-out { text { waiting } }
+}
+
+internal-connect-card { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>5. q-connect receiver through dot walking</h2>
+      <q-html>
+q-class routeHolder {
+  routeHolder(target) {
+    this.target = target;
+  }
+}
+
+q-component dotwalk-sender {
+  q-signal routed(message)
+
+  function fire(message) {
+    this.routed(message);
+  }
+}
+
+q-component dotwalk-receiver {
+  function capture(message) {
+    this.querySelector("#dotwalk-connect-out").textContent = String(message);
+    this.querySelector("#dotwalk-connect-out").className = "pass";
+  }
+
+  div#dotwalk-connect-out { text { waiting } }
+}
+
+dotwalk-sender dotSender { }
+dotwalk-receiver dotReceiver { }
+routeHolder routes(dotReceiver) { }
+
+q-connect { dotSender.routed(message) routes.target.capture(message) }
+
+q-component dotwalk-driver {
+  onready {
+    dotSender.fire("PASSED");
+  }
+}
+
+dotwalk-driver { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>6. WASM QObject signal into QHTML JavaScript</h2>
+      <q-html>
+q-class wasmSignalSource {
+  q-signal fromWasm(payload)
+
+  wasmSignalSource() {
+    this.native = this.qobject();
+  }
+
+  function emitFromWasm(payload) {
+    this.native.emit("fromWasm", payload);
+  }
+}
+
+q-component wasm-signal-receiver {
+  function accept(payload) {
+    this.querySelector("#wasm-to-js-out").textContent = String(payload.message);
+    this.querySelector("#wasm-to-js-out").className = "pass";
+  }
+
+  div#wasm-to-js-out { text { waiting } }
+}
+
+wasmSignalSource wasmSource { }
+wasm-signal-receiver wasmReceiver { }
+
+q-connect { wasmSource.fromWasm(payload) wasmReceiver.accept(payload) }
+
+q-component wasm-signal-driver {
+  onready {
+    wasmSource.emitFromWasm({ message: "PASSED" });
+  }
+}
+
+wasm-signal-driver { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>7. QHTML signal into WASM QObject and back</h2>
+      <q-html>
+q-class wasmRoundTrip {
+  q-signal completed(payload)
+
+  wasmRoundTrip() {
+    this.native = this.qobject();
+  }
+
+  function receiveFromQhtml(payload) {
+    this.native.emit("completed", { message: payload.message });
+  }
+}
+
+q-component qhtml-wasm-roundtrip-card {
+  q-signal toWasm(payload)
+
+  function acceptBack(payload) {
+    this.querySelector("#qhtml-wasm-roundtrip-out").textContent = String(payload.message);
+    this.querySelector("#qhtml-wasm-roundtrip-out").className = "pass";
+  }
+
+  onready {
+    this.toWasm({ message: "PASSED" });
+  }
+
+  div#qhtml-wasm-roundtrip-out { text { waiting } }
+}
+
+wasmRoundTrip wasmRoundTripBus { }
+qhtml-wasm-roundtrip-card qhtmlRoundTrip { }
+
+q-connect { qhtmlRoundTrip.toWasm(payload) wasmRoundTripBus.receiveFromQhtml(payload) }
+q-connect { wasmRoundTripBus.completed(payload) qhtmlRoundTrip.acceptBack(payload) }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>8. q-class signal connected to q-component function</h2>
+      <q-html>
+q-class classSignalModel {
+  q-signal fired(message)
+
+  function fire(message) {
+    this.fired(message);
+  }
+}
+
+q-component class-signal-view {
+  function show(message) {
+    this.querySelector("#class-signal-out").textContent = String(message);
+    this.querySelector("#class-signal-out").className = "pass";
+  }
+
+  div#class-signal-out { text { waiting } }
+}
+
+classSignalModel classModel { }
+class-signal-view classSignalView { }
+
+q-connect { classModel.fired(message) classSignalView.show(message) }
+
+q-component class-signal-driver {
+  onready {
+    classModel.fire("PASSED");
+  }
+}
+
+class-signal-driver { }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>9. q-component signal connected to q-class function</h2>
+      <q-html>
+q-class classSignalSink {
+  q-signal confirmed(message)
+
+  function receive(message) {
+    this.confirmed(message);
+  }
+}
+
+q-component component-signal-source {
+  q-signal submitted(message)
+
+  function complete(message) {
+    this.querySelector("#component-to-class-out").textContent = String(message);
+    this.querySelector("#component-to-class-out").className = "pass";
+  }
+
+  onready {
+    this.submitted("PASSED");
+  }
+
+  div#component-to-class-out { text { waiting } }
+}
+
+classSignalSink classSink { }
+component-signal-source componentSource { }
+
+q-connect { componentSource.submitted(message) classSink.receive(message) }
+q-connect { classSink.confirmed(message) componentSource.complete(message) }
+      </q-html>
+    </section>
+
+    <section>
+      <h2>10. on&lt;q-property&gt;changed(param)</h2>
+      <q-html>
+q-component property-changed-signal-card {
+  q-property status: "waiting"
+
+  onstatuschanged(message) {
+    this.querySelector("#property-changed-out").textContent = String(message);
+    this.querySelector("#property-changed-out").className = "pass";
+  }
+
+  onready {
+    this.status = "PASSED";
+  }
+
+  div#property-changed-out { text { waiting } }
+}
+
+property-changed-signal-card { }
+      </q-html>
+    </section>
+  </main>
+</body>
+</html>

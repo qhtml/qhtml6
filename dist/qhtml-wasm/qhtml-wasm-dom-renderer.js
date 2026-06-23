@@ -33,58 +33,7 @@
 
   function readAlias(object) {
     const meta = parseMeta(object);
-    return String(object.alias || meta.__qhtmlInstanceAlias || meta.instanceAlias || object.name || "").trim();
-  }
-
-  function normalizeDefinitionName(value) {
-    return String(value || "").trim().toLowerCase();
-  }
-
-  function readBehaviorRules(object) {
-    const meta = parseMeta(object);
-    return meta.__qhtmlBehaviors && typeof meta.__qhtmlBehaviors === "object" ? meta.__qhtmlBehaviors : {};
-  }
-
-  function readAnchorRules(object) {
-    const meta = parseMeta(object);
-    return meta.__qhtmlAnchorRules && typeof meta.__qhtmlAnchorRules === "object" ? meta.__qhtmlAnchorRules : {};
-  }
-
-  function firstDefined() {
-    for (let i = 0; i < arguments.length; i += 1) {
-      if (arguments[i] != null && arguments[i] !== "") {
-        return arguments[i];
-      }
-    }
-    return undefined;
-  }
-
-  function readBoolean(value, fallback) {
-    if (value == null || value === "") {
-      return fallback;
-    }
-    if (typeof value === "boolean") {
-      return value;
-    }
-    if (typeof value === "number") {
-      return value !== 0;
-    }
-    const text = String(value).trim().toLowerCase();
-    if (text === "true" || text === "yes" || text === "on" || text === "1") {
-      return true;
-    }
-    if (text === "false" || text === "no" || text === "off" || text === "0") {
-      return false;
-    }
-    return fallback;
-  }
-
-  function readNumber(value, fallback) {
-    if (value == null || value === "") {
-      return fallback;
-    }
-    const numeric = typeof value === "number" ? value : Number(String(value).trim());
-    return Number.isFinite(numeric) ? numeric : fallback;
+    return String(object.alias || meta.__qhtmlInstanceAlias || object.name || "").trim();
   }
 
   function collectText(node, qdomInterface) {
@@ -104,14 +53,465 @@
       throw new Error("QHTML WASM renderer requires a QDom interface");
     }
 
-    const componentDefinitions = new Map();
-    const classDefinitions = new Map();
-    const classConstructors = new Map();
-    const structDefinitions = new Map();
-    const anchoredElements = [];
+    const styleDefinitions = new Map();
+    const themeDefinitions = new Map();
+    const defaultThemeDefinitions = new Map();
+    const transitionDefinitions = new Map();
+    const painterDefinitions = new Map();
+    const painterRegistrations = new Map();
+    let anonymousStyleCounter = 0;
 
     function childContext(parentContext, owner, overrides) {
       return qdomInterface.createContext(parentContext, owner, overrides || {});
+    }
+
+    function normalizeResourceKey(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function normalizeCssPropertyName(rawProperty) {
+      const value = String(rawProperty || "").trim();
+      if (!value) {
+        return "";
+      }
+      if (value.indexOf("-") !== -1) {
+        return value.toLowerCase();
+      }
+      return value.replace(/[A-Z]/g, (letter) => "-" + letter.toLowerCase());
+    }
+
+    function splitResourceNames(value) {
+      return String(value || "").trim().split(/[\s,]+/).map((entry) => entry.trim()).filter(Boolean);
+    }
+
+    function createBodyParser(rawBody) {
+      return { text: String(rawBody || ""), index: 0 };
+    }
+
+    function skipBodyWhitespace(parser) {
+      while (parser.index < parser.text.length && /[\s;]/.test(parser.text[parser.index])) {
+        parser.index += 1;
+      }
+    }
+
+    function readBodyIdentifier(parser) {
+      skipBodyWhitespace(parser);
+      const start = parser.index;
+      while (parser.index < parser.text.length && !/[\s:{};,]/.test(parser.text[parser.index])) {
+        parser.index += 1;
+      }
+      return parser.text.slice(start, parser.index).trim();
+    }
+
+    function readBalancedBodyBlock(parser) {
+      skipBodyWhitespace(parser);
+      if (parser.text[parser.index] !== "{") {
+        return "";
+      }
+      parser.index += 1;
+      const start = parser.index;
+      let depth = 1;
+      let quote = "";
+      while (parser.index < parser.text.length) {
+        const ch = parser.text[parser.index];
+        if (quote) {
+          if (ch === "\\" && parser.index + 1 < parser.text.length) {
+            parser.index += 2;
+            continue;
+          }
+          if (ch === quote) {
+            quote = "";
+          }
+          parser.index += 1;
+          continue;
+        }
+        if (ch === "\"" || ch === "'") {
+          quote = ch;
+          parser.index += 1;
+          continue;
+        }
+        if (ch === "{") {
+          depth += 1;
+        } else if (ch === "}") {
+          depth -= 1;
+          if (depth === 0) {
+            const body = parser.text.slice(start, parser.index).trim();
+            parser.index += 1;
+            return body;
+          }
+        }
+        parser.index += 1;
+      }
+      return parser.text.slice(start).trim();
+    }
+
+    function readStyleValue(parser) {
+      skipBodyWhitespace(parser);
+      if (parser.text[parser.index] === ":") {
+        parser.index += 1;
+        const start = parser.index;
+        while (parser.index < parser.text.length && !/[;\n\r}]/.test(parser.text[parser.index])) {
+          parser.index += 1;
+        }
+        return parser.text.slice(start, parser.index).trim();
+      }
+      if (parser.text[parser.index] === "{") {
+        return readBalancedBodyBlock(parser);
+      }
+      const start = parser.index;
+      while (parser.index < parser.text.length && !/[;\n\r}]/.test(parser.text[parser.index])) {
+        parser.index += 1;
+      }
+      return parser.text.slice(start, parser.index).trim();
+    }
+
+    function parsePainterMappings(rawBody) {
+      const parser = createBodyParser(rawBody);
+      const out = Object.create(null);
+      while (parser.index < parser.text.length) {
+        const slot = readBodyIdentifier(parser).toLowerCase();
+        if (!slot) {
+          break;
+        }
+        const value = readStyleValue(parser);
+        if ((slot === "background" || slot === "border" || slot === "mask") && value) {
+          out[slot] = splitResourceNames(value)[0] || value;
+        }
+      }
+      return out;
+    }
+
+    function parseStyleBody(rawBody) {
+      const parser = createBodyParser(rawBody);
+      const style = {
+        declarations: Object.create(null),
+        classes: [],
+        painters: Object.create(null),
+        transitions: []
+      };
+      while (parser.index < parser.text.length) {
+        const name = readBodyIdentifier(parser);
+        if (!name) {
+          break;
+        }
+        const key = name.toLowerCase();
+        const value = readStyleValue(parser);
+        if (key === "q-style-class") {
+          style.classes.push(...splitResourceNames(value));
+        } else if (key === "q-style-painter") {
+          Object.assign(style.painters, parsePainterMappings(value));
+        } else if (key === "q-style-transition") {
+          style.transitions.push(...splitResourceNames(value));
+        } else if (value) {
+          style.declarations[name] = value;
+        }
+      }
+      return style;
+    }
+
+    function normalizeTransitionTime(value, fallback) {
+      const text = String(value || "").trim();
+      if (!text) {
+        return fallback;
+      }
+      return /^-?(?:\d+|\d*\.\d+)$/.test(text) ? text + "ms" : text;
+    }
+
+    function parseTransitionBody(rawBody) {
+      const parser = createBodyParser(rawBody);
+      const transition = { property: "", duration: "0ms", delay: "0ms", timing: "ease" };
+      while (parser.index < parser.text.length) {
+        const name = readBodyIdentifier(parser).toLowerCase();
+        if (!name) {
+          break;
+        }
+        const value = readStyleValue(parser);
+        if (name === "property") {
+          transition.property = splitResourceNames(value).join(", ") || value;
+        } else if (name === "duration") {
+          transition.duration = normalizeTransitionTime(value, "0ms");
+        } else if (name === "delay") {
+          transition.delay = normalizeTransitionTime(value, "0ms");
+        } else if (name === "timing") {
+          transition.timing = value || "ease";
+        }
+      }
+      return transition;
+    }
+
+    function parsePainterBody(rawBody) {
+      const parser = createBodyParser(rawBody);
+      const painter = { properties: Object.create(null), onPaint: "" };
+      while (parser.index < parser.text.length) {
+        const name = readBodyIdentifier(parser);
+        if (!name) {
+          break;
+        }
+        const value = readStyleValue(parser);
+        if (name.toLowerCase() === "onpaint") {
+          painter.onPaint = value;
+        } else if (value) {
+          painter.properties[name] = value;
+        }
+      }
+      return painter;
+    }
+
+    function createAnonymousStyleName() {
+      anonymousStyleCounter += 1;
+      return "__qhtmlWasmAnonymousStyle" + String(anonymousStyleCounter);
+    }
+
+    function parseThemeRuleBody(rawBody) {
+      const parser = createBodyParser(rawBody);
+      const styles = [];
+      const anonymousStyles = [];
+      while (parser.index < parser.text.length) {
+        const name = readBodyIdentifier(parser);
+        if (!name) {
+          break;
+        }
+        skipBodyWhitespace(parser);
+        if (name.toLowerCase() === "q-style" && parser.text[parser.index] === "{") {
+          const styleName = createAnonymousStyleName();
+          anonymousStyles.push(Object.assign({ name: styleName }, parseStyleBody(readBalancedBodyBlock(parser))));
+          styles.push(styleName);
+          continue;
+        }
+        styles.push(name);
+        if (parser.text[parser.index] === "{") {
+          readBalancedBodyBlock(parser);
+        }
+      }
+      return { styles, anonymousStyles };
+    }
+
+    function parseThemeBody(rawBody) {
+      const parser = createBodyParser(rawBody);
+      const rules = [];
+      while (parser.index < parser.text.length) {
+        const selector = readBodyIdentifier(parser);
+        if (!selector) {
+          break;
+        }
+        const body = readBalancedBodyBlock(parser);
+        if (!body.trim()) {
+          rules.push({ include: selector });
+          continue;
+        }
+        const parsed = parseThemeRuleBody(body);
+        rules.push({ selector, styles: parsed.styles, anonymousStyles: parsed.anonymousStyles });
+      }
+      return rules;
+    }
+
+    function readResourceName(object) {
+      const meta = parseMeta(object);
+      return String(object.name || meta.name || "").trim();
+    }
+
+    function readResourceBody(object) {
+      const meta = parseMeta(object);
+      return String(object.body || meta.body || "").trim();
+    }
+
+    function registerStyleResource(node, object) {
+      const kind = String(object.kind || "").trim();
+      const name = readResourceName(object);
+      if (!name) {
+        return document.createComment("qhtml unnamed style resource");
+      }
+      const key = normalizeResourceKey(name);
+      const body = readResourceBody(object);
+      if (kind === "style-definition") {
+        styleDefinitions.set(key, Object.assign({ name }, parseStyleBody(body)));
+      } else if (kind === "theme-definition" || kind === "default-theme-definition") {
+        const rules = parseThemeBody(body);
+        const target = kind === "default-theme-definition" ? defaultThemeDefinitions : themeDefinitions;
+        for (const rule of rules) {
+          for (const anonymous of rule.anonymousStyles || []) {
+            styleDefinitions.set(normalizeResourceKey(anonymous.name), anonymous);
+          }
+        }
+        target.set(key, { name, rules });
+      } else if (kind === "transition-definition") {
+        transitionDefinitions.set(key, Object.assign({ name }, parseTransitionBody(body)));
+      } else if (kind === "painter-definition") {
+        painterDefinitions.set(key, Object.assign({ name }, parsePainterBody(body)));
+      }
+      qdomInterface.rememberHandle(node);
+      return document.createComment("qhtml " + kind + " " + name);
+    }
+
+    function resolveStyleDefinition(name) {
+      return styleDefinitions.get(normalizeResourceKey(name)) || null;
+    }
+
+    function mergeStyleNames(styleNames) {
+      const merged = { declarations: Object.create(null), classes: [], painters: Object.create(null), transitions: [] };
+      for (const styleName of styleNames || []) {
+        const style = resolveStyleDefinition(styleName);
+        if (!style) {
+          continue;
+        }
+        merged.classes.push(...(Array.isArray(style.classes) ? style.classes : []));
+        Object.assign(merged.declarations, style.declarations || {});
+        Object.assign(merged.painters, style.painters || {});
+        merged.transitions.push(...(Array.isArray(style.transitions) ? style.transitions : []));
+      }
+      return merged;
+    }
+
+    function buildTransitionCss(transitionName) {
+      const transition = transitionDefinitions.get(normalizeResourceKey(transitionName));
+      if (!transition || !transition.property) {
+        return "";
+      }
+      return [transition.property, normalizeTransitionTime(transition.duration, "0ms"), String(transition.timing || "ease").trim() || "ease", normalizeTransitionTime(transition.delay, "0ms")].join(" ");
+    }
+
+    function ensurePainterRegistration(painterName, painter) {
+      const key = normalizeResourceKey(painterName);
+      if (!key || !painter || !painter.onPaint || !globalScope.CSS || !globalScope.CSS.paintWorklet ||
+          typeof globalScope.CSS.paintWorklet.addModule !== "function" || typeof globalScope.Blob !== "function") {
+        return "";
+      }
+      if (painterRegistrations.has(key)) {
+        return painterRegistrations.get(key);
+      }
+      const internalName = "qhtml-wasm-" + key.replace(/[^a-z0-9_-]/g, "-");
+      const source = [
+        "registerPaint(" + JSON.stringify(internalName) + ", class QHtmlWasmPainter {",
+        "  paint(ctx, size) {",
+        "    const target = new Proxy({ width: size.width, height: size.height }, {",
+        "      get(state, prop) { return prop in state ? state[prop] : (typeof ctx[prop] === 'function' ? ctx[prop].bind(ctx) : ctx[prop]); },",
+        "      set(state, prop, value) { if (prop in ctx) { try { ctx[prop] = value; return true; } catch (e) {} } state[prop] = value; return true; }",
+        "    });",
+        "    (function(){",
+        painter.onPaint,
+        "    }).call(target);",
+        "  }",
+        "});"
+      ].join("\n");
+      const url = globalScope.URL.createObjectURL(new Blob([source], { type: "application/javascript" }));
+      painterRegistrations.set(key, internalName);
+      globalScope.CSS.paintWorklet.addModule(url).catch(() => undefined);
+      return internalName;
+    }
+
+    function applyPainterSlot(element, slot, paintName) {
+      if (!element || !element.style || !paintName) {
+        return;
+      }
+      const value = "paint(" + paintName + ")";
+      if (slot === "background") {
+        element.style.setProperty("background-image", value);
+      } else if (slot === "border") {
+        element.style.setProperty("border-image-source", value);
+        element.style.setProperty("border-image-slice", "1 fill");
+      } else if (slot === "mask") {
+        element.style.setProperty("mask-image", value);
+        element.style.setProperty("-webkit-mask-image", value);
+      }
+    }
+
+    function applyStyleObject(element, styleObject) {
+      if (!element || element.nodeType !== 1 || !styleObject) {
+        return;
+      }
+      for (const className of styleObject.classes || []) {
+        if (className && element.classList) {
+          element.classList.add(className);
+        }
+      }
+      const transitionCss = [];
+      for (const transitionName of styleObject.transitions || []) {
+        const css = buildTransitionCss(transitionName);
+        if (css) {
+          transitionCss.push(css);
+        }
+      }
+      if (transitionCss.length) {
+        element.style.setProperty("transition", transitionCss.join(", "));
+      }
+      for (const [property, value] of Object.entries(styleObject.declarations || {})) {
+        const cssProperty = normalizeCssPropertyName(property);
+        if (cssProperty && value != null && value !== "") {
+          element.style.setProperty(cssProperty, String(value));
+        }
+      }
+      for (const [slot, painterName] of Object.entries(styleObject.painters || {})) {
+        const painter = painterDefinitions.get(normalizeResourceKey(painterName));
+        const paintName = ensurePainterRegistration(painterName, painter);
+        applyPainterSlot(element, slot, paintName);
+      }
+    }
+
+    function collectElementRoots(fragment) {
+      const out = [];
+      const children = fragment && fragment.childNodes ? fragment.childNodes : [];
+      for (let i = 0; i < children.length; i += 1) {
+        if (children[i] && children[i].nodeType === 1) {
+          out.push(children[i]);
+        }
+      }
+      return out;
+    }
+
+    function applyThemeRules(rootElement, themeName) {
+      const key = normalizeResourceKey(themeName);
+      const ordered = [];
+      const defaults = defaultThemeDefinitions.get(key);
+      const theme = themeDefinitions.get(key);
+      if (defaults && Array.isArray(defaults.rules)) {
+        ordered.push(...defaults.rules);
+      }
+      if (theme && Array.isArray(theme.rules)) {
+        ordered.push(...theme.rules);
+      }
+      for (const rule of ordered) {
+        const includeName = String(rule && rule.include || "").trim();
+        if (includeName) {
+          applyThemeRules(rootElement, includeName);
+          continue;
+        }
+        const selector = String(rule && rule.selector || "").trim();
+        if (!selector) {
+          continue;
+        }
+        const targets = [];
+        try {
+          if (rootElement.matches && rootElement.matches(selector)) {
+            targets.push(rootElement);
+          }
+          if (rootElement.querySelectorAll) {
+            targets.push(...Array.from(rootElement.querySelectorAll(selector)));
+          }
+        } catch (_error) {
+          continue;
+        }
+        const styleObject = mergeStyleNames(rule.styles || []);
+        for (const target of targets) {
+          applyStyleObject(target, styleObject);
+        }
+      }
+    }
+
+    function renderStyleInvocation(node, styleName, context) {
+      const fragment = renderFragment(node, context);
+      const styleObject = mergeStyleNames([styleName]);
+      for (const root of collectElementRoots(fragment)) {
+        applyStyleObject(root, styleObject);
+      }
+      return fragment;
+    }
+
+    function renderThemeInvocation(node, themeName, context) {
+      const fragment = renderFragment(node, context);
+      for (const root of collectElementRoots(fragment)) {
+        applyThemeRules(root, themeName);
+      }
+      return fragment;
     }
 
     function applyAttributes(element, attributes, context, node) {
@@ -139,23 +539,36 @@
       }
     }
 
+    function createRenderedFacade(node, element, context) {
+      const facade = qdomInterface.createFacade(node);
+      Object.defineProperty(facade, "appendInstance", {
+        configurable: true,
+        value(typeName, alias, args) {
+          const child = qdomInterface.createInstance(typeName, alias || "", args || []);
+          node.addChild(child);
+          qdomInterface.rememberHandle(child);
+          const target = element || qdomInterface.findDomByUuid(facade.uuid());
+          const rendered = renderNode(child, context, target);
+          target.appendChild(rendered);
+          return createRenderedFacade(child, rendered && rendered.nodeType === 1 ? rendered : null, context);
+        }
+      });
+      return facade;
+    }
+
     function exposeQDom(element, node, context) {
       if (!element || !node || element.nodeType !== 1) {
         return element;
       }
       qdomInterface.rememberHandle(node);
       qdomInterface.rememberDom(node, element);
-      const uuid = typeof node.uuid === "function" ? node.uuid() : "";
-      if (uuid && element.style && typeof element.style.setProperty === "function") {
-        element.style.setProperty("anchor-name", "--qhtml-anchor-" + uuid);
-      }
       if (context) {
         qdomInterface.bindContextValue(element, context);
       }
       Object.defineProperty(element, "qdom", {
         configurable: true,
         value() {
-          return qdomInterface.createFacade(node);
+          return createRenderedFacade(node, element, context);
         }
       });
       const contextValue = qdomInterface.createContextValue(node, element);
@@ -165,171 +578,8 @@
       return element;
     }
 
-    function resolveAnchorTarget(expression, context, element) {
-      const source = String(expression || "").trim();
-      if (!source) {
-        return null;
-      }
-      const parts = source.split(".");
-      const name = parts.shift();
-      const side = (parts.shift() || "").toLowerCase();
-      let value = qdomInterface.evaluateExpression(name, context, element, {}, { pathFallbackLiteral: false });
-      let target = null;
-      if (value && typeof value.element === "function") {
-        target = value.element();
-      } else if (value && value.nodeType === 1) {
-        target = value;
-      }
-      if (!target && context && context.hostElement) {
-        target = context.hostElement.querySelector("#" + CSS.escape(name))
-          || context.hostElement.querySelector(name);
-      }
-      return target ? { element: target, side } : null;
-    }
-
-    function edgeCoordinate(rect, side, axis) {
-      if (side === "right") {
-        return rect.right;
-      }
-      if (side === "bottom") {
-        return rect.bottom;
-      }
-      if (side === "center") {
-        return axis === "x" ? rect.left + rect.width / 2 : rect.top + rect.height / 2;
-      }
-      if (side === "hcenter") {
-        return rect.left + rect.width / 2;
-      }
-      if (side === "vcenter") {
-        return rect.top + rect.height / 2;
-      }
-      return axis === "y" ? rect.top : rect.left;
-    }
-
-    function ensurePositionedContainer(element) {
-      const container = element && element.parentElement ? element.parentElement : null;
-      if (!container) {
-        return null;
-      }
-      const position = getComputedStyle(container).position;
-      if (!position || position === "static") {
-        container.style.position = "relative";
-      }
-      return container;
-    }
-
-    function applyAnchorEntry(entry) {
-      const element = entry.element;
-      if (!element || !element.isConnected) {
-        return;
-      }
-      const rules = entry.rules || {};
-      const container = ensurePositionedContainer(element);
-      if (!container) {
-        return;
-      }
-      const containerRect = container.getBoundingClientRect();
-      const ownRect = element.getBoundingClientRect();
-      const style = element.style;
-      style.position = "absolute";
-
-      if (rules.fill) {
-        const target = resolveAnchorTarget(rules.fill, entry.context, element);
-        if (target) {
-          const rect = target.element.getBoundingClientRect();
-          style.left = (rect.left - containerRect.left) + "px";
-          style.top = (rect.top - containerRect.top) + "px";
-          style.width = rect.width + "px";
-          style.height = rect.height + "px";
-          return;
-        }
-      }
-
-      for (const [rule, expression] of Object.entries(rules)) {
-        if (rule === "fill") {
-          continue;
-        }
-        const target = resolveAnchorTarget(expression, entry.context, element);
-        if (!target) {
-          continue;
-        }
-        const rect = target.element.getBoundingClientRect();
-        if (target.element.style && typeof target.element.style.getPropertyValue === "function") {
-          const uuid = typeof target.element.qdom === "function" ? target.element.qdom().uuid() : "";
-          if (uuid) {
-            style.setProperty("position-anchor", "--qhtml-anchor-" + uuid);
-          }
-        }
-        if (rule === "left") {
-          style.left = (edgeCoordinate(rect, target.side, "x") - containerRect.left) + "px";
-        } else if (rule === "right") {
-          style.right = (containerRect.right - edgeCoordinate(rect, target.side, "x")) + "px";
-        } else if (rule === "top") {
-          style.top = (edgeCoordinate(rect, target.side, "y") - containerRect.top) + "px";
-        } else if (rule === "bottom") {
-          style.bottom = (containerRect.bottom - edgeCoordinate(rect, target.side, "y")) + "px";
-        } else if (rule === "center") {
-          style.left = (edgeCoordinate(rect, "center", "x") - containerRect.left - ownRect.width / 2) + "px";
-          style.top = (edgeCoordinate(rect, "center", "y") - containerRect.top - ownRect.height / 2) + "px";
-        } else if (rule === "hcenter") {
-          style.left = (edgeCoordinate(rect, "hcenter", "x") - containerRect.left - ownRect.width / 2) + "px";
-        } else if (rule === "vcenter") {
-          style.top = (edgeCoordinate(rect, "vcenter", "y") - containerRect.top - ownRect.height / 2) + "px";
-        }
-      }
-    }
-
-    function enqueueAnchors(element, node, object, context) {
-      const rules = readAnchorRules(object);
-      if (!rules || !Object.keys(rules).length) {
-        return;
-      }
-      anchoredElements.push({ element, node, context, rules });
-    }
-
-    function applyAllAnchors() {
-      for (const entry of anchoredElements) {
-        applyAnchorEntry(entry);
-      }
-    }
-
-    function scheduleAnchorPass() {
-      if (typeof requestAnimationFrame === "function") {
-        requestAnimationFrame(() => applyAllAnchors());
-      } else {
-        setTimeout(() => applyAllAnchors(), 0);
-      }
-    }
-
-    function installComponentElementProperty(element, componentValue, propertyName) {
-      const key = String(propertyName || "").trim();
-      if (!element || element.nodeType !== 1 || !componentValue || !key || Object.prototype.hasOwnProperty.call(element, key)) {
-        return;
-      }
-      Object.defineProperty(element, key, {
-        configurable: true,
-        enumerable: true,
-        get() {
-          return componentValue[key];
-        },
-        set(nextValue) {
-          componentValue[key] = nextValue;
-        }
-      });
-    }
-
     function appendRenderedChildren(target, node, context) {
       for (const child of qdomInterface.children(node)) {
-        const childObject = qdomInterface.nodeObject(child);
-        if ((childObject.kind || "") === "text") {
-          const value = String(childObject.value || "").trim();
-          const fieldMatch = value.match(/^var\s+this\.([A-Za-z_$][A-Za-z0-9_$]*)\b/);
-          if (fieldMatch) {
-            installComponentElementProperty(target, context && context.component, fieldMatch[1]);
-            qdomInterface.executeScript(value.replace(/^var\s+/, ""), context, target && target.nodeType === 1 ? target : context && context.component, {}, [], []);
-            continue;
-          }
-        }
         const rendered = renderNode(child, context, target && target.nodeType === 1 ? target : null);
         if (rendered) {
           target.appendChild(rendered);
@@ -345,80 +595,45 @@
 
     function runScriptRule(node, object, parent, context) {
       const name = String(object.name || "").trim();
-      const lowerName = name.toLowerCase();
       const type = metaType(object);
       const body = String(object.body || "");
-      if (type === "QScriptActionBlock") {
-        qdomInterface.executeScript(body, context, parent || context && context.component || null, {}, [], []);
-        return;
-      }
       if (type === "SignalDeclaration") {
-        const targets = [];
-        if (context && context.component) {
-          targets.push(context.component);
-        }
-        if (parent && parent.nodeType === 1) {
-          targets.push(parent);
-        }
-        const emitDeclaredSignal = function emitSignal(payload) {
-          const componentTarget = context && context.component ? context.component : null;
-          const facade = componentTarget && typeof componentTarget.qdom === "function"
-            ? componentTarget.qdom()
-            : parent && typeof parent.qdom === "function"
-              ? parent.qdom()
-              : null;
-          if (facade && typeof facade.emit === "function") {
-            facade.emit(name, payload);
-          }
-        };
-        for (const target of targets) {
-          target[name] = emitDeclaredSignal;
-        }
-        return;
-      }
-      if (lowerName === "onready" || lowerName === "onload" || lowerName === "onloaded") {
         const target = parent && parent.nodeType === 1 ? parent : context && context.component;
-        const runReady = () => qdomInterface.executeScript(body, context, target, {}, [], object.parameters || []);
-        if (typeof requestAnimationFrame === "function") {
-          requestAnimationFrame(runReady);
-        } else {
-          setTimeout(runReady, 0);
+        if (target) {
+          target[name] = function emitSignal(payload) {
+            const facade = typeof target.qdom === "function" ? target.qdom() : null;
+            if (facade && typeof facade.emit === "function") {
+              facade.emit(name, payload);
+            }
+          };
         }
         return;
       }
       if (/^on[A-Za-z]/.test(name) && parent && parent.nodeType === 1) {
-        if (/changed$/i.test(name)) {
-          const targetValue = context && context.component ? context.component : null;
-          if (targetValue) {
-            const propertyName = name.slice(2).replace(/changed$/i, "");
-            const signalName = propertyName + "Changed";
-            const facade = typeof targetValue.qdom === "function" ? targetValue.qdom() : null;
-            const handle = facade && facade.handle ? facade.handle : null;
-            const runChangedHandler = function qhtmlWasmChangedSignalHandler(payload) {
-              const event = payload && typeof payload === "object" ? payload : {};
-              const nextValue = Object.prototype.hasOwnProperty.call(event, "value")
-                ? event.value
-                : targetValue[propertyName];
-              return qdomInterface.executeScript(
-                body,
-                context,
-                parent || targetValue,
-                {
-                  event,
-                  value: nextValue,
-                  propertyName
-                },
-                [nextValue, event],
-                object.parameters || ["value", "event"]
-              );
-            };
-            targetValue[name] = runChangedHandler;
-            targetValue[name.toLowerCase()] = runChangedHandler;
-            if (handle && typeof qdomInterface.connectSignal === "function") {
-              qdomInterface.connectSignal(handle, signalName, runChangedHandler);
-            }
+        const targetValue = context && context.component ? context.component : null;
+        if (targetValue) {
+          const signalName = name.slice(2);
+          const facade = typeof targetValue.qdom === "function" ? targetValue.qdom() : null;
+          const handle = facade && facade.handle ? facade.handle : null;
+          const runSignalHandler = function qhtmlWasmDeclaredSignalHandler(payload) {
+            return qdomInterface.executeScript(
+              body,
+              context,
+              parent || targetValue,
+              {
+                payload,
+                value: payload,
+                signalName
+              },
+              [payload],
+              object.parameters || ["payload"]
+            );
+          };
+          targetValue[name] = runSignalHandler;
+          targetValue[name.toLowerCase()] = runSignalHandler;
+          if (handle && typeof qdomInterface.connectSignal === "function") {
+            qdomInterface.connectSignal(handle, signalName, runSignalHandler);
           }
-          return;
         }
         const eventName = name.slice(2).toLowerCase();
         const parameters = object.parameters || "";
@@ -456,229 +671,28 @@
           element.appendChild(rendered);
         }
       }
-      enqueueAnchors(element, node, object, context);
       return element;
-    }
-
-    function readClassFieldInitializers(node) {
-      const fields = [];
-      for (const child of qdomInterface.children(node)) {
-        const object = qdomInterface.nodeObject(child);
-        if ((object.kind || "") !== "text") {
-          continue;
-        }
-        const value = String(object.value || "").trim();
-        if (/^var\s+this\./.test(value)) {
-          fields.push(value.replace(/^var\s+/, ""));
-        }
-      }
-      return fields;
-    }
-
-    function readClassSignalNames(node, object) {
-      const signals = [];
-      const addSignal = function addSignal(name) {
-        const signalName = String(name || "").trim();
-        if (signalName && !signals.includes(signalName)) {
-          signals.push(signalName);
-        }
-      };
-      if (Array.isArray(object && object.signals)) {
-        for (const signal of object.signals) {
-          addSignal(signal && typeof signal === "object" ? signal.name : signal);
-        }
-      }
-      for (const child of qdomInterface.children(node)) {
-        const childObject = qdomInterface.nodeObject(child);
-        if ((childObject.kind || "") === "script-rule" && metaType(childObject) === "SignalDeclaration") {
-          addSignal(childObject.name);
-        }
-      }
-      return signals;
-    }
-
-    function defineMethodOnPrototype(ctor, method, ownerContext) {
-      const name = String(method && method.name || "").trim();
-      if (!name) {
-        return;
-      }
-      const body = String(method.body || "");
-      const parameters = method.parameters || method.parameterList || "";
-      ctor.prototype[name] = function qhtmlWasmClassMethod() {
-        return qdomInterface.executeScript(body, ownerContext, this, {}, Array.from(arguments), parameters);
-      };
-    }
-
-    function compileClassDefinition(node, object, context) {
-      const classId = String(object.classId || "").trim();
-      const key = normalizeDefinitionName(classId);
-      if (!key) {
-        return null;
-      }
-      if (classConstructors.has(key)) {
-        return classConstructors.get(key);
-      }
-
-      const parentKey = normalizeDefinitionName(object.extendsClassId || "");
-      const ParentCtor = parentKey ? classConstructors.get(parentKey) : null;
-      const constructorDefinition = object.constructorDefinition && typeof object.constructorDefinition === "object"
-        ? object.constructorDefinition
-        : {};
-      const constructorBody = String(constructorDefinition.body || "");
-      const constructorParameters = constructorDefinition.parameters || constructorDefinition.parameterList || "";
-      const fieldInitializers = readClassFieldInitializers(node);
-      const signalNames = readClassSignalNames(node, object);
-      const ownerContext = childContext(context, node, {});
-
-      const ctor = function QHtmlWasmRuntimeClass() {
-        if (!(this instanceof ctor)) {
-          return new ctor(...Array.from(arguments));
-        }
-        if (ParentCtor) {
-          ParentCtor.apply(this, arguments);
-        }
-        qdomInterface.bindContextValue(this, ownerContext);
-        if (typeof qdomInterface.attachRuntimeSignalBridge === "function") {
-          qdomInterface.attachRuntimeSignalBridge(this, null, { signals: signalNames });
-        }
-        Object.defineProperty(this, "__qhtmlClassId", {
-          configurable: true,
-          enumerable: false,
-          writable: true,
-          value: classId
-        });
-        for (const source of fieldInitializers) {
-          qdomInterface.executeScript(source, ownerContext, this, {}, [], []);
-        }
-        if (constructorBody.trim()) {
-          const methodScope = Object.create(null);
-          for (const methodName of Object.getOwnPropertyNames(ctor.prototype)) {
-            if (methodName !== "constructor" && typeof this[methodName] === "function") {
-              methodScope[methodName] = this[methodName].bind(this);
-            }
-          }
-          qdomInterface.executeScript(constructorBody, ownerContext, this, methodScope, Array.from(arguments), constructorParameters);
-        }
-      };
-
-      Object.defineProperty(ctor, "name", {
-        configurable: true,
-        value: classId
-      });
-      if (ParentCtor) {
-        ctor.prototype = Object.create(ParentCtor.prototype);
-      }
-      Object.defineProperty(ctor.prototype, "constructor", {
-        configurable: true,
-        writable: true,
-        value: ctor
-      });
-      ctor.prototype.qdomClassName = function qdomClassName() {
-        return classId;
-      };
-
-      const methods = Array.isArray(object.methods) ? object.methods : [];
-      for (const method of methods) {
-        defineMethodOnPrototype(ctor, method, ownerContext);
-      }
-
-      classDefinitions.set(key, node);
-      classConstructors.set(key, ctor);
-      qdomInterface.registerAlias(context, classId, ctor);
-      qdomInterface.rememberHandle(node);
-      return ctor;
-    }
-
-    function instantiateClassNode(node, object, context) {
-      const classId = String(object.classId || "").trim();
-      const key = normalizeDefinitionName(classId);
-      const ctor = classConstructors.get(key);
-      if (!ctor) {
-        return null;
-      }
-      const instanceContext = childContext(context, node, {});
-      const args = Array.isArray(object.arguments)
-        ? object.arguments.map((source) => qdomInterface.evaluateExpression(source, instanceContext, null, {}, { pathFallbackLiteral: true }))
-        : [];
-      const instance = new ctor(...args);
-      qdomInterface.bindContextValue(instance, instanceContext);
-      if (typeof qdomInterface.attachRuntimeSignalBridge === "function") {
-        qdomInterface.attachRuntimeSignalBridge(instance, node, {});
-      } else if (typeof instance.__qhtmlAttachSignalNode === "function") {
-        instance.__qhtmlAttachSignalNode(node);
-      }
-      Object.defineProperty(instance, "qdom", {
-        configurable: true,
-        value() {
-          return qdomInterface.createFacade(node);
-        }
-      });
-      Object.defineProperty(instance, "element", {
-        configurable: true,
-        value() {
-          return null;
-        }
-      });
-
-      const attrs = Object.assign({}, parseObject(object.attributes), parseObject(object.props));
-      for (const [name, value] of Object.entries(attrs)) {
-        instance[name] = typeof value === "string" ? qdomInterface.interpolate(value, instanceContext, null) : value;
-        qdomInterface.writeProperty(node, name, instance[name]);
-      }
-
-      const alias = readAlias(object);
-      if (alias) {
-        qdomInterface.registerAlias(context, alias, instance);
-        qdomInterface.registerAlias(instanceContext, alias, instance);
-      }
-      return document.createComment("qhtml class instance " + (alias || classId));
     }
 
     function renderCustomInstance(node, object, context) {
       const tagName = object.componentId || object.classId || object.structId || object.tagName || "q-instance";
       const element = document.createElement(normalizeTagName(tagName, "q-instance"));
-      const definition = componentDefinitions.get(normalizeDefinitionName(object.componentId || tagName))
-        || classDefinitions.get(normalizeDefinitionName(object.classId || tagName))
-        || structDefinitions.get(normalizeDefinitionName(object.structId || tagName))
-        || null;
-      const definitionObject = definition ? qdomInterface.nodeObject(definition) : null;
       const instanceContext = childContext(context, node, {});
       const contextValue = qdomInterface.createContextValue(node, element);
       instanceContext.component = contextValue;
       exposeQDom(element, node, instanceContext);
-      applyAttributes(element, definitionObject && definitionObject.attributes, instanceContext, definition || node);
       applyAttributes(element, object.attributes, instanceContext, node);
-      const definitionProps = Object.assign({}, parseObject(definitionObject && definitionObject.properties), parseObject(definitionObject && definitionObject.props));
-      const props = Object.assign({}, definitionProps, parseObject(object.props));
+      const props = parseObject(object.props);
       for (const [name, value] of Object.entries(props)) {
         const resolved = typeof value === "string" ? qdomInterface.interpolate(value, instanceContext, element) : value;
         qdomInterface.writeProperty(node, name, resolved);
-        if (!Object.prototype.hasOwnProperty.call(element, name)) {
-          Object.defineProperty(element, name, {
-            configurable: true,
-            enumerable: true,
-            get() {
-              return contextValue[name];
-            },
-            set(nextValue) {
-              contextValue[name] = nextValue;
-            }
-          });
-        }
-      }
-      if (typeof qdomInterface.installBehaviorRules === "function") {
-        qdomInterface.installBehaviorRules(contextValue, Object.assign({}, readBehaviorRules(definitionObject), readBehaviorRules(object)));
       }
       const alias = readAlias(object);
       if (alias) {
         qdomInterface.registerAlias(context, alias, contextValue);
         qdomInterface.registerAlias(instanceContext, alias, contextValue);
       }
-      if (definition) {
-        appendRenderedChildren(element, definition, instanceContext);
-      }
       appendRenderedChildren(element, node, instanceContext);
-      enqueueAnchors(element, node, object, instanceContext);
       return element;
     }
 
@@ -703,17 +717,7 @@
 
     function registerDefinition(node, object, context) {
       const id = String(object.componentId || object.classId || object.structId || "").trim();
-      const key = normalizeDefinitionName(id);
-      if (key) {
-        if ((object.kind || "") === "component") {
-          componentDefinitions.set(key, node);
-        } else if ((object.kind || "") === "class") {
-          compileClassDefinition(node, object, context);
-        } else if ((object.kind || "") === "struct") {
-          structDefinitions.set(key, node);
-        }
-      }
-      if (id && (object.kind || "") !== "class") {
+      if (id) {
         qdomInterface.registerAlias(context, id, qdomInterface.createContextValue(node));
       }
       qdomInterface.rememberHandle(node);
@@ -738,57 +742,58 @@
       return null;
     }
 
-    function renderQTimer(node, object, context, parent) {
-      const meta = parseMeta(object);
-      const attrs = parseObject(object.attributes);
-      const parsed = qdomInterface.parseTimerRaw(meta.raw || object.raw || "");
-      const alias = readAlias(object) || parsed.name || String(firstDefined(attrs.name, attrs.id) || "").trim();
-      const rawDuration = firstDefined(attrs.duration, attrs.interval, attrs.timeoutMs, attrs.timeout);
-      const rawRepeat = firstDefined(attrs.repeat, attrs.repeating);
-      const rawRunning = firstDefined(attrs.running, attrs.active);
-      const resolveAttr = function resolveTimerAttribute(value) {
-        return typeof value === "string" ? qdomInterface.interpolate(value, context, parent || null) : value;
-      };
-      const timerOptions = {
-        interval: readNumber(resolveAttr(rawDuration), 1000),
-        repeat: readBoolean(resolveAttr(rawRepeat), true),
-        running: false,
-        qdomNode: node
-      };
-      const timer = typeof qdomInterface.createRuntimeClassInstance === "function"
-        ? qdomInterface.createRuntimeClassInstance("q-timer", alias, [], timerOptions)
-        : qdomInterface.createTimerHandle(alias, timerOptions);
+    function splitBindingExpressions(source) {
+      const parts = String(source || "").trim().split(/\s+/).filter(Boolean);
+      return parts.length >= 2 ? { source: parts[0], target: parts[1] } : null;
+    }
 
-      if (alias) {
-        qdomInterface.registerAlias(context, alias, timer);
+    function resolveCssBindingTarget(targetExpression, context, parent) {
+      const target = String(targetExpression || "").trim();
+      const componentStylePrefix = "this.component.style.";
+      const thisStylePrefix = "this.style.";
+      if (target.indexOf(componentStylePrefix) === 0 || target.indexOf(thisStylePrefix) === 0) {
+        const propertyName = target.indexOf(componentStylePrefix) === 0
+          ? target.slice(componentStylePrefix.length)
+          : target.slice(thisStylePrefix.length);
+        return parent && parent.style && propertyName ? { object: parent.style, propertyName } : null;
       }
+      const dot = target.lastIndexOf(".");
+      if (dot <= 0 || dot >= target.length - 1) {
+        return null;
+      }
+      const owner = qdomInterface.evaluateExpression(target.slice(0, dot), context, parent || context && context.component, {}, { pathFallbackLiteral: false });
+      return owner ? { object: owner, propertyName: target.slice(dot + 1) } : null;
+    }
 
-      for (const child of qdomInterface.children(node)) {
-        const childObject = qdomInterface.nodeObject(child);
-        const childKind = childObject.kind || "";
-        const childName = String(childObject.name || "").trim().toLowerCase();
-        if (childKind === "script-rule" && (childName === "ontimeout" || childName === "timeout")) {
-          timer.connect("timeout", (event) => {
-            const extraScope = { event, timer };
-            if (alias) {
-              extraScope[alias] = timer;
-            }
-            qdomInterface.executeScript(
-              childObject.body || "",
-              context,
-              parent || (context && context.component) || (context && context.hostElement) || null,
-              extraScope,
-              [event],
-              childObject.parameters || ["event"]
-            );
-          });
-          continue;
+    function sourcePropertyName(sourceExpression) {
+      const source = String(sourceExpression || "").trim();
+      const prefixes = ["this.component.", "component.", "this."];
+      for (const prefix of prefixes) {
+        if (source.indexOf(prefix) === 0) {
+          const rest = source.slice(prefix.length);
+          return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(rest) ? rest : "";
         }
-        renderNode(child, context, parent || null);
       }
+      return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(source) ? source : "";
+    }
 
-      if (readBoolean(resolveAttr(rawRunning), true)) {
-        timer.start();
+    function renderBindCss(node, object, context, parent) {
+      const binding = splitBindingExpressions(collectText(node, qdomInterface) || String(parseMeta(object).raw || ""));
+      const target = binding ? resolveCssBindingTarget(binding.target, context, parent) : null;
+      if (!binding || !target || !target.object || !target.propertyName) {
+        return null;
+      }
+      const applyBinding = function applyQBindCss() {
+        const value = qdomInterface.evaluateExpression(binding.source, context, parent || context && context.component, {}, { pathFallbackLiteral: false });
+        target.object[target.propertyName] = value == null ? "" : String(value);
+      };
+      applyBinding();
+      const propertyName = sourcePropertyName(binding.source);
+      const component = context && context.component ? context.component : null;
+      const facade = component && typeof component.qdom === "function" ? component.qdom() : null;
+      const handle = facade && facade.handle ? facade.handle : null;
+      if (propertyName && handle && typeof qdomInterface.connectSignal === "function") {
+        qdomInterface.connectSignal(handle, propertyName + "Changed", applyBinding);
       }
       return null;
     }
@@ -806,9 +811,19 @@
       if (kind === "document") {
         return renderFragment(node, context);
       }
+      if (kind === "style-definition" || kind === "theme-definition" || kind === "default-theme-definition" ||
+          kind === "transition-definition" || kind === "painter-definition") {
+        return registerStyleResource(node, object);
+      }
       if (kind === "element") {
-        if (tagName === "q-timer") {
-          return renderQTimer(node, object, context, parent);
+        if (tagName === "q-bind-css") {
+          return renderBindCss(node, object, context, parent);
+        }
+        if (resolveStyleDefinition(tagName)) {
+          return renderStyleInvocation(node, tagName, context);
+        }
+        if (themeDefinitions.has(normalizeResourceKey(tagName)) || defaultThemeDefinitions.has(normalizeResourceKey(tagName))) {
+          return renderThemeInvocation(node, tagName, context);
         }
         if (tagName === "q-connect") {
           return renderConnect(node, object, context);
@@ -838,10 +853,7 @@
         registerDefinition(node, object, context);
         return document.createComment("qhtml definition " + (object.componentId || object.classId || object.structId || ""));
       }
-      if (kind === "class-instance") {
-        return instantiateClassNode(node, object, context);
-      }
-      if (kind === "component-instance" || kind === "template-instance" || kind === "struct-instance") {
+      if (kind === "component-instance" || kind === "class-instance" || kind === "template-instance" || kind === "struct-instance") {
         return renderCustomInstance(node, object, context);
       }
 
@@ -876,9 +888,8 @@
       if (rendered) {
         hostElement.appendChild(rendered);
       }
-      scheduleAnchorPass();
 
-      return qdomInterface.createFacade(root);
+      return createRenderedFacade(root, hostElement, rootContext);
     }
 
     function mountAll(root) {
@@ -902,7 +913,6 @@
         return null;
       }
       element.parentNode.replaceChild(replacement, element);
-      scheduleAnchorPass();
       return replacement;
     }
 

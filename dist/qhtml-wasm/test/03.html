@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QHTML WASM Styles and Themes Visual Test 03</title>
+  <script src="../qhtml-wasm.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f6f8fb;
+      color: #172033;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    main {
+      width: min(1120px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 48px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .intro {
+      margin: 0 0 20px;
+      color: #475569;
+      font-size: 14px;
+    }
+
+    section {
+      margin: 0 0 16px;
+      padding: 16px;
+      border: 1px solid #d8e0eb;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    q-html {
+      display: block;
+      min-height: 44px;
+    }
+
+    .utility-panel {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border: 1px solid #0284c7;
+      font-weight: 800;
+    }
+
+    .utility-rounded {
+      border-radius: 8px;
+    }
+
+    .pass-fallback {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 8px;
+      background: #13795b;
+      color: #ffffff;
+      font-weight: 800;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>QHTML WASM Styles and Themes Visual Test 03</h1>
+    <p class="intro">Each section mirrors one feature item from doc/04-styles-and-themes/index.html. A human reviewer should see a styled PASSED result in every section.</p>
+
+    <section>
+      <h2>1. q-style with q-style-class</h2>
+      <q-html>
+q-style panel-style-03a {
+  q-style-class { utility-panel utility-rounded }
+  backgroundColor: #e0f2fe
+  color: #0c4a6e
+}
+
+panel-style-03a,div {
+  text { PASSED }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>2. Basic reusable style</h2>
+      <q-html>
+q-style panel-03b {
+  backgroundColor: #eff6ff
+  color: #1e293b
+  border: 1px solid #93c5fd
+  borderRadius: 8px
+  padding: 0.55rem 0.75rem
+  fontWeight: 800
+  display: inline-flex
+}
+
+panel-03b,div {
+  text { PASSED }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>3. Apply a style directly in a selector chain</h2>
+      <q-html>
+q-style panel-03c {
+  backgroundColor: #dbeafe
+  color: #1e3a8a
+  border: 1px solid #93c5fd
+  borderRadius: 8px
+  padding: 0.55rem 0.75rem
+  fontWeight: 800
+  display: inline-flex
+}
+
+panel-03c,div {
+  text { PASSED }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>4. Theme maps selectors to styles</h2>
+      <q-html>
+q-style title-accent-03d {
+  color: #1d4ed8
+}
+
+q-style body-panel-03d {
+  backgroundColor: #e2e8f0
+  color: #0f172a
+  padding: 0.55rem 0.75rem
+  borderRadius: 8px
+  fontWeight: 800
+}
+
+q-theme article-theme-03d {
+  h3 { title-accent-03d }
+  .summary { body-panel-03d }
+}
+
+article-theme-03d {
+  div {
+    h3 { text { Themed heading } }
+    p.summary { text { PASSED } }
+  }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>5. Anonymous q-style inside q-theme</h2>
+      <q-html>
+q-style body-panel-03e {
+  backgroundColor: #e2e8f0
+  borderRadius: 8px
+  padding: 0.55rem 0.75rem
+  fontWeight: 800
+}
+
+q-theme article-theme-03e {
+  h3 { q-style { color: #1d4ed8 } }
+  .summary { q-style { color: #334155 } body-panel-03e }
+}
+
+article-theme-03e {
+  div {
+    h3 { text { Anonymous style heading } }
+    p.summary { text { PASSED } }
+  }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>6. q-default-theme fallback layer</h2>
+      <q-html>
+q-style panel-base-03f {
+  backgroundColor: #f8fafc
+  border: 1px solid #cbd5e1
+  color: #0f172a
+  borderRadius: 8px
+  padding: 0.55rem 0.75rem
+  fontWeight: 800
+}
+
+q-default-theme card-theme-03f {
+  .card { panel-base-03f }
+}
+
+card-theme-03f {
+  div.card { text { PASSED } }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>7. Scoped theme application</h2>
+      <q-html>
+q-style title-accent-03g {
+  color: #1d4ed8
+}
+
+q-style body-muted-03g {
+  color: #334155
+  backgroundColor: #f1f5f9
+  borderRadius: 8px
+  padding: 0.55rem 0.75rem
+  fontWeight: 800
+}
+
+q-theme article-theme-03g {
+  h3 { title-accent-03g }
+  p { body-muted-03g }
+}
+
+article-theme-03g {
+  div {
+    h3 { text { Scoped title } }
+    p { text { PASSED } }
+  }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>8. Compose themes</h2>
+      <q-html>
+q-style button-base-03h {
+  backgroundColor: #0f766e
+  color: #ffffff
+  border: 0
+  borderRadius: 8px
+  padding: 0.45rem 0.7rem
+  fontWeight: 800
+}
+
+q-style button-danger-03h {
+  backgroundColor: #b91c1c
+  color: #ffffff
+}
+
+q-theme base-theme-03h {
+  button { button-base-03h }
+}
+
+q-theme admin-theme-03h {
+  base-theme-03h { }
+  .danger { button-danger-03h }
+}
+
+admin-theme-03h {
+  div {
+    button { text { PASSED Save } }
+    button.danger { text { PASSED Delete } }
+  }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>9. Override class CSS with inline declarations</h2>
+      <q-html>
+q-style button-base-03i {
+  q-style-class { utility-panel utility-rounded }
+  backgroundColor: #0f766e
+  color: #ffffff
+  border: 0
+}
+
+button-base-03i,button {
+  text { PASSED }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>10. q-transition and q-style-transition</h2>
+      <q-html>
+q-transition transition-03j {
+  property { opacity }
+  duration { 800 }
+  timing { ease-in-out }
+  delay { 0 }
+}
+
+q-style transition-style-03j {
+  q-style-transition { transition-03j }
+}
+
+q-style transition-surface-03j {
+  opacity: 1
+  background: #ecfeff
+  color: #155e75
+  border: 1px solid #67e8f9
+  borderRadius: 8px
+  display: inline-flex
+  padding: 0.55rem 0.75rem
+  fontWeight: 800
+}
+
+q-theme transition-theme-03j {
+  .target { transition-style-03j transition-surface-03j }
+}
+
+transition-theme-03j {
+  div#transition-box-03j.target {
+    text { PASSED transition target }
+  }
+}
+
+button {
+  text { Toggle opacity }
+  onclick {
+    var box = document.querySelector("#transition-box-03j");
+    if (box) {
+      box.style.opacity = box.style.opacity === "0.25" ? "1" : "0.25";
+    }
+  }
+}
+      </q-html>
+    </section>
+
+    <section>
+      <h2>11. q-painter and q-style-painter</h2>
+      <q-html>
+q-painter painter-03k {
+  onpaint {
+    this.fillStyle = "#2563eb";
+    this.fillRect(0, 0, this.width / 2, this.height);
+    this.fillStyle = "#f97316";
+    this.fillRect(this.width / 2, 0, this.width / 2, this.height);
+  }
+}
+
+q-style painter-style-03k {
+  q-style-painter { background { painter-03k } }
+  width: 240px
+  minHeight: 54px
+  color: #ffffff
+  borderRadius: 8px
+  display: inline-flex
+  alignItems: center
+  justifyContent: center
+  fontWeight: 800
+}
+
+q-theme painter-theme-03k {
+  .paint-target { painter-style-03k }
+}
+
+painter-theme-03k {
+  div.paint-target {
+    text { PASSED painter target }
+  }
+}
+      </q-html>
+    </section>
+  </main>
+</body>
+</html>

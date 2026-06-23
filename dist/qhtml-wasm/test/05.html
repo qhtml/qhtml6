@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QHTML WASM Stress Test 05</title>
+  <script src="../qhtml-wasm.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f4f7fb;
+      color: #142033;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    main {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 48px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .intro {
+      margin: 0 0 18px;
+      color: #4a5568;
+      font-size: 14px;
+    }
+
+    q-html {
+      display: block;
+      min-height: 76vh;
+    }
+
+    .stress-board {
+      position: relative;
+      width: 100%;
+      height: 76vh;
+      overflow: hidden;
+      border: 1px solid #31506f;
+      border-radius: 8px;
+      background: #0f172a;
+    }
+
+    .stress-status {
+      position: sticky;
+      top: 10px;
+      left: 10px;
+      z-index: 5;
+      display: inline-flex;
+      margin: 10px;
+      padding: 0.45rem 0.65rem;
+      border-radius: 6px;
+      background: #f8fafc;
+      color: #0f172a;
+      font-weight: 800;
+    }
+
+    .stress-box {
+      position: absolute;
+      display: grid;
+      min-width: 12px;
+      min-height: 12px;
+      place-items: center;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.52);
+      border-radius: 5px;
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.74), rgba(14, 165, 233, 0.62));
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+      color: #ffffff;
+      font-size: 10px;
+      font-weight: 800;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+      will-change: transform, width, height;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>QHTML WASM Stress Test 05</h1>
+    <p class="intro">One q-class creates each QObject-backed animated rectangle; one q-class constructor loop creates and starts the stress set.</p>
+
+    <q-html id="stress-root">
+q-class StressRect {
+  StressRect(stage, index, config) {
+    this.stage = stage;
+    this.index = index;
+    this.config = config;
+    this.running = false;
+    this.animations = {};
+    this.obj = new Module.QObject();
+    this.el = document.createElement("div");
+    this.el.className = "stress-box";
+    this.el.textContent = String(index + 1);
+    stage.appendChild(this.el);
+
+    this.obj.setNumber("x", this.randomTarget("x"));
+    this.obj.setNumber("y", this.randomTarget("y"));
+    this.obj.setNumber("width", this.randomTarget("width"));
+    this.obj.setNumber("height", this.randomTarget("height"));
+
+    this.obj.connect("xChanged", this.applyStyle.bind(this));
+    this.obj.connect("yChanged", this.applyStyle.bind(this));
+    this.obj.connect("widthChanged", this.applyStyle.bind(this));
+    this.obj.connect("heightChanged", this.applyStyle.bind(this));
+
+    this.applyStyle();
+  }
+
+  function rand(min, max) {
+    return Math.random() * (max - min) + min;
+  }
+
+  function randomTarget(prop) {
+    var width = this.stage.clientWidth || window.innerWidth;
+    var height = this.stage.clientHeight || window.innerHeight;
+    if (prop === "x") {
+      return this.rand(1, Math.max(1, width - this.config.maxSize));
+    }
+    if (prop === "y") {
+      return this.rand(1, Math.max(1, height - this.config.maxSize));
+    }
+    return this.rand(1, 500);
+  }
+
+  function applyStyle() {
+    var x = this.obj.getNumber("x");
+    var y = this.obj.getNumber("y");
+    var width = this.obj.getNumber("width");
+    var height = this.obj.getNumber("height");
+    this.el.style.transform = "translate3d(" + x + "px, " + y + "px, 0)";
+    this.el.style.width = width + "px";
+    this.el.style.height = height + "px";
+  }
+
+  function makeAnimation(prop) {
+    var rect = this;
+    var animation = new Module.QPropertyAnimation();
+    animation.setTarget(this.obj);
+    animation.setPropertyName(prop);
+    animation.setDuration(this.config.duration);
+    animation.setStartNumber(this.obj.getNumber(prop));
+    animation.setEndNumber(this.randomTarget(prop));
+    animation.connect("finished", function() {
+      if (!rect.running) {
+        return;
+      }
+      rect.animations[prop] = rect.makeAnimation(prop);
+      rect.animations[prop].start();
+    });
+    return animation;
+  }
+
+  function start() {
+    this.running = true;
+    for (var i = 0; i < this.config.properties.length; i += 1) {
+      var prop = this.config.properties[i];
+      this.animations[prop] = this.makeAnimation(prop);
+      this.animations[prop].start();
+    }
+  }
+
+  function stop() {
+    this.running = false;
+    for (var i = 0; i < this.config.properties.length; i += 1) {
+      var prop = this.config.properties[i];
+      if (this.animations[prop]) {
+        this.animations[prop].stop();
+      }
+    }
+  }
+}
+
+q-class StressTest {
+  StressTest() {
+    this.config = {
+      boxCount: Number(new URLSearchParams(window.location.search).get("count")) || 1000,
+      maxSize: 500,
+      duration: 4000,
+      properties: ["x", "y", "width", "height"]
+    };
+    this.host = document.querySelector("#stress-root");
+    this.board = document.createElement("div");
+    this.board.className = "stress-board";
+    this.status = document.createElement("div");
+    this.status.className = "stress-status";
+    this.status.textContent = "Creating rectangles...";
+    this.board.appendChild(this.status);
+    this.host.appendChild(this.board);
+    this.rects = [];
+
+    for (var i = 0; i < this.config.boxCount; i += 1) {
+      this.rects.push(new StressRect(this.board, i, this.config));
+    }
+
+    this.status.textContent = "Created " + this.rects.length + " StressRect q-class instances";
+    this.start();
+  }
+
+  function start() {
+    for (var i = 0; i < this.rects.length; i += 1) {
+      this.rects[i].start();
+    }
+  }
+
+  function stop() {
+    for (var i = 0; i < this.rects.length; i += 1) {
+      this.rects[i].stop();
+    }
+  }
+}
+
+StressTest stressRoot { }
+    </q-html>
+  </main>
+</body>
+</html>

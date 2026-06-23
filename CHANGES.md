@@ -1,5 +1,14 @@
 # QHTML.js Change Log
 
+## Whats New in v7.1.1
+
+- Bumped the release line to `7.1.1`.
+- Added Qt/WASM `QHtmlParser` and QObject-backed QDom bindings for browser access through `Module.QHtmlParser`, `Module.QDomBuilder`, and typed QDom node constructors.
+- Added symbolic AST-to-QDom conversion in the Qt module, including q-component, q-class, q-object/struct, slot, script-rule, and typed instance node support.
+- Added `dist/qhtml-wasm/` release output for Qt/WASM assets, with the generated Qt glue and wasm copied as `qhtml-wasm-glue.js` and `qhtml-wasm.wasm`.
+- Added the lightweight `q-shadow-root` component file under `dist/q-components/`.
+- Documented the new QHTML Qt/WASM browser-facing API in `doc/modules/qhtml-qt/MODULE-API.md`.
+
 ## Whats New in v7.1.0
 
 - Bumped the release line to `7.1.0`.

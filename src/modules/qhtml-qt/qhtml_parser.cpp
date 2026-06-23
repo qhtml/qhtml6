@@ -423,6 +423,26 @@ private:
             return parseNamedRawBody(start, QStringLiteral("QArrayDefinition"), QStringLiteral("name"), QStringLiteral("body"));
         }
 
+        if (nameLower == QLatin1String("q-style") && peek() != QLatin1Char('{')) {
+            return parseNamedRawBody(start, QStringLiteral("QStyleDefinition"), QStringLiteral("name"), QStringLiteral("body"));
+        }
+
+        if (nameLower == QLatin1String("q-theme") && peek() != QLatin1Char('{')) {
+            return parseNamedRawBody(start, QStringLiteral("QThemeDefinition"), QStringLiteral("name"), QStringLiteral("body"));
+        }
+
+        if (nameLower == QLatin1String("q-default-theme") && peek() != QLatin1Char('{')) {
+            return parseNamedRawBody(start, QStringLiteral("QDefaultThemeDefinition"), QStringLiteral("name"), QStringLiteral("body"));
+        }
+
+        if (nameLower == QLatin1String("q-transition") && peek() != QLatin1Char('{')) {
+            return parseNamedRawBody(start, QStringLiteral("QTransitionDefinition"), QStringLiteral("name"), QStringLiteral("body"));
+        }
+
+        if (nameLower == QLatin1String("q-painter") && peek() != QLatin1Char('{')) {
+            return parseNamedRawBody(start, QStringLiteral("QPainterDefinition"), QStringLiteral("name"), QStringLiteral("body"));
+        }
+
         if ((nameLower == QLatin1String("q-object") || nameLower == QLatin1String("q-map")) && peek() != QLatin1Char('{')) {
             QVariantMap item = parseNamedBlock(start, QStringLiteral("QObjectDefinition"), QStringLiteral("name"));
             item.insert(QStringLiteral("keyword"), nameLower == QLatin1String("q-map") ? QStringLiteral("q-map") : QStringLiteral("q-object"));
