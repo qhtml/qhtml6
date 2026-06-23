@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v7.1.2
+# QHTML.js v7.1.3
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,9 +12,9 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/tools/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v7.1.2
+## Whats New in v7.1.3
 
-- Bumped the release line to `7.1.2`.
+- Bumped the release line to `7.1.3`.
 - Added Qt/WASM visual milestone pages for component, style/theme, signal/connect, and stress-animation coverage under `dist/qhtml-wasm/test/`.
 - Added q-style and q-theme QDom resource support in the Qt/WASM parser and browser renderer path.
 - Expanded Qt/WASM signal and q-connect handling for call-shaped endpoints, lifecycle hook wiring, and dynamic q-class instance creation.

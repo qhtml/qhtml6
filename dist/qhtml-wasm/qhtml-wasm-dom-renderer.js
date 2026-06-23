@@ -58,6 +58,7 @@
     const defaultThemeDefinitions = new Map();
     const transitionDefinitions = new Map();
     const painterDefinitions = new Map();
+    const componentDefinitions = new Map();
     const painterRegistrations = new Map();
     let anonymousStyleCounter = 0;
 
@@ -82,6 +83,250 @@
 
     function splitResourceNames(value) {
       return String(value || "").trim().split(/[\s,]+/).map((entry) => entry.trim()).filter(Boolean);
+    }
+
+    function isPropertyReference(value) {
+      return /^[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+$/.test(String(value || "").trim());
+    }
+
+    function resolvePropertyValue(value, context, element) {
+      if (typeof value === "string" && isPropertyReference(value)) {
+        return qdomInterface.createPropertyReference(value, context, element);
+      }
+      return value;
+    }
+
+    function exposeInstanceProperties(element, contextValue, names) {
+      for (const name of names) {
+        if (!name) {
+          continue;
+        }
+        Object.defineProperty(element, name, {
+          configurable: true,
+          enumerable: true,
+          get() {
+            return contextValue[name];
+          },
+          set(value) {
+            contextValue[name] = value;
+          }
+        });
+      }
+    }
+
+    function registerInstancePropertyHandles(context, contextValue, names) {
+      for (const name of names) {
+        if (!name) {
+          continue;
+        }
+        qdomInterface.registerAlias(context, name, qdomInterface.createPropertyHandle(contextValue, name));
+      }
+    }
+
+    function collectDefinitionSignalNames(definitionNode) {
+      const names = [];
+      for (const child of qdomInterface.children(definitionNode)) {
+        const object = qdomInterface.nodeObject(child);
+        if ((object.kind || "") !== "script-rule") {
+          continue;
+        }
+        if (metaType(object) !== "SignalDeclaration") {
+          continue;
+        }
+        const name = String(object.name || "").trim();
+        if (name && names.indexOf(name) === -1) {
+          names.push(name);
+        }
+      }
+      return names;
+    }
+
+    function mergeSignalNames(target, source) {
+      for (const entry of Array.isArray(source) ? source : []) {
+        const name = typeof entry === "string"
+          ? entry
+          : entry && typeof entry === "object"
+            ? entry.name || entry.signalId || entry.signalName
+            : "";
+        const key = String(name || "").trim();
+        if (key && target.indexOf(key) === -1) {
+          target.push(key);
+        }
+      }
+      return target;
+    }
+
+    function setBackendSignalsBlocked(backend, blocked) {
+      if (!backend || typeof backend.blockSignals !== "function") {
+        return false;
+      }
+      return backend.blockSignals(blocked === true);
+    }
+
+    function defineHiddenValue(target, name, value) {
+      if (!target || (typeof target !== "object" && typeof target !== "function")) {
+        return target;
+      }
+      Object.defineProperty(target, name, {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value
+      });
+      return target;
+    }
+
+    function tagKeywordType(target, keywordType) {
+      const value = String(keywordType || "").trim();
+      if (!target || !value) {
+        return target;
+      }
+      defineHiddenValue(target, "_keywordtype", value);
+      defineHiddenValue(target, "_keywordType", value);
+      defineHiddenValue(target, "__qhtmlKeywordType", value);
+      return target;
+    }
+
+    function attachDeclaredSignal(target, signalName, node) {
+      const signal = String(signalName || "").trim();
+      if (!target || !signal) {
+        return target;
+      }
+      const existing = target[signal];
+      if (typeof existing === "function" && existing.__qhtmlSignalFunction === true) {
+        return target;
+      }
+      const signalFunction = function qhtmlWasmDeclaredSignal(payload) {
+        const facade = typeof target.qdom === "function"
+          ? target.qdom()
+          : node && typeof qdomInterface.createFacade === "function"
+            ? qdomInterface.createFacade(node)
+            : null;
+        if (facade && typeof facade.emit === "function") {
+          facade.emit(signal, payload);
+        } else if (typeof target.emit === "function") {
+          target.emit(signal, payload);
+        }
+        return target;
+      };
+      signalFunction.connect = function connectQhtmlWasmDeclaredSignal(callback) {
+        if (typeof target.connect === "function") {
+          return target.connect(signal, callback);
+        }
+        const facade = typeof target.qdom === "function" ? target.qdom() : null;
+        return facade && typeof facade.connect === "function" ? facade.connect(signal, callback) : 0;
+      };
+      signalFunction.disconnect = function disconnectQhtmlWasmDeclaredSignal(connectionId) {
+        if (typeof target.disconnect === "function") {
+          return target.disconnect(connectionId);
+        }
+        const facade = typeof target.qdom === "function" ? target.qdom() : null;
+        return facade && typeof facade.disconnect === "function" ? facade.disconnect(connectionId) : false;
+      };
+      signalFunction.emit = function emitQhtmlWasmDeclaredSignal(payload) {
+        return signalFunction(payload);
+      };
+      defineHiddenValue(signalFunction, "__qhtmlSignalFunction", true);
+      defineHiddenValue(signalFunction, "__qhtmlSignalName", signal);
+      target[signal] = signalFunction;
+      return target;
+    }
+
+    function attachDeclaredSignals(targets, signalNames, node) {
+      const list = Array.isArray(targets) ? targets : [targets];
+      for (const target of list) {
+        for (const signalName of Array.isArray(signalNames) ? signalNames : []) {
+          attachDeclaredSignal(target, signalName, node);
+        }
+      }
+    }
+
+    function createClassMethodScope(instance) {
+      const scope = Object.create(null);
+      if (!instance || (typeof instance !== "object" && typeof instance !== "function")) {
+        return scope;
+      }
+      for (const name of Object.keys(instance)) {
+        if (typeof instance[name] === "function") {
+          scope[name] = instance[name].bind(instance);
+        }
+      }
+      return scope;
+    }
+
+    function compileClassFunction(entry, context) {
+      const body = String(entry && entry.body || "");
+      const parameters = String(entry && entry.parameters || "");
+      return function qhtmlWasmRuntimeClassFunction() {
+        return qdomInterface.executeScript(
+          body,
+          context,
+          this,
+          createClassMethodScope(this),
+          Array.from(arguments),
+          parameters
+        );
+      };
+    }
+
+    function extractClassSignals(object) {
+      const meta = parseMeta(object);
+      const rawMembers = Array.isArray(meta.__qhtmlClassRawMembers) ? meta.__qhtmlClassRawMembers : [];
+      const body = [String(meta.__qhtmlClassBody || ""), ...rawMembers.map((entry) => String(entry || ""))].join("\n");
+      const signals = [];
+      mergeSignalNames(signals, object && object.signals);
+      mergeSignalNames(signals, object && object.signalDeclarations);
+      body.replace(/\bq-signal\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*(?:\(([^)]*)\))?/g, (_match, name) => {
+        if (name && signals.indexOf(name) === -1) {
+          signals.push(name);
+        }
+        return _match;
+      });
+      return signals;
+    }
+
+    function collectClassSignalNames(definitionNode, object) {
+      return mergeSignalNames(extractClassSignals(object), collectDefinitionSignalNames(definitionNode));
+    }
+
+    function classConstructorFor(classId, context) {
+      const name = String(classId || "").trim();
+      return function qhtmlWasmClassConstructor() {
+        return qdomInterface.createRuntimeClassInstance(name, "", Array.from(arguments), {});
+      };
+    }
+
+    function registerClassDefinition(node, object, context, id) {
+      const methods = Object.create(null);
+      const methodEntries = Array.isArray(object.methods) ? object.methods : [];
+      for (const entry of methodEntries) {
+        const name = String(entry && entry.name || "").trim();
+        if (name) {
+          methods[name] = compileClassFunction(entry, context);
+        }
+      }
+      const constructorEntry = object.constructorDefinition && typeof object.constructorDefinition === "object"
+        ? object.constructorDefinition
+        : null;
+      qdomInterface.defineRuntimeClass(id, {
+        _keywordtype: "q-class",
+        _keywordType: "q-class",
+        signals: collectClassSignalNames(node, object),
+        methods,
+        constructor: constructorEntry ? compileClassFunction(constructorEntry, context) : null
+      });
+      qdomInterface.registerAlias(context, id, classConstructorFor(id, context));
+      qdomInterface.rememberHandle(node);
+    }
+
+    function signalNameFromHook(name) {
+      const raw = String(name || "").trim();
+      const body = raw.slice(2);
+      const lowerBody = body.toLowerCase();
+      if (lowerBody.endsWith("changed") && lowerBody.length > "changed".length) {
+        return lowerBody.slice(0, -"changed".length) + "Changed";
+      }
+      return body;
     }
 
     function createBodyParser(rawBody) {
@@ -597,35 +842,40 @@
       const name = String(object.name || "").trim();
       const type = metaType(object);
       const body = String(object.body || "");
+      const lowerName = name.toLowerCase();
       if (type === "SignalDeclaration") {
         const target = parent && parent.nodeType === 1 ? parent : context && context.component;
-        if (target) {
-          target[name] = function emitSignal(payload) {
-            const facade = typeof target.qdom === "function" ? target.qdom() : null;
-            if (facade && typeof facade.emit === "function") {
-              facade.emit(name, payload);
-            }
-          };
-        }
+        attachDeclaredSignals([target, context && context.component], [name], node);
+        return;
+      }
+      if ((lowerName === "onready" || lowerName === "onload" || lowerName === "onloaded") && parent && parent.nodeType === 1) {
+        globalScope.requestAnimationFrame(() => {
+          qdomInterface.executeScript(body, context, parent, {}, [], []);
+        });
         return;
       }
       if (/^on[A-Za-z]/.test(name) && parent && parent.nodeType === 1) {
         const targetValue = context && context.component ? context.component : null;
         if (targetValue) {
-          const signalName = name.slice(2);
+          const signalName = signalNameFromHook(name);
           const facade = typeof targetValue.qdom === "function" ? targetValue.qdom() : null;
           const handle = facade && facade.handle ? facade.handle : null;
           const runSignalHandler = function qhtmlWasmDeclaredSignalHandler(payload) {
+            const isPropertyEvent = payload && typeof payload === "object" &&
+              String(payload.type || "") === "property" &&
+              String(payload.signalName || payload.name || "") === signalName;
+            const hookValue = isPropertyEvent ? payload.value : payload;
             return qdomInterface.executeScript(
               body,
               context,
               parent || targetValue,
               {
-                payload,
-                value: payload,
+                event: isPropertyEvent ? payload : undefined,
+                payload: hookValue,
+                value: hookValue,
                 signalName
               },
-              [payload],
+              [hookValue],
               object.parameters || ["payload"]
             );
           };
@@ -678,22 +928,96 @@
       const tagName = object.componentId || object.classId || object.structId || object.tagName || "q-instance";
       const element = document.createElement(normalizeTagName(tagName, "q-instance"));
       const instanceContext = childContext(context, node, {});
-      const contextValue = qdomInterface.createContextValue(node, element);
+      let contextValue = qdomInterface.createContextValue(node, element);
+      if ((object.kind || "") === "class-instance") {
+        const classId = String(object.classId || object.componentId || object.tagName || "").trim();
+        const alias = readAlias(object);
+        const args = Array.isArray(object.arguments) ? object.arguments : [];
+        const runtimeInstance = qdomInterface.createRuntimeClassInstance(classId, alias, args, { qdomNode: node, node });
+        if (runtimeInstance) {
+          defineHiddenValue(runtimeInstance, "qdom", function qhtmlClassInstanceQDom() {
+            return qdomInterface.createFacade(node);
+          });
+          defineHiddenValue(runtimeInstance, "element", function qhtmlClassInstanceElement() {
+            return element;
+          });
+          tagKeywordType(runtimeInstance, "q-class");
+          contextValue = runtimeInstance;
+        }
+      } else if ((object.kind || "") === "component-instance") {
+        tagKeywordType(contextValue, "q-component");
+      }
       instanceContext.component = contextValue;
       exposeQDom(element, node, instanceContext);
       applyAttributes(element, object.attributes, instanceContext, node);
       const props = parseObject(object.props);
-      for (const [name, value] of Object.entries(props)) {
-        const resolved = typeof value === "string" ? qdomInterface.interpolate(value, instanceContext, element) : value;
-        qdomInterface.writeProperty(node, name, resolved);
+      const propertyNames = new Set(Object.keys(props));
+      if ((object.kind || "") !== "component-instance") {
+        for (const [name, value] of Object.entries(props)) {
+          const resolved = resolvePropertyValue(value, instanceContext, element);
+          qdomInterface.writeProperty(node, name, resolved);
+        }
       }
       const alias = readAlias(object);
       if (alias) {
         qdomInterface.registerAlias(context, alias, contextValue);
         qdomInterface.registerAlias(instanceContext, alias, contextValue);
       }
-      appendRenderedChildren(element, node, instanceContext);
+      if ((object.kind || "") === "component-instance") {
+        renderComponentInstanceBody(element, node, object, instanceContext, propertyNames);
+      } else {
+        appendRenderedChildren(element, node, instanceContext);
+      }
       return element;
+    }
+
+    function renderComponentInstanceBody(element, instanceNode, instanceObject, instanceContext, propertyNames) {
+      const componentId = String(instanceObject.componentId || "").trim();
+      const definitionNode = componentDefinitions.get(componentId);
+      if (!definitionNode) {
+        throw new Error("Missing q-component definition for " + componentId);
+      }
+
+      const definitionObject = qdomInterface.nodeObject(definitionNode);
+      const defaults = parseObject(definitionObject.properties);
+      const overrides = parseObject(instanceObject.props);
+      const exposedNames = propertyNames || new Set();
+      for (const [name, value] of Object.entries(defaults)) {
+        exposedNames.add(name);
+      }
+
+      const signalNames = collectDefinitionSignalNames(definitionNode);
+      tagKeywordType(instanceContext.component, "q-component");
+
+      const backend = typeof qdomInterface.createComponentBackend === "function"
+        ? qdomInterface.createComponentBackend(componentId, Array.from(exposedNames), signalNames)
+        : null;
+      if (backend && typeof qdomInterface.attachComponentBackend === "function") {
+        qdomInterface.attachComponentBackend(instanceNode, backend);
+      }
+
+      const previousBlocked = setBackendSignalsBlocked(backend, true);
+      try {
+        for (const [name, value] of Object.entries(defaults)) {
+          if (Object.prototype.hasOwnProperty.call(overrides, name)) {
+            continue;
+          }
+          const resolved = resolvePropertyValue(value, instanceContext, element);
+          qdomInterface.writeProperty(instanceNode, name, resolved);
+        }
+        for (const [name, value] of Object.entries(overrides)) {
+          const resolved = resolvePropertyValue(value, instanceContext, element);
+          qdomInterface.writeProperty(instanceNode, name, resolved);
+        }
+      } finally {
+        setBackendSignalsBlocked(backend, previousBlocked);
+      }
+
+      exposeInstanceProperties(element, instanceContext.component, exposedNames);
+      registerInstancePropertyHandles(instanceContext, instanceContext.component, exposedNames);
+      attachDeclaredSignals([instanceContext.component, element], signalNames, instanceNode);
+      appendRenderedChildren(element, definitionNode, instanceContext);
+      appendRenderedChildren(element, instanceNode, instanceContext);
     }
 
     function renderRawHtml(node, object, context) {
@@ -718,6 +1042,12 @@
     function registerDefinition(node, object, context) {
       const id = String(object.componentId || object.classId || object.structId || "").trim();
       if (id) {
+        if ((object.kind || "") === "component") {
+          componentDefinitions.set(id, node);
+        } else if ((object.kind || "") === "class") {
+          registerClassDefinition(node, object, context, id);
+          return;
+        }
         qdomInterface.registerAlias(context, id, qdomInterface.createContextValue(node));
       }
       qdomInterface.rememberHandle(node);

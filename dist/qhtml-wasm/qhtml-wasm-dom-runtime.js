@@ -29,12 +29,17 @@
   const INLINE_REFERENCE_PATTERN = /\$\{\s*([^}]+?)\s*\}/g;
   const SIMPLE_DOT_PATH_PATTERN = /^(?:this\.component\.|component\.|this\.)?[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
   const QHTML_QVAR_HANDLE_FLAG = "__qhtmlVarHandle";
+  const QHTML_PROPERTY_REFERENCE_FLAG = "__qhtmlPropertyReference";
   const QHTML_SIGNAL_DISPATCHED = "__qhtmlSignalDispatched";
   const QHTML_PROPERTY_DISPATCHED = "__qhtmlPropertyDispatched";
   let nextSignalBridgeId = 1;
 
   function normalizeName(value) {
     return String(value == null ? "" : value).trim();
+  }
+
+  function keywordTypeOf(value) {
+    return normalizeName(value && (value._keywordtype || value._keywordType || value.__qhtmlKeywordType));
   }
 
   function defineHidden(target, name, value) {
@@ -177,6 +182,22 @@
 
   function unwrapQVarValue(value) {
     return isQVarHandle(value) ? value.get() : value;
+  }
+
+  function isPropertyReference(value) {
+    return !!(value && typeof value === "object" && value[QHTML_PROPERTY_REFERENCE_FLAG] === true);
+  }
+
+  function sameRuntimeValue(a, b) {
+    if (Object.is(a, b)) {
+      return true;
+    }
+    const aType = typeof a;
+    const bType = typeof b;
+    if ((a == null || aType !== "object") && (b == null || bType !== "object")) {
+      return String(a) === String(b);
+    }
+    return false;
   }
 
   function parseParameterList(value) {
@@ -365,6 +386,12 @@
     }
     const candidate = scope[head];
     if (typeof candidate === "undefined") {
+      if (!parts.length && scope.component && typeof scope.component.__qhtmlResolveSymbol === "function") {
+        const componentValue = scope.component.__qhtmlResolveSymbol(head);
+        if (typeof componentValue !== "undefined") {
+          return { matched: true, found: true, value: componentValue };
+        }
+      }
       return { matched: true, found: false, value: undefined };
     }
     return Object.assign({ matched: true }, readPathValue(candidate, parts));
@@ -679,6 +706,8 @@
     const handleByUuid = new Map();
     const facadeByUuid = new Map();
     const contextValueByUuid = new Map();
+    const propertyReferenceByUuid = new Map();
+    const componentBackendByUuid = new Map();
     const documentByHost = new WeakMap();
     const rootContextFrame = createRuntimeContextFrame(null, "runtime-root", null);
     const runtimeClasses = new Map();
@@ -735,6 +764,19 @@
       if (!node) {
         return undefined;
       }
+      const reference = propertyReferenceFor(node, name);
+      if (reference) {
+        return resolvePropertyReference(reference);
+      }
+      const backend = componentBackendFor(node);
+      if (backend && typeof backend.hasProperty === "function" && backend.hasProperty(String(name))) {
+        if (typeof backend.propertyValue === "function") {
+          return backend.propertyValue(String(name));
+        }
+        if (typeof backend.propertyJson === "function") {
+          return parseJson(backend.propertyJson(String(name)), null);
+        }
+      }
       const json = propertyJson(node, name);
       if (json != null && json !== "" && json !== "null") {
         return parseJson(json, null);
@@ -760,6 +802,14 @@
       if (!node) {
         return;
       }
+      if (isPropertyReference(value)) {
+        setPropertyReference(node, name, value);
+        if (typeof node.setStringProperty === "function") {
+          node.setStringProperty(name, value.path);
+        }
+        return;
+      }
+      clearPropertyReference(node, name);
       if (typeof value === "number" && typeof node.setNumberProperty === "function") {
         node.setNumberProperty(name, value);
       } else if (typeof value === "boolean" && typeof node.setBoolProperty === "function") {
@@ -775,6 +825,136 @@
       } else if (typeof node.setPropertyValue === "function") {
         node.setPropertyValue(name, value);
       }
+      writeComponentBackendProperty(node, name, value);
+    }
+
+    function componentBackendFor(node) {
+      const uuid = uuidOf(node);
+      return uuid ? componentBackendByUuid.get(uuid) || null : null;
+    }
+
+    function attachComponentBackend(node, backend) {
+      const uuid = uuidOf(node);
+      if (uuid && backend) {
+        componentBackendByUuid.set(uuid, backend);
+        const contextValue = contextValueByUuid.get(uuid);
+        if (contextValue && typeof contextValue === "object") {
+          defineHidden(contextValue, "__qhtmlComponentBackend", backend);
+        }
+      }
+      return backend;
+    }
+
+    function writeComponentBackendProperty(node, name, value) {
+      const backend = componentBackendFor(node);
+      const key = normalizeName(name);
+      if (!backend || !key) {
+        return;
+      }
+      if (typeof value === "number" && typeof backend.setNumber === "function") {
+        backend.setNumber(key, value);
+      } else if (typeof value === "boolean" && typeof backend.setBool === "function") {
+        backend.setBool(key, value);
+      } else if ((value == null || typeof value === "string") && typeof backend.setString === "function") {
+        backend.setString(key, value == null ? "" : value);
+      } else if (typeof backend.setPropertyValue === "function") {
+        backend.setPropertyValue(key, value);
+      }
+    }
+
+    function createComponentBackend(componentId, propertyNames, signalNames) {
+      if (typeof Module.QHtmlComponent !== "function") {
+        return null;
+      }
+      const backend = new Module.QHtmlComponent();
+      backend.setDefinition(normalizeName(componentId), "", "");
+      if (typeof backend.addPropertyName === "function") {
+        for (const propertyName of Array.isArray(propertyNames) ? propertyNames : []) {
+          backend.addPropertyName(normalizeName(propertyName));
+        }
+      }
+      if (typeof backend.addSignalName === "function") {
+        for (const signalName of Array.isArray(signalNames) ? signalNames : []) {
+          backend.addSignalName(normalizeName(signalName));
+        }
+      }
+      if (typeof backend.build === "function" && !backend.build()) {
+        throw new Error("QHtmlComponent build failed: " + (typeof backend.errorsJson === "function" ? backend.errorsJson() : ""));
+      }
+      if (typeof backend.create === "function" && !backend.create()) {
+        throw new Error("QHtmlComponent create failed: " + (typeof backend.errorsJson === "function" ? backend.errorsJson() : ""));
+      }
+      return backend;
+    }
+
+    function propertyReferenceFor(node, name) {
+      const uuid = uuidOf(node);
+      const key = normalizeName(name);
+      const refs = uuid ? propertyReferenceByUuid.get(uuid) : null;
+      return refs && key ? refs.get(key) || null : null;
+    }
+
+    function setPropertyReference(node, name, reference) {
+      const uuid = uuidOf(node);
+      const key = normalizeName(name);
+      if (!uuid || !key) {
+        return;
+      }
+      let refs = propertyReferenceByUuid.get(uuid);
+      if (!refs) {
+        refs = new Map();
+        propertyReferenceByUuid.set(uuid, refs);
+      }
+      refs.set(key, reference);
+    }
+
+    function clearPropertyReference(node, name) {
+      const uuid = uuidOf(node);
+      const key = normalizeName(name);
+      const refs = uuid ? propertyReferenceByUuid.get(uuid) : null;
+      if (refs && key) {
+        refs.delete(key);
+      }
+    }
+
+    function createPropertyReference(path, context, thisArg) {
+      return {
+        [QHTML_PROPERTY_REFERENCE_FLAG]: true,
+        path: normalizeName(path),
+        context,
+        thisArg: thisArg || context && context.component || null
+      };
+    }
+
+    function resolvePropertyReference(reference) {
+      return evaluateExpression(
+        reference.path,
+        reference.context || null,
+        reference.thisArg || reference.context && reference.context.component || null,
+        {},
+        { pathFallbackLiteral: false }
+      );
+    }
+
+    function createPropertyHandle(contextValue, name) {
+      const key = normalizeName(name);
+      return {
+        [QHTML_QVAR_HANDLE_FLAG]: true,
+        get() {
+          return contextValue[key];
+        },
+        set(value) {
+          contextValue[key] = value;
+          return contextValue[key];
+        },
+        toJSON() {
+          return contextValue[key];
+        },
+        toString() {
+          const value = contextValue[key];
+          return String(value == null ? "" : value);
+        }
+      };
     }
 
     function enqueueSignal(callback, payload) {
@@ -787,7 +967,9 @@
       }
       signalQueueProcessing = true;
       const flush = () => {
-        while (signalQueue.length) {
+        let processed = 0;
+        while (signalQueue.length && processed < 100) {
+          processed += 1;
           const entry = signalQueue.shift();
           try {
             entry.callback(entry.payload);
@@ -796,6 +978,10 @@
               globalScope.console.error("qhtml wasm signal callback failed:", error);
             }
           }
+        }
+        if (signalQueue.length) {
+          globalScope.setTimeout(flush, 0);
+          return;
         }
         signalQueueProcessing = false;
       };
@@ -874,8 +1060,9 @@
 
     function setProxyBackedProperty(proxyTarget, node, propertyName, value, previous, notify) {
       writeProperty(node, propertyName, value);
-      if (notify !== false) {
-        notifyPropertyChanged(proxyTarget, node, propertyName, value, previous);
+      const current = readProperty(node, propertyName);
+      if (notify !== false && !sameRuntimeValue(current, previous)) {
+        notifyPropertyChanged(proxyTarget, node, propertyName, current, previous);
       }
     }
 
@@ -1897,6 +2084,9 @@
         });
         return instance;
       };
+      defineHidden(instance, "_keywordtype", "q-class");
+      defineHidden(instance, "_keywordType", "q-class");
+      defineHidden(instance, "__qhtmlKeywordType", "q-class");
 
       const signals = Array.isArray(opts.signals) ? opts.signals : [];
       for (const signalName of signals) {
@@ -1917,6 +2107,8 @@
         signalFunction.emit = function emitRuntimeClassDeclaredSignal(payload) {
           return instance.emit(signal, payload);
         };
+        defineHidden(signalFunction, "__qhtmlSignalFunction", true);
+        defineHidden(signalFunction, "__qhtmlSignalName", signal);
         instance[signal] = signalFunction;
       }
       return instance;
@@ -1929,6 +2121,8 @@
       }
       const normalized = Object.assign({
         name: key,
+        _keywordtype: "q-class",
+        _keywordType: "q-class",
         signals: [],
         properties: {},
         methods: {}
@@ -1948,6 +2142,9 @@
       const signalDispatcher = createRuntimeSignalDispatcher(opts.qdomNode || opts.node || null);
       const state = Object.create(null);
       const instance = {
+        _keywordtype: "q-class",
+        _keywordType: "q-class",
+        __qhtmlKeywordType: "q-class",
         __qhtmlRuntimeClass: key,
         __qhtmlClassDefinition: definition,
         __qhtmlProperties: state,
@@ -1990,6 +2187,9 @@
 
       const signals = Array.isArray(definition.signals) ? definition.signals : [];
       defineHidden(instance, "__qhtmlSignalDispatcher", signalDispatcher);
+      defineHidden(instance, "_keywordtype", "q-class");
+      defineHidden(instance, "_keywordType", "q-class");
+      defineHidden(instance, "__qhtmlKeywordType", "q-class");
       attachRuntimeSignalBridge(instance, opts.qdomNode || opts.node || null, { signals });
       for (const signalName of signals) {
         const signal = normalizeName(signalName);
@@ -2009,6 +2209,8 @@
         signalFunction.emit = function emitRuntimeClassSignal(payload) {
           return instance.emit(signal, payload);
         };
+        defineHidden(signalFunction, "__qhtmlSignalFunction", true);
+        defineHidden(signalFunction, "__qhtmlSignalName", signal);
         instance[signal] = signalFunction;
       }
 
@@ -2377,6 +2579,11 @@
       children,
       readProperty,
       writeProperty,
+      createPropertyReference,
+      createPropertyHandle,
+      createComponentBackend,
+      attachComponentBackend,
+      componentBackendFor,
       rootContextFrame,
       createRuntimeContextFrame,
       bindContextToTarget,
@@ -2470,7 +2677,32 @@
           : typeof receiver.__qhtmlResolveSymbol === "function" && typeof receiver.__qhtmlResolveSymbol(spec.receiver.member) === "function"
             ? receiver.__qhtmlResolveSymbol(spec.receiver.member).bind(receiver)
             : null;
-        if (!handler || typeof sender.connect !== "function") {
+        if (!handler) {
+          return 0;
+        }
+        if (keywordTypeOf(sender) === "q-class") {
+          if (typeof sender.connect === "function") {
+            return sender.connect(spec.sender.member, handler);
+          }
+          const signalFunction = typeof sender[spec.sender.member] === "function"
+            ? sender[spec.sender.member]
+            : typeof sender.__qhtmlResolveSymbol === "function"
+              ? sender.__qhtmlResolveSymbol(spec.sender.member)
+              : null;
+          return signalFunction && typeof signalFunction.connect === "function" ? signalFunction.connect(handler) : 0;
+        }
+        if (keywordTypeOf(sender) === "q-component" && typeof sender.connect === "function") {
+          return sender.connect(spec.sender.member, handler);
+        }
+        const declaredSignal = typeof sender[spec.sender.member] === "function"
+          ? sender[spec.sender.member]
+          : typeof sender.__qhtmlResolveSymbol === "function"
+            ? sender.__qhtmlResolveSymbol(spec.sender.member)
+            : null;
+        if (declaredSignal && typeof declaredSignal.connect === "function") {
+          return declaredSignal.connect(handler);
+        }
+        if (typeof sender.connect !== "function") {
           return 0;
         }
         return sender.connect(spec.sender.member, handler);

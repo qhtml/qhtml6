@@ -286,10 +286,6 @@ q-component qhtml-wasm-roundtrip-card {
     this.querySelector("#qhtml-wasm-roundtrip-out").className = "pass";
   }
 
-  onready {
-    this.toWasm({ message: "PASSED" });
-  }
-
   div#qhtml-wasm-roundtrip-out { text { waiting } }
 }
 
@@ -298,6 +294,14 @@ qhtml-wasm-roundtrip-card qhtmlRoundTrip { }
 
 q-connect { qhtmlRoundTrip.toWasm(payload) wasmRoundTripBus.receiveFromQhtml(payload) }
 q-connect { wasmRoundTripBus.completed(payload) qhtmlRoundTrip.acceptBack(payload) }
+
+q-component qhtml-wasm-roundtrip-driver {
+  onready {
+    qhtmlRoundTrip.toWasm({ message: "PASSED" });
+  }
+}
+
+qhtml-wasm-roundtrip-driver { }
       </q-html>
     </section>
 
@@ -355,10 +359,6 @@ q-component component-signal-source {
     this.querySelector("#component-to-class-out").className = "pass";
   }
 
-  onready {
-    this.submitted("PASSED");
-  }
-
   div#component-to-class-out { text { waiting } }
 }
 
@@ -367,6 +367,14 @@ component-signal-source componentSource { }
 
 q-connect { componentSource.submitted(message) classSink.receive(message) }
 q-connect { classSink.confirmed(message) componentSource.complete(message) }
+
+q-component component-to-class-driver {
+  onready {
+    componentSource.submitted("PASSED");
+  }
+}
+
+component-to-class-driver { }
       </q-html>
     </section>
 

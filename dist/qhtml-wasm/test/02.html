@@ -175,12 +175,15 @@ q-component js-property-card {
   q-property count: 0
 
   oncountchanged(value) {
-    this.querySelector("#count-out").textContent = Number(value) === 1 ? "PASSED" : "waiting";
-    this.querySelector("#count-out").className = Number(value) === 1 ? "pass" : "";
+    if (Number(value) !== 1) {
+      throw new Error("Expected count to change to 1, got " + value);
+    }
+    this.querySelector("#count-out").textContent = "PASSED";
+    this.querySelector("#count-out").className = "pass";
   }
 
   onready {
-    this.count = Number(this.count) + 1;
+    this.count = this.count + 1;
   }
 
   div#count-out { text { waiting } }
@@ -287,10 +290,9 @@ q-component signal-declaration-card {
   q-signal sent(message)
 
   onready {
-    if (typeof this.sent === "function") {
-      this.querySelector("#signal-declared").textContent = "PASSED";
-      this.querySelector("#signal-declared").className = "pass";
-    }
+    this.sent("PASSED");
+    this.querySelector("#signal-declared").textContent = "PASSED";
+    this.querySelector("#signal-declared").className = "pass";
   }
 
   div#signal-declared { text { waiting } }
@@ -370,8 +372,11 @@ q-component changed-hook-card {
   q-property count: 0
 
   oncountchanged(value) {
-    this.querySelector("#changed-out").textContent = Number(value) === 1 ? "PASSED" : "waiting";
-    this.querySelector("#changed-out").className = Number(value) === 1 ? "pass" : "";
+    if (Number(value) !== 1) {
+      throw new Error("Expected changed hook value 1, got " + value);
+    }
+    this.querySelector("#changed-out").textContent = "PASSED";
+    this.querySelector("#changed-out").className = "pass";
   }
 
   onready {

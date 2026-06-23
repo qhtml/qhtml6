@@ -21,6 +21,7 @@
 
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
+#include "qhtmlcomponent.h"
 
 #include <memory>
 #include <string>
@@ -894,6 +895,29 @@ EMSCRIPTEN_BINDINGS(qhtml_qt_core) {
         .function("createParserUuid", &JsQHtmlParser::createParserUuid)
         .function("normalizeWasmMode", &JsQHtmlParser::normalizeWasmMode);
 
+    class_<QHtmlComponent>("QHtmlComponent")
+        .constructor<>()
+        .function("setDefinition", &QHtmlComponent::setDefinition)
+        .function("addPropertyName", &QHtmlComponent::addPropertyName)
+        .function("addSignalName", &QHtmlComponent::addSignalName)
+        .function("build", &QHtmlComponent::build)
+        .function("create", &QHtmlComponent::create)
+        .function("isReady", &QHtmlComponent::isReady)
+        .function("hasInstance", &QHtmlComponent::hasInstance)
+        .function("hasProperty", &QHtmlComponent::hasProperty)
+        .function("blockSignals", &QHtmlComponent::blockSignals)
+        .function("signalsBlocked", &QHtmlComponent::signalsBlocked)
+        .function("setContextPropertyValue", &QHtmlComponent::setContextPropertyValue)
+        .function("setContextComponent", &QHtmlComponent::setContextComponent, emscripten::allow_raw_pointers())
+        .function("setPropertyValue", &QHtmlComponent::setPropertyValue)
+        .function("setString", &QHtmlComponent::setString)
+        .function("setNumber", &QHtmlComponent::setNumber)
+        .function("setBool", &QHtmlComponent::setBool)
+        .function("propertyValue", &QHtmlComponent::propertyValue)
+        .function("propertyJson", &QHtmlComponent::propertyJson)
+        .function("propertyKeysJson", &QHtmlComponent::propertyKeysJson)
+        .function("errorsJson", &QHtmlComponent::errorsJson)
+        .function("source", &QHtmlComponent::source);
 }
 
 int main(int argc, char **argv) {
