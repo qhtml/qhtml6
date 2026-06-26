@@ -224,9 +224,9 @@ q-component animated-panel {
   q-property panelWidth: "50%"
 
   behavior on panelWidth {
-    NumberAnimation {
+    q-property-animation {
       duration: 1000
-      easing: "easeInOutQuad"
+
     }
   }
 
@@ -240,7 +240,7 @@ q-component animated-panel {
   }
 
   onpanelWidthchanged(value) {
-    this.querySelector(".panel-fill").style.width = value;
+    this.querySelector(".panel-fill").style.width = value + "%";
   }
 
   onclick {
@@ -268,7 +268,7 @@ q-component testelement {
  q-property width: 100
 
   behavior on width {
-    q-queued-animation {
+    q-sequential-animation {
       q-property-animation {
         duration: 1600
       }
@@ -336,7 +336,7 @@ q-class signalmodel {
 }
 
 q-component signal-bridge-view {
-  signalmodel bridgeModel { }
+ signalmodel bridgeModel { }
 
   div.pass.class-signal-result { text { waiting } }
 

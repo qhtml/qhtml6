@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.19)
 project(qhtml-qt LANGUAGES CXX)
 
-find_package(Qt6 6.11.1 REQUIRED COMPONENTS Core)
+find_package(Qt6 6.11.1 REQUIRED COMPONENTS Core )
 
 qt_standard_project_setup()
 
@@ -10,6 +10,9 @@ qt_add_executable(qhtml-qt
     qhtml_parser.cpp qhtml_parser.h
     qhtml_qdom.cpp qhtml_qdom.h
     qhtmlcomponent.h qhtmlcomponent.cpp
+    qhtml_runtime.cpp
+    qhtml_runtime_bindings.cpp
+    qhtml_runtime.h
 )
 
 target_link_libraries(qhtml-qt
