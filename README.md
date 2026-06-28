@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v7.1.3
+# QHTML.js v7.1.4
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,9 +12,9 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/tools/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v7.1.3
+## Whats New in v7.1.4
 
-- Bumped the release line to `7.1.3`.
+- Bumped the release line to `7.1.4`.
 - Added Qt/WASM visual milestone pages for component, style/theme, signal/connect, and stress-animation coverage under `dist/qhtml-wasm/test/`.
 - Added q-style and q-theme QDom resource support in the Qt/WASM parser and browser renderer path.
 - Expanded Qt/WASM signal and q-connect handling for call-shaped endpoints, lifecycle hook wiring, and dynamic q-class instance creation.
@@ -531,6 +531,65 @@ Behavior:
   - `${mycomp2.prop2}`
 
 Use this for simple declarative value wiring between named instances without extra query/select boilerplate.
+
+### `q-fetch-html`
+
+`q-fetch-html` is an optional packaged component, not a parser/runtime keyword. Import it from `dist/q-components/q-fetch-html.qhtml`, create a named instance, call `.fetch()` when you want the request to run, and receive the selected HTML through the `response` signal.
+
+```qhtml
+q-import { q-components/q-fetch-html.qhtml }
+
+q-fetch-html myobject {
+  url: "/myurl.html"
+  selector: "body#mydiv > span"
+}
+
+button {
+  text { fetch }
+  onclick {
+    var ok = myobject.fetch();
+  }
+}
+```
+
+The component exposes request properties (`url`, `selector`, `method`, `headers`, `body`) and response state (`html`, `source`, `status`, `statusText`, `ok`, `error`, `running`, `lastResponse`). Connect the `response(resp)` signal to another object with `q-connect`:
+
+```qhtml
+q-import { q-components/q-fetch-html.qhtml }
+
+q-component remote-card {
+  function show(response) {
+    this.innerHTML = response.html;
+  }
+}
+
+q-fetch-html cardFetch {
+  url: "/cards/card.html"
+  selector: "body"
+}
+
+remote-card firstCard { }
+q-connect { cardFetch.response firstCard.show }
+```
+
+Slots can declare fetch objects in their local scope:
+
+```qhtml
+q-import { q-components/q-fetch-html.qhtml }
+
+q-component shell {
+  slot { main }
+}
+
+shell pageShell {
+  main {
+    q-fetch-html mainFetch {
+      url: "/partials/main.html"
+      selector: "body"
+    }
+  }
+}
+```
 
 ### `on<Property>Changed` auto-signals
 

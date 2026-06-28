@@ -93,6 +93,27 @@ div { html { &lt;strong&gt;Real HTML fragment&lt;/strong&gt; } }</q-editor>
     }
 
     wiki-example-card {
+      title: "q-fetch-html"
+      summary: "Import the packaged q-fetch-html component, call .fetch(), and receive selected HTML through response wiring."
+      note: "q-fetch-html is not a core parser keyword. It lives in q-components/q-fetch-html.qhtml."
+      details {
+        html {
+          <q-editor>q-import { q-components/q-fetch-html.qhtml }
+
+q-fetch-html cardFetch {
+  url: "/partials/card.html"
+  selector: "body#content > span"
+}
+
+button {
+  text { fetch }
+  onclick { cardFetch.fetch() }
+}</q-editor>
+        }
+      }
+    }
+
+    wiki-example-card {
       title: "Anchor positioning"
       summary: "Use q-anchor-left, q-anchor-top, and related directives to position one rendered node relative to another."
       note: "Named instance side references such as menu.right resolve from rendered DOM geometry."

@@ -4,6 +4,7 @@ lead.sh
 WHEEL.*
 README-WHEEL*.md 
 wheel*.sh
+wheel-codex-hooks.zip
 *.db
 *.db.lock
 *.sql

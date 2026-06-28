@@ -13,6 +13,11 @@ qt_add_executable(qhtml-qt
     qhtml_runtime.cpp
     qhtml_runtime_bindings.cpp
     qhtml_runtime.h
+    qdom_components.hpp
+    qdom_parser.hpp
+    qdom_resource_importer.cpp
+    qdom_resource_importer.hpp
+    qhtml_resources.qrc
 )
 
 target_link_libraries(qhtml-qt

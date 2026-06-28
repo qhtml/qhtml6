@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHTML Wiki - q-fetch-html</title>
+  <link rel="stylesheet" href="../w3.css" />
+  <link rel="stylesheet" href="../wiki.css" />
+  <script src="../qhtml.js"></script>
+  <script src="../q-editor.js"></script>
+</head>
+<body>
+  <main class="doc-root">
+    <q-html>
+q-import { ../wiki-common.qhtml }
+
+wiki-shell {
+  sectionKey: "fetch-html"
+  pageTitle: "q-fetch-html"
+  pageIntro: "q-fetch-html is an optional packaged component that fetches a document on demand, extracts a CSS selector, and emits a response payload when .fetch() completes."
+  main {
+    wiki-example-card {
+      title: "Create a fetch component"
+      summary: "Import q-fetch-html, declare it with a name, then call .fetch() when the request should run."
+      note: "The response payload includes html, source text, url, selector, status, ok, and error."
+      details {
+        html { <q-editor>q-import { q-components/q-fetch-html.qhtml }
+
+q-fetch-html cardFetch {
+  url: "/partials/card.html"
+  selector: "body#content > span"
+  method: "GET"
+  headers: "Accept: text/html"
+}
+
+button {
+  text { fetch }
+  onclick { cardFetch.fetch() }
+}</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "Connect the response signal"
+      summary: "Use q-connect to route myobject.response into a component function."
+      note: "q-fetch-html.response is signal-like and can be connected before fetch() is called."
+      details {
+        html { <q-editor>q-import { q-components/q-fetch-html.qhtml }
+
+q-component remote-card {
+  function show(response) {
+    this.innerHTML = response.html
+  }
+}
+
+q-fetch-html cardFetch {
+  url: "/partials/card.html"
+  selector: "body"
+}
+
+remote-card cardOne { }
+q-connect { cardFetch.response cardOne.show }</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "Fetch through a slot"
+      summary: "A slot fill can declare a q-fetch-html object in slot-local scope."
+      note: "Call fetch() from the same slot scope when the remote content should load."
+      details {
+        html { <q-editor>q-import { q-components/q-fetch-html.qhtml }
+
+q-component shell {
+  slot { main }
+}
+
+shell pageShell {
+  main {
+    q-fetch-html mainFetch {
+      url: "/partials/main.html"
+      selector: "body"
+    }
+  }
+}</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "Store the result"
+      summary: "Route the response into a component method and keep response.html in a property."
+      note: "q-fetch-html stays a normal component instance. Store HTML explicitly if another component needs it."
+      details {
+        html { <q-editor>q-import { q-components/q-fetch-html.qhtml }
+
+q-component remote-fragment {
+  q-property fragmentHtml: ""
+
+  function show(response) {
+    this.component.fragmentHtml = response.html
+    this.innerHTML = response.html
+  }
+}
+
+q-fetch-html fragmentFetch {
+  url: "/partials/fragment.html"
+  selector: "body"
+}
+
+remote-fragment inst { }
+q-connect { fragmentFetch.response inst.show }</q-editor> }
+      }
+    }
+  }
+}
+    </q-html>
+  </main>
+</body>
+</html>

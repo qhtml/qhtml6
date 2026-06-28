@@ -71,6 +71,55 @@ mycard { }</q-editor> }
     }
 
     wiki-example-card {
+      title: "4a. q-fetch-html component content"
+      summary: "A component can coordinate an imported q-fetch-html instance and a response handler."
+      note: "Call fetch() explicitly and route the response into a component function."
+      details {
+        html { <q-editor>q-import { q-components/q-fetch-html.qhtml }
+
+q-component remote-card {
+  function show(response) {
+    this.innerHTML = response.html
+  }
+}
+
+q-fetch-html cardFetch {
+  url: "/partials/card.html"
+  selector: "body"
+}
+
+remote-card cardOne { }
+q-connect { cardFetch.response cardOne.show }</q-editor> }
+      }
+    }
+
+    wiki-example-card {
+      title: "4b. q-fetch-html controlled fetch"
+      summary: "A fetch instance can keep its latest result and be called again when needed."
+      note: "Use the instance state such as cardFetch.html or the response payload after fetch() completes."
+      details {
+        html { <q-editor>q-import { q-components/q-fetch-html.qhtml }
+
+q-component remote-fragment {
+  q-property fragmentHtml: ""
+
+  function show(response) {
+    this.component.fragmentHtml = response.html
+    this.innerHTML = response.html
+  }
+}
+
+q-fetch-html fragmentFetch {
+  url: "/partials/fragment.html"
+  selector: "body"
+}
+
+remote-fragment inst { }
+q-connect { fragmentFetch.response inst.show }</q-editor> }
+      }
+    }
+
+    wiki-example-card {
       title: "5. Accessing q-properties from JavaScript"
       summary: "Inside event handlers and methods, read component properties through this.component."
       note: "Use this.component inside JavaScript blocks. This version updates displayed state through oncountchanged instead of text interpolation."

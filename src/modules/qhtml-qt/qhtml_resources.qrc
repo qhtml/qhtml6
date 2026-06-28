@@ -1,0 +1,42 @@
+<RCC>
+    <qresource prefix="/qhtml">
+        <file alias="q-components.qhtml">../../../dist/q-components.qhtml</file>
+        <file alias="q-components/dark-theme.qhtml">../../../dist/q-components/dark-theme.qhtml</file>
+        <file alias="q-components/expand-collapse.svg">../../../dist/q-components/expand-collapse.svg</file>
+        <file alias="q-components/items.json">../../../dist/q-components/items.json</file>
+        <file alias="q-components/lcars-panel.qhtml">../../../dist/q-components/lcars-panel.qhtml</file>
+        <file alias="q-components/lcars-sidebar.qhtml">../../../dist/q-components/lcars-sidebar.qhtml</file>
+        <file alias="q-components/q-animation-tool.qhtml">../../../dist/q-components/q-animation-tool.qhtml</file>
+        <file alias="q-components/q-animation.qhtml">../../../dist/q-components/q-animation.qhtml</file>
+        <file alias="q-components/q-basic-components.qhtml">../../../dist/q-components/q-basic-components.qhtml</file>
+        <file alias="q-components/q-control-arm-screen.qhtml">../../../dist/q-components/q-control-arm-screen.qhtml</file>
+        <file alias="q-components/q-dom-tree.qhtml">../../../dist/q-components/q-dom-tree.qhtml</file>
+        <file alias="q-components/q-draggable-item.qhtml">../../../dist/q-components/q-draggable-item.qhtml</file>
+        <file alias="q-components/q-estore.qhtml">../../../dist/q-components/q-estore.qhtml</file>
+        <file alias="q-components/q-factory.qhtml">../../../dist/q-components/q-factory.qhtml</file>
+        <file alias="q-components/q-fetch-html.qhtml">../../../dist/q-components/q-fetch-html.qhtml</file>
+        <file alias="q-components/q-form.qhtml">../../../dist/q-components/q-form.qhtml</file>
+        <file alias="q-components/q-grid.qhtml">../../../dist/q-components/q-grid.qhtml</file>
+        <file alias="q-components/q-hud.qhtml">../../../dist/q-components/q-hud.qhtml</file>
+        <file alias="q-components/q-list-view.qhtml">../../../dist/q-components/q-list-view.qhtml</file>
+        <file alias="q-components/q-modal.qhtml">../../../dist/q-components/q-modal.qhtml</file>
+        <file alias="q-components/q-mouse-area.qhtml">../../../dist/q-components/q-mouse-area.qhtml</file>
+        <file alias="q-components/q-particle-emitter.qhtml">../../../dist/q-components/q-particle-emitter.qhtml</file>
+        <file alias="q-components/q-popup-menu.qhtml">../../../dist/q-components/q-popup-menu.qhtml</file>
+        <file alias="q-components/q-resizable-item.qhtml">../../../dist/q-components/q-resizable-item.qhtml</file>
+        <file alias="q-components/q-shadow-root.qhtml">../../../dist/q-components/q-shadow-root.qhtml</file>
+        <file alias="q-components/q-sidebar.qhtml">../../../dist/q-components/q-sidebar.qhtml</file>
+        <file alias="q-components/q-spritesheet.qhtml">../../../dist/q-components/q-spritesheet.qhtml</file>
+        <file alias="q-components/q-tabs.qhtml">../../../dist/q-components/q-tabs.qhtml</file>
+        <file alias="q-components/q-tech-button.qhtml">../../../dist/q-components/q-tech-button.qhtml</file>
+        <file alias="q-components/q-tech-panel.qhtml">../../../dist/q-components/q-tech-panel.qhtml</file>
+        <file alias="q-components/q-tech-tag.qhtml">../../../dist/q-components/q-tech-tag.qhtml</file>
+        <file alias="q-components/q-toolbar.qhtml">../../../dist/q-components/q-toolbar.qhtml</file>
+        <file alias="q-components/q-toolbutton.qhtml">../../../dist/q-components/q-toolbutton.qhtml</file>
+        <file alias="q-components/q-tree-view.qhtml">../../../dist/q-components/q-tree-view.qhtml</file>
+        <file alias="q-components/q-ui-components.qhtml">../../../dist/q-components/q-ui-components.qhtml</file>
+        <file alias="q-components/q-vid-player.qhtml">../../../dist/q-components/q-vid-player.qhtml</file>
+        <file alias="q-components/q-vid.qhtml">../../../dist/q-components/q-vid.qhtml</file>
+        <file alias="q-components/sdml-object.qhtml">../../../dist/q-components/sdml-object.qhtml</file>
+    </qresource>
+</RCC>

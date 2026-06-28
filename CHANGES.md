@@ -1,5 +1,13 @@
 # QHTML.js Change Log
 
+## Whats New in v7.1.4
+
+- Bumped the release line to `7.1.4`.
+- Added the consolidated Qt/WASM renderer path with QHTML parsing, resource import expansion, component/class instances, style/theme application, signals, q-connect, and qdom host facades without depending on qhtml.js.
+- Added Qt/WASM visual milestone pages for component, style/theme, signal/connect, and stress-animation coverage under `dist/qhtml-wasm/test/`.
+- Added qhtml-qt typed QDom component/parser/resource-import scaffolding for the replacement Qt/WASM runtime direction.
+- Added the `q-fetch-html` component and visual coverage for controlled HTML fetch response handling.
+
 ## Whats New in v7.1.1
 
 - Bumped the release line to `7.1.1`.

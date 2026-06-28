@@ -1,0 +1,143 @@
+q-component q-fetch-html {
+  q-property url: ""
+  q-property selector: "body"
+  q-property method: "GET"
+  q-property headers: ""
+  q-property body: ""
+  q-property html: ""
+  q-property source: ""
+  q-property status: 0
+  q-property statusText: ""
+  q-property ok: false
+  q-property error: ""
+  q-property running: false
+  q-property lastResponse: ""
+  q-signal response(resp)
+  q-signal failed(resp)
+
+  function normalizeMethod(value) {
+    var method = String(value || "GET").trim().toUpperCase();
+    return method || "GET";
+  }
+
+  function normalizeHeaders(value) {
+    if (!value) {
+      return undefined;
+    }
+    if (typeof value === "object") {
+      return value;
+    }
+    var text = String(value || "").trim();
+    if (!text) {
+      return undefined;
+    }
+    if (text.charAt(0) === "{" || text.charAt(0) === "[") {
+      return JSON.parse(text);
+    }
+    var headers = {};
+    var parts = text.split(/[\n;]/);
+    for (var i = 0; i < parts.length; i += 1) {
+      var part = String(parts[i] || "").trim();
+      if (!part) {
+        continue;
+      }
+      var index = part.indexOf(":");
+      if (index < 0) {
+        headers[part] = "";
+        continue;
+      }
+      headers[part.slice(0, index).trim()] = part.slice(index + 1).trim();
+    }
+    return headers;
+  }
+
+  function selectHtml(source) {
+    var selector = String(this.component.selector || "body").trim() || "body";
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(String(source || ""), "text/html");
+    var node = selector === "html"
+      ? doc.documentElement
+      : selector === "body"
+        ? doc.body
+        : doc.querySelector(selector);
+    if (!node) {
+      return "";
+    }
+    return node.outerHTML || node.innerHTML || "";
+  }
+
+  function makePayload(extra) {
+    var payload = {
+      url: this.component.url,
+      selector: this.component.selector,
+      method: this.component.method,
+      html: this.component.html,
+      source: this.component.source,
+      status: this.component.status,
+      statusText: this.component.statusText,
+      ok: this.component.ok,
+      error: this.component.error
+    };
+    var keys = extra && typeof extra === "object" ? Object.keys(extra) : [];
+    for (var i = 0; i < keys.length; i += 1) {
+      payload[keys[i]] = extra[keys[i]];
+    }
+    this.component.lastResponse = payload;
+    return payload;
+  }
+
+  function fetch() {
+    var requestUrl = String(this.component.url || "").trim();
+    if (!requestUrl) {
+      throw new Error("q-fetch-html requires url.");
+    }
+    if (!window.fetch) {
+      throw new Error("q-fetch-html requires window.fetch.");
+    }
+
+    var method = this.component.normalizeMethod(this.component.method);
+    var options = { method: method };
+    var headers = this.component.normalizeHeaders(this.component.headers);
+    if (headers) {
+      options.headers = headers;
+    }
+    if (method !== "GET" && method !== "HEAD" && this.component.body) {
+      options.body = String(this.component.body);
+    }
+
+    this.component.running = true;
+    this.component.error = "";
+
+    return window.fetch(requestUrl, options)
+      .then(function(response) {
+        return response.text().then(function(source) {
+          return { response: response, source: source };
+        });
+      })
+      .then(function(result) {
+        var response = result.response;
+        this.component.status = response.status || 0;
+        this.component.statusText = response.statusText || "";
+        this.component.ok = !!response.ok;
+        this.component.source = result.source;
+        this.component.html = this.component.selectHtml(result.source);
+        this.component.running = false;
+        var payload = this.component.makePayload({ response: response });
+        this.component.response(payload);
+        this.component.onResponse(payload);
+        return payload;
+      }.bind(this))
+      .catch(function(error) {
+        this.component.running = false;
+        this.component.ok = false;
+        this.component.error = error && error.message ? error.message : String(error);
+        var payload = this.component.makePayload({ errorObject: error });
+        this.component.failed(payload);
+        this.component.onResponse(payload);
+        return payload;
+      }.bind(this));
+  }
+
+  function onResponse(resp) {
+  }
+}

@@ -94,7 +94,7 @@ Exports via `globalThis.QHtmlModules.domRenderer`.
   - pass-by-reference assignment into declared component properties (resolved lazily to callback functions)
   - `qhtml(...)` fragment-return rendering when callbacks return QHTML fragment tokens
   - callback names are also stored in the active lexical/runtime context frame so later expressions in the same scope resolve by name.
-- `q-var` declarations register scoped runtime variables in the existing QContext frames:
+  - `q-var` declarations register scoped runtime variables in the existing QContext frames:
   - declaration form: `q-var name { expressionOrBody }`
   - declaration bodies are stored on the QDom q-var declaration and evaluated lazily when the variable is first read
   - declaration bodies can reference earlier q-vars, q-switches, callbacks, and named references from the current inherited QContext

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QHTML Test Board - q-fetch-html</title>
+  <script src="dist/qhtml.js"></script>
+  <style>
+    :root { --bg:#eef4fb; --panel:#fff; --ink:#10243d; --edge:#d3deec; --accent:#1d4e89; --ok:#0f7a52; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:18px; background:var(--bg); color:var(--ink); font-family:"Fira Sans","Segoe UI",sans-serif; }
+    .page { max-width:1100px; margin:0 auto; display:grid; gap:14px; }
+    .panel { background:var(--panel); border:1px solid var(--edge); border-radius:10px; padding:14px 16px; }
+    h1 { margin:0 0 6px 0; color:var(--accent); }
+    p { margin:0; color:#425b78; line-height:1.45; }
+    q-html { display:grid; gap:12px; }
+    .case { display:grid; gap:8px; background:#fff; border:1px solid var(--edge); border-radius:10px; padding:12px; }
+    .case h2 { margin:0; font-size:15px; color:var(--accent); }
+    .expected { color:#425b78; font-size:12px; }
+    .result { min-height:42px; border:1px dashed #aabbd0; border-radius:8px; padding:10px; background:#f8fbff; }
+    .remote-fragment,
+    #selector-target,
+    #component-fragment,
+    #slot-fragment,
+    #property-fragment {
+      display:inline-grid;
+      gap:4px;
+      border:1px solid #b7e5d5;
+      border-radius:7px;
+      padding:8px 10px;
+      background:#f0fdf8;
+      color:var(--ok);
+      font-weight:700;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="panel">
+      <h1>q-fetch-html Visual Test</h1>
+      <p>Each result box should fill itself with HTML from <code>test/fixtures/q-fetch-html-source.html</code> after an explicit <code>.fetch()</code> call. A blank result means that case did not resolve.</p>
+    </section>
+
+    <q-html>
+q-import { dist/q-components/q-fetch-html.qhtml }
+
+q-component fetch-result {
+  q-property label: "case"
+
+  div.case {
+    h2 { text { ${this.component.label} } }
+    div.expected { text { Expected: selected fixture HTML appears below. } }
+    div.result { text { waiting for fetch } }
+  }
+
+  function show(response) {
+    this.querySelector(".result").innerHTML = response.html;
+    this.querySelector(".result").setAttribute("data-pass", response.html ? "1" : "0");
+  }
+}
+
+q-fetch-html onResponseFetch {
+  url: "test/fixtures/q-fetch-html-source.html"
+  selector: "#remote-card"
+}
+
+fetch-result onResponseTarget { label: "1. named q-fetch-html with response signal" }
+q-connect { onResponseFetch.response onResponseTarget.show }
+
+q-fetch-html connectedFetch {
+  url: "test/fixtures/q-fetch-html-source.html"
+  selector: "#selector-target > span"
+}
+
+fetch-result connectedTarget { label: "2. q-connect from myobject.response to component function" }
+q-connect { connectedFetch.response connectedTarget.show }
+
+q-fetch-html componentFetch {
+  url: "test/fixtures/q-fetch-html-source.html"
+  selector: "#component-fragment"
+}
+
+fetch-result componentTarget { label: "3. q-fetch-html component instance with explicit fetch()" }
+q-connect { componentFetch.response componentTarget.show }
+
+q-fetch-html propertyLikeFetch {
+  url: "test/fixtures/q-fetch-html-source.html"
+  selector: "#property-fragment"
+}
+
+fetch-result propertyLikeTarget { label: "4. reusable q-fetch-html object stores lastResponse/html" }
+q-connect { propertyLikeFetch.response propertyLikeTarget.show }
+
+q-component slotted-fetch-panel {
+  slot { main }
+}
+
+div.case {
+  h2 { text { 5. q-fetch-html declared inside slot content } }
+  div.expected { text { Expected: slot-scoped fetch object resolves through q-connect. } }
+  div#slot-output.result { text { waiting for slot fetch } }
+  slotted-fetch-panel slotShell {
+    main {
+      q-fetch-html slotFetch {
+        url: "test/fixtures/q-fetch-html-source.html"
+        selector: "#slot-fragment"
+      }
+      q-connect { slotFetch.response slotReceiver.show }
+      q-timer slotStarter {
+        interval: 20
+        repeat: false
+        running: true
+        ontimeout { slotFetch.fetch(); }
+      }
+    }
+  }
+}
+
+q-component slot-receiver {
+  function show(response) {
+    document.querySelector("#slot-output").innerHTML = response.html;
+    document.querySelector("#slot-output").setAttribute("data-pass", response.html ? "1" : "0");
+  }
+}
+
+slot-receiver slotReceiver { }
+
+onready {
+  onResponseFetch.fetch();
+  connectedFetch.fetch();
+  componentFetch.fetch();
+  propertyLikeFetch.fetch();
+}
+    </q-html>
+  </main>
+</body>
+</html>

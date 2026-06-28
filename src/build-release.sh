@@ -8,8 +8,7 @@ OUT_FILE="$DIST_DIR/qhtml.js"
 WASM_SRC_FILE="$PROJECT_ROOT/src/qhtml-wasm.js"
 WASM_ASSET_OUT_DIR="$DIST_DIR/qhtml-wasm"
 WASM_OUT_FILE="$WASM_ASSET_OUT_DIR/qhtml-wasm.js"
-WASM_RUNTIME_SRC_FILE="$PROJECT_ROOT/src/qhtml-wasm-dom-runtime.js"
-WASM_RENDERER_SRC_FILE="$PROJECT_ROOT/src/qhtml-wasm-dom-renderer.js"
+WASM_RENDERER_SRC_FILE="$PROJECT_ROOT/src/qhtml-wasm-renderer.js"
 QT_WASM_BUILD_DIR="$PROJECT_ROOT/src/modules/qhtml-qt/build/qhtml-qt/MinSizeRel/WebAssembly_Qt_6_11_1_single_threaded"
 DOC_OUT_FILE="$PROJECT_ROOT/doc/qhtml.js"
 
@@ -54,22 +53,18 @@ if [[ ! -f "$WASM_SRC_FILE" ]]; then
   exit 1
 fi
 
-for wasm_runtime_src in "$WASM_RUNTIME_SRC_FILE" "$WASM_RENDERER_SRC_FILE"; do
-  if [[ ! -f "$wasm_runtime_src" ]]; then
-    echo "Missing source file: $wasm_runtime_src" >&2
+if [[ ! -f "$WASM_RENDERER_SRC_FILE" ]]; then
+    echo "Missing source file: $WASM_RENDERER_SRC_FILE" >&2
     exit 1
-  fi
-done
+fi
 
 mkdir -p "$WASM_ASSET_OUT_DIR"
 cp "$WASM_SRC_FILE" "$WASM_OUT_FILE"
 echo "Wrote $WASM_OUT_FILE"
 
-for wasm_runtime_src in "$WASM_RUNTIME_SRC_FILE" "$WASM_RENDERER_SRC_FILE"; do
-  wasm_runtime_dest="$WASM_ASSET_OUT_DIR/$(basename "$wasm_runtime_src")"
-  cp "$wasm_runtime_src" "$wasm_runtime_dest"
-  echo "Wrote $wasm_runtime_dest"
-done
+wasm_renderer_dest="$WASM_ASSET_OUT_DIR/$(basename "$WASM_RENDERER_SRC_FILE")"
+cp "$WASM_RENDERER_SRC_FILE" "$wasm_renderer_dest"
+echo "Wrote $wasm_renderer_dest"
 
 if [[ ! -d "$QT_WASM_BUILD_DIR" ]]; then
   echo "Missing Qt wasm build output directory: $QT_WASM_BUILD_DIR" >&2

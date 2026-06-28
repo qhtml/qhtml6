@@ -83,11 +83,10 @@ var Module;
     globalScope.QtWasm = qtModule;
     globalScope.QHTMLQt = api;
 
-    await loadScript(base + "qhtml-wasm-dom-runtime.js");
-    await loadScript(base + "qhtml-wasm-dom-renderer.js");
+    await loadScript(base + "qhtml-wasm-renderer.js");
 
-    api.qdom = globalScope.QHTMLWasmDomRuntime.create({ Module: qtModule, Qt: api });
-    api.renderer = globalScope.QHTMLWasmDomRenderer.create(api.qdom);
+    api.renderer = globalScope.QHTMLWasmRenderer.create({ Module: qtModule, Qt: api });
+    api.qdom = api.renderer.qdomInterface;
     globalScope.QHtml = api.renderer.createFacade();
 
     mountWhenReady(api);
