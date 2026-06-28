@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QHTML WASM Doc Examples 11-particle-emitter</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f8fb; color: #172033; }
+    body { margin: 0; min-height: 100vh; }
+    main { width: min(1180px, calc(100vw - 32px)); margin: 0 auto; padding: 24px 0 48px; }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    .intro { margin: 0 0 20px; color: #475569; font-size: 14px; }
+    .nav { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 18px; }
+    .nav a { color: #1d4ed8; font-weight: 700; }
+    section { margin: 0 0 18px; padding: 16px; border: 1px solid #d8e0eb; border-radius: 8px; background: #fff; }
+    h2 { margin: 0 0 10px; font-size: 15px; color: #334155; }
+    .meta { margin: 0 0 10px; color: #64748b; font-size: 12px; }
+    .grid { display: grid; grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 1.15fr); gap: 12px; align-items: stretch; }
+    pre { margin: 0; overflow: auto; min-height: 130px; max-height: 420px; padding: 12px; border-radius: 7px; background: #0f172a; color: #dbeafe; font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+    iframe { width: 100%; min-height: 220px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; }
+    .reference { min-height: 180px; padding: 12px; border: 1px dashed #cbd5e1; border-radius: 7px; background: #f8fafc; color: #334155; }
+    @media (max-width: 780px) { .grid { grid-template-columns: 1fr; } iframe { min-height: 260px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>QHTML WASM Documentation Examples: Particle Emitter</h1>
+    <p class="intro">Each section copies the documentation example source. QHTML examples are mounted in an isolated iframe with qhtml-wasm; reference-only examples are displayed without mounting.</p>
+    <nav class="nav"><a href="06.html">Documentation test index</a><a href="01.html">Core 01</a><a href="02.html">Components 02</a><a href="03.html">Styles 03</a><a href="04.html">Signals 04</a><a href="05.html">Stress 05</a></nav>
+    <div id="examples"></div>
+  </main>
+  <script>
+    const examples = "[{\"index\":1,\"title\":\"1. Mental model\",\"source\":\"q-import { q-components/q-particle-emitter.qhtml }\\n\\ndiv#field {\\n  style {\\n    position: relative;\\n    width: 420px;\\n    height: 220px;\\n    overflow: hidden;\\n    background: #07111f;\\n  }\\n\\n  q-particle-emitter#energy {\\n    running: \\\"false\\\"\\n    src: \\\"particle.png\\\"\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":2,\"title\":\"2. Complete rising energy example\",\"source\":\"div#energy-field {\\n  style {\\n    position: relative;\\n    width: 420px;\\n    height: 220px;\\n    overflow: hidden;\\n    background: #07111f;\\n  }\\n\\n  particle-emitter#energy-emitter {\\n    emitRate: \\\"84\\\"\\n    lifetime: \\\"3600\\\"\\n    lifetimeVariation: \\\"900\\\"\\n    x: \\\"210\\\"\\n    y: \\\"214\\\"\\n    xVariation: \\\"145\\\"\\n    yVariation: \\\"8\\\"\\n    xVelocity: \\\"0.35\\\"\\n    yVelocity: \\\"-1.25\\\"\\n    xVelocityVariation: \\\"0.45\\\"\\n    yVelocityVariation: \\\"0.4\\\"\\n    xAcceleration: \\\"0.015\\\"\\n    yAcceleration: \\\"-0.018\\\"\\n    xAccelerationVariation: \\\"0.08\\\"\\n    yAccelerationVariation: \\\"0.05\\\"\\n    startSize: \\\"10\\\"\\n    endSize: \\\"30\\\"\\n    startSizeVariation: \\\"7\\\"\\n    endSizeVariation: \\\"10\\\"\\n    startOpacity: \\\"0.35\\\"\\n    endOpacity: \\\"0.02\\\"\\n    startOpacityVariation: \\\"0.16\\\"\\n    endOpacityVariation: \\\"0.02\\\"\\n    maxActiveParticles: \\\"96\\\"\\n    maxActiveParticlesVariation: \\\"18\\\"\\n    running: \\\"false\\\"\\n    interval: \\\"18\\\"\\n    src: \\\"particle.png\\\"\\n  }\\n}\\n\\nbutton {\\n  text { Start energy }\\n  onclick { document.querySelector(\\\"#energy-emitter\\\").running = true; }\\n}\\n\\nbutton {\\n  text { Stop energy }\\n  onclick { document.querySelector(\\\"#energy-emitter\\\").running = false; }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":3,\"title\":\"3. Lifecycle and controls\",\"source\":\"particle-emitter#fx {\\n  running: \\\"false\\\"\\n  emitRate: \\\"40\\\"\\n}\\n\\nbutton { text { Start } onclick { document.querySelector(\\\"#fx\\\").running = true; } }\\nbutton { text { Stop } onclick { document.querySelector(\\\"#fx\\\").running = false; } }\\nbutton { text { Burst } onclick { document.querySelector(\\\"#fx\\\").burst(20, 180, 90); } }\\nbutton { text { Clear } onclick { document.querySelector(\\\"#fx\\\").clear(); } }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":4,\"title\":\"4. Emission attributes\",\"source\":\"div#emission-demo {\\n  style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #07111f; }\\n\\n  particle-emitter#emission-emitter {\\n    emitRate: \\\"70\\\"\\n    lifetime: \\\"1800\\\"\\n    lifetimeVariation: \\\"250\\\"\\n    maxActiveParticles: \\\"48\\\"\\n    maxActiveParticlesVariation: \\\"6\\\"\\n    maxParticles: \\\"0\\\"\\n    stopAfter: \\\"0\\\"\\n    running: \\\"true\\\"\\n    interval: \\\"10\\\"\\n    seed: \\\"1212\\\"\\n    zIndex: \\\"2\\\"\\n    x: \\\"180\\\"\\n    y: \\\"176\\\"\\n    yVelocity: \\\"-1.35\\\"\\n    xVariation: \\\"130\\\"\\n    src: \\\"particle.png\\\"\\n    color: \\\"#67e8f9\\\"\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":5,\"title\":\"5. Position and motion attributes\",\"source\":\"div#motion-demo {\\n  style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #0f172a; }\\n\\n  particle-emitter#motion-emitter {\\n    x: \\\"180\\\"\\n    y: \\\"176\\\"\\n    xVariation: \\\"150\\\"\\n    yVariation: \\\"8\\\"\\n    xVelocity: \\\"0.18\\\"\\n    yVelocity: \\\"-1.45\\\"\\n    xVelocityVariation: \\\"0.35\\\"\\n    yVelocityVariation: \\\"0.16\\\"\\n    xAcceleration: \\\"0.004\\\"\\n    yAcceleration: \\\"-0.002\\\"\\n    xAccelerationVariation: \\\"0.008\\\"\\n    yAccelerationVariation: \\\"0.003\\\"\\n    emitRate: \\\"64\\\"\\n    lifetime: \\\"2200\\\"\\n    maxActiveParticles: \\\"52\\\"\\n    running: \\\"true\\\"\\n    interval: \\\"10\\\"\\n    src: \\\"particle.png\\\"\\n    color: \\\"#a7f3d0\\\"\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":6,\"title\":\"6. Size and opacity attributes\",\"source\":\"div#size-demo {\\n  style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #1e1238; }\\n\\n  particle-emitter#size-emitter {\\n    startSize: \\\"28\\\"\\n    endSize: \\\"8\\\"\\n    startSizeVariation: \\\"8\\\"\\n    endSizeVariation: \\\"3\\\"\\n    startOpacity: \\\"0.85\\\"\\n    endOpacity: \\\"0.03\\\"\\n    startOpacityVariation: \\\"0.08\\\"\\n    endOpacityVariation: \\\"0.02\\\"\\n    x: \\\"180\\\"\\n    y: \\\"176\\\"\\n    xVariation: \\\"135\\\"\\n    yVelocity: \\\"-1.25\\\"\\n    emitRate: \\\"72\\\"\\n    lifetime: \\\"2000\\\"\\n    maxActiveParticles: \\\"56\\\"\\n    running: \\\"true\\\"\\n    interval: \\\"10\\\"\\n    src: \\\"particle.png\\\"\\n    color: \\\"#c084fc\\\"\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":7,\"title\":\"7. Sprite attributes\",\"source\":\"div#sprite-demo {\\n  style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #330d12; }\\n\\n  particle-emitter#sprite-emitter {\\n    src: \\\"particle.png\\\"\\n    mask: \\\"particle.png\\\"\\n    color: \\\"#fb7185\\\"\\n    emitterMask: \\\"particle-mask-star.svg\\\"\\n    x: \\\"180\\\"\\n    y: \\\"176\\\"\\n    xVariation: \\\"150\\\"\\n    yVelocity: \\\"-1.35\\\"\\n    yVelocityVariation: \\\"0.12\\\"\\n    startSize: \\\"26\\\"\\n    endSize: \\\"10\\\"\\n    startOpacity: \\\"0.82\\\"\\n    endOpacity: \\\"0.03\\\"\\n    emitRate: \\\"68\\\"\\n    lifetime: \\\"1900\\\"\\n    maxActiveParticles: \\\"46\\\"\\n    running: \\\"true\\\"\\n    interval: \\\"10\\\"\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":8,\"title\":\"8. Emitter-area mask\",\"source\":\"div#emitter-mask-demo {\\n  style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #06131f; }\\n\\n  particle-emitter#masked-area-emitter {\\n    src: \\\"particle.png\\\"\\n    emitterMask: \\\"particle-mask-star.svg\\\"\\n    color: \\\"#38bdf8\\\"\\n    x: \\\"180\\\"\\n    y: \\\"172\\\"\\n    xVariation: \\\"170\\\"\\n    yVariation: \\\"28\\\"\\n    yVelocity: \\\"-1.1\\\"\\n    yVelocityVariation: \\\"0.2\\\"\\n    startSize: \\\"24\\\"\\n    endSize: \\\"8\\\"\\n    startOpacity: \\\"0.85\\\"\\n    endOpacity: \\\"0.04\\\"\\n    emitRate: \\\"80\\\"\\n    lifetime: \\\"2200\\\"\\n    maxActiveParticles: \\\"72\\\"\\n    running: \\\"true\\\"\\n    interval: \\\"10\\\"\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":9,\"title\":\"9. Rendering details\",\"source\":\"div#render-demo {\\n  style { position: relative; width: 360px; height: 180px; overflow: hidden; background: #082915; }\\n\\n  particle-emitter#render-emitter {\\n    emitRate: \\\"60\\\"\\n    lifetime: \\\"2100\\\"\\n    x: \\\"180\\\"\\n    y: \\\"176\\\"\\n    xVariation: \\\"130\\\"\\n    yVelocity: \\\"-1.3\\\"\\n    startSize: \\\"24\\\"\\n    endSize: \\\"9\\\"\\n    startOpacity: \\\"0.8\\\"\\n    endOpacity: \\\"0.03\\\"\\n    maxActiveParticles: \\\"44\\\"\\n    running: \\\"true\\\"\\n    interval: \\\"10\\\"\\n    src: \\\"particle.png\\\"\\n    color: \\\"#86efac\\\"\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"}]";
+    const parsedExamples = JSON.parse(examples);
+    const mountCss = `:root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; } body { margin: 0; padding: 12px; color: #172033; background: #ffffff; } q-html { display: block; min-height: 72px; } .wasm-frame-note { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #eef6ff; color: #1e3a8a; font: 12px system-ui; } .wasm-frame-error { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #fee2e2; color: #991b1b; font: 12px system-ui; white-space: pre-wrap; } .w3-card, .w3-container, .w3-padding { padding: 10px; border: 1px solid #cbd5e1; } .w3-round, .w3-round-large { border-radius: 8px; } .w3-button { display: inline-flex; align-items: center; min-height: 30px; padding: 0 10px; border: 1px solid #94a3b8; background: #fff; font: inherit; }`;
+    function escapeHtml(value) {
+      return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function iframeDoc(source) {
+      return '<!doctype html><html><head><meta charset="utf-8"><style>' + mountCss + '</style><script>window.addEventListener("error",function(event){var el=document.createElement("div");el.className="wasm-frame-error";el.textContent=event.message;document.body.appendChild(el);});window.addEventListener("unhandledrejection",function(event){var el=document.createElement("div");el.className="wasm-frame-error";el.textContent=event.reason && event.reason.message ? event.reason.message : String(event.reason);document.body.appendChild(el);});<\/script><script src="../qhtml-wasm.js"><\/script></head><body><q-html>' + escapeHtml(source) + '</q-html><div class="wasm-frame-note">Visual check: rendered output from the copied documentation source should appear above. Empty or red output marks a wasm coverage gap.</div></body></html>';
+    }
+    function renderExample(example) {
+      const section = document.createElement('section');
+      const title = document.createElement('h2');
+      title.textContent = example.index + '. ' + example.title;
+      const meta = document.createElement('p');
+      meta.className = 'meta';
+      meta.textContent = example.from + ' from doc/11-particle-emitter/index.html';
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      const pre = document.createElement('pre');
+      pre.textContent = example.source;
+      grid.appendChild(pre);
+      if (example.kind === 'qhtml') {
+        const frame = document.createElement('iframe');
+        frame.loading = 'lazy';
+        frame.srcdoc = iframeDoc(example.source);
+        grid.appendChild(frame);
+      } else {
+        const ref = document.createElement('div');
+        ref.className = 'reference';
+        ref.textContent = 'Reference-only documentation snippet. It is shown here but is not mounted as QHTML-wasm source.';
+        grid.appendChild(ref);
+      }
+      section.append(title, meta, grid);
+      return section;
+    }
+    const root = document.getElementById('examples');
+    parsedExamples.forEach((example) => root.appendChild(renderExample(example)));
+  </script>
+</body>
+</html>

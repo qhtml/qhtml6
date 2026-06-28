@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QHTML WASM Exact Doc Examples 04-styles-and-themes</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f8fb; color: #172033; }
+    body { margin: 0; min-height: 100vh; }
+    main { width: min(1180px, calc(100vw - 32px)); margin: 0 auto; padding: 24px 0 48px; }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    .intro { margin: 0 0 20px; color: #475569; font-size: 14px; }
+    .nav { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 18px; }
+    .nav a { color: #1d4ed8; font-weight: 700; }
+    section { margin: 0 0 18px; padding: 16px; border: 1px solid #d8e0eb; border-radius: 8px; background: #fff; }
+    h2 { margin: 0 0 10px; font-size: 15px; color: #334155; }
+    .meta { margin: 0 0 10px; color: #64748b; font-size: 12px; }
+    .grid { display: grid; grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 1.15fr); gap: 12px; align-items: stretch; }
+    pre { margin: 0; overflow: auto; min-height: 130px; max-height: 420px; padding: 12px; border-radius: 7px; background: #0f172a; color: #dbeafe; font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+    iframe { width: 100%; min-height: 220px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; }
+    @media (max-width: 780px) { .grid { grid-template-columns: 1fr; } iframe { min-height: 260px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>QHTML WASM Exact Documentation Examples: Styles And Themes</h1>
+    <p class="intro">Each iframe mounts the exact QHTML snippet copied from doc/04-styles-and-themes/index.html through qhtml-wasm.js. Red output or blank output marks a wasm coverage gap.</p>
+    <nav class="nav"><a href="06.html">Documentation test index</a><a href="02.html">Focused components</a><a href="03.html">Focused styles</a><a href="04.html">Focused signals</a></nav>
+    <div id="examples"></div>
+  </main>
+  <script>
+    const examples = "[{\"index\":1,\"title\":\"q-style with q-style-class\",\"source\":\"q-style panel-style {\\n  q-style-class { w3-container w3-round-large }\\n  backgroundColor: #e0f2fe\\n  color: #0c4a6e\\n}\\n\\npanel-style,div {\\n  text { Styled with class + inline rules }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":2,\"title\":\"Basic reusable style\",\"source\":\"q-style panel {\\n  backgroundColor: #eff6ff\\n  color: #1e293b\\n  border: 1px solid #93c5fd\\n}\\n\\npanel,div {\\n  text { Basic reusable panel style }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":3,\"title\":\"Apply a style directly in a selector chain\",\"source\":\"q-style panel {\\n  backgroundColor: #dbeafe\\n  color: #1e3a8a\\n  border: 1px solid #93c5fd\\n}\\n\\npanel,div { text { Styled panel } }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":4,\"title\":\"Theme maps selectors to styles\",\"source\":\"q-style title-accent {\\n  color: #1d4ed8\\n}\\n\\nq-style body-muted {\\n  color: #334155\\n}\\n\\nq-style body-panel {\\n  backgroundColor: #e2e8f0\\n  padding: 0.5rem\\n  borderRadius: 0.4rem\\n}\\n\\nq-theme article-theme {\\n  h3 { title-accent }\\n  .summary { body-muted body-panel }\\n}\\n\\narticle-theme {\\n  div {\\n    h3 { text { Theme heading } }\\n    p.summary { text { This paragraph uses two styles via one selector. } }\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":5,\"title\":\"Anonymous q-style inside q-theme\",\"source\":\"q-style body-panel {\\n  backgroundColor: #e2e8f0\\n}\\n\\nq-theme article-theme {\\n  h3 { q-style { color: #1d4ed8 } }\\n  .summary { q-style { color: #334155 } body-panel }\\n}\\n\\narticle-theme {\\n  div {\\n    h3 { text { Theme heading } }\\n    p.summary { text { This paragraph uses anonymous and named q-styles. } }\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":6,\"title\":\"q-default-theme fallback layer\",\"source\":\"q-style panel-base {\\n  backgroundColor: #f8fafc\\n  border: 1px solid #cbd5e1\\n  color: #0f172a\\n  padding: 0.5rem\\n}\\n\\nq-default-theme card-theme {\\n  .card { panel-base }\\n}\\n\\ncard-theme {\\n  div.card { text { Styled by default theme } }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":7,\"title\":\"Scoped theme application\",\"source\":\"q-style title-accent {\\n  color: #1d4ed8\\n}\\n\\nq-style body-muted {\\n  color: #334155\\n  backgroundColor: #f1f5f9\\n  padding: 0.35rem\\n}\\n\\nq-theme article-theme {\\n  h3 { title-accent }\\n  p  { body-muted }\\n}\\n\\narticle-theme {\\n  div {\\n    h3 { text { Title } }\\n    p  { text { Description } }\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":8,\"title\":\"Compose themes\",\"source\":\"q-style button-base {\\n  backgroundColor: #0f766e\\n  color: #ffffff\\n  border: 0\\n  padding: 0.35rem 0.6rem\\n}\\n\\nq-style button-danger {\\n  backgroundColor: #b91c1c\\n  color: #ffffff\\n}\\n\\nq-theme base-theme {\\n  button { button-base }\\n}\\n\\nq-theme admin-theme {\\n  base-theme { }\\n  .danger { button-danger }\\n}\\n\\nadmin-theme {\\n  div {\\n    button { text { Save } }\\n    button.danger { text { Delete } }\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":9,\"title\":\"Override class CSS with inline declarations\",\"source\":\"q-style button-base {\\n  q-style-class { w3-button w3-round }\\n  backgroundColor: #0f766e\\n  color: #ffffff\\n}\\n\\nbutton-base,button {\\n  text { Save changes }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":10,\"title\":\"q-transition and q-style-transition\",\"source\":\"q-transition mytransition {\\n  property { opacity }\\n  duration { 800 }\\n  timing { ease-in-out }\\n  delay { 0 }\\n}\\n\\nq-style mystyle {\\n  q-style-transition { mytransition }\\n}\\n\\nq-theme transition-theme {\\n  .target { mystyle }\\n}\\n\\ntransition-theme {\\n  div#transition-box.target {\\n    style { opacity: 1 }\\n    text { Transition target }\\n  }\\n}\\n\\nbutton {\\n  text { Toggle opacity }\\n  onclick {\\n    var box = document.querySelector(\\\"#transition-box\\\");\\n    if (box) {\\n      box.style.opacity = box.style.opacity === \\\"0.25\\\" ? \\\"1\\\" : \\\"0.25\\\";\\n    }\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":11,\"title\":\"q-painter and q-style-painter\",\"source\":\"q-painter mypainter {\\n  onpaint {\\n    this.fillStyle = \\\"#2563eb\\\";\\n    this.fillRect(0, 0, this.width / 2, this.height);\\n    this.fillStyle = \\\"#f97316\\\";\\n    this.fillRect(this.width / 2, 0, this.width / 2, this.height);\\n  }\\n}\\n\\nq-style mystyle {\\n  q-style-painter { background { mypainter } }\\n}\\n\\nq-theme painter-theme {\\n  .paint-target { mystyle }\\n}\\n\\npainter-theme {\\n  div.paint-target {\\n    style {\\n      width: 240px\\n      height: 110px\\n    }\\n    text { Painter target }\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"}]";
+    const parsedExamples = JSON.parse(examples);
+    const mountCss = `:root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; } body { margin: 0; padding: 12px; color: #172033; background: #ffffff; } q-html { display: block; min-height: 72px; } .wasm-frame-note { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #eef6ff; color: #1e3a8a; font: 12px system-ui; } .wasm-frame-error { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #fee2e2; color: #991b1b; font: 12px system-ui; white-space: pre-wrap; } .w3-card, .w3-container, .w3-padding { padding: 10px; border: 1px solid #cbd5e1; } .w3-round, .w3-round-large { border-radius: 8px; } .w3-button { display: inline-flex; align-items: center; min-height: 30px; padding: 0 10px; border: 1px solid #94a3b8; background: #fff; font: inherit; }`;
+    function escapeHtml(value) { return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function iframeDoc(source) { return '<!doctype html><html><head><meta charset="utf-8"><style>' + mountCss + '</style><script>window.addEventListener("error",function(event){var el=document.createElement("div");el.className="wasm-frame-error";el.textContent=event.message;document.body.appendChild(el);});window.addEventListener("unhandledrejection",function(event){var el=document.createElement("div");el.className="wasm-frame-error";el.textContent=event.reason && event.reason.message ? event.reason.message : String(event.reason);document.body.appendChild(el);});<\/script><script src="../qhtml-wasm.js"><\/script></head><body><q-html>' + escapeHtml(source) + '</q-html><div class="wasm-frame-note">Visual check: rendered output from the copied documentation source should appear above.</div></body></html>'; }
+    function renderExample(example) {
+      const section = document.createElement('section');
+      const title = document.createElement('h2');
+      title.textContent = example.index + '. ' + example.title;
+      const meta = document.createElement('p');
+      meta.className = 'meta';
+      meta.textContent = example.from + ' from doc/04-styles-and-themes/index.html';
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      const pre = document.createElement('pre');
+      pre.textContent = example.source;
+      const frame = document.createElement('iframe');
+      frame.loading = 'lazy';
+      frame.srcdoc = iframeDoc(example.source);
+      grid.append(pre, frame);
+      section.append(title, meta, grid);
+      return section;
+    }
+    const root = document.getElementById('examples');
+    parsedExamples.forEach((example) => root.appendChild(renderExample(example)));
+  </script>
+</body>
+</html>

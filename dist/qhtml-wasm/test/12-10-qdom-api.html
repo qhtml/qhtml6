@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QHTML WASM Doc Examples 10-qdom-api</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f8fb; color: #172033; }
+    body { margin: 0; min-height: 100vh; }
+    main { width: min(1180px, calc(100vw - 32px)); margin: 0 auto; padding: 24px 0 48px; }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    .intro { margin: 0 0 20px; color: #475569; font-size: 14px; }
+    .nav { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 18px; }
+    .nav a { color: #1d4ed8; font-weight: 700; }
+    section { margin: 0 0 18px; padding: 16px; border: 1px solid #d8e0eb; border-radius: 8px; background: #fff; }
+    h2 { margin: 0 0 10px; font-size: 15px; color: #334155; }
+    .meta { margin: 0 0 10px; color: #64748b; font-size: 12px; }
+    .grid { display: grid; grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 1.15fr); gap: 12px; align-items: stretch; }
+    pre { margin: 0; overflow: auto; min-height: 130px; max-height: 420px; padding: 12px; border-radius: 7px; background: #0f172a; color: #dbeafe; font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+    iframe { width: 100%; min-height: 220px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; }
+    .reference { min-height: 180px; padding: 12px; border: 1px dashed #cbd5e1; border-radius: 7px; background: #f8fafc; color: #334155; }
+    @media (max-width: 780px) { .grid { grid-template-columns: 1fr; } iframe { min-height: 260px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>QHTML WASM Documentation Examples: Qdom Api</h1>
+    <p class="intro">Each section copies the documentation example source. QHTML examples are mounted in an isolated iframe with qhtml-wasm; reference-only examples are displayed without mounting.</p>
+    <nav class="nav"><a href="06.html">Documentation test index</a><a href="01.html">Core 01</a><a href="02.html">Components 02</a><a href="03.html">Styles 03</a><a href="04.html">Signals 04</a><a href="05.html">Stress 05</a></nav>
+    <div id="examples"></div>
+  </main>
+  <script>
+    const examples = "[{\"index\":1,\"title\":\"Find and append\",\"source\":\"div {\\n  button {\\n    text { Append item }\\n    onclick {\\n      var host = this.closest(\\\"q-html\\\");\\n      var root = host.qdom();\\n      var list = root.find(\\\"#items\\\");\\n      list.appendNode(list.createQElement(\\\"li\\\", { textContent: \\\"Added via qdom()\\\" }));\\n      host.update();\\n    }\\n  }\\n\\n  ul {\\n    id: \\\"items\\\"\\n    li { text { Existing item } }\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":2,\"title\":\"Replace a node with QHTML\",\"source\":\"div {\\n  button {\\n    text { Replace list }\\n    onclick {\\n      var host = this.closest(\\\"q-html\\\");\\n      host.qdom().find(\\\"#items\\\").replaceWithQHTML(\\\"ul#items { li { text { Replaced via replaceWithQHTML } } li { text { Fresh branch } } }\\\");\\n      host.update();\\n    }\\n  }\\n\\n  ul {\\n    id: \\\"items\\\"\\n    li { text { Original row A } }\\n    li { text { Original row B } }\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":3,\"title\":\"qdom().rewrite(...)\",\"source\":\"div {\\n  button {\\n    text { Rewrite target }\\n    onclick {\\n      var host = this.closest(\\\"q-html\\\");\\n      host.qdom().find(\\\"#rewrite-target\\\").rewrite(function () {\\n        return \\\"div#rewrite-target.rewritten-box { style { padding: 12px; border: 1px solid #93c5fd; background: #eff6ff; } text { Rewritten by qdom().rewrite(...) } }\\\";\\n      });\\n      host.update();\\n    }\\n  }\\n\\n  div {\\n    id: \\\"rewrite-target\\\"\\n    text { Original rewrite target }\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":4,\"title\":\"Serialize and deserialize\",\"source\":\"div {\\n  button {\\n    text { Append snapshot }\\n    onclick {\\n      var host = this.closest(\\\"q-html\\\");\\n      var serialized = host.qdom().find(\\\"#snapshot-source\\\").serialize();\\n      host.qdom().find(\\\"#snapshot-target\\\").deserialize(serialized, false);\\n      host.update();\\n    }\\n  }\\n\\n  button {\\n    text { Replace snapshot target }\\n    onclick {\\n      var host = this.closest(\\\"q-html\\\");\\n      var serialized = host.qdom().find(\\\"#snapshot-source\\\").serialize();\\n      host.qdom().find(\\\"#snapshot-target\\\").deserialize(serialized, true);\\n      host.update();\\n    }\\n  }\\n\\n  div {\\n    id: \\\"snapshot-source\\\"\\n    style { padding: 10px; border: 1px solid #cbd5e1; margin-top: 10px; }\\n    h4 { text { Snapshot source } }\\n    p { text { This branch is serialized first, then appended or replaced. } }\\n  }\\n\\n  div {\\n    id: \\\"snapshot-target\\\"\\n    style { padding: 10px; border: 1px dashed #94a3b8; margin-top: 10px; }\\n    text { Snapshot target }\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":5,\"title\":\"Component instance property helpers\",\"source\":\"q-component my-card {\\n  q-property title: \\\"Initial title\\\"\\n  div.card-shell {\\n    style { padding: 12px; border: 1px solid #cbd5e1; margin-top: 10px; }\\n    h4 { id: \\\"card-title\\\" text { ${this.component.title} } }\\n  }\\n}\\n\\nmy-card demoCard { }\\n\\nbutton {\\n  text { Update component title via qdom() }\\n  onclick {\\n    var comp = this.closest(\\\"q-html\\\").querySelector(\\\"my-card\\\");\\n    var qnode = comp.qdom();\\n    qnode.property(\\\"title\\\", \\\"Updated through component qdom()\\\");\\n    comp.update();\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":6,\"title\":\"Scoped vs full updates\",\"source\":\"q-component scope-demo {\\n  q-property count: 0\\n\\n  div {\\n    style { padding: 12px; border: 1px solid #cbd5e1; margin-top: 10px; }\\n    p { id: \\\"scope-count\\\" text { Component count: ${this.component.count} } }\\n    button {\\n      text { Increment with component update() }\\n      onclick {\\n        this.component.count = Number(this.component.count) + 1;\\n        this.component.update();\\n      }\\n    }\\n  }\\n}\\n\\nscope-demo localScopeDemo { }\\n\\nbutton {\\n  text { Update page summary with root().update() }\\n  onclick {\\n    localScopeDemo.count = Number(localScopeDemo.count) + 1;\\n    localScopeDemo.root().update();\\n  }\\n}\\n\\ndiv {\\n  id: \\\"page-summary\\\"\\n  text { Page sees count: ${localScopeDemo.count} }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"}]";
+    const parsedExamples = JSON.parse(examples);
+    const mountCss = `:root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; } body { margin: 0; padding: 12px; color: #172033; background: #ffffff; } q-html { display: block; min-height: 72px; } .wasm-frame-note { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #eef6ff; color: #1e3a8a; font: 12px system-ui; } .wasm-frame-error { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #fee2e2; color: #991b1b; font: 12px system-ui; white-space: pre-wrap; } .w3-card, .w3-container, .w3-padding { padding: 10px; border: 1px solid #cbd5e1; } .w3-round, .w3-round-large { border-radius: 8px; } .w3-button { display: inline-flex; align-items: center; min-height: 30px; padding: 0 10px; border: 1px solid #94a3b8; background: #fff; font: inherit; }`;
+    function escapeHtml(value) {
+      return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function iframeDoc(source) {
+      return '<!doctype html><html><head><meta charset="utf-8"><style>' + mountCss + '</style><script>window.addEventListener("error",function(event){var el=document.createElement("div");el.className="wasm-frame-error";el.textContent=event.message;document.body.appendChild(el);});window.addEventListener("unhandledrejection",function(event){var el=document.createElement("div");el.className="wasm-frame-error";el.textContent=event.reason && event.reason.message ? event.reason.message : String(event.reason);document.body.appendChild(el);});<\/script><script src="../qhtml-wasm.js"><\/script></head><body><q-html>' + escapeHtml(source) + '</q-html><div class="wasm-frame-note">Visual check: rendered output from the copied documentation source should appear above. Empty or red output marks a wasm coverage gap.</div></body></html>';
+    }
+    function renderExample(example) {
+      const section = document.createElement('section');
+      const title = document.createElement('h2');
+      title.textContent = example.index + '. ' + example.title;
+      const meta = document.createElement('p');
+      meta.className = 'meta';
+      meta.textContent = example.from + ' from doc/10-qdom-api/index.html';
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      const pre = document.createElement('pre');
+      pre.textContent = example.source;
+      grid.appendChild(pre);
+      if (example.kind === 'qhtml') {
+        const frame = document.createElement('iframe');
+        frame.loading = 'lazy';
+        frame.srcdoc = iframeDoc(example.source);
+        grid.appendChild(frame);
+      } else {
+        const ref = document.createElement('div');
+        ref.className = 'reference';
+        ref.textContent = 'Reference-only documentation snippet. It is shown here but is not mounted as QHTML-wasm source.';
+        grid.appendChild(ref);
+      }
+      section.append(title, meta, grid);
+      return section;
+    }
+    const root = document.getElementById('examples');
+    parsedExamples.forEach((example) => root.appendChild(renderExample(example)));
+  </script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QHTML WASM Doc Examples 09-state-machines</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f8fb; color: #172033; }
+    body { margin: 0; min-height: 100vh; }
+    main { width: min(1180px, calc(100vw - 32px)); margin: 0 auto; padding: 24px 0 48px; }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    .intro { margin: 0 0 20px; color: #475569; font-size: 14px; }
+    .nav { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 18px; }
+    .nav a { color: #1d4ed8; font-weight: 700; }
+    section { margin: 0 0 18px; padding: 16px; border: 1px solid #d8e0eb; border-radius: 8px; background: #fff; }
+    h2 { margin: 0 0 10px; font-size: 15px; color: #334155; }
+    .meta { margin: 0 0 10px; color: #64748b; font-size: 12px; }
+    .grid { display: grid; grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 1.15fr); gap: 12px; align-items: stretch; }
+    pre { margin: 0; overflow: auto; min-height: 130px; max-height: 420px; padding: 12px; border-radius: 7px; background: #0f172a; color: #dbeafe; font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+    iframe { width: 100%; min-height: 220px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; }
+    .reference { min-height: 180px; padding: 12px; border: 1px dashed #cbd5e1; border-radius: 7px; background: #f8fafc; color: #334155; }
+    @media (max-width: 780px) { .grid { grid-template-columns: 1fr; } iframe { min-height: 260px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>QHTML WASM Documentation Examples: State Machines</h1>
+    <p class="intro">Each section copies the documentation example source. QHTML examples are mounted in an isolated iframe with qhtml-wasm; reference-only examples are displayed without mounting.</p>
+    <nav class="nav"><a href="06.html">Documentation test index</a><a href="01.html">Core 01</a><a href="02.html">Components 02</a><a href="03.html">Styles 03</a><a href="04.html">Signals 04</a><a href="05.html">Stress 05</a></nav>
+    <div id="examples"></div>
+  </main>
+  <script>
+    const examples = "[{\"index\":1,\"title\":\"1. Mental model\",\"source\":\"q-state-machine mymachine {\\n  state1 {\\n    div { text { State one UI } }\\n  }\\n  state2 {\\n    div { text { State two UI } }\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":2,\"title\":\"2. Basic state switch\",\"source\":\"q-state-machine mymachine {\\n  state1 {\\n    div,span,h3 { text { hello world } }\\n  }\\n  state2 {\\n    div,span,h4 { text { activated state2 } }\\n  }\\n}\\n\\nbutton {\\n  text { show state1 }\\n  onclick { mymachine.state = \\\"state1\\\"; }\\n}\\n\\nbutton {\\n  text { show state2 }\\n  onclick { mymachine.state = \\\"state2\\\"; }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":3,\"title\":\"3. The host is component-backed\",\"source\":\"q-state-machine machineHost {\\n  q-property note: \\\"ready\\\"\\n  q-signal saved(value)\\n\\n  function markSaved(value) {\\n    this.component.note = String(value);\\n    this.component.saved(this.component.note);\\n  }\\n\\n  state1 { p { text { Draft } } }\\n  state2 { p { text { Saved } } }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":4,\"title\":\"4. Built-in state property\",\"source\":\"button {\\n  text { publish }\\n  onclick {\\n    mymachine.state = \\\"published\\\";\\n    console.log(mymachine.state);\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":5,\"title\":\"5. Built-in statechanged signal\",\"source\":\"q-component status-panel {\\n  q-property value: \\\"waiting\\\"\\n\\n  function setValue(value) {\\n    this.component.value = String(value);\\n    this.querySelector(\\\"#out\\\").textContent = \\\"state=\\\" + this.component.value;\\n  }\\n\\n  div#out { text { state=waiting } }\\n}\\n\\nq-state-machine mymachine {\\n  state1 { p { text { One } } }\\n  state2 { p { text { Two } } }\\n}\\n\\nstatus-panel panel { }\\nq-connect { mymachine.statechanged panel.setValue }\\n\\nbutton {\\n  text { activate state2 }\\n  onclick { mymachine.state = \\\"state2\\\"; }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":6,\"title\":\"6. State blocks\",\"source\":\"q-state-machine panelState {\\n  loading {\\n    div.loading-panel { text { Loading... } }\\n  }\\n  ready {\\n    section.ready-panel {\\n      h3 { text { Ready } }\\n      p { text { The data is available. } }\\n    }\\n  }\\n  failed {\\n    div.error-panel { text { Could not load data. } }\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":7,\"title\":\"7. Named component instances inside states\",\"source\":\"q-component message-card {\\n  q-property label: \\\"\\\"\\n  div { text { ${this.component.label} } }\\n}\\n\\nq-state-machine mymachine {\\n  state1 {\\n    message-card card { label: \\\"value from state1\\\" }\\n  }\\n  state2 {\\n    message-card card { label: \\\"value from state2\\\" }\\n  }\\n}\\n\\nbutton {\\n  text { read active card }\\n  onclick { console.log(mymachine.card.label); }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":8,\"title\":\"8. Full two-button example\",\"source\":\"q-component observer-box {\\n  q-property lastState: \\\"waiting\\\"\\n\\n  function setPassing(value) {\\n    this.component.lastState = String(value);\\n    this.querySelector(\\\"#out\\\").textContent = \\\"statechanged=\\\" + this.component.lastState;\\n  }\\n\\n  div#out { text { statechanged=waiting } }\\n}\\n\\nq-state-machine mymachine {\\n  state1 {\\n    div.state-one { h3 { text { hello world } } }\\n  }\\n  state2 {\\n    div.state-two { h4 { text { activated state2 } } }\\n  }\\n}\\n\\nobserver-box othercomponent { }\\nq-connect { mymachine.statechanged othercomponent.setPassing }\\n\\nbutton { text { toggle state1 } onclick { mymachine.state = \\\"state1\\\"; } }\\nbutton { text { toggle state2 } onclick { mymachine.state = \\\"state2\\\"; } }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"}]";
+    const parsedExamples = JSON.parse(examples);
+    const mountCss = `:root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; } body { margin: 0; padding: 12px; color: #172033; background: #ffffff; } q-html { display: block; min-height: 72px; } .wasm-frame-note { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #eef6ff; color: #1e3a8a; font: 12px system-ui; } .wasm-frame-error { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #fee2e2; color: #991b1b; font: 12px system-ui; white-space: pre-wrap; } .w3-card, .w3-container, .w3-padding { padding: 10px; border: 1px solid #cbd5e1; } .w3-round, .w3-round-large { border-radius: 8px; } .w3-button { display: inline-flex; align-items: center; min-height: 30px; padding: 0 10px; border: 1px solid #94a3b8; background: #fff; font: inherit; }`;
+    function escapeHtml(value) {
+      return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function iframeDoc(source) {
+      return '<!doctype html><html><head><meta charset="utf-8"><style>' + mountCss + '</style><script>window.addEventListener("error",function(event){var el=document.createElement("div");el.className="wasm-frame-error";el.textContent=event.message;document.body.appendChild(el);});window.addEventListener("unhandledrejection",function(event){var el=document.createElement("div");el.className="wasm-frame-error";el.textContent=event.reason && event.reason.message ? event.reason.message : String(event.reason);document.body.appendChild(el);});<\/script><script src="../qhtml-wasm.js"><\/script></head><body><q-html>' + escapeHtml(source) + '</q-html><div class="wasm-frame-note">Visual check: rendered output from the copied documentation source should appear above. Empty or red output marks a wasm coverage gap.</div></body></html>';
+    }
+    function renderExample(example) {
+      const section = document.createElement('section');
+      const title = document.createElement('h2');
+      title.textContent = example.index + '. ' + example.title;
+      const meta = document.createElement('p');
+      meta.className = 'meta';
+      meta.textContent = example.from + ' from doc/09-state-machines/index.html';
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      const pre = document.createElement('pre');
+      pre.textContent = example.source;
+      grid.appendChild(pre);
+      if (example.kind === 'qhtml') {
+        const frame = document.createElement('iframe');
+        frame.loading = 'lazy';
+        frame.srcdoc = iframeDoc(example.source);
+        grid.appendChild(frame);
+      } else {
+        const ref = document.createElement('div');
+        ref.className = 'reference';
+        ref.textContent = 'Reference-only documentation snippet. It is shown here but is not mounted as QHTML-wasm source.';
+        grid.appendChild(ref);
+      }
+      section.append(title, meta, grid);
+      return section;
+    }
+    const root = document.getElementById('examples');
+    parsedExamples.forEach((example) => root.appendChild(renderExample(example)));
+  </script>
+</body>
+</html>

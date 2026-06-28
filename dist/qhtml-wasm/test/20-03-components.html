@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QHTML WASM Exact Doc Examples 03-components</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f8fb; color: #172033; }
+    body { margin: 0; min-height: 100vh; }
+    main { width: min(1180px, calc(100vw - 32px)); margin: 0 auto; padding: 24px 0 48px; }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    .intro { margin: 0 0 20px; color: #475569; font-size: 14px; }
+    .nav { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 18px; }
+    .nav a { color: #1d4ed8; font-weight: 700; }
+    section { margin: 0 0 18px; padding: 16px; border: 1px solid #d8e0eb; border-radius: 8px; background: #fff; }
+    h2 { margin: 0 0 10px; font-size: 15px; color: #334155; }
+    .meta { margin: 0 0 10px; color: #64748b; font-size: 12px; }
+    .grid { display: grid; grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 1.15fr); gap: 12px; align-items: stretch; }
+    pre { margin: 0; overflow: auto; min-height: 130px; max-height: 420px; padding: 12px; border-radius: 7px; background: #0f172a; color: #dbeafe; font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+    iframe { width: 100%; min-height: 220px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; }
+    @media (max-width: 780px) { .grid { grid-template-columns: 1fr; } iframe { min-height: 260px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>QHTML WASM Exact Documentation Examples: Components</h1>
+    <p class="intro">Each iframe mounts the exact QHTML snippet copied from doc/03-components/index.html through qhtml-wasm.js. Red output or blank output marks a wasm coverage gap.</p>
+    <nav class="nav"><a href="06.html">Documentation test index</a><a href="02.html">Focused components</a><a href="03.html">Focused styles</a><a href="04.html">Focused signals</a></nav>
+    <div id="examples"></div>
+  </main>
+  <script>
+    const examples = "[{\"index\":1,\"title\":\"1. Basic component structure\",\"source\":\"q-component mycomponent {\\n  div,span { text { hello world } }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":2,\"title\":\"2. Instantiation\",\"source\":\"q-component mycomponent {\\n  div,span { text { hello world } }\\n}\\n\\nmycomponent { }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":3,\"title\":\"3. Named instances\",\"source\":\"q-component mycard {\\n  div { text { hello from card } }\\n}\\n\\nmycard card1 { }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":4,\"title\":\"4. q-properties\",\"source\":\"q-component mycard {\\n  q-property title: \\\"welcome\\\"\\n  div { text { ${this.component.title} } }\\n}\\n\\nmycard { }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":5,\"title\":\"4a. q-fetch-html component content\",\"source\":\"q-import { q-components/q-fetch-html.qhtml }\\n\\nq-component remote-card {\\n  function show(response) {\\n    this.innerHTML = response.html\\n  }\\n}\\n\\nq-fetch-html cardFetch {\\n  url: \\\"/partials/card.html\\\"\\n  selector: \\\"body\\\"\\n}\\n\\nremote-card cardOne { }\\nq-connect { cardFetch.response cardOne.show }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":6,\"title\":\"4b. q-fetch-html controlled fetch\",\"source\":\"q-import { q-components/q-fetch-html.qhtml }\\n\\nq-component remote-fragment {\\n  q-property fragmentHtml: \\\"\\\"\\n\\n  function show(response) {\\n    this.component.fragmentHtml = response.html\\n    this.innerHTML = response.html\\n  }\\n}\\n\\nq-fetch-html fragmentFetch {\\n  url: \\\"/partials/fragment.html\\\"\\n  selector: \\\"body\\\"\\n}\\n\\nremote-fragment inst { }\\nq-connect { fragmentFetch.response inst.show }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":7,\"title\":\"5. Accessing q-properties from JavaScript\",\"source\":\"q-component mycounter {\\n  q-property count: 0\\n  oncountchanged {\\n    $(\\\"#count-out\\\").innerText = \\\"count=\\\" + String(this.component.count);\\n  }\\n\\n  button {\\n    text { bump }\\n    onclick {\\n      this.component.count = Number(this.component.count) + 1;\\n    }\\n  }\\n  div#count-out { text { count=0 } }\\n}\\n\\nmycounter { }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":8,\"title\":\"6a. Scope and context\",\"source\":\"q-component comp-a {\\n  q-property value: \\\"hello\\\"\\n}\\n\\ncomp-a rootA { }\\n\\nq-component comp-b {\\n  q-property fromRoot: rootA.value\\n  div { text { ${this.component.fromRoot} } }\\n}\\n\\ncomp-b { }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":9,\"title\":\"6b. Named references declaratively\",\"source\":\"q-component source-box {\\n  q-property title: \\\"shared title\\\"\\n}\\n\\nsource-box source1 { }\\n\\nq-component target-box {\\n  q-property copiedTitle: source1.title\\n  div { text { ${this.component.copiedTitle} } }\\n}\\n\\ntarget-box { }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":10,\"title\":\"6c. Dot walking\",\"source\":\"q-component catalog-store {\\n  q-property title: \\\"Main Catalog\\\"\\n  q-property currency: \\\"USD\\\"\\n}\\n\\ncatalog-store store1 { }\\n\\ndiv { text { ${store1.title} (${store1.currency}) } }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":11,\"title\":\"7. Dynamic components with a slot\",\"source\":\"q-component panel-box {\\n  div {\\n    h3 { text { Panel shell } }\\n    slot { body }\\n  }\\n}\\n\\npanel-box {\\n  body {\\n    ul {\\n      li { text { arbitrary content } }\\n      li { text { can go here } }\\n    }\\n  }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":12,\"title\":\"7b. Slot defaults\",\"source\":\"q-component notice-card {\\n  q-slot-default body {\\n    p { text { Default notice text. } }\\n  }\\n\\n  article {\\n    slot { body }\\n  }\\n}\\n\\nnotice-card { }\\nnotice-card { body { p { text { Custom notice text. } } } }\\nnotice-card { body { } }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":13,\"title\":\"8. q-signals\",\"source\":\"q-component sender-box {\\n  q-signal sent(message)\\n  button {\\n    text { Send }\\n    onclick { this.component.sent(\\\"hello\\\"); }\\n  }\\n}\\n\\nsender-box { }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":14,\"title\":\"9. on<signal> handlers\",\"source\":\"q-component sender-box {\\n  q-signal sent(message)\\n  onsent(message) {\\n    alert(\\\"signal value: \\\" + String(message));\\n  }\\n  button {\\n    text { Send }\\n    onclick { this.component.sent(\\\"hello\\\"); }\\n  }\\n}\\n\\nq-component receiver-box {\\n  q-property value: \\\"waiting\\\"\\n  div {\\n    sender-box { }\\n    p#signal-out { text { value=waiting } }\\n  }\\n}\\n\\nreceiver-box { }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":15,\"title\":\"10. q-connect\",\"source\":\"q-component sender-box {\\n  q-signal sent(message)\\n  function sendNow(message) {\\n    this.sent(message);\\n  }\\n}\\n\\nq-component receiver-box {\\n  q-property value: \\\"waiting\\\"\\n  function onMessage(message) {\\n    this.component.value = message;\\n  }\\n  div { text { ${this.component.value} } }\\n}\\n\\nsender-box sender1 { }\\nreceiver-box receiver1 { }\\n\\nq-connect { sender1.sent receiver1.onMessage }\\n\\nbutton {\\n  text { send }\\n  onclick { sender1.sendNow(\\\"hello from q-connect\\\"); }\\n}\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":16,\"title\":\"11. on<property>changed { }\",\"source\":\"q-component counter-box {\\n  q-property count: 0\\n  oncountchanged(value) {\\n    this.querySelector(\\\"#out\\\").textContent = \\\"count=\\\" + String(value);\\n  }\\n  div {\\n    button {\\n      text { bump }\\n      onclick { this.component.count = Number(this.component.count) + 1; }\\n    }\\n    p#out { text { count=0 } }\\n  }\\n}\\n\\ncounter-box { }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"},{\"index\":17,\"title\":\"12. onready\",\"source\":\"q-component ready-box {\\n  q-property label: \\\"waiting\\\"\\n  onready {\\n    this.component.label = \\\"ready\\\";\\n  }\\n  div { text { ${this.component.label} } }\\n}\\n\\nready-box { }\",\"kind\":\"qhtml\",\"from\":\"<q-editor>\"}]";
+    const parsedExamples = JSON.parse(examples);
+    const mountCss = `:root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; } body { margin: 0; padding: 12px; color: #172033; background: #ffffff; } q-html { display: block; min-height: 72px; } .wasm-frame-note { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #eef6ff; color: #1e3a8a; font: 12px system-ui; } .wasm-frame-error { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #fee2e2; color: #991b1b; font: 12px system-ui; white-space: pre-wrap; } .w3-card, .w3-container, .w3-padding { padding: 10px; border: 1px solid #cbd5e1; } .w3-round, .w3-round-large { border-radius: 8px; } .w3-button { display: inline-flex; align-items: center; min-height: 30px; padding: 0 10px; border: 1px solid #94a3b8; background: #fff; font: inherit; }`;
+    function escapeHtml(value) { return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function iframeDoc(source) { return '<!doctype html><html><head><meta charset="utf-8"><style>' + mountCss + '</style><script>window.addEventListener("error",function(event){var el=document.createElement("div");el.className="wasm-frame-error";el.textContent=event.message;document.body.appendChild(el);});window.addEventListener("unhandledrejection",function(event){var el=document.createElement("div");el.className="wasm-frame-error";el.textContent=event.reason && event.reason.message ? event.reason.message : String(event.reason);document.body.appendChild(el);});<\/script><script src="../qhtml-wasm.js"><\/script></head><body><q-html>' + escapeHtml(source) + '</q-html><div class="wasm-frame-note">Visual check: rendered output from the copied documentation source should appear above.</div></body></html>'; }
+    function renderExample(example) {
+      const section = document.createElement('section');
+      const title = document.createElement('h2');
+      title.textContent = example.index + '. ' + example.title;
+      const meta = document.createElement('p');
+      meta.className = 'meta';
+      meta.textContent = example.from + ' from doc/03-components/index.html';
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      const pre = document.createElement('pre');
+      pre.textContent = example.source;
+      const frame = document.createElement('iframe');
+      frame.loading = 'lazy';
+      frame.srcdoc = iframeDoc(example.source);
+      grid.append(pre, frame);
+      section.append(title, meta, grid);
+      return section;
+    }
+    const root = document.getElementById('examples');
+    parsedExamples.forEach((example) => root.appendChild(renderExample(example)));
+  </script>
+</body>
+</html>
