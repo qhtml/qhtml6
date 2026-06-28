@@ -37,6 +37,18 @@ wiki/*
 */CMakeFiles/*
 qhtml-qt_autogen
 */qhtml-qt/*/build/Testing/*
+
+# qhtml-qt source project: keep buildable source files trackable.
+!/src/modules/qhtml-qt/
+!/src/modules/qhtml-qt/CMakeLists.txt
+!/src/modules/qhtml-qt/*.cpp
+!/src/modules/qhtml-qt/*.h
+!/src/modules/qhtml-qt/*.hpp
+!/src/modules/qhtml-qt/*.qrc
+
+# qhtml-qt local build/editor output.
+/src/modules/qhtml-qt/.qt/
+/src/modules/qhtml-qt/.qtcreator/
 /src/modules/qhtml-qt/build/
 /src/modules/qhtml-qt/CMakeFiles/
 /src/modules/qhtml-qt/qhtml-qt_autogen/
