@@ -1,5 +1,5 @@
 /* qhtml.js release bundle */
-/* generated: 2026-06-28T02:22:23Z */
+/* generated: 2026-06-28T18:47:46Z */
 
 /*** BEGIN: src/modules/qdom-core/src/qdom-core.js ***/
 (function attachQDomCore(global) {

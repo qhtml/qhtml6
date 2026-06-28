@@ -74,7 +74,7 @@
       overflow: hidden;
       border: 1px solid rgba(255, 255, 255, 0.52);
       border-radius: 5px;
-      background: linear-gradient(135deg, rgba(34, 197, 94, 0.74), rgba(14, 165, 233, 0.62));
+      background: rgba(34, 197, 94, 1.0);
       box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
       color: #ffffff;
       font-size: 10px;
@@ -98,6 +98,9 @@ q-class StressRect {
     this.running = false;
     this.animations = {};
     this.obj = new Module.QObject();
+    this.updateTimer = new Module.QTimer();
+    this.updateTimer.setInterval(10);
+    this.updateTimer.start();
     this.el = document.createElement("div");
     this.el.className = "stress-box";
     this.el.textContent = String(index + 1);
@@ -110,11 +113,9 @@ q-class StressRect {
     this.obj.setNumber("width", this.randomTarget("width"));
     this.obj.setNumber("height", this.randomTarget("height"));
 
-    this.obj.connect("xChanged", this.applyStyle.bind(this));
-    this.obj.connect("yChanged", this.applyStyle.bind(this));
-    this.obj.connect("widthChanged", this.applyStyle.bind(this));
-    this.obj.connect("heightChanged", this.applyStyle.bind(this));
+    this.updateTimer.connect("timeout", this.applyStyle.bind(this))
 
+    this.obj.setNumber("z", document.querySelector("div"))
     this.applyStyle();
   }
 
@@ -140,7 +141,7 @@ q-class StressRect {
     var y = this.obj.getNumber("y");
     var width = this.obj.getNumber("width");
     var height = this.obj.getNumber("height");
-  // this.el.style.transform = "translate3d(" + x + "px, " + y + "px, 0)";
+  /* this.el.style.transform = "translate3d(" + x + "px, " + y + "px, 0)"; */
   this.el.style.left = x + "px"
   this.el.style.top = y + "px"
   this.el.style.height = height + "px";
@@ -190,9 +191,9 @@ q-class StressTest {
   StressTest() {
     this.config = {
       boxCount: Number(new URLSearchParams(window.location.search).get("count")) || 10,
-      maxSize: 300,
-      duration: 4000,
-      properties: [ "width", "height", "x", "y"]
+      maxSize: 100,
+      duration: 2000,
+      properties: [ "width", "x"]
     };
     this.host = document.querySelector("#stress-root");
     this.board = document.createElement("div");

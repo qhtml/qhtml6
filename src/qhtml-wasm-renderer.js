@@ -9,13 +9,27 @@
   const NODE_COMPONENT_INSTANCE = "component-instance";
   const NODE_SLOT = "slot";
   const NODE_SCRIPT = "script-rule";
+  const NODE_Q_VAR = "q-var";
+  const NODE_Q_SWITCH = "q-switch";
   const NODE_STYLE_DEFINITION = "style-definition";
   const NODE_THEME_DEFINITION = "theme-definition";
   const NODE_THEME_SCOPE = "theme-scope";
   const NODE_TRANSITION_DEFINITION = "transition-definition";
+  let runtimeUuidCounter = 0;
+  const rendererScript = typeof document !== "undefined" ? document.currentScript : null;
+  const rendererBase = rendererScript && rendererScript.src
+    ? new URL(".", rendererScript.src).href
+    : typeof location !== "undefined"
+      ? new URL(".", location.href).href
+      : "";
 
   function normalizeName(value) {
     return String(value == null ? "" : value).trim();
+  }
+
+  function nextRuntimeUuid(prefix) {
+    runtimeUuidCounter += 1;
+    return `qhtml-wasm-${prefix || "runtime"}-${runtimeUuidCounter}`;
   }
 
   function defineHidden(target, name, value) {
@@ -54,6 +68,37 @@
       return Number(text);
     }
     return text;
+  }
+
+  function qdomUuid(node, prefix) {
+    if (!node || typeof node !== "object") {
+      return "";
+    }
+    if (node.uuid) {
+      return String(node.uuid);
+    }
+    node.meta = node.meta && typeof node.meta === "object" ? node.meta : {};
+    if (!node.meta.uuid) {
+      node.meta.uuid = nextRuntimeUuid(prefix || "node");
+    }
+    return String(node.meta.uuid);
+  }
+
+  function objectUuid(value, prefix) {
+    if (!value || (typeof value !== "object" && typeof value !== "function")) {
+      return "";
+    }
+    if (value.__qhtmlUuid) {
+      return String(value.__qhtmlUuid);
+    }
+    const node = value.__qhtmlWasmNode && typeof value.__qhtmlWasmNode === "object"
+      ? value.__qhtmlWasmNode
+      : value.meta && typeof value.meta === "object"
+        ? value
+        : null;
+    const uuid = node ? qdomUuid(node, prefix) : nextRuntimeUuid(prefix || "object");
+    defineHidden(value, "__qhtmlUuid", uuid);
+    return uuid;
   }
 
   function splitWhitespace(value) {
@@ -327,11 +372,71 @@
   }
 
   function createParser(Module) {
-    function expandImports(source) {
-      if (Module && typeof Module.qhtmlExpandResourceImportsInSource === "function") {
-        return Module.qhtmlExpandResourceImportsInSource(String(source || ""));
+    function importPathFromBody(body) {
+      return stripQuotes(normalizeName(body).split(/\s+/)[0] || "");
+    }
+
+    function localImportUrl(path) {
+      const normalized = importPathFromBody(path).replace(/^dist\//, "").replace(/^\.\//, "");
+      if (!normalized) {
+        return "";
       }
-      return String(source || "");
+      if (/^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(normalized)) {
+        return normalized;
+      }
+      const baseUrl = rendererBase || (typeof location !== "undefined" ? location.href : "");
+      if (!baseUrl) {
+        return "";
+      }
+      if (normalized === "q-components.qhtml" || normalized.startsWith("q-components/")) {
+        return new URL("../" + normalized, baseUrl).href;
+      }
+      return new URL(normalized, baseUrl).href;
+    }
+
+    function readLocalImport(path) {
+      if (typeof XMLHttpRequest === "undefined") {
+        return "";
+      }
+      const url = localImportUrl(path);
+      if (!url) {
+        return "";
+      }
+      try {
+        const request = new XMLHttpRequest();
+        request.open("GET", url, false);
+        request.send(null);
+        if ((request.status >= 200 && request.status < 300) || request.status === 0) {
+          return request.responseText || "";
+        }
+      } catch (_error) {
+        return "";
+      }
+      return "";
+    }
+
+    function fallbackExpandImports(source) {
+      return String(source || "").replace(/\b(q-import(?:-resource)?)\s*\{([^{}]*)\}/g, (all, keyword, body) => {
+        const imported = readLocalImport(body);
+        if (imported) {
+          return fallbackExpandImports(imported);
+        }
+        if (String(keyword).toLowerCase() === "q-import-resource") {
+          throw new Error(`q-import-resource could not resolve ${importPathFromBody(body)}`);
+        }
+        return all;
+      });
+    }
+
+    function expandImports(source) {
+      const text = String(source || "");
+      if (Module && typeof Module.qhtmlExpandResourceImportsInSource === "function") {
+        const expanded = Module.qhtmlExpandResourceImportsInSource(text);
+        if (expanded !== text) {
+          return expanded;
+        }
+      }
+      return fallbackExpandImports(text);
     }
 
     function parse(source, inheritedDefinitions) {
@@ -352,6 +457,32 @@
         definitions
       };
       return documentNode;
+    }
+
+    function registerParsedDefinitions(nodes, definitions) {
+      for (const node of nodes || []) {
+        if (!node) {
+          continue;
+        }
+        const kind = String(node.kind || "").toLowerCase();
+        if (kind === NODE_COMPONENT || kind === "struct-definition" || kind === "template") {
+          const id = node.componentId || node.classId || node.templateId || node.name;
+          if (id) {
+            definitions.components.set(id, node);
+          }
+        } else if (kind === "class-definition") {
+          const id = node.classId || node.componentId || node.name;
+          if (id) {
+            definitions.classes.set(id, node);
+          }
+        } else if (kind === NODE_STYLE_DEFINITION && node.name) {
+          definitions.styles.set(node.name, node);
+        } else if (kind === NODE_THEME_DEFINITION && node.name) {
+          (node.isDefault ? definitions.defaultThemes : definitions.themes).set(node.name, node);
+        } else if (kind === NODE_TRANSITION_DEFINITION && node.name) {
+          definitions.transitions.set(node.name, node);
+        }
+      }
     }
 
     function parseNodes(source, definitions, owner) {
@@ -396,14 +527,38 @@
         nodes.push({ kind: NODE_SCRIPT, scriptType: "style", body });
         return;
       }
+      if (keyword === "q-var") {
+        nodes.push({
+          kind: NODE_Q_VAR,
+          name: parts.name,
+          body
+        });
+        return;
+      }
+      if (keyword === "q-switch") {
+        nodes.push({
+          kind: NODE_Q_SWITCH,
+          name: parts.name,
+          cases: parseSwitchCases(body)
+        });
+        return;
+      }
       if (keyword === "q-import-resource") {
         const expandedImport = expandImports(`q-import-resource { ${body} }`);
         if (expandedImport !== `q-import-resource { ${body} }`) {
-          nodes.push(...parseNodes(expandedImport, definitions, owner));
+          const importedNodes = parseNodes(expandedImport, definitions, owner);
+          registerParsedDefinitions(importedNodes, definitions);
+          nodes.push(...importedNodes);
         }
         return;
       }
       if (keyword === "q-import") {
+        const expandedImport = expandImports(`q-import { ${body} }`);
+        if (expandedImport !== `q-import { ${body} }`) {
+          const importedNodes = parseNodes(expandedImport, definitions, owner);
+          registerParsedDefinitions(importedNodes, definitions);
+          nodes.push(...importedNodes);
+        }
         return;
       }
       if (keyword === "q-style") {
@@ -646,6 +801,16 @@
       if (!text) {
         return;
       }
+      const qhtmlCall = /^qhtml\s*\(([\s\S]*)\)\s*$/.exec(text);
+      if (qhtmlCall) {
+        nodes.push({
+          kind: NODE_SCRIPT,
+          name: "qhtml",
+          scriptType: "qhtml-call",
+          body: qhtmlCall[1] || ""
+        });
+        return;
+      }
       const colon = text.indexOf(":");
       if (owner && colon > 0) {
         const name = text.slice(0, colon).trim();
@@ -657,6 +822,38 @@
         return;
       }
       nodes.push({ kind: NODE_TEXT, value: text });
+    }
+
+    function parseSwitchCases(body) {
+      const cases = [];
+      const state = { index: 0 };
+      while (state.index < body.length) {
+        skipSeparators(body, state);
+        if (state.index >= body.length) {
+          break;
+        }
+        const head = readHead(body, state);
+        if (!head) {
+          consumeLineEnd(body, state);
+          continue;
+        }
+        while (/\s/.test(body[state.index] || "")) {
+          state.index += 1;
+        }
+        const colon = head.indexOf(":");
+        const key = normalizeName(colon >= 0 ? head.slice(0, colon) : head);
+        const inlineValue = normalizeName(colon >= 0 ? head.slice(colon + 1) : "");
+        const value = body[state.index] === "{"
+          ? readBlock(body, state)
+          : inlineValue;
+        if (key) {
+          cases.push({ key, value });
+        }
+        if (body[state.index] !== "{" && !inlineValue) {
+          consumeLineEnd(body, state);
+        }
+      }
+      return cases;
     }
 
     function parseDefinition(parts, body, definitions, keyword) {
@@ -832,14 +1029,51 @@
     };
   }
 
-  function createScope(parent) {
+  function dispatchContextItemAdded(scope, name, value) {
+    if (!scope || !name) {
+      return;
+    }
+    const owner = typeof scope.owner === "function" ? scope.owner() : null;
+    if (!owner || typeof owner.dispatchEvent !== "function") {
+      return;
+    }
+    const itemUuid = objectUuid(value, "context-item");
+    if (!itemUuid) {
+      return;
+    }
+    const parentUuid = objectUuid(owner, "context-parent");
+    const detail = {
+      args: [parentUuid, itemUuid, name],
+      parentUuid,
+      parent_uuid: parentUuid,
+      itemUuid,
+      item_uuid: itemUuid,
+      namedReference: name,
+      named_reference: name,
+      parent: owner,
+      item: value
+    };
+    for (const eventName of ["contextItemAdded", "contextitemadded", "contextItemAded"]) {
+      owner.dispatchEvent(new CustomEvent(eventName, {
+        bubbles: true,
+        detail
+      }));
+    }
+  }
+
+  function createScope(parent, owner, host) {
     const values = new Map();
+    let contextOwner = owner || null;
+    let contextHost = host || parent && typeof parent.host === "function" && parent.host() || contextOwner;
     return {
       parent: parent || null,
-      set(name, value) {
+      set(name, value, options) {
         const key = normalizeName(name);
         if (key) {
           values.set(key, value);
+          if (!options || options.silent !== true) {
+            dispatchContextItemAdded(this, key, value);
+          }
         }
         return value;
       },
@@ -850,6 +1084,28 @@
         }
         return parent ? parent.get(key) : undefined;
       },
+      has(name) {
+        const key = normalizeName(name);
+        return values.has(key) || !!(parent && typeof parent.has === "function" && parent.has(key));
+      },
+      assign(name, value) {
+        const key = normalizeName(name);
+        if (!key) {
+          return value;
+        }
+        if (values.has(key)) {
+          values.set(key, value);
+          const owner = this.owner();
+          if (owner && (typeof owner === "object" || typeof owner === "function")) {
+            owner[key] = value;
+          }
+          return value;
+        }
+        if (parent && typeof parent.assign === "function" && parent.has(key)) {
+          return parent.assign(key, value);
+        }
+        return this.set(key, value);
+      },
       toObject() {
         const out = parent ? parent.toObject() : Object.create(null);
         values.forEach((value, key) => {
@@ -858,7 +1114,22 @@
         return out;
       },
       child() {
-        return createScope(this);
+        return createScope(this, contextOwner, contextHost);
+      },
+      forOwner(nextOwner) {
+        return createScope(this, nextOwner || contextOwner, contextHost);
+      },
+      owner(nextOwner) {
+        if (arguments.length) {
+          contextOwner = nextOwner || null;
+        }
+        return contextOwner || parent && typeof parent.owner === "function" && parent.owner() || null;
+      },
+      host(nextHost) {
+        if (arguments.length) {
+          contextHost = nextHost || null;
+        }
+        return contextHost || parent && typeof parent.host === "function" && parent.host() || null;
       }
     };
   }
@@ -920,48 +1191,132 @@
       });
     }
 
+    function createScopeProxy(scope, extras) {
+      const locals = Object.assign(Object.create(null), extras || {});
+      return new Proxy(locals, {
+        has(target, key) {
+          if (key === Symbol.unscopables) {
+            return false;
+          }
+          return Object.prototype.hasOwnProperty.call(target, key) ||
+            !!(scope && typeof scope.has === "function" && scope.has(key));
+        },
+        get(target, key) {
+          if (key === Symbol.unscopables) {
+            return undefined;
+          }
+          if (Object.prototype.hasOwnProperty.call(target, key)) {
+            return target[key];
+          }
+          if (scope && typeof scope.has === "function" && scope.has(key)) {
+            return scope.get(key);
+          }
+          return globalScope[key];
+        },
+        set(target, key, value) {
+          if (Object.prototype.hasOwnProperty.call(target, key)) {
+            target[key] = value;
+            return true;
+          }
+          if (scope && typeof scope.has === "function" && scope.has(key)) {
+            scope.assign(key, value);
+            return true;
+          }
+          target[key] = value;
+          return true;
+        }
+      });
+    }
+
     function evaluateExpression(expression, scope, thisArg) {
-      const names = [];
-      const values = [];
-      const scopeObject = scope && typeof scope.toObject === "function" ? scope.toObject() : {};
-      Object.keys(scopeObject).forEach((key) => {
-        names.push(key);
-        values.push(scopeObject[key]);
+      const proxy = createScopeProxy(scope, {
+        component: thisArg && thisArg.component ? thisArg.component : thisArg,
+        $: (selector) => {
+          const root = thisArg && thisArg.__qhtmlRoot ? thisArg.__qhtmlRoot : document;
+          return root.querySelector(selector);
+        }
       });
-      names.push("component", "$");
-      values.push(thisArg && thisArg.component ? thisArg.component : thisArg, (selector) => {
-        const root = thisArg && thisArg.__qhtmlRoot ? thisArg.__qhtmlRoot : document;
-        return root.querySelector(selector);
-      });
-      return Function(...names, `return (${expression});`).apply(thisArg || null, values);
+      return Function("__qhtmlScope", `with (__qhtmlScope) { return (${expression}); }`).call(thisArg || null, proxy);
     }
 
     function executeScript(body, scope, thisArg, args) {
-      const scopeObject = scope && typeof scope.toObject === "function" ? scope.toObject() : {};
-      const names = Object.keys(scopeObject);
-      const values = names.map((name) => scopeObject[name]);
-      names.push("component", "event", "$");
-      values.push(thisArg && thisArg.component ? thisArg.component : thisArg, args && args.event ? args.event : undefined, (selector) => {
+      const proxy = createScopeProxy(scope, {
+        component: thisArg && thisArg.component ? thisArg.component : thisArg,
+        event: args && args.event ? args.event : undefined,
+        $: (selector) => {
         const root = thisArg && thisArg.__qhtmlRoot ? thisArg.__qhtmlRoot : document;
         return root.querySelector(selector);
+        }
       });
-      return Function(...names, String(body || "")).apply(thisArg || null, values);
+      return Function("__qhtmlScope", `with (__qhtmlScope) { ${String(body || "")} }`).call(thisArg || null, proxy);
+    }
+
+    function evaluateQVarBody(body, scope, thisArg) {
+      return evaluateExpression(normalizeName(body), scope, thisArg);
+    }
+
+    function exportQVar(node, scope, thisArg) {
+      const name = normalizeName(node && node.name);
+      if (!name || !scope || typeof scope.set !== "function") {
+        return undefined;
+      }
+      const value = evaluateQVarBody(node.body || "", scope, thisArg);
+      scope.set(name, value);
+      const owner = typeof scope.owner === "function" ? scope.owner() : thisArg;
+      if (owner && (typeof owner === "object" || typeof owner === "function")) {
+        owner[name] = value;
+      }
+      return value;
+    }
+
+    function switchKeyValue(key) {
+      const text = normalizeName(key);
+      return text === "*" ? text : parseScalar(text);
+    }
+
+    function exportQSwitch(node, scope, thisArg) {
+      const name = normalizeName(node && node.name);
+      if (!name || !scope || typeof scope.set !== "function") {
+        return undefined;
+      }
+      const cases = (node.cases || []).map((entry) => ({
+        key: switchKeyValue(entry.key),
+        value: entry.value
+      }));
+      const switchFunction = function qhtmlWasmSwitch(value) {
+        let fallback = null;
+        for (const entry of cases) {
+          if (entry.key === "*") {
+            fallback = entry;
+            continue;
+          }
+          if (Object.is(entry.key, value) || String(entry.key) === String(value)) {
+            return evaluateExpression(normalizeName(entry.value), scope, thisArg);
+          }
+        }
+        return fallback ? evaluateExpression(normalizeName(fallback.value), scope, thisArg) : undefined;
+      };
+      scope.set(name, switchFunction);
+      const owner = typeof scope.owner === "function" ? scope.owner() : thisArg;
+      if (owner && (typeof owner === "object" || typeof owner === "function")) {
+        owner[name] = switchFunction;
+      }
+      return switchFunction;
     }
 
     function executeScopedBody(body, argNames, argValues, scope, thisArg) {
       const localNames = Array.isArray(argNames) ? argNames : splitCommaAware(argNames || "");
-      const scopeObject = scope && typeof scope.toObject === "function" ? scope.toObject() : {};
-      const names = [];
-      const values = [];
-      Object.keys(scopeObject).forEach((key) => {
-        if (localNames.indexOf(key) === -1) {
-          names.push(key);
-          values.push(scopeObject[key]);
+      const extras = {
+        component: thisArg && thisArg.component ? thisArg.component : thisArg,
+        $: (selector) => {
+          const root = thisArg && thisArg.__qhtmlRoot ? thisArg.__qhtmlRoot : document;
+          return root.querySelector(selector);
         }
+      };
+      localNames.forEach((name, index) => {
+        extras[name] = (argValues || [])[index];
       });
-      names.push(...localNames);
-      values.push(...(argValues || []));
-      return Function(...names, String(body || "")).apply(thisArg || null, values);
+      return Function("__qhtmlScope", `with (__qhtmlScope) { ${String(body || "")} }`).call(thisArg || null, createScopeProxy(scope, extras));
     }
 
     function activeThemeNames(scope) {
@@ -970,13 +1325,28 @@
 
     function withActiveThemes(scope, themeNames) {
       const next = scope && typeof scope.child === "function" ? scope.child() : createScope(scope);
-      next.set("__qhtmlActiveThemes", activeThemeNames(scope).concat(themeNames || []));
+      next.set("__qhtmlActiveThemes", activeThemeNames(scope).concat(themeNames || []), { silent: true });
       return next;
+    }
+
+    function ensureContextSignals(element) {
+      if (!element || typeof element !== "object") {
+        return element;
+      }
+      if (typeof element.contextItemAdded !== "function") {
+        element.contextItemAdded = createSignalFunction(element, "contextItemAdded");
+      }
+      if (typeof element.contextItemAded !== "function") {
+        element.contextItemAded = createSignalFunction(element, "contextItemAded");
+      }
+      return element;
     }
 
     function attachQdom(element, node, host) {
       defineHidden(element, "__qhtmlWasmNode", node);
       defineHidden(element, "__qhtmlRoot", host || element.closest && element.closest("q-html") || null);
+      defineHidden(element, "__qhtmlUuid", qdomUuid(node, "element"));
+      ensureContextSignals(element);
       element.qdom = function qhtmlWasmElementQdom() {
         return node;
       };
@@ -1168,6 +1538,14 @@
       if (kind === NODE_SLOT) {
         return renderSlot(node, scope, host, componentElement);
       }
+      if (kind === NODE_Q_VAR) {
+        exportQVar(node, scope, componentElement || host);
+        return null;
+      }
+      if (kind === NODE_Q_SWITCH) {
+        exportQSwitch(node, scope, componentElement || host);
+        return null;
+      }
       if (kind === NODE_SCRIPT) {
         if (node.scriptType === "style") {
           const style = document.createElement("style");
@@ -1183,6 +1561,10 @@
           return typeof result === "string" && /[{]/.test(result)
             ? renderNode(parser.parse(result), scope, host, componentElement)
             : document.createTextNode(result == null ? "" : String(result));
+        }
+        if (node.scriptType === "qhtml-call") {
+          const result = evaluateExpression(node.body, scope, componentElement || host);
+          return renderNode(parser.parse(result == null ? "" : String(result)), scope, host, componentElement);
         }
         return null;
       }
@@ -1374,7 +1756,7 @@
         if (!key) {
           continue;
         }
-        scope.set(key, element[key]);
+        scope.set(key, element[key], { silent: true });
       }
     }
 
@@ -1390,7 +1772,7 @@
       const componentId = node.componentId || node.tagName;
       const definition = componentDefinitions.get(componentId);
       const element = attachQdom(document.createElement((node.tagName || componentId || "q-component").toLowerCase()), node, host);
-      const componentScope = scope.child();
+      const componentScope = scope.forOwner ? scope.forOwner(element) : scope.child();
       const props = Object.assign({}, definition && definition.propertyDefaults || {}, node.props || node.properties || {});
       const propertyNames = new Set(Object.keys(props));
       element.component = element;
@@ -1463,7 +1845,7 @@
 
     function createClassConstructor(classId, scope, host) {
       const className = normalizeName(classId);
-      return function qhtmlWasmClassConstructor(...args) {
+      const constructor = function qhtmlWasmClassConstructor(...args) {
         return renderClassInstance({
           kind: "class-instance",
           classId: className,
@@ -1473,13 +1855,19 @@
           props: {}
         }, scope, host);
       };
+      const definition = classDefinitions.get(className);
+      if (definition) {
+        defineHidden(constructor, "__qhtmlWasmNode", definition);
+        defineHidden(constructor, "__qhtmlUuid", qdomUuid(definition, "class-definition"));
+      }
+      return constructor;
     }
 
     function renderClassInstance(node, scope, host) {
       const classId = node.classId || node.tagName;
       const definition = classDefinitions.get(classId);
       const element = attachQdom(document.createElement((classId || "q-class").toLowerCase()), node, host);
-      const classScope = scope.child();
+      const classScope = scope.forOwner ? scope.forOwner(element) : scope.child();
       element.component = element;
       element._keywordType = "q-class";
       element.qobject = function qhtmlWasmClassQObject() {
@@ -1561,7 +1949,10 @@
       }
       const source = hostElement.textContent || "";
       const documentNode = parser.parse(source);
-      const scope = createScope(null);
+      defineHidden(hostElement, "__qhtmlWasmNode", documentNode);
+      defineHidden(hostElement, "__qhtmlUuid", qdomUuid(documentNode, "document"));
+      ensureContextSignals(hostElement);
+      const scope = createScope(null, hostElement, hostElement);
       const fragment = document.createDocumentFragment();
       clearDefinitions();
       hostElement.textContent = "";
