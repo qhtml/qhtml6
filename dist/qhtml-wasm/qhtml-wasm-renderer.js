@@ -11,6 +11,7 @@
   const NODE_SCRIPT = "script-rule";
   const NODE_Q_VAR = "q-var";
   const NODE_Q_SWITCH = "q-switch";
+  const NODE_STATE_MACHINE = "state-machine";
   const NODE_STYLE_DEFINITION = "style-definition";
   const NODE_THEME_DEFINITION = "theme-definition";
   const NODE_THEME_SCOPE = "theme-scope";
@@ -543,6 +544,10 @@
         });
         return;
       }
+      if (keyword === "q-state-machine") {
+        nodes.push(parseStateMachine(parts, body, definitions));
+        return;
+      }
       if (keyword === "q-import-resource") {
         const expandedImport = expandImports(`q-import-resource { ${body} }`);
         if (expandedImport !== `q-import-resource { ${body} }`) {
@@ -856,6 +861,93 @@
       return cases;
     }
 
+    function parsePropertyDeclaration(head, body, keyword) {
+      const raw = String(head || "").slice(String(keyword || "").length).trim();
+      const colon = raw.indexOf(":");
+      const name = (colon >= 0 ? raw.slice(0, colon) : raw).trim();
+      const value = colon >= 0 ? raw.slice(colon + 1).trim() : String(body || "").trim();
+      return { name, value: parseScalar(value) };
+    }
+
+    function parseNamedSelector(name) {
+      const text = normalizeName(name);
+      const match = /^([A-Za-z_$][\w$-]*)(.*)$/.exec(text);
+      return {
+        name: match ? match[1] : text,
+        selector: match ? match[2] || "" : ""
+      };
+    }
+
+    function parseStateMachine(parts, body, definitions) {
+      const named = parseNamedSelector(parts.name);
+      const machine = {
+        kind: NODE_STATE_MACHINE,
+        name: named.name,
+        selector: named.selector,
+        properties: [],
+        propertyDefaults: {},
+        signals: [{ name: "statechanged", parameters: ["value"] }],
+        methods: {},
+        lifecycleScripts: [],
+        states: [],
+        initialState: ""
+      };
+      const state = { index: 0 };
+      while (state.index < body.length) {
+        skipSeparators(body, state);
+        const head = readHead(body, state);
+        if (!head) {
+          consumeLineEnd(body, state);
+          continue;
+        }
+        while (/\s/.test(body[state.index] || "")) {
+          state.index += 1;
+        }
+        const hasBlock = body[state.index] === "{";
+        const nested = hasBlock ? readBlock(body, state) : "";
+        const nestedParts = headParts(head);
+        const nestedKeyword = nestedParts.keyword.toLowerCase();
+        if (nestedKeyword === "q-property" || nestedKeyword === "property") {
+          const property = parsePropertyDeclaration(head, nested, nestedKeyword);
+          if (property.name) {
+            machine.properties.push(property.name);
+            machine.propertyDefaults[property.name] = property.value;
+          }
+        } else if (nestedKeyword === "q-signal") {
+          machine.signals.push({
+            name: nestedParts.name,
+            parameters: splitCommaAware(nestedParts.parameters)
+          });
+        } else if (nestedKeyword === "function") {
+          machine.methods[nestedParts.name] = {
+            name: nestedParts.name,
+            parameters: splitCommaAware(nestedParts.parameters),
+            body: nested
+          };
+        } else if (nestedKeyword === "onready" || nestedKeyword.startsWith("on") || nestedKeyword === "q-connect") {
+          machine.lifecycleScripts.push({
+            name: nestedParts.keyword,
+            parameters: nestedParts.parameters,
+            body: nested,
+            isQConnect: nestedKeyword === "q-connect",
+            isLifecycle: nestedKeyword === "onready" || nestedKeyword === "onload"
+          });
+        } else if (hasBlock) {
+          const stateName = normalizeName(nestedParts.keyword || head);
+          machine.states.push({
+            name: stateName,
+            children: parseNodes(nested, definitions, null)
+          });
+          if (!machine.initialState) {
+            machine.initialState = stateName;
+          }
+        } else {
+          consumeLineEnd(body, state);
+        }
+      }
+      return machine;
+    }
+
     function parseDefinition(parts, body, definitions, keyword) {
       const definition = {
         kind: NODE_COMPONENT,
@@ -884,13 +976,11 @@
         const nestedParts = headParts(head);
         const nestedKeyword = nestedParts.keyword.toLowerCase();
         if (nestedKeyword === "q-property" || nestedKeyword === "property") {
-          const raw = head.slice(nestedParts.keyword.length).trim();
-          const colon = raw.indexOf(":");
-          const name = (colon >= 0 ? raw.slice(0, colon) : raw).trim();
-          const value = colon >= 0 ? raw.slice(colon + 1).trim() : nested.trim();
+          const property = parsePropertyDeclaration(head, nested, nestedKeyword);
+          const name = property.name;
           if (name) {
             definition.properties.push(name);
-            definition.propertyDefaults[name] = parseScalar(value);
+            definition.propertyDefaults[name] = property.value;
           }
         } else if (nestedKeyword === "q-signal") {
           definition.signals.push({
@@ -1172,6 +1262,12 @@
         };
       }
       if (typeof object === "string") {
+        if (Module && typeof Module.qhtmlParseSourceToObject === "function") {
+          const parsed = convertWasmObject(Module.qhtmlParseSourceToObject(object));
+          if (parsed && (parsed.kind === "document" || parsed.nodes || parsed.children)) {
+            return parsed;
+          }
+        }
         return parser.parse(object);
       }
       if (object.kind === "document" || object.nodes || object.children) {
@@ -1228,13 +1324,16 @@
       });
     }
 
+    function scopedQuery(thisArg, selector) {
+      const root = thisArg && thisArg.__qhtmlRoot ? thisArg.__qhtmlRoot : document;
+      const matches = Array.from(root.querySelectorAll(selector));
+      return matches.length === 1 ? matches[0] : matches;
+    }
+
     function evaluateExpression(expression, scope, thisArg) {
       const proxy = createScopeProxy(scope, {
         component: thisArg && thisArg.component ? thisArg.component : thisArg,
-        $: (selector) => {
-          const root = thisArg && thisArg.__qhtmlRoot ? thisArg.__qhtmlRoot : document;
-          return root.querySelector(selector);
-        }
+        $: (selector) => scopedQuery(thisArg, selector)
       });
       return Function("__qhtmlScope", `with (__qhtmlScope) { return (${expression}); }`).call(thisArg || null, proxy);
     }
@@ -1243,10 +1342,7 @@
       const proxy = createScopeProxy(scope, {
         component: thisArg && thisArg.component ? thisArg.component : thisArg,
         event: args && args.event ? args.event : undefined,
-        $: (selector) => {
-        const root = thisArg && thisArg.__qhtmlRoot ? thisArg.__qhtmlRoot : document;
-        return root.querySelector(selector);
-        }
+        $: (selector) => scopedQuery(thisArg, selector)
       });
       return Function("__qhtmlScope", `with (__qhtmlScope) { ${String(body || "")} }`).call(thisArg || null, proxy);
     }
@@ -1304,15 +1400,13 @@
       return switchFunction;
     }
 
-    function executeScopedBody(body, argNames, argValues, scope, thisArg) {
+    function executeScopedBody(body, argNames, argValues, scope, thisArg, extraValues) {
       const localNames = Array.isArray(argNames) ? argNames : splitCommaAware(argNames || "");
       const extras = {
         component: thisArg && thisArg.component ? thisArg.component : thisArg,
-        $: (selector) => {
-          const root = thisArg && thisArg.__qhtmlRoot ? thisArg.__qhtmlRoot : document;
-          return root.querySelector(selector);
-        }
+        $: (selector) => scopedQuery(thisArg, selector)
       };
+      Object.assign(extras, extraValues || {});
       localNames.forEach((name, index) => {
         extras[name] = (argValues || [])[index];
       });
@@ -1521,6 +1615,9 @@
         }
         return fragment;
       }
+      if (kind === NODE_STATE_MACHINE) {
+        return renderStateMachine(node, scope, host);
+      }
       if (kind === NODE_COMPONENT_INSTANCE || (node.componentId && componentDefinitions.has(node.componentId))) {
         return renderComponentInstance(node, scope, host);
       }
@@ -1570,6 +1667,9 @@
       }
       const tagName = node.tagName || selectorTag(node.selector || node.meta && node.meta.source || "div");
       const element = attachQdom(document.createElement(tagName), node, host);
+      if (componentElement) {
+        defineHidden(element, "component", componentElement);
+      }
       const attributes = node.attributes || {};
       Object.keys(attributes).forEach((name) => {
         element.setAttribute(name, interpolate(attributes[name], scope, componentElement || element));
@@ -1635,15 +1735,7 @@
       element.addEventListener(name, (event) => {
         const argNames = splitCommaAware(script.parameters || "");
         const argValues = eventArguments(event, argNames);
-        const scopeObject = scope && typeof scope.toObject === "function" ? scope.toObject() : {};
-        const names = Object.keys(scopeObject);
-        const values = names.map((key) => scopeObject[key]);
-        names.push(...argNames, "component", "event", "$");
-        values.push(...argValues, element, event, (selector) => {
-          const root = element && element.__qhtmlRoot ? element.__qhtmlRoot : document;
-          return root.querySelector(selector);
-        });
-        Function(...names, String(script.body || "")).apply(element, values);
+        executeScopedBody(script.body, argNames, argValues, scope, element, { event });
       });
     }
 
@@ -1723,6 +1815,120 @@
         return true;
       }
       return false;
+    }
+
+    function clearElementChildren(element) {
+      while (element.firstChild) {
+        element.removeChild(element.firstChild);
+      }
+    }
+
+    function stateByName(node, name) {
+      const target = normalizeName(name);
+      return (node.states || []).find((entry) => normalizeName(entry.name) === target) || null;
+    }
+
+    function createStateRenderScope(parentScope, element, host) {
+      const stateScope = createScope(parentScope, element, host);
+      const baseSet = stateScope.set;
+      stateScope.set = function setStateScopedName(name, value, options) {
+        const result = baseSet.call(this, name, value, options);
+        const key = normalizeName(name);
+        if (key && value && (typeof value === "object" || typeof value === "function")) {
+          element[key] = value;
+        }
+        return result;
+      };
+      return stateScope;
+    }
+
+    function renderStateMachineState(element, node, scope, host, stateName) {
+      const active = stateByName(node, stateName);
+      clearElementChildren(element);
+      if (!active) {
+        return false;
+      }
+      const stateScope = createStateRenderScope(scope, element, host);
+      for (const child of active.children || []) {
+        appendRendered(element, renderNode(child, stateScope, host, element));
+      }
+      return true;
+    }
+
+    function defineStateMachineStateProperty(element, node, scope, host, initialState) {
+      let current = initialState;
+      Object.defineProperty(element, "state", {
+        configurable: true,
+        enumerable: true,
+        get() {
+          return current;
+        },
+        set(value) {
+          const next = normalizeName(value);
+          if (!next || next === current) {
+            return;
+          }
+          if (!renderStateMachineState(element, node, scope, host, next)) {
+            return;
+          }
+          const previous = current;
+          current = next;
+          element.dispatchEvent(new CustomEvent("statechanged", {
+            bubbles: true,
+            detail: { args: [next], value: next, previous }
+          }));
+          element.dispatchEvent(new CustomEvent("stateChanged", {
+            bubbles: true,
+            detail: { args: [next], value: next, previous }
+          }));
+        }
+      });
+    }
+
+    function renderStateMachine(node, scope, host) {
+      const element = attachQdom(document.createElement("q-state-machine"), node, host);
+      const machineScope = scope.forOwner ? scope.forOwner(element) : scope.child();
+      const attrs = selectorAttributes((node.name || "") + (node.selector || ""));
+      Object.keys(attrs).forEach((name) => element.setAttribute(name, attrs[name]));
+      element.component = element;
+      element._keywordType = "q-state-machine";
+
+      const properties = Object.assign({}, node.propertyDefaults || {});
+      Object.keys(properties).forEach((name) => defineComponentProperty(element, name, properties[name]));
+      for (const prop of node.properties || []) {
+        if (!Object.prototype.hasOwnProperty.call(properties, prop)) {
+          defineComponentProperty(element, prop, undefined);
+        }
+      }
+      for (const signal of node.signals || []) {
+        const name = typeof signal === "string" ? signal : signal.name;
+        if (name && typeof element[name] !== "function") {
+          element[name] = createSignalFunction(element, name);
+        }
+      }
+      Object.keys(node.methods || {}).forEach((name) => {
+        const method = node.methods[name];
+        element[name] = function qhtmlWasmStateMachineMethod(...args) {
+          return executeScopedBody(method.body, method.parameters || [], args, machineScope, element);
+        };
+      });
+      const initialState = node.initialState || node.states && node.states[0] && node.states[0].name || "";
+      defineStateMachineStateProperty(element, node, machineScope, host, initialState);
+      bindComponentScopeProperties(machineScope, element, new Set([...(node.properties || []), "state"]));
+      wireComponentConnections(element, node.lifecycleScripts || [], machineScope);
+      wireComponentLifecycleHandlers(element, node.lifecycleScripts || [], machineScope);
+
+      const alias = node.name || node.alias || node.meta && node.meta.instanceAlias;
+      if (alias) {
+        machineScope.set(alias, element);
+        scope.set(alias, element);
+      }
+
+      if (initialState) {
+        renderStateMachineState(element, node, machineScope, host, initialState);
+      }
+      queueLifecycle(element, node.lifecycleScripts || [], machineScope, host);
+      return element;
     }
 
     function defineComponentProperty(element, name, initialValue) {

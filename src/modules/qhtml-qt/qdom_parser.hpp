@@ -93,6 +93,15 @@ public:
                 ++index_;
                 continue;
             }
+            if (parenDepth == 0 && bracketDepth == 0 && ch.isSpace()) {
+                const QString current = source_.mid(start, index_ - start);
+                const QString rest = source_.mid(index_);
+                if (current.contains(QLatin1Char(':')) &&
+                    !current.section(QLatin1Char(':'), 1).trimmed().isEmpty() &&
+                    nextTokenStartsBlock(rest)) {
+                    break;
+                }
+            }
             if (parenDepth == 0 && bracketDepth == 0 &&
                 (ch == QLatin1Char('{') || ch == QLatin1Char('\n') || ch == QLatin1Char(';'))) {
                 break;
@@ -150,6 +159,30 @@ public:
     }
 
 private:
+    static bool nextTokenStartsBlock(const QString &source)
+    {
+        qsizetype index = 0;
+        while (index < source.size() && source.at(index).isSpace()) {
+            ++index;
+        }
+        if (index >= source.size() || !(source.at(index).isLetter() || source.at(index) == QLatin1Char('_'))) {
+            return false;
+        }
+        while (index < source.size()) {
+            const QChar ch = source.at(index);
+            if (ch.isLetterOrNumber() || ch == QLatin1Char('_') || ch == QLatin1Char('-') ||
+                ch == QLatin1Char('#') || ch == QLatin1Char('.')) {
+                ++index;
+                continue;
+            }
+            break;
+        }
+        while (index < source.size() && source.at(index).isSpace()) {
+            ++index;
+        }
+        return index < source.size() && source.at(index) == QLatin1Char('{');
+    }
+
     QString source_;
     qsizetype index_ = 0;
 };
@@ -200,6 +233,7 @@ private:
         templateDefinitions_.clear();
         structDefinitions_.clear();
         classDefinitions_.clear();
+        componentSlotNames_.clear();
     }
 
     QVector<QDomNodePtr> parseNodes(const QString &source, QDomNode *owner, QDomDocument *document)
@@ -481,6 +515,13 @@ private:
         QVector<QDomNodePtr> bodyNodes;
         parseComponentBody(body, node.data(), bodyNodes);
         node->templateNodes = bodyNodes;
+        QSet<QString> slotNames;
+        for (const auto &slotDefault : node->slotDefaults) {
+            if (!slotDefault.name.isEmpty()) {
+                slotNames.insert(slotDefault.name);
+            }
+        }
+        componentSlotNames_.insert(node->componentId, slotNames);
         return node;
     }
 
@@ -562,7 +603,7 @@ private:
         node->componentId = parts.keyword;
         node->tagName = parts.keyword;
         node->meta.instanceAlias = parts.name;
-        parseInstanceBody(body, node.data(), node->children);
+        parseComponentInstanceBody(body, node.data());
         return node;
     }
 
@@ -573,7 +614,7 @@ private:
         node->templateId = parts.keyword;
         node->tagName = parts.keyword;
         node->meta.instanceAlias = parts.name;
-        parseInstanceBody(body, node.data(), node->children);
+        parseTemplateInstanceBody(body, node.data());
         return node;
     }
 
@@ -654,6 +695,11 @@ private:
                 slotDefault.name = slotName(parts, nested);
                 slotDefault.nodes = parseNodes(nested, owner, nullptr);
                 owner->slotDefaults.append(slotDefault);
+                auto slotNode = QSharedPointer<QDomSlotNode>::create();
+                initNode(slotNode.data(), QStringLiteral("slot"));
+                slotNode->name = slotDefault.name;
+                slotNode->children = slotDefault.nodes;
+                templateNodes.append(slotNode);
             } else if (isLifecycleKeyword(keyword) || keyword == QLatin1String("q-connect")) {
                 QDomLifecycleScript script;
                 script.name = parts.keyword;
@@ -762,6 +808,70 @@ private:
         }
     }
 
+    void parseComponentInstanceBody(const QString &body, QDomComponentInstanceNode *owner)
+    {
+        QDomParserCursor cursor(body);
+        const QSet<QString> slotNames = componentSlotNames_.value(owner ? owner->componentId : QString());
+        while (!cursor.atEnd()) {
+            cursor.skipSeparators();
+            const QString head = cursor.readHead();
+            if (head.isEmpty()) {
+                cursor.consumeLineEnd();
+                continue;
+            }
+            cursor.skipWhitespace();
+            if (cursor.peek() == QLatin1Char('{')) {
+                const QString nested = cursor.readBalancedBlock();
+                const HeadParts parts = splitHead(head);
+                const QString slot = parts.keyword.trimmed();
+                if (slotNames.contains(slot)) {
+                    auto slotNode = QSharedPointer<QDomSlotNode>::create();
+                    initNode(slotNode.data(), QStringLiteral("slot"));
+                    slotNode->name = slot;
+                    slotNode->children = parseNodes(nested, owner, nullptr);
+                    owner->slotNodes.append(slotNode);
+                } else {
+                    handleBlock(head, nested, owner, nullptr, owner->children);
+                }
+            } else {
+                handleLine(head, owner, nullptr, owner->children);
+                cursor.consumeLineEnd();
+            }
+        }
+    }
+
+    void parseTemplateInstanceBody(const QString &body, QDomTemplateInstanceNode *owner)
+    {
+        QDomParserCursor cursor(body);
+        const QSet<QString> slotNames = componentSlotNames_.value(owner ? owner->templateId : QString());
+        while (!cursor.atEnd()) {
+            cursor.skipSeparators();
+            const QString head = cursor.readHead();
+            if (head.isEmpty()) {
+                cursor.consumeLineEnd();
+                continue;
+            }
+            cursor.skipWhitespace();
+            if (cursor.peek() == QLatin1Char('{')) {
+                const QString nested = cursor.readBalancedBlock();
+                const HeadParts parts = splitHead(head);
+                const QString slot = parts.keyword.trimmed();
+                if (slotNames.contains(slot)) {
+                    auto slotNode = QSharedPointer<QDomSlotNode>::create();
+                    initNode(slotNode.data(), QStringLiteral("slot"));
+                    slotNode->name = slot;
+                    slotNode->children = parseNodes(nested, owner, nullptr);
+                    owner->slotNodes.append(slotNode);
+                } else {
+                    handleBlock(head, nested, owner, nullptr, owner->children);
+                }
+            } else {
+                handleLine(head, owner, nullptr, owner->children);
+                cursor.consumeLineEnd();
+            }
+        }
+    }
+
     void parseStructInstanceBody(const QString &body, QDomStructInstanceNode *owner)
     {
         QDomParserCursor cursor(body);
@@ -816,7 +926,7 @@ private:
 
     void applyAssignment(QDomNode *owner, const QString &name, const QString &rawValue)
     {
-        const QVariant value = parseScalar(rawValue);
+        const QVariant value = parseValue(rawValue, QString());
         owner->properties.insert(name, value);
         if (auto *element = dynamic_cast<QDomElementNode *>(owner)) {
             element->attributes.insert(name, value.toString());
@@ -837,14 +947,25 @@ private:
             return;
         }
         const qsizetype colon = raw.indexOf(QLatin1Char(':'));
-        const QString name = (colon >= 0 ? raw.left(colon) : raw).trimmed();
-        const QString value = colon >= 0 ? raw.mid(colon + 1).trimmed() : block.trimmed();
+        QString name = (colon >= 0 ? raw.left(colon) : raw).trimmed();
+        QString value = colon >= 0 ? raw.mid(colon + 1).trimmed() : block.trimmed();
+        if (name.isEmpty() && !block.trimmed().isEmpty()) {
+            const QString nested = block.trimmed();
+            const qsizetype nestedColon = nested.indexOf(QLatin1Char(':'));
+            if (nestedColon > 0) {
+                name = nested.left(nestedColon).trimmed();
+                value = nested.mid(nestedColon + 1).trimmed();
+            } else {
+                name = nested;
+                value.clear();
+            }
+        }
         if (name.isEmpty()) {
             return;
         }
         QDomPropertyDefinition property;
         property.name = name;
-        property.defaultValue = parseScalar(value);
+        property.defaultValue = parseValue(value, block);
         property.uuid = nextUuid(QStringLiteral("property"));
         if (auto *component = dynamic_cast<QDomComponentDefinitionNode *>(owner)) {
             component->propertyDefinitions.append(property);
@@ -1060,6 +1181,8 @@ private:
         bool inQuote = false;
         QChar quote;
         int parenDepth = 0;
+        int braceDepth = 0;
+        int bracketDepth = 0;
         for (const QChar ch : source) {
             if (inQuote) {
                 current.append(ch);
@@ -1078,8 +1201,16 @@ private:
                 ++parenDepth;
             } else if (ch == QLatin1Char(')')) {
                 parenDepth = qMax(0, parenDepth - 1);
+            } else if (ch == QLatin1Char('{')) {
+                ++braceDepth;
+            } else if (ch == QLatin1Char('}')) {
+                braceDepth = qMax(0, braceDepth - 1);
+            } else if (ch == QLatin1Char('[')) {
+                ++bracketDepth;
+            } else if (ch == QLatin1Char(']')) {
+                bracketDepth = qMax(0, bracketDepth - 1);
             }
-            if (ch == QLatin1Char(',') && parenDepth == 0) {
+            if (ch == QLatin1Char(',') && parenDepth == 0 && braceDepth == 0 && bracketDepth == 0) {
                 if (!current.trimmed().isEmpty()) {
                     out.append(current.trimmed());
                 }
@@ -1113,6 +1244,74 @@ private:
             return number;
         }
         return value;
+    }
+
+    QVariant parseValue(const QString &rawValue, const QString &block) const
+    {
+        const QString value = rawValue.trimmed();
+        if (value.compare(QStringLiteral("q-array"), Qt::CaseInsensitive) == 0) {
+            return parseArrayBody(block);
+        }
+        if (value.compare(QStringLiteral("q-map"), Qt::CaseInsensitive) == 0 ||
+            value.compare(QStringLiteral("q-object"), Qt::CaseInsensitive) == 0) {
+            return parseMapBody(block);
+        }
+        if (value.startsWith(QStringLiteral("q-array"), Qt::CaseInsensitive) &&
+            value.contains(QLatin1Char('{')) && value.endsWith(QLatin1Char('}'))) {
+            const qsizetype open = value.indexOf(QLatin1Char('{'));
+            return parseArrayBody(value.mid(open + 1, value.size() - open - 2));
+        }
+        if ((value.startsWith(QStringLiteral("q-map"), Qt::CaseInsensitive) ||
+             value.startsWith(QStringLiteral("q-object"), Qt::CaseInsensitive)) &&
+            value.contains(QLatin1Char('{')) && value.endsWith(QLatin1Char('}'))) {
+            const qsizetype open = value.indexOf(QLatin1Char('{'));
+            return parseMapBody(value.mid(open + 1, value.size() - open - 2));
+        }
+        return parseScalar(value);
+    }
+
+    QVariantList parseArrayBody(const QString &body) const
+    {
+        QVariantList out;
+        for (const QString &part : splitCommaAware(body)) {
+            if (!part.trimmed().isEmpty()) {
+                out.append(parseValue(part.trimmed(), QString()));
+            }
+        }
+        return out;
+    }
+
+    QVariantMap parseMapBody(const QString &body) const
+    {
+        QVariantMap out;
+        QDomParserCursor cursor(body);
+        while (!cursor.atEnd()) {
+            cursor.skipSeparators();
+            const QString head = cursor.readHead();
+            if (head.isEmpty()) {
+                cursor.consumeLineEnd();
+                continue;
+            }
+            cursor.skipWhitespace();
+            const bool hasBlock = cursor.peek() == QLatin1Char('{');
+            const QString nested = hasBlock ? cursor.readBalancedBlock() : QString();
+            const QStringList entries = hasBlock ? QStringList{head} : splitCommaAware(head);
+            for (const QString &entry : entries) {
+                const qsizetype colon = entry.indexOf(QLatin1Char(':'));
+                if (colon <= 0) {
+                    continue;
+                }
+                const QString key = entry.left(colon).trimmed();
+                const QString raw = entry.mid(colon + 1).trimmed();
+                if (!key.isEmpty()) {
+                    out.insert(key, parseValue(raw, nested));
+                }
+            }
+            if (!hasBlock) {
+                cursor.consumeLineEnd();
+            }
+        }
+        return out;
     }
 
     bool isLifecycleKeyword(const QString &keyword) const
@@ -1149,6 +1348,7 @@ private:
     QSet<QString> templateDefinitions_;
     QSet<QString> structDefinitions_;
     QSet<QString> classDefinitions_;
+    QHash<QString, QSet<QString>> componentSlotNames_;
     ResourceImportResolver resourceImportResolver_;
 };
 
