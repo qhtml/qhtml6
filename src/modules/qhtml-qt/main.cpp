@@ -11,63 +11,20 @@
 #include <QString>
 #include <QByteArray>
 #include <QEasingCurve>
-#include <QDebug>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonParseError>
-#include <QJsonValue>
-#include <QMetaType>
 
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
-#include "qhtmlcomponent.h"
+
+#define QHTML_QDOM_COMPONENTS_EMBINDINGS
+#include "qdom_variant.hpp"
 
 #include <memory>
 #include <string>
-#include "qhtml_parser.h"
-#include "qhtml_qdom.h"
 
 using emscripten::class_;
 using emscripten::function;
 using emscripten::val;
-
-namespace {
-
-QVariant jsonToVariant(const std::string &json)
-{
-    QJsonParseError error;
-    const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(json), &error);
-    if (error.error != QJsonParseError::NoError || doc.isNull()) {
-        return QString::fromStdString(json);
-    }
-    return doc.toVariant();
-}
-
-std::string variantToJson(const QVariant &value)
-{
-    if (!value.isValid()) {
-        return "null";
-    }
-
-    const QJsonValue jsonValue = QJsonValue::fromVariant(value);
-    if (jsonValue.isObject()) {
-        return QJsonDocument(jsonValue.toObject()).toJson(QJsonDocument::Compact).toStdString();
-    }
-    if (jsonValue.isArray()) {
-        return QJsonDocument(jsonValue.toArray()).toJson(QJsonDocument::Compact).toStdString();
-    }
-
-    QJsonArray wrapped;
-    wrapped.append(jsonValue);
-    std::string wrappedJson = QJsonDocument(wrapped).toJson(QJsonDocument::Compact).toStdString();
-    if (wrappedJson.size() >= 2) {
-        return wrappedJson.substr(1, wrappedJson.size() - 2);
-    }
-    return "null";
-}
-
-} // namespace
+using qhtml::wasm::QDomVariantBridge;
 
 class JsQObject : public QObject {
     Q_OBJECT
@@ -103,15 +60,16 @@ public:
         return children().size();
     }
 
-    std::string childrenJson() const {
-        QVariantList out;
+    val childrenJs() const {
+        val out = val::array();
+        int index = 0;
         for (QObject *child : children()) {
-            QVariantMap item;
-            item.insert(QStringLiteral("objectName"), child->objectName());
-            item.insert(QStringLiteral("className"), QString::fromUtf8(child->metaObject()->className()));
-            out.append(item);
+            val item = val::object();
+            item.set("objectName", child->objectName().toStdString());
+            item.set("className", std::string(child->metaObject()->className()));
+            out.set(index++, item);
         }
-        return variantToJson(out);
+        return out;
     }
 
     void setString(const std::string &name, const std::string &value) {
@@ -129,14 +87,10 @@ public:
         emitSignal(name + "Changed");
     }
 
-    void setPropertyValue(const std::string &name, val value) {
-        if (value.isUndefined()) {
-            setProperty(name.c_str(), QVariant());
-        } else {
-            const std::string json = val::global("JSON").call<std::string>("stringify", value);
-            setProperty(name.c_str(), jsonToVariant(json));
-        }
-        emitSignalWithPayload(name + "Changed", value);
+    void setPropertyValue(const std::string &name, QDomVariantBridge *value) {
+        const QDomVariantBridge stored = value ? *value : QDomVariantBridge();
+        setProperty(name.c_str(), stored.toVariant());
+        emitSignalWithPayload(name + "Changed", stored.toJsValue());
     }
 
     std::string getString(const std::string &name) const {
@@ -159,20 +113,17 @@ public:
         return signalsBlocked();
     }
 
-    val propertyValue(const std::string &name) const {
-        return val::global("JSON").call<val>("parse", propertyJson(name));
+    QDomVariantBridge propertyValue(const std::string &name) const {
+        return QDomVariantBridge::fromVariant(property(name.c_str()));
     }
 
-    std::string propertyJson(const std::string &name) const {
-        return variantToJson(property(name.c_str()));
-    }
-
-    std::string propertyKeys() const {
-        QStringList keys;
+    val propertyKeys() const {
+        val keys = val::array();
+        int index = 0;
         for (const QByteArray &name : dynamicPropertyNames()) {
-            keys.append(QString::fromUtf8(name));
+            keys.set(index++, QString::fromUtf8(name).toStdString());
         }
-        return variantToJson(keys);
+        return keys;
     }
 
     int connectJs(const std::string &signalName, val callback) {
@@ -204,6 +155,10 @@ public:
                 connection.callback(payload);
             }
         }
+    }
+
+    void emitVariant(const std::string &signalName, QDomVariantBridge *payload) {
+        emitSignalWithPayload(signalName, payload ? payload->toJsValue() : val::undefined());
     }
 
 protected:
@@ -273,10 +228,10 @@ class JsBehavior : public JsQObject {
 
 public:
     explicit JsBehavior(QObject *parent = nullptr) : JsQObject(parent) {
-        animation = new QPropertyAnimation(this);
+        animation = new QPropertyAnimation(static_cast<QObject *>(this));
         animation->setDuration(250);
 
-        connect(animation, &QPropertyAnimation::stateChanged, this,
+        connect(animation, &QPropertyAnimation::stateChanged, static_cast<QObject *>(this),
                 [this](QAbstractAnimation::State newState, QAbstractAnimation::State) {
                     if (!blockRunningChanged) {
                         emitSignalWithPayload("runningChanged", val(newState == QAbstractAnimation::Running));
@@ -284,7 +239,7 @@ public:
                 });
 
         connect(animation, &QPropertyAnimation::finished, this, [this]() {
-            writeBypass(targetValue);
+            writeBypass(targetVariant);
             emitSignal("finished");
         });
     }
@@ -292,12 +247,6 @@ public:
     ~JsBehavior() override = default;
 
     void setTarget(JsQObject *target) {
-        targetObject = target;
-        configureAnimationTarget();
-        emitSignal("targetPropertyChanged");
-    }
-
-    void setTargetNode(QDomNode *target) {
         targetObject = target;
         configureAnimationTarget();
         emitSignal("targetPropertyChanged");
@@ -348,26 +297,19 @@ public:
         return animation->state() == QAbstractAnimation::Running;
     }
 
-    std::string targetValueJson() const {
-        return variantToJson(targetValue);
+    QDomVariantBridge targetValue() const {
+        return QDomVariantBridge::fromVariant(targetVariant);
     }
 
-    std::string currentValueJson() const {
+    QDomVariantBridge currentValue() const {
         if (!targetObject || propertyName.isEmpty()) {
-            return "null";
+            return QDomVariantBridge();
         }
-        return variantToJson(targetObject->property(propertyName.constData()));
+        return QDomVariantBridge::fromVariant(targetObject->property(propertyName.constData()));
     }
 
-    void write(val value) {
-        QVariant nextValue;
-        if (value.isUndefined()) {
-            nextValue = QVariant();
-        } else {
-            const std::string json = val::global("JSON").call<std::string>("stringify", value);
-            nextValue = jsonToVariant(json);
-        }
-        writeVariant(nextValue);
+    void writeVariantValue(QDomVariantBridge *value) {
+        writeVariant(value ? value->toVariant() : QVariant());
     }
 
     void writeNumber(double value) {
@@ -396,14 +338,14 @@ private:
             return;
         targetObject->setProperty(propertyName.constData(), value);
         const std::string signalName = std::string(propertyName.constData()) + "Changed";
-        emitSignalWithPayload(signalName, val::global("JSON").call<val>("parse", variantToJson(value)));
+        emitSignalWithPayload(signalName, QDomVariantBridge::fromVariant(value).toJsValue());
     }
 
     void writeVariant(const QVariant &value) {
-        const bool changed = targetValue != value;
+        const bool changed = targetVariant != value;
         if (changed) {
-            targetValue = value;
-            emitSignalWithPayload("targetValueChanged", val::global("JSON").call<val>("parse", variantToJson(targetValue)));
+            targetVariant = value;
+            emitSignalWithPayload("targetValueChanged", QDomVariantBridge::fromVariant(targetVariant).toJsValue());
         }
 
         const bool bypass = !enabled || !finalized || !targetObject || propertyName.isEmpty();
@@ -424,7 +366,7 @@ private:
         blockRunningChanged = false;
 
         const QVariant currentValue = targetObject->property(propertyName.constData());
-        if (!wasRunning && currentValue == targetValue) {
+        if (!wasRunning && currentValue == targetVariant) {
             writeBypass(value);
             return;
         }
@@ -432,13 +374,13 @@ private:
         bool fromOk = false;
         bool toOk = false;
         const double fromNumber = currentValue.toDouble(&fromOk);
-        const double toNumber = targetValue.toDouble(&toOk);
+        const double toNumber = targetVariant.toDouble(&toOk);
         if (!fromOk || !toOk || animation->duration() <= 0) {
             const int generation = ++writeGeneration;
             QTimer::singleShot(animation->duration(), this, [this, generation]() {
                 if (generation != writeGeneration)
                     return;
-                writeBypass(targetValue);
+                writeBypass(targetVariant);
                 emitSignal("finished");
             });
             return;
@@ -452,7 +394,7 @@ private:
 
     QObject *targetObject = nullptr;
     QByteArray propertyName;
-    QVariant targetValue;
+    QVariant targetVariant;
     QPropertyAnimation *animation = nullptr;
     bool enabled = true;
     bool finalized = false;
@@ -477,9 +419,7 @@ public:
             const std::string signalName = std::string(prop.constData()) + "Changed";
 
             if (auto *jsTarget = qobject_cast<JsQObject *>(target)) {
-                jsTarget->emitSignalWithPayload(signalName, variantToVal(value));
-            } else if (auto *targetNode = qobject_cast<QDomNode *>(target)) {
-                targetNode->dispatchPropertyChangedJs(std::string(prop.constData()), variantToVal(value), val::undefined());
+                jsTarget->emitSignalWithPayload(signalName, QDomVariantBridge::fromVariant(value).toJsValue());
             }
         });
 
@@ -487,13 +427,6 @@ public:
     }
 
     void setTarget(JsQObject *target) {
-        qdomTarget = nullptr;
-        animation = propertyAnimation;
-        propertyAnimation->setTargetObject(target);
-    }
-
-    void setTargetNode(QDomNode *target) {
-        qdomTarget = target;
         animation = propertyAnimation;
         propertyAnimation->setTargetObject(target);
     }
@@ -508,9 +441,6 @@ public:
     }
 
     void setStartNumber(double value) {
-        if (qdomTarget && !targetProperty.isEmpty() && !qdomTarget->property(targetProperty.constData()).isValid()) {
-            qdomTarget->setNumberProperty(targetProperty.constData(), value);
-        }
         propertyAnimation->setStartValue(value);
     }
 
@@ -519,9 +449,6 @@ public:
     }
 
     void setStartString(const std::string &value) {
-        if (qdomTarget && !targetProperty.isEmpty() && !qdomTarget->property(targetProperty.constData()).isValid()) {
-            qdomTarget->setStringProperty(targetProperty.constData(), value);
-        }
         propertyAnimation->setStartValue(QString::fromStdString(value));
     }
 
@@ -558,10 +485,6 @@ public:
     }
 
 private:
-    val variantToVal(const QVariant &value) const {
-        return val::global("JSON").call<val>("parse", variantToJson(value));
-    }
-
     void connectAnimationSignals(QAbstractAnimation *targetAnimation) {
         if (!targetAnimation) {
             return;
@@ -578,7 +501,6 @@ private:
 
     QAbstractAnimation *animation = nullptr;
     QPropertyAnimation *propertyAnimation = nullptr;
-    QDomNode *qdomTarget = nullptr;
     QByteArray targetProperty;
 };
 
@@ -761,32 +683,6 @@ public:
         : JsAnimationGroup(new QParallelAnimationGroup, parent) {}
 };
 
-class JsQHtmlParser {
-public:
-    JsQHtmlParser() = default;
-
-    std::string toASTJson(const std::string &source) const {
-        return parser.toASTJson(QString::fromStdString(source)).toStdString();
-    }
-
-    val toAST(const std::string &source) const {
-        const std::string json = toASTJson(source);
-        return val::global("JSON").call<val>("parse", json);
-    }
-
-    std::string createParserUuid() const {
-        return QHtmlParser::createParserUuid().toStdString();
-    }
-
-    std::string normalizeWasmMode(const std::string &value) const {
-        return QHtmlParser::normalizeWasmMode(QString::fromStdString(value)).toStdString();
-    }
-
-private:
-    QHtmlParser parser;
-};
-
-
 EMSCRIPTEN_BINDINGS(qhtml_qt_core) {
     class_<JsQObject>("QObject")
     .constructor<>()
@@ -796,7 +692,7 @@ EMSCRIPTEN_BINDINGS(qhtml_qt_core) {
         .function("setParent", &JsQObject::setParentJs, emscripten::allow_raw_pointers())
         .function("childAt", &JsQObject::childAt, emscripten::allow_raw_pointers())
         .function("childCount", &JsQObject::childCount)
-        .function("children", &JsQObject::childrenJson)
+        .function("children", &JsQObject::childrenJs)
         .function("setString", &JsQObject::setString)
         .function("setNumber", &JsQObject::setNumber)
         .function("setBool", &JsQObject::setBool)
@@ -805,13 +701,13 @@ EMSCRIPTEN_BINDINGS(qhtml_qt_core) {
         .function("getBool", &JsQObject::getBool)
         .function("blockSignals", &JsQObject::blockSignalsJs)
         .function("signalsBlocked", &JsQObject::signalsBlockedJs)
-        .function("setPropertyValue", &JsQObject::setPropertyValue)
+        .function("setPropertyValue", &JsQObject::setPropertyValue, emscripten::allow_raw_pointers())
         .function("propertyValue", &JsQObject::propertyValue)
-        .function("propertyJson", &JsQObject::propertyJson)
         .function("propertyKeys", &JsQObject::propertyKeys)
         .function("connect", &JsQObject::connectJs)
         .function("disconnect", &JsQObject::disconnectJs)
         .function("emit", &JsQObject::emitSignalWithPayload)
+        .function("emitVariant", &JsQObject::emitVariant, emscripten::allow_raw_pointers())
         .function("emitSignal", &JsQObject::emitSignal);
 
     class_<JsTimer, emscripten::base<JsQObject>>("QTimer")
@@ -828,7 +724,6 @@ EMSCRIPTEN_BINDINGS(qhtml_qt_core) {
     class_<JsBehavior, emscripten::base<JsQObject>>("QBehavior")
         .constructor<>()
         .function("setTarget", &JsBehavior::setTarget, emscripten::allow_raw_pointers())
-        .function("setTargetNode", &JsBehavior::setTargetNode, emscripten::allow_raw_pointers())
         .function("setPropertyName", &JsBehavior::setPropertyName)
         .function("propertyName", &JsBehavior::propertyNameJs)
         .function("setDuration", &JsBehavior::setDuration)
@@ -839,9 +734,9 @@ EMSCRIPTEN_BINDINGS(qhtml_qt_core) {
         .function("componentFinalized", &JsBehavior::componentFinalized)
         .function("isFinalized", &JsBehavior::isFinalized)
         .function("isRunning", &JsBehavior::isRunning)
-        .function("targetValueJson", &JsBehavior::targetValueJson)
-        .function("currentValueJson", &JsBehavior::currentValueJson)
-        .function("write", &JsBehavior::write)
+        .function("targetValue", &JsBehavior::targetValue)
+        .function("currentValue", &JsBehavior::currentValue)
+        .function("write", &JsBehavior::writeVariantValue, emscripten::allow_raw_pointers())
         .function("writeNumber", &JsBehavior::writeNumber)
         .function("writeString", &JsBehavior::writeString)
         .function("stop", &JsBehavior::stop);
@@ -849,7 +744,6 @@ EMSCRIPTEN_BINDINGS(qhtml_qt_core) {
     class_<JsPropertyAnimation, emscripten::base<JsQObject>>("QPropertyAnimation")
         .constructor<>()
         .function("setTarget", &JsPropertyAnimation::setTarget, emscripten::allow_raw_pointers())
-        .function("setTargetNode", &JsPropertyAnimation::setTargetNode, emscripten::allow_raw_pointers())
         .function("setPropertyName", &JsPropertyAnimation::setPropertyName)
         .function("setDuration", &JsPropertyAnimation::setDuration)
         .function("setStartNumber", &JsPropertyAnimation::setStartNumber)
@@ -888,36 +782,6 @@ EMSCRIPTEN_BINDINGS(qhtml_qt_core) {
     class_<JsParallelAnimationGroup, emscripten::base<JsAnimationGroup>>("QParallelAnimationGroup")
         .constructor<>();
 
-    class_<JsQHtmlParser>("QHtmlParser")
-        .constructor<>()
-        .function("toAST", &JsQHtmlParser::toAST)
-        .function("toASTJson", &JsQHtmlParser::toASTJson)
-        .function("createParserUuid", &JsQHtmlParser::createParserUuid)
-        .function("normalizeWasmMode", &JsQHtmlParser::normalizeWasmMode);
-
-    class_<QHtmlComponent>("QHtmlComponent")
-        .constructor<>()
-        .function("setDefinition", &QHtmlComponent::setDefinition)
-        .function("addPropertyName", &QHtmlComponent::addPropertyName)
-        .function("addSignalName", &QHtmlComponent::addSignalName)
-        .function("build", &QHtmlComponent::build)
-        .function("create", &QHtmlComponent::create)
-        .function("isReady", &QHtmlComponent::isReady)
-        .function("hasInstance", &QHtmlComponent::hasInstance)
-        .function("hasProperty", &QHtmlComponent::hasProperty)
-        .function("blockSignals", &QHtmlComponent::blockSignals)
-        .function("signalsBlocked", &QHtmlComponent::signalsBlocked)
-        .function("setContextPropertyValue", &QHtmlComponent::setContextPropertyValue)
-        .function("setContextComponent", &QHtmlComponent::setContextComponent, emscripten::allow_raw_pointers())
-        .function("setPropertyValue", &QHtmlComponent::setPropertyValue)
-        .function("setString", &QHtmlComponent::setString)
-        .function("setNumber", &QHtmlComponent::setNumber)
-        .function("setBool", &QHtmlComponent::setBool)
-        .function("propertyValue", &QHtmlComponent::propertyValue)
-        .function("propertyJson", &QHtmlComponent::propertyJson)
-        .function("propertyKeysJson", &QHtmlComponent::propertyKeysJson)
-        .function("errorsJson", &QHtmlComponent::errorsJson)
-        .function("source", &QHtmlComponent::source);
 }
 
 int main(int argc, char **argv) {

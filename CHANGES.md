@@ -1,5 +1,15 @@
 # QHTML.js Change Log
 
+## Whats New in v7.1.5
+
+- Bumped the release line to `7.1.5`.
+- Added the Qt/WASM `Module.QVariant` bridge for browser-to-C++ value exchange without Qt JSON or QJSValue handling.
+- Added `Module.QDomNode` and `Module.QDomDocument` handle wrappers so QDom-backed objects can be stored in and recovered from QVariant payloads.
+- Added `QHTMLQt.toVariant(value)` for explicit browser-side conversion of primitives, arrays, maps, QDom node handles, and QDom document handles before calling into WASM.
+- Updated `Module.QObject` property storage and signal emission so arbitrary QVariant payloads can round-trip back to browser JavaScript.
+- Added `dist/qhtml-wasm/test/23-qvariant-conversion.html` with visible PASS/FAIL coverage for QVariant map/list, QDom handle, signal payload, and property-changed payload conversion.
+- Cleaned the qhtml-qt source target around the retained typed QDom, parser, resource importer, QVariant bridge, and Qt runtime entrypoint files.
+
 ## Whats New in v7.1.4
 
 - Bumped the release line to `7.1.4`.

@@ -3,7 +3,7 @@ Now you can use our script builder to customize the keywords for your qhtml inst
 
 ----------
 
-# QHTML.js v7.1.4
+# QHTML.js v7.1.5
 
 QHTML is a compact language and runtime for building web UIs with readable block syntax, reusable components, signals, and live QDOM editing.
 
@@ -12,13 +12,13 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Editor playground: https://qhtml.github.io/qhtml6/tools/editor.html
 - Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
 
-## Whats New in v7.1.4
+## Whats New in v7.1.5
 
-- Bumped the release line to `7.1.4`.
-- Added Qt/WASM visual milestone pages for component, style/theme, signal/connect, and stress-animation coverage under `dist/qhtml-wasm/test/`.
-- Added q-style and q-theme QDom resource support in the Qt/WASM parser and browser renderer path.
-- Expanded Qt/WASM signal and q-connect handling for call-shaped endpoints, lifecycle hook wiring, and dynamic q-class instance creation.
-- Updated the Qt/WASM stress page to use a single q-class-driven rectangle implementation with continuously randomized animated geometry.
+- Bumped the release line to `7.1.5`.
+- Added a Qt/WASM `Module.QVariant` bridge for primitive values, lists, maps, `QDomNode` handles, and `QDomDocument` handles.
+- Added `QHTMLQt.toVariant(value)` so browser JavaScript can explicitly convert values before passing them into WASM-backed Qt APIs.
+- Added visible QVariant round-trip coverage at `dist/qhtml-wasm/test/23-qvariant-conversion.html`.
+- Cleaned the qhtml-qt WASM source target around the retained typed QDom/parser/resource/variant implementation path.
 
 ## Whats New in v7.0.0
 

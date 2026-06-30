@@ -928,7 +928,7 @@ inline QDomComponentObjectBridge makeSampleRuntimeBridge()
 
 } // namespace qhtml::wasm
 
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) && defined(QHTML_QDOM_COMPONENTS_EMBINDINGS)
 EMSCRIPTEN_BINDINGS(qhtml_qdom_typed_ir)
 {
     emscripten::enum_<qhtml::wasm::QDomNodeKind>("QDomNodeKind")

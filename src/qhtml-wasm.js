@@ -22,13 +22,64 @@ var Module;
   }
 
   function createQtApi(qtModule) {
+    function toVariant(value) {
+      if (typeof qtModule.QVariant !== "function") {
+        return value;
+      }
+      if (value instanceof qtModule.QVariant) {
+        return value;
+      }
+
+      const variant = new qtModule.QVariant();
+      if (value == null) {
+        return variant;
+      }
+      if (typeof qtModule.QDomNode === "function" && value instanceof qtModule.QDomNode) {
+        variant.setNode(value);
+        return variant;
+      }
+      if (typeof qtModule.QDomDocument === "function" && value instanceof qtModule.QDomDocument) {
+        variant.setDocument(value);
+        return variant;
+      }
+      if (typeof value === "boolean") {
+        variant.setBool(value);
+        return variant;
+      }
+      if (typeof value === "number") {
+        variant.setNumber(value);
+        return variant;
+      }
+      if (typeof value === "string") {
+        variant.setString(value);
+        return variant;
+      }
+      if (Array.isArray(value)) {
+        variant.setList();
+        value.forEach((entry) => {
+          variant.append(toVariant(entry));
+        });
+        return variant;
+      }
+      if (typeof value === "object") {
+        variant.setMap();
+        Object.keys(value).forEach((key) => {
+          variant.setMapValue(key, toVariant(value[key]));
+        });
+        return variant;
+      }
+      return variant;
+    }
+
     return {
       Module: qtModule,
       QObject: qtModule.QObject,
       QTimer: qtModule.QTimer,
       QPropertyAnimation: qtModule.QPropertyAnimation,
-      QHtmlParser: qtModule.QHtmlParser,
+      QVariant: qtModule.QVariant,
+      QDomNode: qtModule.QDomNode,
       QDomDocument: qtModule.QDomDocument,
+      toVariant,
       createQObject() {
         return new qtModule.QObject();
       },

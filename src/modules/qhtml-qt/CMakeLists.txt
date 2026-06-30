@@ -7,16 +7,11 @@ qt_standard_project_setup()
 
 qt_add_executable(qhtml-qt
     main.cpp
-    qhtml_parser.cpp qhtml_parser.h
-    qhtml_qdom.cpp qhtml_qdom.h
-    qhtmlcomponent.h qhtmlcomponent.cpp
-    qhtml_runtime.cpp
-    qhtml_runtime_bindings.cpp
-    qhtml_runtime.h
     qdom_components.hpp
     qdom_parser.hpp
     qdom_resource_importer.cpp
     qdom_resource_importer.hpp
+    qdom_variant.hpp
     qhtml_resources.qrc
 )
 

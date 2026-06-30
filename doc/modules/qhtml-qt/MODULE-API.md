@@ -2,185 +2,212 @@
 
 ## Purpose
 
-`src/modules/qhtml-qt` provides the QtCore/WASM side of QHTML parsing and symbolic QDom construction. It does not evaluate JavaScript, mount runtime components, or project browser DOM. Browser DOM identity remains a UUID string that JavaScript can resolve on its side.
+`src/modules/qhtml-qt` is the QtCore/WASM side of the QHTML-WASM runtime. It owns the typed QDom data model, QHTML text parsing into QDom structures, resource-backed component imports, Qt timers/animations, and small bridge objects that can be called from browser JavaScript through Emscripten embind.
+
+The browser DOM is still projected by `dist/qhtml-wasm/qhtml-wasm-renderer.js`. JavaScript should stay thin: it loads the WASM module, converts browser values into explicit bridge types, and turns QDom/render signals into real DOM updates.
+
+## Source Layout
+
+The retained source files are:
+
+- `main.cpp`: embind entrypoint for Qt runtime primitives, QObject/timer/animation helpers, resource import helpers, and compatibility exports.
+- `qdom_components.hpp`: typed QDom node classes and shared QDom structures.
+- `qdom_parser.hpp`: plaintext QHTML parser that builds the typed QDom hierarchy without Qt JSON APIs.
+- `qdom_resource_importer.hpp` / `qdom_resource_importer.cpp`: Qt resource import expansion and parsed resource helpers.
+- `qdom_variant.hpp`: JavaScript/WASM value bridge for primitives, containers, and QDom handles.
+- `qhtml_resources.qrc`: resource collection used to embed bundled QHTML component files.
+
+Legacy experimental files such as `qhtml_qdom.*`, `qhtml_parser.*`, `qhtml_runtime.*`, `qhtml_runtime_bindings.cpp`, and `qhtmlcomponent.*` are no longer part of the source tree or CMake target.
 
 ## Public JavaScript Bindings
 
-When built through Emscripten embind, the module exposes:
-
-- `Module.QHtmlParser`
-- `Module.QDomDocument`
-- `Module.QDomBuilder`
-- `Module.QDomNode`
-- `Module.QDomDocumentNode`
-- `Module.QDomElementNode`
-- `Module.QDomTextNode`
-- `Module.QDomRawHtmlNode`
-- `Module.QDomModelNode`
-- `Module.QDomRepeaterNode`
-- `Module.QDomComponentNode`
-- `Module.QDomComponentInstanceNode`
-- `Module.QDomTemplateInstanceNode`
-- `Module.QDomStructNode`
-- `Module.QDomStructInstanceNode`
-- `Module.QDomClassNode`
-- `Module.QDomClassInstanceNode`
-- `Module.QDomSlotNode`
-- `Module.QDomSlotDefaultNode`
-- `Module.QDomScriptRuleNode`
-- `Module.QDomColorNode`
-
-## Parser API
+When built through Emscripten embind, the module exposes these Qt/WASM APIs:
 
 ```js
-const parser = new Module.QHtmlParser();
-const ast = parser.toAST(source);
-const astJson = parser.toASTJson(source);
+Module.QObject
+Module.QTimer
+Module.QPropertyAnimation
+Module.QBehavior
+Module.QScriptActionAnimation
+Module.QAnimationGroup
+Module.QSequentialAnimationGroup
+Module.QParallelAnimationGroup
+
+Module.QDomNodeKind
+Module.QDomComponentObject
+Module.QDomResourceImporter
+Module.QDomNode
+Module.QDomDocument
+Module.QVariant
+
+Module.makeSampleRuntimeBridge()
+Module.qhtmlResourceNormalizePath(path)
+Module.qhtmlResourceExists(path)
+Module.qhtmlReadResource(path)
+Module.qhtmlExpandResource(path)
+Module.qhtmlExpandResourceImportsInSource(source)
+Module.qhtmlParsedResourceNodeCount(path)
+Module.qhtmlResourcePaths()
+Module.qhtmlParseSourceToObject(source)
 ```
 
-`toAST()` returns a JavaScript object parsed from the Qt JSON output. `toASTJson()` returns the compact JSON string directly.
+`Module.QHtmlParser`, the old QObject-backed `Module.QDomDocument`, `Module.QDomBuilder`, and the old individual QObject node exports are intentionally removed from the retained Qt path.
 
-## QDom Builder API
+## QVariant Bridge
+
+`Module.QVariant` is the explicit value boundary between browser JavaScript and Qt C++. JavaScript should classify values and construct a `QVariant` before passing data into APIs that store arbitrary values.
+
+Supported payload kinds:
+
+- `invalid`
+- `bool`
+- `number`
+- `string`
+- `list`
+- `map`
+- `qdom-node`
+- `qdom-document`
+
+Browser-side helper:
 
 ```js
-const parser = new Module.QHtmlParser();
-const doc = new Module.QDomDocument().fromAST(parser.toAST(source));
-const root = doc.root();
+const variant = QHTMLQt.toVariant(value);
 ```
 
-`QDomDocument` is the preferred factory/runtime owner for the Qt-backed QDom tree. It supports:
+`QHTMLQt.toVariant(value)` supports JavaScript booleans, numbers, strings, arrays, plain objects, `Module.QDomNode`, `Module.QDomDocument`, and values that are already `Module.QVariant` instances.
+
+Manual construction:
 
 ```js
-doc.fromAST(astObject);
-doc.fromASTJson(astJson);
-doc.root();
-doc.createElement(tagName);
-doc.createText(text);
-doc.createInstance(typeName, name, argsJson);
-doc.findByUuid(uuid);
-doc.findByName(name);
-doc.findByKind(kind);
-doc.find(query);
+const scalar = new Module.QVariant();
+scalar.setString("hello");
+
+const list = new Module.QVariant();
+list.setList();
+list.append(QHTMLQt.toVariant("first"));
+list.append(QHTMLQt.toVariant(2));
+
+const map = new Module.QVariant();
+map.setMap();
+map.setMapValue("label", QHTMLQt.toVariant("Panel"));
+map.setMapValue("count", QHTMLQt.toVariant(3));
+
+const node = new Module.QDomNode("element");
+node.setUuid("example-node");
+const nodeValue = new Module.QVariant();
+nodeValue.setNode(node);
 ```
 
-`QDomBuilder` remains available for lower-level construction:
+Important methods:
 
 ```js
-const ast = parser.toAST(source);
-const builder = new Module.QDomBuilder();
-const qdom = builder.fromAST(ast);
-const sameQdom = builder.fromASTJson(parser.toASTJson(source));
+variant.typeName();
+variant.isValid();
+variant.isBool();
+variant.isNumber();
+variant.isString();
+variant.isList();
+variant.isMap();
+variant.isQDomNode();
+variant.isQDomDocument();
+
+variant.toBool();
+variant.toNumber();
+variant.toString();
+variant.length();
+variant.at(index);
+variant.mapValue(key);
+variant.toQDomNode();
+variant.toQDomDocument();
+variant.toJsValue();
 ```
 
-`fromAST()` and `fromASTJson()` return a `QDomDocumentNode`. The returned document owns its child QObject tree.
+`toJsValue()` unwraps primitive, list, and map values into browser JavaScript values. QDom handles are returned as small metadata objects with `__qhtmlQDomHandle`, `type`, `uuid`, and node `kind` when available.
 
-The builder registers definitions as it walks the AST. Later elements whose tag matches a previously seen `q-component`, `q-template`, `q-class`, or named `q-object` become the corresponding instance node type.
+## QDom Handles
 
-## Shared QDom Node API
-
-All QDom node classes inherit from `QDomNode` and support:
+`Module.QDomNode` is a lightweight embind handle around the internal typed `QDomNodePtr`.
 
 ```js
+const node = new Module.QDomNode("element");
+node.isValid();
 node.kind();
-node.objectName();
-node.setObjectName(name);
-node.parent();
-node.setParent(parentNode);
 node.uuid();
 node.setUuid(uuid);
-node.domUuid();
-node.setDomUuid(uuid);
-
-node.addChild(child);
-node.insertChild(index, child);
-node.removeChild(child);
-node.childAt(index);
-node.childCount();
-node.children();       // JSON snapshot of child nodes
-node.parentNode();
-
-node.findByUuid(uuid);
-node.findByKind(kind);
-node.findByName(name);
-node.findByTagName(tagName);
-
-node.setMetaValue(name, value);
-node.metaValue(name);
-node.metaJson();
-node.setMetaJson(json);
-
-node.setStringProperty(name, value);
-node.setNumberProperty(name, value);
-node.setBoolProperty(name, value);
-node.stringProperty(name);
-node.numberProperty(name);
-node.boolProperty(name);
-node.hasProperty(name);
-node.setPropertyValue(name, value);
-node.propertyValue(name);
-node.propertyJson(name);
-node.propertyKeys();
-
-const connectionId = node.connect("ready", (payload) => {});
-node.emit("ready", { ok: true });
-node.disconnect(connectionId);
-
-node.toJson();
-node.toObject();
+node.setPropertyString(name, value);
+node.propertyString(name);
+node.setPropertyNumber(name, value);
+node.propertyNumber(name);
 ```
 
-## Typed Node APIs
+`Module.QDomDocument` wraps a typed QDom document.
 
-`QDomElementNode` exposes `tagName`, `setTagName`, `setAttribute`, `attribute`, `hasAttribute`, `attributesJson`, `setTextContent`, and `textContent`.
+```js
+const doc = new Module.QDomDocument();
+doc.isValid();
+doc.uuid();
+doc.setUuid(uuid);
+doc.appendNode(node);
+doc.nodeCount();
+doc.nodeAt(index);
+```
 
-`QDomComponentNode` exposes `componentId`, `definitionType`, and `definitionJson`.
+These handles are designed for transport and storage through `Module.QVariant`. They are not browser DOM nodes.
 
-`QDomComponentInstanceNode` exposes `componentId`, `alias`, `attributesJson`, `propsJson`, `setAttribute`, `attribute`, `setProp`, and `prop`.
+## QObject Value API
 
-`QDomClassNode` exposes `classId`, `extendsClassId`, `constructorJson`, `methodsJson`, and `slotDeclarationsJson`.
+`Module.QObject` accepts `Module.QVariant` values for arbitrary property storage and signal payloads:
 
-`QDomClassInstanceNode` exposes `classId`, `alias`, `argumentSource`, `argumentsJson`, `attributesJson`, `propsJson`, `setAttribute`, `attribute`, `setProp`, and `prop`.
+```js
+const object = new Module.QObject();
+object.setPropertyValue("payload", QHTMLQt.toVariant({ label: "ready" }));
+const payload = object.propertyValue("payload");
+object.emitVariant("changed", payload);
+```
 
-`QDomStructNode` and `QDomStructInstanceNode` expose `structId`; struct instances also expose `alias`, `setProp`, `prop`, and `propsJson`.
+The C++ side stores the underlying Qt `QVariant`. When the value is emitted back to JavaScript, primitives and containers are unwrapped with `QVariant.toJsValue()`.
 
-`QDomTextNode`, `QDomRawHtmlNode`, `QDomModelNode`, `QDomRepeaterNode`, `QDomSlotNode`, `QDomScriptRuleNode`, and `QDomColorNode` expose simple accessors matching their names and serialized payloads.
+## Parser And Resource Helpers
 
-## Compatibility Notes
+`qdom_parser.hpp` provides the QHTML text parser used by `qhtmlParseSourceToObject(source)` and resource import expansion. The parser builds typed QDom structures directly; it does not use `QJsonDocument`, `QJsonObject`, `QJsonArray`, `QJsonValue`, or `QJSValue`.
 
-- QDom nodes are symbolic Qt objects, not JavaScript runtime components.
-- JavaScript bodies from q-class, function, callback, signal, and event blocks are stored as strings.
-- Browser DOM references are stored as `domUuid` and resolved by the browser-side WASM QDom interface.
-- Child ownership follows QObject parent ownership. Keep browser-side references to nodes only while the owning document is alive.
+Resource import helpers operate on embedded Qt resource paths:
+
+```js
+Module.qhtmlResourceExists("q-components.qhtml");
+Module.qhtmlReadResource("q-components/q-fetch-html.qhtml");
+Module.qhtmlExpandResourceImportsInSource(source);
+Module.qhtmlParseSourceToObject(source);
+```
+
+`q-import-resource` expansion is a blocking pre-parse step for the WASM path so dependent definitions are available before renderer scripts run.
 
 ## Browser WASM Runtime Facade
 
-`dist/qhtml-wasm/qhtml-wasm.js` loads only the Qt/WASM runtime path:
+`dist/qhtml-wasm/qhtml-wasm.js` loads:
 
 1. `qhtml-wasm-glue.js`
-2. `qhtml-wasm-dom-runtime.js`
-3. `qhtml-wasm-dom-renderer.js`
+2. `qhtml-wasm-renderer.js`
 
-The Qt-generated glue is copied from `qhtml-qt.js` to `qhtml-wasm-glue.js`, and the Qt-generated wasm file is copied from `qhtml-qt.wasm` to `qhtml-wasm.wasm`. The entrypoint overrides the glue file's wasm lookup so it resolves the public `qhtml-wasm.wasm` filename.
+It copies the Qt-generated glue/wasm output into public names:
 
-It does not load `dist/qhtml.js`. After startup, it exposes:
+- `qhtml-wasm-glue.js`
+- `qhtml-wasm.wasm`
 
-```js
-window.QHTMLQt;
-window.QHTMLQtReady;
-window.QHtml;
-```
-
-`QHTMLQt` owns the Qt module and helpers. `QHtml` is a small compatibility facade with `mountQHtmlElement`, `mountAll`, `parse`, and `createDocument` for simple WASM-backed mounting.
-
-The browser-side WASM runtime also owns QHTML Context behavior for the Qt path. It keeps lexical named-instance aliases, scoped `q-var` values, inline expression interpolation, event/lifecycle script scope, and `q-connect` wiring in JavaScript while reading and writing QDom identity, properties, and signals through Qt-backed node handles. The facade exposes root context helpers:
+After startup it exposes:
 
 ```js
-QHtml.rootContext.set(name, value);
-QHtml.rootContext.get(name);
-QHtml.rootContext.has(name);
-QHtml.rootContext.child(parent);
-QHtml.rootContext.toObject();
-QHtml.setContextProperty(name, value);
-QHtml.getContextProperty(name);
-QHtml.createChildContext(parent);
+window.QHTMLQt
+window.QHTMLQtReady
+window.QHtml
 ```
+
+`QHTMLQt` owns the Qt module and bridge helpers, including `toVariant(value)`. `QHtml` is the compatibility facade used by pages that load `qhtml-wasm.js` as a drop-in replacement for `qhtml.js`.
+
+## Compatibility Notes
+
+- QDom is the source of truth for the WASM runtime path.
+- JavaScript bodies from QHTML source are stored as source strings and executed only at the browser boundary when there is no useful WASM representation.
+- Browser-side JavaScript should not pass raw arbitrary objects to C++ value APIs. Use `QHTMLQt.toVariant(value)` or manually construct `Module.QVariant`.
+- QDom handles passed through `Module.QVariant` preserve the underlying WASM object pointer and can be returned with `toQDomNode()` or `toQDomDocument()`.
+- Generated files in `dist/qhtml-wasm/` are produced from the single-threaded Qt/WASM build artifact by `src/build-release.sh`.

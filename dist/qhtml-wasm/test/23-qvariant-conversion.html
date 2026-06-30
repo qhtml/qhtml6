@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>QHTML-WASM QVariant Conversion Test</title>
+  <script src="../qhtml-wasm.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f7fb;
+      color: #18202f;
+    }
+
+    body {
+      margin: 0;
+      padding: 32px;
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      font-weight: 750;
+      letter-spacing: 0;
+    }
+
+    .intro {
+      margin: 0 0 24px;
+      color: #526071;
+      line-height: 1.5;
+    }
+
+    .summary {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 52px;
+      margin: 0 0 18px;
+      padding: 14px 16px;
+      border: 1px solid #d8dee9;
+      border-radius: 8px;
+      background: #fff;
+      font-weight: 700;
+    }
+
+    .summary.pass {
+      border-color: #0c9f6e;
+      background: #ecfdf6;
+      color: #075f45;
+    }
+
+    .summary.fail {
+      border-color: #d64242;
+      background: #fff1f1;
+      color: #8f1f1f;
+    }
+
+    .tests {
+      display: grid;
+      gap: 12px;
+    }
+
+    .test-row {
+      display: grid;
+      grid-template-columns: minmax(190px, 260px) minmax(100px, 140px) 1fr;
+      gap: 14px;
+      align-items: start;
+      padding: 14px 16px;
+      border: 1px solid #d8dee9;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .test-row.pass {
+      border-left: 6px solid #0c9f6e;
+    }
+
+    .test-row.fail {
+      border-left: 6px solid #d64242;
+    }
+
+    .name {
+      font-weight: 700;
+    }
+
+    .status {
+      font-weight: 800;
+    }
+
+    .test-row.pass .status {
+      color: #087a56;
+    }
+
+    .test-row.fail .status {
+      color: #b32626;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #2d3748;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>QHTML-WASM QVariant Conversion</h1>
+    <p class="intro">
+      This page proves browser JavaScript values can be converted into <code>Module.QVariant</code>,
+      stored or emitted through WASM-backed Qt objects, then returned to browser JavaScript with the
+      same observable value or QDom handle identity.
+    </p>
+    <div id="summary" class="summary">Waiting for QHTMLQtReady...</div>
+    <div id="tests" class="tests"></div>
+  </main>
+
+  <script>
+    (function () {
+      const tests = document.getElementById("tests");
+      const summary = document.getElementById("summary");
+      const rows = [];
+
+      function stable(value) {
+        return JSON.stringify(value, null, 2);
+      }
+
+      function addRow(name, passed, detail) {
+        rows.push(passed);
+        const row = document.createElement("section");
+        row.className = "test-row " + (passed ? "pass" : "fail");
+        row.innerHTML =
+          '<div class="name"></div><div class="status"></div><pre></pre>';
+        row.querySelector(".name").textContent = name;
+        row.querySelector(".status").textContent = passed ? "PASSED" : "FAILED";
+        row.querySelector("pre").textContent = detail;
+        tests.appendChild(row);
+      }
+
+      function assert(name, condition, detail) {
+        addRow(name, Boolean(condition), detail);
+      }
+
+      function finish() {
+        const passed = rows.length > 0 && rows.every(Boolean);
+        summary.className = "summary " + (passed ? "pass" : "fail");
+        summary.textContent = passed
+          ? "PASSED: QVariant conversion worked in both directions."
+          : "FAILED: one or more QVariant conversion checks failed.";
+      }
+
+      function run(Qt) {
+        const Module = Qt.Module;
+
+        const object = new Module.QObject();
+        const source = {
+          label: "engineers",
+          count: 3,
+          ok: true,
+          names: ["ada", "grace", "katherine"],
+          nested: { score: 42, unit: "wasm" }
+        };
+
+        object.setPropertyValue("payload", Qt.toVariant(source));
+        const payloadVariant = object.propertyValue("payload");
+        const payloadBack = payloadVariant.toJsValue();
+
+        assert(
+          "JS object -> QVariant -> QObject -> JS object",
+          payloadVariant.isMap() &&
+            payloadBack.label === "engineers" &&
+            payloadBack.count === 3 &&
+            payloadBack.ok === true &&
+            payloadBack.names[2] === "katherine" &&
+            payloadBack.nested.score === 42,
+          stable(payloadBack)
+        );
+
+        const arraySource = ["alpha", 12, false, { note: "inside map" }];
+        object.setPropertyValue("arrayPayload", Qt.toVariant(arraySource));
+        const arrayVariant = object.propertyValue("arrayPayload");
+        const arrayBack = arrayVariant.toJsValue();
+
+        assert(
+          "JS array -> QVariantList -> JS array",
+          arrayVariant.isList() &&
+            arrayVariant.length() === 4 &&
+            arrayBack[0] === "alpha" &&
+            arrayBack[1] === 12 &&
+            arrayBack[2] === false &&
+            arrayBack[3].note === "inside map",
+          JSON.stringify(arrayBack, null, 2)
+        );
+
+        const node = new Module.QDomNode("element");
+        node.setUuid("variant-node-1");
+        node.setPropertyString("role", "card");
+        object.setPropertyValue("nodePayload", Qt.toVariant(node));
+        const nodeVariant = object.propertyValue("nodePayload");
+        const nodeBack = nodeVariant.toQDomNode();
+
+        assert(
+          "QDomNode handle -> QVariant -> QDomNode handle",
+          nodeVariant.isQDomNode() &&
+            nodeVariant.qdomNodeKind() === "element" &&
+            nodeBack.uuid() === "variant-node-1" &&
+            nodeBack.propertyString("role") === "card",
+          "kind=" + nodeVariant.qdomNodeKind() +
+            "\nuuid=" + nodeBack.uuid() +
+            "\nrole=" + nodeBack.propertyString("role")
+        );
+
+        const documentHandle = new Module.QDomDocument();
+        documentHandle.setUuid("variant-doc-1");
+        documentHandle.appendNode(node);
+        object.setPropertyValue("documentPayload", Qt.toVariant(documentHandle));
+        const documentVariant = object.propertyValue("documentPayload");
+        const documentBack = documentVariant.toQDomDocument();
+        const documentNode = documentBack.nodeAt(0);
+
+        assert(
+          "QDomDocument handle -> QVariant -> QDomDocument handle",
+          documentVariant.isQDomDocument() &&
+            documentBack.uuid() === "variant-doc-1" &&
+            documentBack.nodeCount() === 1 &&
+            documentNode.uuid() === "variant-node-1" &&
+            documentNode.propertyString("role") === "card",
+          "docUuid=" + documentBack.uuid() +
+            "\nnodeCount=" + documentBack.nodeCount() +
+            "\nfirstNode=" + documentNode.uuid()
+        );
+
+        let emittedPayload = null;
+        object.connect("variantSignal", function (payload) {
+          emittedPayload = payload;
+        });
+        object.emitVariant("variantSignal", Qt.toVariant({
+          direction: "wasm-to-js",
+          count: 7,
+          list: ["signal", "payload"]
+        }));
+
+        assert(
+          "QVariant signal payload -> browser JavaScript",
+          emittedPayload &&
+            emittedPayload.direction === "wasm-to-js" &&
+            emittedPayload.count === 7 &&
+            emittedPayload.list[1] === "payload",
+          stable(emittedPayload)
+        );
+
+        let changedPayload = null;
+        object.connect("liveChanged", function (payload) {
+          changedPayload = payload;
+        });
+        object.setPropertyValue("live", Qt.toVariant({ state: "changed", value: 99 }));
+
+        assert(
+          "QObject property changed signal carries QVariant JS value",
+          changedPayload &&
+            changedPayload.state === "changed" &&
+            changedPayload.value === 99,
+          stable(changedPayload)
+        );
+
+        finish();
+      }
+
+      window.addEventListener("error", function (event) {
+        addRow("Unhandled browser error", false, event.message);
+        finish();
+      });
+
+      window.addEventListener("unhandledrejection", function (event) {
+        addRow("Unhandled promise rejection", false, event.reason && event.reason.message ? event.reason.message : String(event.reason));
+        finish();
+      });
+
+      window.QHTMLQtReady
+        .then(run)
+        .catch(function (error) {
+          addRow("QHTMLQtReady", false, error && error.stack ? error.stack : String(error));
+          finish();
+        });
+    }());
+  </script>
+</body>
+</html>
