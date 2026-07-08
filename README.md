@@ -1,3 +1,11 @@
+# Development has moved to https://github.com/qhtml/qhtml7
+
+This repo will remain as-is for historical reasons, but the feature set will not be updated further for qhtml6. 
+
+Newer features will be added to **QHTML-7** only. 
+
+
+-----------------
 Don't like q-component keywords? Rather call them a-block or something else?  
 Now you can use our script builder to customize the keywords for your qhtml instance. [Click here to visit the script roller.](https://qhtml.github.io/qhtml6/tools/script-roller.html)
 
@@ -10,7 +18,7 @@ QHTML is a compact language and runtime for building web UIs with readable block
 - Live demo: https://qhtml.github.io/qhtml6/dist/demo.html
 - Dev testbed: https://qhtml.github.io/qhtml6/test/
 - Editor playground: https://qhtml.github.io/qhtml6/tools/editor.html
-- Language wiki and more examples: https://www.datafault.net/packages/qhtml6/doc/
+- Language wiki and more examples: https://qhtml.github.io/qhtml6/doc/
 
 ## Whats New in v7.1.5
 
